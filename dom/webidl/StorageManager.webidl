@@ -23,7 +23,9 @@ interface StorageManager {
 };
 
 dictionary StorageEstimate {
+  [TaintSource]
   unsigned long long usage;
+  [TaintSource]
   unsigned long long quota;
 };
 

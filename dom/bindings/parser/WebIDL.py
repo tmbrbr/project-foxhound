@@ -3850,7 +3850,8 @@ class IDLBuiltinType(IDLType):
                         [self.location, attribute.location],
                     )
                 ret = self.withAllowShared([self.location, attribute.location])
-
+            elif identifier == "TaintSource":
+                pass
             else:
                 raise WebIDLError(
                     "Unhandled extended attribute on type",
@@ -5532,6 +5533,7 @@ class IDLArgument(IDLObjectWithIdentifier):
                 or identifier == "Clamp"
                 or identifier == "LegacyNullToEmptyString"
                 or identifier == "AllowShared"
+                or identifier == "TaintSource"
             ):
                 self.type = self.type.withExtendedAttributes([attribute])
             elif identifier == "TreatNonCallableAsNull":

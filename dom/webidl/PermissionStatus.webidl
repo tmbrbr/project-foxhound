@@ -16,6 +16,7 @@ enum PermissionState {
 [Exposed=Window]
 interface PermissionStatus : EventTarget {
   readonly attribute PermissionName name;
+  [TaintSource]
   readonly attribute PermissionState state;
   attribute EventHandler onchange;
 };

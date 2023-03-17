@@ -7972,7 +7972,7 @@ def getWrapTemplateForType(
                 (
                     """
                     // Add taint source
-                    MarkTaintSource(cx, ${jsvalRef}, "%s");
+                    MarkTaintSource(cx, ${jsvalHandle}, "%s");
                     """
                     % (taintSource))
             )
@@ -8290,15 +8290,26 @@ def getWrapTemplateForType(
             resultLoc = "%s.Value()" % result
         else:
             resultLoc = result
+        # TaintFox: create source code for tainting cached return value
+        markTaintSnippet = ""
+        if taintSource is not None:
+            print("Generating taint source for enum value:", taintSource)
+            markTaintSnippet = dedent(
+                f"""
+                // Add taint source for enum value
+                MarkTaintSource(cx, args.rval(), "{taintSource}");"""
+            )
         conversion = fill(
             """
             if (!ToJSValue(cx, ${result}, $${jsvalHandle})) {
               $*{exceptionCode}
             }
+            ${taintStuff}
             $*{successCode}
             """,
             result=resultLoc,
             exceptionCode=exceptionCode,
+            taintStuff=markTaintSnippet,
             successCode=successCode,
         )
 
@@ -11185,7 +11196,7 @@ class CGSpecializedGetter(CGAbstractStaticMethod):
 
         # TaintFox: Check if return value should de marked as taint source and
         # get name for taint source if needed
-        self.taintSource = GetLabelForErrorReporting(descriptor, attr, False) if  memberIsTaintSource(attr) else None
+        self.taintSource = GetLabelForErrorReporting(descriptor, attr, False) if memberIsTaintSource(attr) else None
 
         name = "get_" + IDLToCIdentifier(attr.identifier.name)
         args = [
@@ -17471,6 +17482,7 @@ class CGDictionary(CGThing):
                 # the right scope.
                 "spiderMonkeyInterfacesAreStructs": True,
             },
+            self.dictionary.identifier.name + "." + member.identifier.name if memberIsTaintSource(member) else None
         )
         conversion = CGGeneric(innerTemplate)
         conversion = CGWrapper(
