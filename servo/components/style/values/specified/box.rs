@@ -8,11 +8,14 @@ use crate::custom_properties::Name as CustomPropertyName;
 use crate::parser::{Parse, ParserContext};
 use crate::properties::{LonghandId, PropertyDeclarationId};
 use crate::properties::{PropertyId, ShorthandId};
-use crate::values::generics::box_::AnimationIterationCount as GenericAnimationIterationCount;
-use crate::values::generics::box_::Perspective as GenericPerspective;
-use crate::values::generics::box_::{GenericContainIntrinsicSize, GenericVerticalAlign, VerticalAlignKeyword};
+use crate::values::generics::box_::{
+    GenericAnimationIterationCount, GenericLineClamp, GenericPerspective,
+};
+use crate::values::generics::box_::{
+    GenericContainIntrinsicSize, GenericVerticalAlign, VerticalAlignKeyword,
+};
 use crate::values::specified::length::{LengthPercentage, NonNegativeLength};
-use crate::values::specified::{AllowQuirks, Number};
+use crate::values::specified::{AllowQuirks, Integer, Number};
 use crate::values::{CustomIdent, KeyframesName, TimelineName};
 use crate::Atom;
 use cssparser::Parser;
@@ -23,14 +26,7 @@ use style_traits::{SpecifiedValueInfo, StyleParseErrorKind, ToCss};
 
 #[cfg(feature = "gecko")]
 fn moz_display_values_enabled(context: &ParserContext) -> bool {
-    context.in_ua_or_chrome_sheet() ||
-        static_prefs::pref!("layout.css.xul-display-values.content.enabled")
-}
-
-#[cfg(feature = "gecko")]
-fn moz_box_display_values_enabled(context: &ParserContext) -> bool {
-    context.in_ua_or_chrome_sheet() ||
-        static_prefs::pref!("layout.css.xul-box-display-values.content.enabled")
+    context.in_ua_or_chrome_sheet()
 }
 
 #[cfg(not(feature = "servo-layout-2020"))]
@@ -108,8 +104,6 @@ pub enum DisplayInside {
     WebkitBox,
     #[cfg(feature = "gecko")]
     MozBox,
-    #[cfg(feature = "gecko")]
-    MozDeck,
     #[cfg(feature = "gecko")]
     MozPopup,
 }
@@ -224,8 +218,6 @@ impl Display {
     #[cfg(feature = "gecko")]
     pub const MozInlineBox: Self = Self::new(DisplayOutside::Inline, DisplayInside::MozBox);
     #[cfg(feature = "gecko")]
-    pub const MozDeck: Self = Self::new(DisplayOutside::XUL, DisplayInside::MozDeck);
-    #[cfg(feature = "gecko")]
     pub const MozPopup: Self = Self::new(DisplayOutside::XUL, DisplayInside::MozPopup);
 
     /// Make a raw display value from <display-outside> and <display-inside> values.
@@ -332,6 +324,8 @@ impl Display {
             DisplayInside::Flex => true,
             #[cfg(feature = "gecko")]
             DisplayInside::Grid => true,
+            #[cfg(feature = "gecko")]
+            DisplayInside::MozBox => true,
             _ => false,
         }
     }
@@ -370,7 +364,7 @@ impl Display {
                 };
                 Display::from3(DisplayOutside::Block, inside, self.is_list_item())
             },
-            DisplayOutside::Block | DisplayOutside::None => *self,
+            DisplayOutside::Block | DisplayOutside::XUL | DisplayOutside::None => *self,
             #[cfg(any(feature = "servo-layout-2013", feature = "gecko"))]
             _ => Display::Block,
         }
@@ -600,11 +594,9 @@ impl Parse for Display {
             #[cfg(feature = "gecko")]
             "-webkit-inline-box" => Display::WebkitInlineBox,
             #[cfg(feature = "gecko")]
-            "-moz-box" if moz_box_display_values_enabled(context) => Display::MozBox,
+            "-moz-box" if moz_display_values_enabled(context) => Display::MozBox,
             #[cfg(feature = "gecko")]
-            "-moz-inline-box" if moz_box_display_values_enabled(context) => Display::MozInlineBox,
-            #[cfg(feature = "gecko")]
-            "-moz-deck" if moz_display_values_enabled(context) => Display::MozDeck,
+            "-moz-inline-box" if moz_display_values_enabled(context) => Display::MozInlineBox,
             #[cfg(feature = "gecko")]
             "-moz-popup" if moz_display_values_enabled(context) => Display::MozPopup,
         })
@@ -652,6 +644,9 @@ impl SpecifiedValueInfo for Display {
 
 /// A specified value for the `contain-intrinsic-size` property.
 pub type ContainIntrinsicSize = GenericContainIntrinsicSize<NonNegativeLength>;
+
+/// A specified value for the `line-clamp` property.
+pub type LineClamp = GenericLineClamp<Integer>;
 
 /// A specified value for the `vertical-align` property.
 pub type VerticalAlign = GenericVerticalAlign<LengthPercentage>;
@@ -848,13 +843,10 @@ pub enum AnimationTimeline {
     /// Use default timeline. The animation’s timeline is a DocumentTimeline.
     Auto,
     /// The scroll-timeline name.
-    ///
-    /// Note: This could be the timeline name from @scroll-timeline rule, or scroll-timeline-name
-    /// from itself, its ancestors, or its previous siblings.
-    /// https://drafts.csswg.org/scroll-animations-1/rewrite#scroll-timelines-named
+    /// https://drafts.csswg.org/scroll-animations-1/#scroll-timelines-named
     Timeline(TimelineName),
     /// The scroll() notation.
-    /// https://drafts.csswg.org/scroll-animations-1/rewrite#scroll-notation
+    /// https://drafts.csswg.org/scroll-animations-1/#scroll-notation
     #[css(function)]
     Scroll(
         #[css(skip_if = "is_default")] ScrollAxis,
@@ -897,7 +889,10 @@ impl Parse for AnimationTimeline {
         }
 
         // https://drafts.csswg.org/scroll-animations-1/rewrite#scroll-notation
-        if input.try_parse(|i| i.expect_function_matching("scroll")).is_ok() {
+        if input
+            .try_parse(|i| i.expect_function_matching("scroll"))
+            .is_ok()
+        {
             return input.parse_nested_block(|i| {
                 Ok(Self::Scroll(
                     i.try_parse(ScrollAxis::parse).unwrap_or(ScrollAxis::Block),
@@ -1462,9 +1457,7 @@ impl Parse for ContainIntrinsicSize {
         context: &ParserContext,
         input: &mut Parser<'i, 't>,
     ) -> Result<Self, ParseError<'i>> {
-
-        if let Ok(l) = input.try_parse(|i| NonNegativeLength::parse(context, i))
-        {
+        if let Ok(l) = input.try_parse(|i| NonNegativeLength::parse(context, i)) {
             return Ok(Self::Length(l));
         }
 
@@ -1475,6 +1468,22 @@ impl Parse for ContainIntrinsicSize {
 
         input.expect_ident_matching("none")?;
         Ok(Self::None)
+    }
+}
+
+impl Parse for LineClamp {
+    /// none | <positive-integer>
+    fn parse<'i, 't>(
+        context: &ParserContext,
+        input: &mut Parser<'i, 't>,
+    ) -> Result<Self, ParseError<'i>> {
+        if let Ok(i) =
+            input.try_parse(|i| crate::values::specified::PositiveInteger::parse(context, i))
+        {
+            return Ok(Self(i.0));
+        }
+        input.expect_ident_matching("none")?;
+        Ok(Self::none())
     }
 }
 
@@ -1510,27 +1519,35 @@ bitflags! {
     #[derive(MallocSizeOf, SpecifiedValueInfo, ToComputedValue, ToCss, Parse, ToResolvedValue, ToShmem)]
     #[repr(C)]
     #[allow(missing_docs)]
-    #[css(bitflags(single="none", mixed="style,size,inline-size", overlapping_bits))]
+    #[css(bitflags(single="normal", mixed="size,inline-size", overlapping_bits))]
     /// https://drafts.csswg.org/css-contain-3/#container-type
     ///
     /// TODO: block-size is on the spec but it seems it was removed? WPTs don't
     /// support it, see https://github.com/w3c/csswg-drafts/issues/7179.
     pub struct ContainerType: u8 {
         /// The `none` variant.
-        const NONE = 0;
-        /// The `style` variant.
-        const STYLE = 1 << 0;
+        const NORMAL = 0;
         /// The `inline-size` variant.
-        const INLINE_SIZE = 1 << 1;
+        const INLINE_SIZE = 1 << 0;
         /// The `size` variant, exclusive with `inline-size` (they sharing bits
         /// guarantees this).
-        const SIZE = 1 << 2 | Self::INLINE_SIZE.bits;
+        const SIZE = 1 << 1 | Self::INLINE_SIZE.bits;
     }
 }
 
 /// https://drafts.csswg.org/css-contain-3/#container-name
 #[repr(transparent)]
-#[derive(Clone, Debug, MallocSizeOf, PartialEq, SpecifiedValueInfo, ToComputedValue, ToCss, ToResolvedValue, ToShmem)]
+#[derive(
+    Clone,
+    Debug,
+    MallocSizeOf,
+    PartialEq,
+    SpecifiedValueInfo,
+    ToComputedValue,
+    ToCss,
+    ToResolvedValue,
+    ToShmem,
+)]
 pub struct ContainerName(#[css(iterable, if_empty = "none")] pub crate::OwnedSlice<CustomIdent>);
 
 impl ContainerName {
@@ -1546,16 +1563,29 @@ impl ContainerName {
 }
 
 impl Parse for ContainerName {
-    fn parse<'i, 't>( _: &ParserContext, input: &mut Parser<'i, 't>) -> Result<Self, ParseError<'i>> {
+    fn parse<'i, 't>(
+        _: &ParserContext,
+        input: &mut Parser<'i, 't>,
+    ) -> Result<Self, ParseError<'i>> {
         let mut idents = vec![];
         let location = input.current_source_location();
         let first = input.expect_ident()?;
         if first.eq_ignore_ascii_case("none") {
-            return Ok(Self::none())
+            return Ok(Self::none());
         }
-        idents.push(CustomIdent::from_ident(location, first, &["none"])?);
+        const DISALLOWED_CONTAINER_NAMES: &'static [&'static str] =
+            &["none", "not", "or", "and", "auto", "normal"];
+        idents.push(CustomIdent::from_ident(
+            location,
+            first,
+            DISALLOWED_CONTAINER_NAMES,
+        )?);
         while let Ok(ident) = input.try_parse(|input| input.expect_ident_cloned()) {
-            idents.push(CustomIdent::from_ident(location, &ident, &["none"])?);
+            idents.push(CustomIdent::from_ident(
+                location,
+                &ident,
+                DISALLOWED_CONTAINER_NAMES,
+            )?);
         }
         Ok(ContainerName(idents.into()))
     }
@@ -1680,7 +1710,7 @@ pub enum Float {
 #[derive(
     Clone, Copy, Debug, Eq, Hash, MallocSizeOf, Parse, PartialEq, SpecifiedValueInfo, ToCss, ToShmem,
 )]
-/// https://drafts.csswg.org/css-box/#propdef-clear
+/// https://drafts.csswg.org/css2/#propdef-clear
 pub enum Clear {
     None,
     Left,
@@ -2178,7 +2208,10 @@ pub enum Overflow {
 // This can be derived once we remove or keep `-moz-hidden-unscrollable`
 // indefinitely.
 impl Parse for Overflow {
-    fn parse<'i, 't>(_: &ParserContext, input: &mut Parser<'i, 't>) -> Result<Self, ParseError<'i>> {
+    fn parse<'i, 't>(
+        _: &ParserContext,
+        input: &mut Parser<'i, 't>,
+    ) -> Result<Self, ParseError<'i>> {
         Ok(try_match_ident_ignore_ascii_case! { input,
             "visible" => Self::Visible,
             "hidden" => Self::Hidden,

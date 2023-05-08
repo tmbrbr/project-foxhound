@@ -144,7 +144,7 @@ var SidebarUI = {
         xulStore.removeValue(document.documentURI, "sidebar-box", "checked");
       }
 
-      xulStore.persist(this._box, "width");
+      xulStore.persist(this._box, "style");
       xulStore.persist(this._title, "value");
     }
 
@@ -167,7 +167,7 @@ var SidebarUI = {
           // support live switching the app locale. Reload the entire sidebar to
           // invalidate any old text.
           this.hide();
-          this._show(this.lastOpenedId);
+          this.showInitially(this.lastOpenedId);
           break;
         }
       }
@@ -345,10 +345,7 @@ var SidebarUI = {
       return true;
     }
 
-    this._box.setAttribute(
-      "width",
-      sourceUI._box.getBoundingClientRect().width
-    );
+    this._box.style.width = sourceUI._box.getBoundingClientRect().width + "px";
     this.showInitially(commandID);
 
     return true;

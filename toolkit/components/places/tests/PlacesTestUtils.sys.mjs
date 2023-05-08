@@ -1,5 +1,3 @@
-"use strict";
-
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
@@ -522,6 +520,18 @@ export var PlacesTestUtils = Object.freeze({
       "test:clearInputHistory",
       db => {
         return db.executeCached("DELETE FROM moz_inputhistory");
+      }
+    );
+  },
+
+  /**
+   * Clear moz_historyvisits table.
+   */
+  async clearHistoryVisits() {
+    await lazy.PlacesUtils.withConnectionWrapper(
+      "test:clearHistoryVisits",
+      db => {
+        return db.executeCached("DELETE FROM moz_historyvisits");
       }
     );
   },

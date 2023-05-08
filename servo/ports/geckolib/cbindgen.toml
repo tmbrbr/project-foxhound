@@ -79,9 +79,11 @@ include = [
   "BreakBetween",
   "BreakWithin",
   "BorderStyle",
+  "BoolInteger",
   "OutlineStyle",
   "CaptionSide",
   "FontSizeAdjust",
+  "FontPalette",
   "ComputedFontStretchRange",
   "ComputedFontStyleDescriptor",
   "ComputedFontWeightRange",
@@ -98,6 +100,7 @@ include = [
   "FillRule",
   "FontDisplay",
   "FontFaceSourceListComponent",
+  "FontFaceSourceTechFlags",
   "FontLanguageOverride",
   "GenericFontFamily",
   "FontFamily",
@@ -108,6 +111,7 @@ include = [
   "UnicodeRange",
   "UserSelect",
   "Float",
+  "Clear",
   "OverscrollBehavior",
   "ScrollSnapAlign",
   "ScrollSnapAxis",
@@ -147,6 +151,7 @@ include = [
   "ZIndex",
   "TransformOrigin",
   "LineBreak",
+  "LineClamp",
   "WordBreak",
   "Contain",
   "ContainerType",
@@ -204,6 +209,7 @@ include = [
   "SVGPaintKind",
   "GridTemplateComponent",
   "TextEmphasisStyle",
+  "TextEmphasisPosition",
   "VariantAlternatesList",
   "PaintOrder",
   "SVGPaintOrder",
@@ -297,13 +303,14 @@ renaming_overrides_prefixing = true
 "Keyframe" = "Keyframe"
 "nsChangeHint" = "nsChangeHint"
 "ServoElementSnapshotTable" = "ServoElementSnapshotTable"
-"nsTimingFunction" = "nsTimingFunction"
 "Keyframe" = "Keyframe"
 "ComputedKeyframeValues" = "ComputedKeyframeValues"
 "OriginFlags" = "OriginFlags"
 "ServoTraversalFlags" = "ServoTraversalFlags"
 "ServoStyleSetSizes" = "ServoStyleSetSizes"
 "BeforeFlag" = "StyleEasingBeforeFlag"
+"FontPaletteValueSet" = "gfx::FontPaletteValueSet"
+"PaletteValues" = "gfx::FontPaletteValueSet::PaletteValues"
 
 [export.body]
 "CSSPixelLength" = """
@@ -816,6 +823,13 @@ renaming_overrides_prefixing = true
  public:
   // The implementation of IPC LayersMessages needs this to be public.
   StyleTimingFunction() : tag(Tag::Keyword) { ::new (&keyword._0) (StyleTimingKeyword) (StyleTimingKeyword::Linear); }
+
+  bool IsLinearKeyword() const { return IsKeyword() && AsKeyword() == StyleTimingKeyword::Linear; }
+
+  inline double At(double, bool aBeforeFlag) const;
+  inline void AppendToString(nsACString&) const;
+
+  inline static double GetPortion(const Maybe<StyleTimingFunction>&, double, bool aBeforeFlag);
 """
 
 "GenericImage" = """
@@ -929,4 +943,16 @@ renaming_overrides_prefixing = true
 "ScrollTimelineName" = """
  public:
   StyleScrollTimelineName(): _0(RefPtr<nsAtom>(nsGkAtoms::_empty).forget()) {}
+"""
+
+"FontFaceSourceTechFlags" = """
+  inline static StyleFontFaceSourceTechFlags Empty() {
+    return StyleFontFaceSourceTechFlags{0};
+  }
+"""
+
+"FontPalette" = """
+  inline static StyleFontPalette Normal() {
+    return StyleFontPalette{StyleAtom(nsGkAtoms::normal->ToAddRefed())};
+  }
 """

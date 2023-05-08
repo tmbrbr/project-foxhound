@@ -2,13 +2,13 @@
 ---
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2022-07-08T13:24:54.472587'
+updated_at: '2022-09-15T13:40:31.045030'
 export:
   path: ./docs/mots/index.rst
   format: rst
   searchfox_enabled: true
 description: |
-  Mozilla operates under a `module ownership governance system <http://www.mozilla.org/hacking/module-ownership.html>`_. A module is a discrete unit of code or activity. An owner is the person in charge of a module or sub-module. A peer is a person whom the owner has appointed to help them. A module may have multiple peers and, very occasionally, multiple owners.
+  Mozilla operates under a `module ownership governance system <https://www.mozilla.org/hacking/module-ownership.html>`_. A module is a discrete unit of code or activity. An owner is the person in charge of a module or sub-module. A peer is a person whom the owner has appointed to help them. A module may have multiple peers and, very occasionally, multiple owners.
 
   The system is overseen by the owner and peers of the Module Ownership module. For the modules that make up Firefox, oversight is provided by the Firefox Technical Leadership module. Owners may add and remove peers from their modules as they wish, without reference to anyone else.
 
@@ -27,7 +27,7 @@ people:
     nick: agashlin
   - &agi
     bmo_id: 421286
-    name: Agi Sferro
+    name: ''
     nick: agi
   - &ahal
     bmo_id: 382067
@@ -225,6 +225,10 @@ people:
     bmo_id: 436087
     name: Kannan Vijayan
     nick: djvj
+  - &dlrobertson
+    bmo_id: 705145
+    name: Dan Robertson
+    nick: dlrobertson
   - &dminor
     bmo_id: 466787
     name: Dan Minor
@@ -289,8 +293,7 @@ people:
     bmo_id: 566192
     name: Andreas Farre
     nick: farre
-  - &fitzgen
-    bmo_id: 417695
+  - bmo_id: 417695
     name: Nick Fitzgerald
     nick: fitzgen
   - &flod
@@ -383,7 +386,7 @@ people:
     nick: janv
   - &jaws
     bmo_id: 409754
-    name: Jared Wein
+    name: ''
     nick: jaws
   - &jchen
     bmo_id: 281508
@@ -411,7 +414,7 @@ people:
     nick: jgraham
   - &jhirsch
     bmo_id: 446735
-    name: Jared Hirsch
+    name: ''
     nick: jhirsch
   - &jhlin
     bmo_id: 463180
@@ -730,8 +733,8 @@ people:
     name: Sergey Galich
     nick: serg
   - &sfink
-    bmo_id: 496930
-    name: ''
+    bmo_id: 359004
+    name: Steve Fink
     nick: sfink
   - &sfoster
     bmo_id: 430165
@@ -769,10 +772,13 @@ people:
     bmo_id: 263117
     name: Martin Stránský
     nick: stransky
-  - &sunfish
-    bmo_id: 468136
+  - bmo_id: 468136
     name: Dan Gohman
     nick: sunfish
+  - &Sylvestre
+    bmo_id: 495955
+    name: Sylvestre Ledru
+    nick: Sylvestre
   - &tantek
     bmo_id: 164722
     name: Tantek Çelik
@@ -881,6 +887,20 @@ modules:
       - *zeid
     machine_name: _mots
 
+  - name: mozilla-toplevel
+    description: The top level directory for the mozilla tree.
+    includes:
+      - README
+        # TODO: verify, as this was toolkit/README
+    meta:
+      owners_emeritus:
+        - Brendan Eich
+    owners:
+        # - Technical Leadership Module
+        # TODO
+    peers: []
+    machine_name: _mozillatoplevel
+
   - machine_name: code_coverage
     name: Code Coverage
     description: Tools for code coverage instrumentation, and coverage data parsing
@@ -977,6 +997,8 @@ modules:
     meta:
       owners_emeritus:
         - Kartikaya Gupta
+      peers_emeritus:
+        - Ryan Hunt
       group: dev-platform
       url: https://wiki.mozilla.org/Platform/GFX/APZ
       components:
@@ -985,7 +1007,8 @@ modules:
       - *botond
     peers:
       - *tnikkel
-      - *rhunt
+      - *dlrobertson
+      - *hiro
       - *mstange
     machine_name: core_apz_graphics_submodule
 
@@ -1394,6 +1417,21 @@ modules:
       - *edgar
     machine_name: core_event_handling
 
+  - machine_name: core_firefox_source_documentation
+    name: 'Core: Firefox Source Documentation'
+    description: The infrastructure platform used to generate Firefox's source documentation,
+      excluding editorial control over the content.
+    includes:
+      - docs/
+      - tools/moztreedocs/
+    owners:
+      - *ahal
+    peers:
+      - *Sylvestre
+    meta:
+      components:
+        - Developer Infrastructure::Source Documentation
+      url: https://firefox-source-docs.mozilla.org/
   - name: 'Core: Gecko Profiler'
     description: Gecko's built-in profiler
     includes:
@@ -1639,47 +1677,53 @@ modules:
     includes:
       - js/src/**/*
     meta:
-      peers_emeritus:
+      owners_emeritus:
         - Brendan Eich
-        - Hannes Verschore
-        - Blake Kaplan
-        - Bill McCloskey
-        - Shu-yu Guo
-        - Niko Matsakis
-        - Eddy Bruel
-        - David Anderson
-        - Igor Bukanov
-        - Andreas Gal
-        - Eric Faust
-        - Ashley Hauck
-        - Brian Hackett
-        - Till Schneidereit
-        - Nicholas Nethercote
+        - Dave Mandelin
+        - Luke Wagner
         - Jason Orendorff
-      group: dev-tech-js-engine
-      url: http://www.mozilla.org/js/spidermonkey, http://developer.mozilla.org/en/docs/About_JavaScript
+      peers_emeritus:
+        - Andreas Gal
+        - Ashley Hauck
+        - Bill McCloskey
+        - Blake Kaplan
+        - Brian Hackett
+        - Caroline Cullen
+        - Dan Gohman
+        - David Anderson
+        - Eddy Bruel
+        - Eric Faust
+        - Hannes Verschore
+        - Igor Bukanov
+        - Jeff Walden
+        - Kannan Vijayan
+        - Nicholas Nethercote
+        - Nick Fitzgerald
+        - Niko Matsakis
+        - Shu-yu Guo
+        - Till Schneidereit
+      url: https://spidermonkey.dev/
       components:
         - Core::JavaScript Engine
+        - 'Core::JavaScript: GC'
+        - 'Core::JavaScript: Internationalization API'
+        - 'Core::JavaScript: Standard Library'
+        - 'Core::JavaScript: WebAssembly'
+        - Core::js-ctypes
     owners:
       - *jandem
     peers:
       - *anba
-      - *tcampbell
-      - *jonco
-      - *sfink
       - *arai
-      - *evilpie
-      - *djvj
-      - *Waldo
-      - *yulia
-      - *mgaudet
-      - *iain
-      - *nbp
-      - *caroline
-      - *fitzgen
-      - *luke
-      - *sunfish
       - *bholley
+      - *evilpie
+      - *iain
+      - *jonco
+      - *mgaudet
+      - *nbp
+      - *sfink
+      - *tcampbell
+      - *yulia
     machine_name: core_javascript
 
   - name: 'Core: JavaScript JIT'
@@ -1691,8 +1735,7 @@ modules:
         - David Anderson
         - Shu-yu Guo
         - Hannes Verschore
-      group: dev-tech-js-engine-internals
-      url: http://www.mozilla.org/js/spidermonkey
+      url: https://spidermonkey.dev/
       components:
         - 'Core::JavaScript Engine: JIT'
     owners:
@@ -1962,20 +2005,6 @@ modules:
     peers:
       - *jchen
     machine_name: core_mozglue
-
-  - name: 'Core: mozilla-toplevel'
-    description: The top level directory for the mozilla tree.
-    includes:
-      - README
-        # TODO: verify, as this was toolkit/README
-    meta:
-      owners_emeritus:
-        - Brendan Eich
-    owners:
-        # - Technical Leadership Module
-        # TODO
-    peers: []
-    machine_name: core_mozillatoplevel
 
   - name: 'Core: MSCOM'
     description: Integration with Microsoft Distributed COM
@@ -3600,5 +3629,5 @@ modules:
         machine_name: webextensions
     machine_name: toolkit
 hashes:
-  config: 6c931f02fdd0d60b6a71e6c9852d4768c079ae4f
-  export: 46336ebc3fe281f466467b7464dcd0781d20656b
+  config: ccc1047f0b07ae8b254fcb187a89107581830f9e
+  export: 79025fdcf0c3445d6c66eb26504943248baed3cc

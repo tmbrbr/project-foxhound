@@ -5,6 +5,25 @@
 name: raptor
 manifest: testing/raptor/raptor/raptor.ini
 static-only: False
+metrics:
+    "First Paint":
+        aliases:
+            - fcp
+            - First Contentful Paint
+            - First Contentful Composite
+        description: >
+            Denotes the first time the browser performs a paint that has content in it.
+    "Youtube Playback Metrics":
+        aliases:
+            - VP9
+            - H264
+        matcher: VP9.*|H264.*
+        description: >
+            Metrics starting with VP9/H264 give the number of frames dropped, and painted.
+    "In Progress":
+        aliases: []
+        matcher: .*
+        description: Many metrics have not been documented yet, this is a placeholder.
 suites:
     desktop:
         description: "Tests for page-load performance. The links direct to the actual websites that are being tested."
@@ -19,7 +38,6 @@ suites:
             facebook: "BT, FF, CH, CU"
             fandom: "BT, FF, CH, CU"
             google-docs: "BT, FF, CH, CU"
-            google-docs-canvas: "BT, FF, CH, CU"
             google-mail: "BT, FF, CH, CU"
             google-search: "BT, FF, CH, CU"
             google-slides: "BT, FF, CH, CU"
@@ -112,6 +130,7 @@ suites:
             speedometer: "FF, CH, CU, FE, GV, RB, CH-M"
             stylebench: "FF, CH, CU"
             sunspider: "FF, CH, CU"
+            twitch-animation: "FF"
             unity-webgl: "FF, CH, CU, FE, RB, FE, CH-M"
             wasm-godot-baseline: "FF"
             wasm-godot-optimizing: "FF"

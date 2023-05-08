@@ -12,6 +12,7 @@ use api::{BoxShadowClipMode, BorderStyle, ClipMode};
 use api::units::*;
 use euclid::Scale;
 use smallvec::SmallVec;
+use crate::batch::PrimitiveCommand;
 use crate::image_tiling::{self, Repetition};
 use crate::border::{get_max_scale_for_border, build_border_instances};
 use crate::clip::{ClipStore};
@@ -71,7 +72,7 @@ pub fn prepare_primitives(
                     PrimitiveInstanceIndex(prim_instance_index as u32),
                 );
 
-                if prepare_prim_for_render(
+                if let Some(ref prim_cmd) = prepare_prim_for_render(
                     store,
                     prim_instance_index,
                     cluster,
@@ -85,14 +86,10 @@ pub fn prepare_primitives(
                     tile_caches,
                     prim_instances,
                 ) {
-                    // First check for coarse visibility (if this primitive was completely off-screen)
-                    let prim_instance = &mut prim_instances[prim_instance_index];
-
                     frame_state.surface_builder.push_prim(
-                        PrimitiveInstanceIndex(prim_instance_index as u32),
+                        prim_cmd,
                         cluster.spatial_node_index,
-                        &prim_instance.vis,
-                        None,
+                        &prim_instances[prim_instance_index].vis,
                         frame_state.cmd_buffers,
                     );
 
@@ -122,7 +119,7 @@ fn prepare_prim_for_render(
     scratch: &mut PrimitiveScratchBuffer,
     tile_caches: &mut FastHashMap<SliceId, Box<TileCacheInstance>>,
     prim_instances: &mut Vec<PrimitiveInstance>,
-) -> bool {
+) -> Option<PrimitiveCommand> {
     profile_scope!("prepare_prim_for_render");
 
     // If we have dependencies, we need to prepare them first, in order
@@ -173,7 +170,7 @@ fn prepare_prim_for_render(
                     );
             }
             None => {
-                return false;
+                return None;
             }
         }
     }
@@ -200,12 +197,13 @@ fn prepare_prim_for_render(
             data_stores,
             scratch,
         ) {
-            return false;
+            return None;
         }
     }
 
-    prepare_interned_prim_for_render(
+    Some(prepare_interned_prim_for_render(
         store,
+        PrimitiveInstanceIndex(prim_instance_index as u32),
         prim_instance,
         cluster,
         plane_split_anchor,
@@ -214,9 +212,7 @@ fn prepare_prim_for_render(
         frame_state,
         data_stores,
         scratch,
-    );
-
-    true
+    ))
 }
 
 /// Prepare an interned primitive for rendering, by requesting
@@ -224,6 +220,7 @@ fn prepare_prim_for_render(
 /// prepare_prim_for_render_inner call for old style primitives.
 fn prepare_interned_prim_for_render(
     store: &mut PrimitiveStore,
+    prim_instance_index: PrimitiveInstanceIndex,
     prim_instance: &mut PrimitiveInstance,
     cluster: &mut PrimitiveCluster,
     plane_split_anchor: PlaneSplitAnchor,
@@ -232,7 +229,7 @@ fn prepare_interned_prim_for_render(
     frame_state: &mut FrameBuildingState,
     data_stores: &mut DataStores,
     scratch: &mut PrimitiveScratchBuffer,
-) {
+) -> PrimitiveCommand {
     let prim_spatial_node_index = cluster.spatial_node_index;
     let device_pixel_scale = frame_state.surfaces[pic_context.surface_index.0].device_pixel_scale;
 
@@ -281,6 +278,13 @@ fn prepare_interned_prim_for_render(
                      task_size = (LayoutSize::from_au(cache_key.size) * scale_factor * task_scale_factor)
                                     .ceil().to_i32();
                 }
+
+                // It's plausible, due to float accuracy issues that the line decoration may be considered
+                // visible even if the scale factors are ~0. However, the render task allocation below requires
+                // that the size of the task is > 0. To work around this, ensure that the task size is at least
+                // 1x1 pixels
+                task_size.width = task_size.width.max(1);
+                task_size.height = task_size.height.max(1);
 
                 // Request a pre-rendered image task.
                 // TODO(gw): This match is a bit untidy, but it should disappear completely
@@ -753,7 +757,7 @@ fn prepare_interned_prim_for_render(
                         frame_context.spatial_tree,
                         prim_spatial_node_index,
                         local_prim_rect,
-                        &prim_instance.vis.combined_local_clip_rect,
+                        &prim_instance.vis.clip_chain.local_clip_rect,
                         dirty_rect,
                         plane_split_anchor,
                     );
@@ -805,7 +809,9 @@ fn prepare_interned_prim_for_render(
                 }
             }
         }
-    };
+    }
+
+    PrimitiveCommand::simple(prim_instance_index)
 }
 
 
@@ -852,7 +858,8 @@ fn decompose_repeated_gradient(
     // produce primitives that are partially covering the original image
     // rect and we want to clip these extra parts out.
     if let Some(tight_clip_rect) = prim_vis
-        .combined_local_clip_rect
+        .clip_chain
+        .local_clip_rect
         .intersection(prim_local_rect) {
 
         let visible_rect = compute_conservative_visible_rect(
@@ -1230,10 +1237,17 @@ fn write_brush_segment_description(
         return false;
     }
 
+    // NOTE: The local clip rect passed to the segment builder must be the unmodified
+    //       local clip rect from the clip leaf, not the local_clip_rect from the
+    //       clip-chain instance. The clip-chain instance may have been reduced by
+    //       clips that are in the same coordinate system, but not the same spatial
+    //       node as the primitive. This can result in the clip for the segment building
+    //       being affected by scrolling clips, which we can't handle (since the segments
+    //       are not invalidated during frame building after being built).
     segment_builder.initialize(
         prim_local_rect,
         None,
-        prim_local_clip_rect
+        prim_local_clip_rect,
     );
 
     // Segment the primitive on all the local-space clip sources that we can.
@@ -1375,10 +1389,11 @@ fn build_segments_if_needed(
 
     if *segment_instance_index == SegmentInstanceIndex::INVALID {
         let mut segments: SmallVec<[BrushSegment; 8]> = SmallVec::new();
+        let clip_leaf = frame_state.clip_tree.get_leaf(instance.clip_leaf_id);
 
         if write_brush_segment_description(
             prim_local_rect,
-            instance.clip_set.local_clip_rect,
+            clip_leaf.local_clip_rect,
             prim_clip_chain,
             &mut frame_state.segment_builder,
             frame_state.clip_store,

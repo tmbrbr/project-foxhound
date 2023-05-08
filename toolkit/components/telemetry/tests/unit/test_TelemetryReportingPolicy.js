@@ -9,9 +9,8 @@
 const { TelemetryReportingPolicy } = ChromeUtils.import(
   "resource://gre/modules/TelemetryReportingPolicy.jsm"
 );
-const { setTimeout } = ChromeUtils.import("resource://gre/modules/Timer.jsm");
-const { UpdateUtils } = ChromeUtils.import(
-  "resource://gre/modules/UpdateUtils.jsm"
+const { UpdateUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/UpdateUtils.sys.mjs"
 );
 
 const TEST_CHANNEL = "TestChannelABC";

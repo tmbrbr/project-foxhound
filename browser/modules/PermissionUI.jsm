@@ -67,6 +67,11 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 const lazy = {};
 ChromeUtils.defineModuleGetter(
   lazy,
+  "AddonManager",
+  "resource://gre/modules/AddonManager.jsm"
+);
+ChromeUtils.defineModuleGetter(
+  lazy,
   "SitePermissions",
   "resource:///modules/SitePermissions.jsm"
 );
@@ -95,6 +100,16 @@ XPCOMUtils.defineLazyGetter(lazy, "gBrowserBundle", function() {
     "chrome://browser/locale/browser.properties"
   );
 });
+
+const { SITEPERMS_ADDON_PROVIDER_PREF } = ChromeUtils.importESModule(
+  "resource://gre/modules/addons/siteperms-addon-utils.sys.mjs"
+);
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "sitePermsAddonsProviderEnabled",
+  SITEPERMS_ADDON_PROVIDER_PREF,
+  false
+);
 
 var PermissionUI = {};
 
@@ -162,6 +177,14 @@ var PermissionPromptPrototype = {
    */
   get usePermissionManager() {
     return true;
+  },
+
+  /**
+   * Indicates what URI should be used as the scope when using temporary
+   * permissions. If undefined, it defaults to the browser.currentURI.
+   */
+  get temporaryPermissionURI() {
+    return undefined;
   },
 
   /**
@@ -374,7 +397,8 @@ var PermissionPromptPrototype = {
       let { state } = lazy.SitePermissions.getForPrincipal(
         this.principal,
         this.permissionKey,
-        this.browser
+        this.browser,
+        this.temporaryPermissionURI
       );
 
       if (state == lazy.SitePermissions.BLOCK) {
@@ -405,7 +429,8 @@ var PermissionPromptPrototype = {
       let { state } = lazy.SitePermissions.getForPrincipal(
         null,
         this.permissionKey,
-        this.browser
+        this.browser,
+        this.temporaryPermissionURI
       );
 
       if (state == lazy.SitePermissions.BLOCK) {
@@ -468,7 +493,9 @@ var PermissionPromptPrototype = {
                 this.permissionKey,
                 promptAction.action,
                 lazy.SitePermissions.SCOPE_TEMPORARY,
-                this.browser
+                this.browser,
+                undefined,
+                this.temporaryPermissionURI
               );
             }
 
@@ -489,7 +516,9 @@ var PermissionPromptPrototype = {
                 this.permissionKey,
                 promptAction.action,
                 lazy.SitePermissions.SCOPE_TEMPORARY,
-                this.browser
+                this.browser,
+                undefined,
+                this.temporaryPermissionURI
               );
             }
           }
@@ -672,6 +701,70 @@ var PermissionPromptForRequestPrototype = {
 };
 
 PermissionUI.PermissionPromptForRequestPrototype = PermissionPromptForRequestPrototype;
+
+/**
+ * A subclass of PermissionPromptForRequestPrototype that prompts
+ * for a Synthetic SitePermsAddon addon type and starts a synthetic
+ * addon install flow.
+ */
+var SitePermsAddonInstallRequestPrototype = {
+  __proto__: PermissionPromptForRequestPrototype,
+
+  prompt() {
+    // fallback to regular permission prompt for localhost,
+    // or when the SitePermsAddonProvider is not enabled.
+    if (this.principal.isLoopbackHost || !lazy.sitePermsAddonsProviderEnabled) {
+      PermissionPromptForRequestPrototype.prompt.call(this);
+      return;
+    }
+
+    // Otherwise, we'll use the addon install flow.
+    lazy.AddonManager.installSitePermsAddonFromWebpage(
+      this.browser,
+      this.principal,
+      this.permName
+    ).then(
+      () => {
+        this.allow();
+      },
+      err => {
+        this.cancel();
+
+        // Print an error message in the console to give more information to the developer.
+        let scriptErrorClass = Cc["@mozilla.org/scripterror;1"];
+        let errorMessage =
+          this.getInstallErrorMessage(err) ||
+          `${this.permName} access was rejected: ${err.message}`;
+
+        let scriptError = scriptErrorClass.createInstance(Ci.nsIScriptError);
+        scriptError.initWithWindowID(
+          errorMessage,
+          null,
+          null,
+          0,
+          0,
+          0,
+          "content javascript",
+          this.browser.browsingContext.currentWindowGlobal.innerWindowId
+        );
+        Services.console.logMessage(scriptError);
+      }
+    );
+  },
+
+  /**
+   * Returns an error message that will be printed to the console given a passed Component.Exception.
+   * This should be overriden by children classes.
+   *
+   * @param {Components.Exception} err
+   * @returns {String} The error message
+   */
+  getInstallErrorMessage(err) {
+    return null;
+  },
+};
+
+PermissionUI.SitePermsAddonInstallRequestPrototype = SitePermsAddonInstallRequestPrototype;
 
 /**
  * Creates a PermissionPrompt for a nsIContentPermissionRequest for
@@ -1160,8 +1253,7 @@ function MIDIPermissionPrompt(request) {
 }
 
 MIDIPermissionPrompt.prototype = {
-  __proto__: PermissionPromptForRequestPrototype,
-
+  __proto__: SitePermsAddonInstallRequestPrototype,
   get type() {
     return "midi";
   },
@@ -1246,12 +1338,33 @@ MIDIPermissionPrompt.prototype = {
       },
     ];
   },
+
+  /**
+   * @override
+   * @param {Components.Exception} err
+   * @returns {String}
+   */
+  getInstallErrorMessage(err) {
+    return `WebMIDI access request was denied: ❝${err.message}❞. See https://developer.mozilla.org/docs/Web/API/Navigator/requestMIDIAccess for more information`;
+  },
 };
 
 PermissionUI.MIDIPermissionPrompt = MIDIPermissionPrompt;
 
 function StorageAccessPermissionPrompt(request) {
   this.request = request;
+  this.siteOption = null;
+
+  let types = this.request.types.QueryInterface(Ci.nsIArray);
+  let perm = types.queryElementAt(0, Ci.nsIContentPermissionType);
+  let options = perm.options.QueryInterface(Ci.nsIArray);
+  // If we have an option, we are in a call from requestStorageAccessUnderSite
+  // which means that the embedding principal is not the current top-level.
+  // Instead we have to grab the Site string out of the option and use that
+  // in the UI.
+  if (options.length) {
+    this.siteOption = options.queryElementAt(0, Ci.nsISupportsString).data;
+  }
 }
 
 StorageAccessPermissionPrompt.prototype = {
@@ -1268,6 +1381,13 @@ StorageAccessPermissionPrompt.prototype = {
   get permissionKey() {
     // Make sure this name is unique per each third-party tracker
     return `3rdPartyStorage${lazy.SitePermissions.PERM_KEY_DELIMITER}${this.principal.origin}`;
+  },
+
+  get temporaryPermissionURI() {
+    if (this.siteOption) {
+      return Services.io.newURI(this.siteOption);
+    }
+    return undefined;
   },
 
   prettifyHostPort(hostport) {
@@ -1305,9 +1425,15 @@ StorageAccessPermissionPrompt.prototype = {
   },
 
   get message() {
+    let embeddingHost = this.topLevelPrincipal.host;
+
+    if (this.siteOption) {
+      embeddingHost = this.siteOption.split("://").at(-1);
+    }
+
     return lazy.gBrowserBundle.formatStringFromName("storageAccess4.message", [
       this.prettifyHostPort(this.principal.hostPort),
-      this.prettifyHostPort(this.topLevelPrincipal.hostPort),
+      this.prettifyHostPort(embeddingHost),
     ]);
   },
 

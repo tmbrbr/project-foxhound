@@ -1060,12 +1060,11 @@ bool ChannelWrapper::ThirdParty() const {
 
 void ChannelWrapper::GetErrorString(nsString& aRetVal) const {
   if (nsCOMPtr<nsIChannel> chan = MaybeChannel()) {
-    nsCOMPtr<nsISupports> securityInfo;
+    nsCOMPtr<nsITransportSecurityInfo> securityInfo;
     Unused << chan->GetSecurityInfo(getter_AddRefs(securityInfo));
-    if (nsCOMPtr<nsITransportSecurityInfo> tsi =
-            do_QueryInterface(securityInfo)) {
+    if (securityInfo) {
       int32_t errorCode = 0;
-      tsi->GetErrorCode(&errorCode);
+      securityInfo->GetErrorCode(&errorCode);
       if (psm::IsNSSErrorCode(errorCode)) {
         nsCOMPtr<nsINSSErrorsService> nsserr =
             do_GetService(NS_NSS_ERRORS_SERVICE_CONTRACTID);
@@ -1242,10 +1241,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(ChannelWrapper,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStub)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(ChannelWrapper,
-                                               DOMEventTargetHelper)
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_ADDREF_INHERITED(ChannelWrapper, DOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(ChannelWrapper, DOMEventTargetHelper)

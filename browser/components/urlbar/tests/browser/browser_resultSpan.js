@@ -29,9 +29,12 @@ const TIP_SPAN = UrlbarUtils.getSpanForResult({
   type: UrlbarUtils.RESULT_TYPE.TIP,
 });
 
-add_task(async function init() {
+add_setup(async function() {
   await PlacesUtils.history.clear();
   await PlacesUtils.bookmarks.eraseEverything();
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.urlbar.suggest.quickactions", false]],
+  });
 });
 
 // A restricting provider with one tip result and many history results.

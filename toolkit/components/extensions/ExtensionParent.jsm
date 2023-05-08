@@ -24,12 +24,15 @@ const { AppConstants } = ChromeUtils.import(
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  DevToolsShim: "chrome://devtools-startup/content/DevToolsShim.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   AddonManager: "resource://gre/modules/AddonManager.jsm",
   AsyncShutdown: "resource://gre/modules/AsyncShutdown.jsm",
   BroadcastConduit: "resource://gre/modules/ConduitsParent.jsm",
   DeferredTask: "resource://gre/modules/DeferredTask.jsm",
-  DevToolsShim: "chrome://devtools-startup/content/DevToolsShim.jsm",
   ExtensionData: "resource://gre/modules/Extension.jsm",
   ExtensionActivityLog: "resource://gre/modules/ExtensionActivityLog.jsm",
   GeckoViewConnection: "resource://gre/modules/GeckoViewWebExtension.jsm",
@@ -548,7 +551,34 @@ class ProxyContextParent extends BaseContext {
     // Set of active NativeApp ports.
     this.activeNativePorts = new WeakSet();
 
+    // Set of pending queryRunListener promises.
+    this.runListenerPromises = new Set();
+
     apiManager.emit("proxy-context-load", this);
+  }
+
+  trackRunListenerPromise(runListenerPromise) {
+    if (
+      // The extension was already shutdown.
+      !this.extension ||
+      // Not a non persistent background script context.
+      !this.isBackgroundContext ||
+      this.extension.persistentBackground
+    ) {
+      return;
+    }
+    const clearFromSet = () =>
+      this.runListenerPromises.delete(runListenerPromise);
+    runListenerPromise.then(clearFromSet, clearFromSet);
+    this.runListenerPromises.add(runListenerPromise);
+  }
+
+  clearPendingRunListenerPromises() {
+    this.runListenerPromises.clear();
+  }
+
+  get pendingRunListenerPromisesCount() {
+    return this.runListenerPromises.size;
   }
 
   trackNativeAppPort(port) {
@@ -808,7 +838,7 @@ class DevToolsExtensionPageContextParent extends ExtensionPageContextParent {
 
     this._devToolsCommandsPromise = (async () => {
       const commands = await lazy.DevToolsShim.createCommandsForTabForWebExtension(
-        this.devToolsToolbox.descriptorFront.localTab
+        this.devToolsToolbox.commands.descriptorFront.localTab
       );
       await commands.targetCommand.startListening();
       this._devToolsCommands = commands;
@@ -1172,7 +1202,7 @@ ParentAPIManager = {
         urgentSend = listenerArgs[0].urgentSend;
         delete listenerArgs[0].urgentSend;
       }
-      let result = await this.conduit.queryRunListener(childId, {
+      let runListenerPromise = this.conduit.queryRunListener(childId, {
         childId,
         handlingUserInput,
         listenerId: data.listenerId,
@@ -1182,6 +1212,9 @@ ParentAPIManager = {
           return new StructuredCloneHolder(listenerArgs);
         },
       });
+      context.trackRunListenerPromise(runListenerPromise);
+
+      const result = await runListenerPromise;
       let rv = result && result.deserialize(globalThis);
       ChromeUtils.addProfilerMarker(
         "ExtensionParent",

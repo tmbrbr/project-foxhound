@@ -11,6 +11,10 @@
 
 const UNITS = ["B", "kiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
 
+const AppConstants = ChromeUtils.import(
+  "resource://gre/modules/AppConstants.jsm"
+).AppConstants;
+
 /**
  * Linearly interpolate between values.
  * https://en.wikipedia.org/wiki/Linear_interpolation
@@ -417,13 +421,6 @@ const featureDescriptions = [
     disabledReason: "This feature is only available on Android.",
   },
   {
-    name: "Native Leaf Stack",
-    value: "leaf",
-    title:
-      "Record the native memory address of the leaf-most stack. This could be " +
-      "useful on platforms that do not support stack walking.",
-  },
-  {
     name: "No Periodic Sampling",
     value: "nostacksampling",
     title: "Disable interval-based stack sampling",
@@ -540,9 +537,24 @@ const featureDescriptions = [
   {
     name: "Power Use",
     value: "power",
-    title:
-      "Record the value of every energy meter available on the system with " +
-      "each sample. Only available on Windows 11 and Apple Silicon.",
+    title: (() => {
+      switch (AppConstants.platform) {
+        case "win":
+          return (
+            "Record the value of every energy meter available on the system with " +
+            "each sample. Only available on Windows 11 with Intel CPUs."
+          );
+        case "linux":
+          return (
+            "Record the power used by the entire system with each sample. " +
+            "Only available with Intel CPUs and requires setting the sysctl kernel.perf_event_paranoid to 0."
+          );
+        case "macosx":
+          return "Record the power used by the entire system (Intel) or each process (Apple Silicon) with each sample.";
+        default:
+          return "Not supported on this platform.";
+      }
+    })(),
     experimental: true,
   },
 ];

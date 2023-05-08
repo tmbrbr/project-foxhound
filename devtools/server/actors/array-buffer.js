@@ -4,8 +4,10 @@
 
 "use strict";
 
-var protocol = require("devtools/shared/protocol");
-const { arrayBufferSpec } = require("devtools/shared/specs/array-buffer");
+var protocol = require("resource://devtools/shared/protocol.js");
+const {
+  arrayBufferSpec,
+} = require("resource://devtools/shared/specs/array-buffer.js");
 
 /**
  * Creates an actor for the specified ArrayBuffer.
@@ -16,17 +18,17 @@ const { arrayBufferSpec } = require("devtools/shared/specs/array-buffer");
  *        The buffer.
  */
 const ArrayBufferActor = protocol.ActorClassWithSpec(arrayBufferSpec, {
-  initialize: function(conn, buffer) {
+  initialize(conn, buffer) {
     protocol.Actor.prototype.initialize.call(this, conn);
     this.buffer = buffer;
     this.bufferLength = buffer.byteLength;
   },
 
-  rawValue: function() {
+  rawValue() {
     return this.buffer;
   },
 
-  form: function() {
+  form() {
     return {
       actor: this.actorID,
       length: this.bufferLength,

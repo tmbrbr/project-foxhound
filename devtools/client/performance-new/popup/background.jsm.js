@@ -67,13 +67,21 @@ const PREF_PREFIX = "devtools.performance.recording.";
 // https://github.com/firefox-devtools/profiler/blob/main/src/app-logic/web-channel.js
 const CURRENT_WEBCHANNEL_VERSION = 1;
 
+const lazyRequire = {};
+// eslint-disable-next-line mozilla/lazy-getter-object-name
+ChromeUtils.defineESModuleGetters(lazyRequire, {
+  require: "resource://devtools/shared/loader/Loader.sys.mjs",
+});
 // Lazily load the require function, when it's needed.
-ChromeUtils.defineModuleGetter(
-  // eslint-disable-next-line mozilla/reject-global-this
-  this,
-  "require",
-  "resource://devtools/shared/loader/Loader.jsm"
-);
+// Avoid using ChromeUtils.defineESModuleGetters for now as:
+// * we can't replace createLazyLoaders as we still load commonjs+jsm+esm
+//   It will be easier once we only load sys.mjs files.
+// * we would need to find a way to accomodate typescript to this special function.
+// @ts-ignore:next-line
+function require(path) {
+  // @ts-ignore:next-line
+  return lazyRequire.require(path);
+}
 
 // The following utilities are lazily loaded as they are not needed when controlling the
 // global state of the profiler, and only are used during specific funcationality like
@@ -130,15 +138,7 @@ const presets = {
   "firefox-platform": {
     entries: 128 * 1024 * 1024,
     interval: 1,
-    features: [
-      "screenshots",
-      "js",
-      "leaf",
-      "stackwalk",
-      "cpu",
-      "java",
-      "processcpu",
-    ],
+    features: ["screenshots", "js", "stackwalk", "cpu", "java", "processcpu"],
     threads: [
       "GeckoMain",
       "Compositor",
@@ -161,7 +161,7 @@ const presets = {
   graphics: {
     entries: 128 * 1024 * 1024,
     interval: 1,
-    features: ["leaf", "stackwalk", "js", "cpu", "java", "processcpu"],
+    features: ["stackwalk", "js", "cpu", "java", "processcpu"],
     threads: [
       "GeckoMain",
       "Compositor",
@@ -189,7 +189,6 @@ const presets = {
     interval: 1,
     features: [
       "js",
-      "leaf",
       "stackwalk",
       "cpu",
       "audiocallbacktracing",
@@ -199,6 +198,7 @@ const presets = {
     threads: [
       "cubeb",
       "audio",
+      "BackgroundThreadPool",
       "camera",
       "capture",
       "Compositor",
@@ -233,15 +233,7 @@ const presets = {
   networking: {
     entries: 128 * 1024 * 1024,
     interval: 1,
-    features: [
-      "screenshots",
-      "js",
-      "leaf",
-      "stackwalk",
-      "cpu",
-      "java",
-      "processcpu",
-    ],
+    features: ["screenshots", "js", "stackwalk", "cpu", "java", "processcpu"],
     threads: [
       "Compositor",
       "DNS Resolver",
@@ -271,7 +263,6 @@ const presets = {
     features: [
       "screenshots",
       "js",
-      "leaf",
       "stackwalk",
       "cpu",
       "processcpu",

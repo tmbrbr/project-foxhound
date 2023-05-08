@@ -82,7 +82,7 @@ matchingLogins.push(
   )
 );
 
-add_task(async function setup() {
+add_setup(async () => {
   // Get a profile so we have storage access and insert the logins to get unique GUIDs.
   do_get_profile();
   matchingLogins = await Services.logins.addLogins(matchingLogins);
@@ -657,7 +657,6 @@ add_task(async function test_all_patterns() {
 
   LoginHelper.createLogger("LoginAutoCompleteResult");
   Services.prefs.setBoolPref("signon.showAutoCompleteFooter", true);
-  Services.prefs.setBoolPref("signon.showAutoCompleteOrigins", true);
 
   expectedResults.forEach((pattern, testIndex) => {
     info(`expectedResults[${testIndex}]`);

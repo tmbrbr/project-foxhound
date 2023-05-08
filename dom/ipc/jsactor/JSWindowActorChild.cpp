@@ -53,22 +53,6 @@ void JSWindowActorChild::SendRawMessage(
     return;
   }
 
-  size_t length = 0;
-  if (aData) {
-    length += aData->DataLength();
-  }
-  if (aStack) {
-    length += aStack->DataLength();
-  }
-
-  if (NS_WARN_IF(!AllowMessage(aMeta, length))) {
-    aRv.ThrowDataCloneError(
-        nsPrintfCString("JSWindowActorChild serialization error: data too "
-                        "large, in actor '%s'",
-                        PromiseFlatCString(aMeta.actorName()).get()));
-    return;
-  }
-
   // Cross-process case - send data over WindowGlobalChild to other side.
   Maybe<ClonedMessageData> msgData;
   if (aData) {
@@ -145,9 +129,6 @@ Nullable<WindowProxyHolder> JSWindowActorChild::GetContentWindow(
 void JSWindowActorChild::ClearManager() { mManager = nullptr; }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(JSWindowActorChild, JSActor, mManager)
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(JSWindowActorChild, JSActor)
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(JSWindowActorChild)
 NS_INTERFACE_MAP_END_INHERITING(JSActor)

@@ -195,8 +195,8 @@ builtinNames = [
     Builtin("double", "double", "libc::c_double", True, False),
     Builtin("char", "char", "libc::c_char", True, False),
     Builtin("string", "char *", "*const libc::c_char", False, False),
-    Builtin("wchar", "char16_t", "i16", False, False),
-    Builtin("wstring", "char16_t *", "*const i16", False, False),
+    Builtin("wchar", "char16_t", "u16", False, False),
+    Builtin("wstring", "char16_t *", "*const u16", False, False),
 ]
 
 builtinMap = {}
@@ -295,7 +295,7 @@ class NameMap(object):
         try:
             return self[id]
         except KeyError:
-            raise IDLError("Name '%s' not found", location)
+            raise IDLError(f"Name '{id}' not found", location)
 
 
 class RustNoncompat(Exception):
@@ -524,7 +524,7 @@ class Forward(object):
         if rustPreventForward(self.name):
             raise RustNoncompat("forward declaration %s is unsupported" % self.name)
         if calltype == "element":
-            return "RefPtr<%s>" % self.name
+            return "Option<RefPtr<%s>>" % self.name
         return "%s*const %s" % ("*mut" if "out" in calltype else "", self.name)
 
     def __str__(self):
@@ -639,7 +639,7 @@ class Native(object):
     def rustType(self, calltype, const=False, shared=False):
         # For the most part, 'native' types don't make sense in rust, as they
         # are native C++ types. However, we can support a few types here, as
-        # they're important.
+        # they're important and can easily be translated.
         #
         # NOTE: This code doesn't try to perfectly match C++ constness, as
         # constness doesn't affect ABI, and raw pointers are already unsafe.
@@ -647,33 +647,61 @@ class Native(object):
         if self.modifier not in ["ptr", "ref"]:
             raise RustNoncompat("Rust only supports [ref] / [ptr] native types")
 
-        prefix = "*mut " if "out" in calltype else "*const "
-        if "out" in calltype and self.modifier == "ptr":
-            prefix += "*mut "
+        if shared:
+            if calltype != "out":
+                raise IDLError(
+                    "[shared] only applies to out parameters.", self.location
+                )
+            const = True
 
-        if self.specialtype == "nsid":
-            if "element" in calltype:
-                if self.isPtr(calltype):
-                    raise IDLError(
-                        "Array<nsIDPtr> not yet supported. "
-                        "File an XPConnect bug if you need it.",
-                        self.location,
-                    )
-                return self.nativename
-            return prefix + self.nativename
-        if self.specialtype in ["cstring", "utf8string"]:
-            if "element" in calltype:
-                return "::nsstring::nsCString"
-            return prefix + "::nsstring::nsACString"
-        if self.specialtype == "astring":
-            if "element" in calltype:
-                return "::nsstring::nsString"
-            return prefix + "::nsstring::nsAString"
-        if self.nativename == "void":
-            return prefix + "libc::c_void"
+        # 'in' nsid parameters should be made 'const'
+        if self.specialtype == "nsid" and calltype == "in":
+            const = True
+
+        prefix = "*const " if const or shared else "*mut "
+        if "out" in calltype and self.isPtr(calltype):
+            prefix = "*mut " + prefix
 
         if self.specialtype:
-            raise RustNoncompat("specialtype %s unsupported" % self.specialtype)
+            # The string types are very special, and need to be handled seperately.
+            if self.specialtype in ["cstring", "utf8string"]:
+                if calltype == "in":
+                    return "*const ::nsstring::nsACString"
+                elif "out" in calltype:
+                    return "*mut ::nsstring::nsACString"
+                else:
+                    return "::nsstring::nsCString"
+            if self.specialtype == "astring":
+                if calltype == "in":
+                    return "*const ::nsstring::nsAString"
+                elif "out" in calltype:
+                    return "*mut ::nsstring::nsAString"
+                else:
+                    return "::nsstring::nsString"
+            # nsid has some special handling, but generally re-uses the generic
+            # prefix handling above.
+            if self.specialtype == "nsid":
+                if "element" in calltype:
+                    if self.isPtr(calltype):
+                        raise IDLError(
+                            "Array<nsIDPtr> not yet supported. "
+                            "File an XPConnect bug if you need it.",
+                            self.location,
+                        )
+                    return self.nativename
+                return prefix + self.nativename
+            raise RustNoncompat("special type %s unsupported" % self.specialtype)
+
+        # These 3 special types correspond to native pointer types which can
+        # generally be supported behind pointers. Other types are not supported
+        # for now.
+        if self.nativename == "void":
+            return prefix + "libc::c_void"
+        if self.nativename == "char":
+            return prefix + "libc::c_char"
+        if self.nativename == "char16_t":
+            return prefix + "u16"
+
         raise RustNoncompat("native type %s unsupported" % self.nativename)
 
     def __str__(self):
@@ -750,6 +778,13 @@ class Interface(object):
 
     def resolve(self, parent):
         self.idl = parent
+
+        if not self.attributes.scriptable and self.attributes.builtinclass:
+            raise IDLError(
+                "Non-scriptable interface '%s' doesn't need to be marked builtinclass"
+                % self.name,
+                self.location,
+            )
 
         # Hack alert: if an identifier is already present, libIDL assigns
         # doc comments incorrectly. This is quirks-mode extraordinaire!
@@ -830,7 +865,7 @@ class Interface(object):
 
     def rustType(self, calltype, const=False):
         if calltype == "element":
-            return "RefPtr<%s>" % self.name
+            return "Option<RefPtr<%s>>" % self.name
         return "%s*const %s" % ("*mut " if "out" in calltype else "", self.name)
 
     def __str__(self):
@@ -880,7 +915,6 @@ class InterfaceAttributes(object):
     scriptable = False
     builtinclass = False
     function = False
-    noscript = False
     main_process_scriptable_only = False
 
     def setuuid(self, value):
@@ -891,9 +925,6 @@ class InterfaceAttributes(object):
 
     def setfunction(self):
         self.function = True
-
-    def setnoscript(self):
-        self.noscript = True
 
     def setbuiltinclass(self):
         self.builtinclass = True
@@ -906,7 +937,6 @@ class InterfaceAttributes(object):
         "scriptable": (False, setscriptable),
         "builtinclass": (False, setbuiltinclass),
         "function": (False, setfunction),
-        "noscript": (False, setnoscript),
         "object": (False, lambda self: True),
         "main_process_scriptable_only": (False, setmain_process_scriptable_only),
     }
@@ -1083,10 +1113,11 @@ def ensureInfallibleIsSound(methodOrAttribute):
             "(numbers, booleans, cenum, and raw char types)",
             methodOrAttribute.location,
         )
-    if not methodOrAttribute.iface.attributes.builtinclass:
+    ifaceAttributes = methodOrAttribute.iface.attributes
+    if ifaceAttributes.scriptable and not ifaceAttributes.builtinclass:
         raise IDLError(
             "[infallible] attributes and methods are only allowed on "
-            "[builtinclass] interfaces",
+            "non-[scriptable] or [builtinclass] interfaces",
             methodOrAttribute.location,
         )
 
@@ -1310,21 +1341,33 @@ class Method(object):
                     self.location,
                 )
             if p.size_is:
-                found_size_param = False
-                for size_param in self.params:
-                    if p.size_is == size_param.name:
-                        found_size_param = True
-                        if (
-                            getBuiltinOrNativeTypeName(size_param.realtype)
-                            != "unsigned long"
-                        ):
-                            raise IDLError(
-                                "is_size parameter must have type 'unsigned long'",
-                                self.location,
-                            )
-                if not found_size_param:
+                size_param = self.namemap.get(p.size_is, p.location)
+                if (
+                    p.paramtype.count("in") == 1
+                    and size_param.paramtype.count("in") == 0
+                ):
                     raise IDLError(
-                        "could not find is_size parameter '%s'" % p.size_is,
+                        "size_is parameter of an input must also be an input",
+                        p.location,
+                    )
+                if getBuiltinOrNativeTypeName(size_param.realtype) != "unsigned long":
+                    raise IDLError(
+                        "size_is parameter must have type 'unsigned long'",
+                        p.location,
+                    )
+            if p.iid_is:
+                iid_param = self.namemap.get(p.iid_is, p.location)
+                if (
+                    p.paramtype.count("in") == 1
+                    and iid_param.paramtype.count("in") == 0
+                ):
+                    raise IDLError(
+                        "iid_is parameter of an input must also be an input",
+                        p.location,
+                    )
+                if getBuiltinOrNativeTypeName(iid_param.realtype) != "[nsid]":
+                    raise IDLError(
+                        "iid_is parameter must be an nsIID",
                         self.location,
                     )
 
@@ -1960,7 +2003,7 @@ class IDLParser(object):
             type=p[3],
             name=p[4],
             attlist=p[1]["attlist"],
-            location=self.getLocation(p, 3),
+            location=self.getLocation(p, 4),
         )
 
     def p_paramtype(self, p):

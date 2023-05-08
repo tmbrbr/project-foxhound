@@ -9,6 +9,7 @@
 #include "gfxUtils.h"
 #include "mozilla/ComputedStyle.h"
 #include "mozilla/PresShell.h"
+#include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Helpers.h"
 #include "nsTableFrame.h"
@@ -533,13 +534,16 @@ nscoord nsTableCellFrame::GetCellBaseline() const {
   // Ignore the position of the inner frame relative to the cell frame
   // since we want the position as though the inner were top-aligned.
   nsIFrame* inner = mFrames.FirstChild();
-  nscoord borderPadding = GetUsedBorderAndPadding().top;
+  const auto wm = GetWritingMode();
+  const auto borderPadding = GetLogicalUsedBorderAndPadding(wm);
   nscoord result;
   if (!StyleDisplay()->IsContainLayout() &&
-      nsLayoutUtils::GetFirstLineBaseline(GetWritingMode(), inner, &result)) {
-    return result + borderPadding;
+      nsLayoutUtils::GetFirstLineBaseline(wm, inner, &result)) {
+    return result + borderPadding.BStart(wm);
   }
-  return inner->GetContentRectRelativeToSelf().YMost() + borderPadding;
+  const auto logicalSize = inner->GetLogicalSize(wm);
+  // ::-moz-cell-content shouldn't have any border/padding.
+  return logicalSize.BSize(wm) + borderPadding.BStart(wm);
 }
 
 int32_t nsTableCellFrame::GetRowSpan() {
@@ -852,8 +856,6 @@ void nsTableCellFrame::Reflow(nsPresContext* aPresContext,
   // nsIFrame::FixupPositionedTableParts in another pass, so propagate our
   // dirtiness to them before our parent clears our dirty bits.
   PushDirtyBitToAbsoluteFrames();
-
-  NS_FRAME_SET_TRUNCATION(aStatus, aReflowInput, aDesiredSize);
 }
 
 /* ----- global methods ----- */
@@ -1066,7 +1068,8 @@ void nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
     }
 
     // display borders if we need to
-    ProcessBorders(GetTableFrame(), aBuilder, aLists);
+    nsTableFrame* tableFrame = GetTableFrame();
+    ProcessBorders(tableFrame, aBuilder, aLists);
 
     // and display the selection border if we need to
     if (IsSelected()) {
@@ -1096,16 +1099,18 @@ void nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
       DisplayListClipState::AutoSaveRestore clipState(aBuilder);
       nsDisplayListBuilder::AutoCurrentActiveScrolledRootSetter asrSetter(
           aBuilder);
-      if (IsStackingContext()) {
+      if (IsStackingContext() || row->IsStackingContext() ||
+          rowGroup->IsStackingContext() || tableFrame->IsStackingContext()) {
         // The col/colgroup items we create below will be inserted directly into
         // the BorderBackgrounds list of the table frame. That means that
-        // they'll be moved *outside* of any wrapper items from this table cell,
-        // and will not participate in this table cell's opacity / transform /
-        // filter / mask effects. If this cell is a stacking context, then we
+        // they'll be moved *outside* of any wrapper items created for any
+        // frames between this table cell frame and the table wrapper frame, and
+        // will not participate in those frames's opacity / transform / filter /
+        // mask effects. If one of those frames is a stacking context, then we
         // may have one or more of those wrapper items, and one of them may have
         // captured a clip. In order to ensure correct clipping and scrolling of
         // the col/colgroup items, restore the clip and ASR that we observed
-        // when we entered the table frame. If this cell is a stacking context
+        // when we entered the table frame. If that frame is a stacking context
         // but doesn't have any clip capturing wrapper items, then we'll
         // double-apply the clip. That's ok.
         clipState.SetClipChainForContainingBlockDescendants(

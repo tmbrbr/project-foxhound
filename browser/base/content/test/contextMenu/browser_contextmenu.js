@@ -59,7 +59,7 @@ function getThisFrameSubMenu(base_menu) {
   return base_menu;
 }
 
-add_task(async function init() {
+add_setup(async function() {
   await SpecialPowers.pushPrefEnv({
     set: [
       ["browser.search.separatePrivateDefault.ui.enabled", true],
@@ -258,6 +258,7 @@ add_task(async function test_image() {
         true,
         "context-sendimage",
         true,
+        ...getTextRecognitionItems(),
         ...(Services.prefs.getBoolPref("browser.menu.showViewImageInfo", false)
           ? ["context-viewimageinfo", true]
           : []),
@@ -668,6 +669,10 @@ add_task(async function test_iframe() {
       true,
       "---",
       null,
+      "context-take-frame-screenshot",
+      true,
+      "---",
+      null,
       "context-viewframesource",
       true,
       "context-viewframeinfo",
@@ -920,6 +925,7 @@ add_task(async function test_image_in_iframe() {
     true,
     "context-sendimage",
     true,
+    ...getTextRecognitionItems(),
     ...(Services.prefs.getBoolPref("browser.menu.showViewImageInfo", false)
       ? ["context-viewimageinfo", true]
       : []),
@@ -1429,6 +1435,7 @@ add_task(async function test_imagelink() {
     true,
     "context-sendimage",
     true,
+    ...getTextRecognitionItems(),
     ...(Services.prefs.getBoolPref("browser.menu.showViewImageInfo", false)
       ? ["context-viewimageinfo", true]
       : []),
@@ -1527,6 +1534,7 @@ add_task(async function test_longdesc() {
     true,
     "context-sendimage",
     true,
+    ...getTextRecognitionItems(),
     ...(Services.prefs.getBoolPref("browser.menu.showViewImageInfo", false)
       ? ["context-viewimageinfo", true]
       : []),
@@ -1561,6 +1569,10 @@ add_task(async function test_srcdoc() {
       "---",
       null,
       "context-printframe",
+      true,
+      "---",
+      null,
+      "context-take-frame-screenshot",
       true,
       "---",
       null,
@@ -1896,4 +1908,15 @@ async function selectText(selector) {
       win.getSelection().addRange(div);
     }
   );
+}
+
+/**
+ * Not all platforms support text recognition.
+ * @returns {string[]}
+ */
+function getTextRecognitionItems() {
+  return Services.prefs.getBoolPref("dom.text-recognition.enabled") &&
+    Services.appinfo.isTextRecognitionSupported
+    ? ["context-imagetext", true]
+    : [];
 }

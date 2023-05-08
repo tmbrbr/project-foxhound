@@ -30,27 +30,29 @@ const { LinkHandlerParent } = ChromeUtils.import(
 const {
   getFormattedIPAndPort,
   getFormattedTime,
-} = require("devtools/client/netmonitor/src/utils/format-utils");
+} = require("resource://devtools/client/netmonitor/src/utils/format-utils.js");
 
 const {
   getSortedRequests,
   getRequestById,
-} = require("devtools/client/netmonitor/src/selectors/index");
+} = require("resource://devtools/client/netmonitor/src/selectors/index.js");
 
 const {
   getUnicodeUrl,
   getUnicodeHostname,
-} = require("devtools/client/shared/unicode-url");
+} = require("resource://devtools/client/shared/unicode-url.js");
 const {
   getFormattedProtocol,
   getUrlHost,
   getUrlScheme,
-} = require("devtools/client/netmonitor/src/utils/request-utils");
+} = require("resource://devtools/client/netmonitor/src/utils/request-utils.js");
 const {
   EVENTS,
   TEST_EVENTS,
-} = require("devtools/client/netmonitor/src/constants");
-const { L10N } = require("devtools/client/netmonitor/src/utils/l10n");
+} = require("resource://devtools/client/netmonitor/src/constants.js");
+const {
+  L10N,
+} = require("resource://devtools/client/netmonitor/src/utils/l10n.js");
 
 /* eslint-disable no-unused-vars, max-len */
 const EXAMPLE_URL =
@@ -795,7 +797,7 @@ function testFilterButtons(monitor, filterType) {
   const buttons = [
     ...doc.querySelectorAll(".requests-list-filter-buttons button"),
   ];
-  ok(buttons.length > 0, "More than zero filter buttons were found");
+  ok(!!buttons.length, "More than zero filter buttons were found");
 
   // Only target should be checked.
   const checkStatus = buttons.map(button => (button == target ? 1 : 0));
@@ -1234,10 +1236,36 @@ function validateRequests(requests, monitor) {
 /**
  * Retrieve the context menu element corresponding to the provided id, for the provided
  * netmonitor instance.
+ * @param {Object} monitor
+ *        The network monnitor object
+ * @param {String} id
+ *        The id of the context menu item
  */
 function getContextMenuItem(monitor, id) {
-  const Menu = require("devtools/client/framework/menu");
+  const Menu = require("resource://devtools/client/framework/menu.js");
   return Menu.getMenuElementById(id, monitor.panelWin.document);
+}
+
+/*
+ * Selects and clicks the context menu item, it should
+ * also wait for the popup to close.
+ * @param {Object} monitor
+ *        The network monnitor object
+ * @param {String} id
+ *        The id of the context menu item
+ */
+async function selectContextMenuItem(monitor, id) {
+  const contextMenuItem = getContextMenuItem(monitor, id);
+  contextMenuItem.click();
+
+  // Hide and wait for hiding of the context menu
+  const onHidden = new Promise(resolve =>
+    contextMenuItem.parentElement.addEventListener("popuphidden", resolve, {
+      once: true,
+    })
+  );
+  contextMenuItem.parentElement.hidePopup();
+  await onHidden;
 }
 
 /**

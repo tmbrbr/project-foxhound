@@ -42,14 +42,14 @@ const EXPORTED_SYMBOLS = ["LoginStore"];
 
 // Globals
 
-const { JSONFile } = ChromeUtils.import("resource://gre/modules/JSONFile.jsm");
+const { JSONFile } = ChromeUtils.importESModule(
+  "resource://gre/modules/JSONFile.sys.mjs"
+);
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
 
 const lazy = {};
-
-ChromeUtils.defineModuleGetter(lazy, "OS", "resource://gre/modules/osfile.jsm");
 
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   FXA_PWDMGR_HOST: "resource://gre/modules/FxAccountsCommon.js",
@@ -123,7 +123,7 @@ LoginStore.prototype._backupHandler = async function() {
     logins[0].httpRealm == lazy.FXA_PWDMGR_REALM
   ) {
     try {
-      await lazy.OS.File.copy(this.path, this._options.backupTo);
+      await IOUtils.copy(this.path, this._options.backupTo);
 
       // This notification is specifically sent out for a test.
       Services.obs.notifyObservers(null, "logins-backup-updated");
@@ -132,7 +132,7 @@ LoginStore.prototype._backupHandler = async function() {
     }
   } else if (!logins.length) {
     // If no logins are stored anymore, delete backup.
-    await lazy.OS.File.remove(this._options.backupTo, {
+    await IOUtils.remove(this._options.backupTo, {
       ignoreAbsent: true,
     });
   }

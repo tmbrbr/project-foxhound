@@ -101,57 +101,65 @@ hb_base_sources = files(
   'OT/glyf/SimpleGlyph.hh',
   'OT/glyf/CompositeGlyph.hh',
   'OT/glyf/SubsetGlyph.hh',
+  'OT/Layout/types.hh',
+  'OT/Layout/Common/Coverage.hh',
+  'OT/Layout/Common/CoverageFormat1.hh',
+  'OT/Layout/Common/CoverageFormat2.hh',
+  'OT/Layout/Common/RangeRecord.hh',
+  'OT/Layout/GPOS/AnchorFormat1.hh',
+  'OT/Layout/GPOS/AnchorFormat2.hh',
+  'OT/Layout/GPOS/AnchorFormat3.hh',
+  'OT/Layout/GPOS/Anchor.hh',
+  'OT/Layout/GPOS/AnchorMatrix.hh',
+  'OT/Layout/GPOS/ChainContextPos.hh',
+  'OT/Layout/GPOS/Common.hh',
+  'OT/Layout/GPOS/ContextPos.hh',
+  'OT/Layout/GPOS/CursivePosFormat1.hh',
+  'OT/Layout/GPOS/CursivePos.hh',
+  'OT/Layout/GPOS/ExtensionPos.hh',
+  'OT/Layout/GPOS/GPOS.hh',
+  'OT/Layout/GPOS/LigatureArray.hh',
+  'OT/Layout/GPOS/MarkArray.hh',
+  'OT/Layout/GPOS/MarkBasePosFormat1.hh',
+  'OT/Layout/GPOS/MarkBasePos.hh',
+  'OT/Layout/GPOS/MarkLigPosFormat1.hh',
+  'OT/Layout/GPOS/MarkLigPos.hh',
+  'OT/Layout/GPOS/MarkMarkPosFormat1.hh',
+  'OT/Layout/GPOS/MarkMarkPos.hh',
+  'OT/Layout/GPOS/MarkRecord.hh',
+  'OT/Layout/GPOS/PairPosFormat1.hh',
+  'OT/Layout/GPOS/PairPosFormat2.hh',
+  'OT/Layout/GPOS/PairPos.hh',
+  'OT/Layout/GPOS/PairSet.hh',
+  'OT/Layout/GPOS/PairValueRecord.hh',
+  'OT/Layout/GPOS/PosLookup.hh',
+  'OT/Layout/GPOS/PosLookupSubTable.hh',
+  'OT/Layout/GPOS/SinglePosFormat1.hh',
+  'OT/Layout/GPOS/SinglePosFormat2.hh',
+  'OT/Layout/GPOS/SinglePos.hh',
+  'OT/Layout/GPOS/ValueFormat.hh',
+  'OT/Layout/GSUB/AlternateSet.hh',
+  'OT/Layout/GSUB/AlternateSubstFormat1.hh',
+  'OT/Layout/GSUB/AlternateSubst.hh',
+  'OT/Layout/GSUB/ChainContextSubst.hh',
   'OT/Layout/GSUB/Common.hh',
+  'OT/Layout/GSUB/ContextSubst.hh',
+  'OT/Layout/GSUB/ExtensionSubst.hh',
+  'OT/Layout/GSUB/GSUB.hh',
+  'OT/Layout/GSUB/Ligature.hh',
+  'OT/Layout/GSUB/LigatureSet.hh',
+  'OT/Layout/GSUB/LigatureSubstFormat1.hh',
+  'OT/Layout/GSUB/LigatureSubst.hh',
+  'OT/Layout/GSUB/MultipleSubstFormat1.hh',
+  'OT/Layout/GSUB/MultipleSubst.hh',
+  'OT/Layout/GSUB/ReverseChainSingleSubstFormat1.hh',
+  'OT/Layout/GSUB/ReverseChainSingleSubst.hh',
   'OT/Layout/GSUB/Sequence.hh',
   'OT/Layout/GSUB/SingleSubstFormat1.hh',
   'OT/Layout/GSUB/SingleSubstFormat2.hh',
   'OT/Layout/GSUB/SingleSubst.hh',
-  'OT/Layout/GSUB/MultipleSubstFormat1.hh',
-  'OT/Layout/GSUB/MultipleSubst.hh',
-  'OT/Layout/GSUB/AlternateSubstFormat1.hh',
-  'OT/Layout/GSUB/AlternateSubst.hh',
-  'OT/Layout/GSUB/AlternateSet.hh',
-  'OT/Layout/GSUB/LigatureSubstFormat1.hh',
-  'OT/Layout/GSUB/LigatureSubst.hh',
-  'OT/Layout/GSUB/LigatureSet.hh',
-  'OT/Layout/GSUB/Ligature.hh',
-  'OT/Layout/GSUB/ReverseChainSingleSubst.hh',
-  'OT/Layout/GSUB/ReverseChainSingleSubstFormat1.hh',
-  'OT/Layout/GSUB/ContextSubst.hh',
-  'OT/Layout/GSUB/ChainContextSubst.hh',
-  'OT/Layout/GSUB/ExtensionSubst.hh',
-  'OT/Layout/GSUB/SubstLookupSubTable.hh',
   'OT/Layout/GSUB/SubstLookup.hh',
-  'OT/Layout/GSUB/GSUB.hh',
-  'OT/Layout/GPOS.hh',
-  'OT/Layout/GPOS/CursivePosFormat1.hh',
-  'OT/Layout/GPOS/MarkLigPos.hh',
-  'OT/Layout/GPOS/PairPos.hh',
-  'OT/Layout/GPOS/Anchor.hh',
-  'OT/Layout/GPOS/AnchorFormat1.hh',
-  'OT/Layout/GPOS/MarkLigPosFormat1.hh',
-  'OT/Layout/GPOS/PairPosFormat1.hh',
-  'OT/Layout/GPOS/ExtensionPos.hh',
-  'OT/Layout/GPOS/ChainContextPos.hh',
-  'OT/Layout/GPOS/Common.hh',
-  'OT/Layout/GPOS/ValueFormat.hh',
-  'OT/Layout/GPOS/AnchorMatrix.hh',
-  'OT/Layout/GPOS/MarkBasePosFormat1.hh',
-  'OT/Layout/GPOS/AnchorFormat3.hh',
-  'OT/Layout/GPOS/PosLookup.hh',
-  'OT/Layout/GPOS/MarkMarkPos.hh',
-  'OT/Layout/GPOS/PairPosFormat2.hh',
-  'OT/Layout/GPOS/MarkBasePos.hh',
-  'OT/Layout/GPOS/MarkMarkPosFormat1.hh',
-  'OT/Layout/GPOS/SinglePos.hh',
-  'OT/Layout/GPOS/MarkArray.hh',
-  'OT/Layout/GPOS/CursivePos.hh',
-  'OT/Layout/GPOS/PosLookupSubTable.hh',
-  'OT/Layout/GPOS/MarkRecord.hh',
-  'OT/Layout/GPOS/AnchorFormat2.hh',
-  'OT/Layout/GPOS/ContextPos.hh',
-  'OT/Layout/GPOS/SinglePosFormat2.hh',
-  'OT/Layout/GPOS/SinglePosFormat1.hh',
+  'OT/Layout/GSUB/SubstLookupSubTable.hh',
   'hb-ot-layout-gsubgpos.hh',
   'hb-ot-layout-jstf-table.hh',
   'hb-ot-layout.cc',
@@ -337,6 +345,14 @@ hb_subset_sources = files(
   'hb-subset-plan.cc',
   'hb-subset-plan.hh',
   'hb-subset-repacker.cc',
+  'graph/gsubgpos-context.cc',
+  'graph/gsubgpos-context.hh',
+  'graph/gsubgpos-graph.hh',
+  'graph/pairpos-graph.hh',
+  'graph/markbasepos-graph.hh',
+  'graph/coverage-graph.hh',
+  'graph/classdef-graph.hh',
+  'graph/split-helpers.hh',
   'hb-subset.cc',
   'hb-subset.hh',
 )
@@ -429,7 +445,6 @@ endif
 if conf.get('HAVE_DIRECTWRITE', 0) == 1
   hb_sources += hb_directwrite_sources
   hb_headers += hb_directwrite_headers
-  harfbuzz_deps += directwrite_dep
   # hb-directwrite needs a C++ linker
   libharfbuzz_link_language = 'cpp'
 endif
@@ -466,7 +481,7 @@ defs_list = [harfbuzz_def]
 version = '0.@0@.0'.format(hb_version_int)
 
 extra_hb_cpp_args = []
-if cpp.get_id() == 'msvc'
+if cpp.get_argument_syntax() == 'msvc'
   if get_option('default_library') != 'static'
     extra_hb_cpp_args += '-DHB_DLL_EXPORT'
   endif
@@ -520,6 +535,14 @@ libharfbuzz_subset = library('harfbuzz-subset', hb_subset_sources,
   link_language: 'c',
 )
 
+custom_target('harfbuzz-subset.cc',
+  build_by_default: true,
+  output: 'harfbuzz-subset.cc',
+  input: hb_base_sources + hb_subset_sources,
+  command: [find_program('gen-harfbuzzcc.py'),
+            '@OUTPUT@', meson.current_source_dir(), '@INPUT@'],
+)
+
 libharfbuzz_subset_dep = declare_dependency(
   link_with: libharfbuzz_subset,
   include_directories: incsrc,
@@ -528,7 +551,7 @@ libharfbuzz_subset_dep = declare_dependency(
 if get_option('tests').enabled()
   # TODO: MSVC gives the following,
   # error LNK2019: unresolved external symbol "unsigned __int64 const * const _hb_NullPool"
-  if cpp.get_id() != 'msvc'
+  if cpp.get_argument_syntax() != 'msvc'
     noinst_programs = {
       'main': 'main.cc',
       'test-basics': 'test.cc',
@@ -538,6 +561,7 @@ if get_option('tests').enabled()
       'test-ot-glyphname': 'test-ot-glyphname.cc',
       'test-ot-gpos-size-params': 'test-gpos-size-params.cc',
       'test-ot-gsub-would-substitute': 'test-gsub-would-substitute.cc',
+      'test-use-table': 'test-use-table.cc',
     }
     foreach name, source : noinst_programs
       executable(name, source,
@@ -558,7 +582,8 @@ if get_option('tests').enabled()
     'test-number': ['test-number.cc', 'hb-number.cc'],
     'test-ot-tag': ['hb-ot-tag.cc'],
     'test-priority-queue': ['test-priority-queue.cc', 'hb-static.cc'],
-    'test-repacker': ['test-repacker.cc', 'hb-static.cc'],
+    'test-repacker': ['test-repacker.cc', 'hb-static.cc', 'graph/gsubgpos-context.cc'],
+    'test-classdef-graph': ['graph/test-classdef-graph.cc', 'hb-static.cc', 'graph/gsubgpos-context.cc'],
     'test-set': ['test-set.cc', 'hb-static.cc'],
     'test-serialize': ['test-serialize.cc', 'hb-static.cc'],
     'test-unicode-ranges': ['test-unicode-ranges.cc'],
@@ -566,7 +591,7 @@ if get_option('tests').enabled()
     'test-bimap': ['test-bimap.cc', 'hb-static.cc'],
   }
   foreach name, source : compiled_tests
-    if cpp.get_id() == 'msvc' and source.contains('hb-static.cc')
+    if cpp.get_argument_syntax() == 'msvc' and source.contains('hb-static.cc')
       # TODO: MSVC doesn't like tests having hb-static.cc, fix them
       continue
     endif
@@ -769,7 +794,7 @@ if get_option('tests').enabled()
   endforeach
   env.set('HBHEADERS', ' '.join(HBHEADERS))
 
-  if cpp.get_id() != 'msvc' and not meson.is_cross_build() # ensure the local tools are usable
+  if cpp.get_argument_syntax() != 'msvc' and not meson.is_cross_build() # ensure the local tools are usable
     dist_check_script += ['check-libstdc++', 'check-static-inits', 'check-symbols']
   endif
 

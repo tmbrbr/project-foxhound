@@ -38,6 +38,7 @@ add_task(async function() {
   info(
     "Check browser console messages with devtools.browsertoolbox.fission set to true"
   );
+  await pushPref("devtools.browsertoolbox.scope", "everything");
   await pushPref("devtools.browsertoolbox.fission", true);
   await testMessages();
 
@@ -186,7 +187,9 @@ async function testMessages() {
 
   // Check messages logged in content with Log.jsm
   await SpecialPowers.spawn(gBrowser.selectedBrowser, [], () => {
-    const { Log } = ChromeUtils.import("resource://gre/modules/Log.jsm");
+    const { Log } = ChromeUtils.importESModule(
+      "resource://gre/modules/Log.sys.mjs"
+    );
     const logger = Log.repository.getLogger("TEST_LOGGER_" + Date.now());
     logger.addAppender(new Log.ConsoleAppender(new Log.BasicFormatter()));
     logger.level = Log.Level.Info;

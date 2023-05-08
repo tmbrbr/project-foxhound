@@ -6,64 +6,68 @@
 const {
   createElement,
   createFactory,
-} = require("devtools/client/shared/vendor/react");
-const ReactDOM = require("devtools/client/shared/vendor/react-dom");
+} = require("resource://devtools/client/shared/vendor/react.js");
+const ReactDOM = require("resource://devtools/client/shared/vendor/react-dom.js");
 const {
   Provider,
   createProvider,
-} = require("devtools/client/shared/vendor/react-redux");
-const Services = require("Services");
+} = require("resource://devtools/client/shared/vendor/react-redux.js");
 
-const actions = require("devtools/client/webconsole/actions/index");
-const { configureStore } = require("devtools/client/webconsole/store");
+const actions = require("resource://devtools/client/webconsole/actions/index.js");
+const {
+  configureStore,
+} = require("resource://devtools/client/webconsole/store.js");
 
 const {
   isPacketPrivate,
-} = require("devtools/client/webconsole/utils/messages");
+} = require("resource://devtools/client/webconsole/utils/messages.js");
 const {
   getMutableMessagesById,
   getMessage,
   getAllNetworkMessagesUpdateById,
-} = require("devtools/client/webconsole/selectors/messages");
-const Telemetry = require("devtools/client/shared/telemetry");
+} = require("resource://devtools/client/webconsole/selectors/messages.js");
+const Telemetry = require("resource://devtools/client/shared/telemetry.js");
 
-const EventEmitter = require("devtools/shared/event-emitter");
-const App = createFactory(require("devtools/client/webconsole/components/App"));
+const EventEmitter = require("resource://devtools/shared/event-emitter.js");
+const App = createFactory(
+  require("resource://devtools/client/webconsole/components/App.js")
+);
 
 loader.lazyGetter(this, "AppErrorBoundary", () =>
-  createFactory(require("devtools/client/shared/components/AppErrorBoundary"))
+  createFactory(
+    require("resource://devtools/client/shared/components/AppErrorBoundary.js")
+  )
 );
 
 const {
   setupServiceContainer,
-} = require("devtools/client/webconsole/service-container");
+} = require("resource://devtools/client/webconsole/service-container.js");
 
 loader.lazyRequireGetter(
   this,
   "Constants",
-  "devtools/client/webconsole/constants"
+  "resource://devtools/client/webconsole/constants.js"
 );
 
 // Localized strings for (devtools/client/locales/en-US/startup.properties)
 loader.lazyGetter(this, "L10N", function() {
-  const { LocalizationHelper } = require("devtools/shared/l10n");
+  const { LocalizationHelper } = require("resource://devtools/shared/l10n.js");
   return new LocalizationHelper("devtools/client/locales/startup.properties");
 });
 
-function renderApp({ app, store, commands, root }) {
-  return ReactDOM.render(
-    createElement(
-      Provider,
-      { store },
-      createElement(
-        createProvider(commands.targetCommand.storeId),
-        { store: commands.targetCommand.store },
-        app
-      )
-    ),
-    root
-  );
-}
+// Only Browser Console needs Fluent bundles at the moment
+loader.lazyRequireGetter(
+  this,
+  "FluentL10n",
+  "resource://devtools/client/shared/fluent-l10n/fluent-l10n.js",
+  true
+);
+loader.lazyRequireGetter(
+  this,
+  "LocalizationProvider",
+  "resource://devtools/client/shared/vendor/fluent-react.js",
+  true
+);
 
 let store = null;
 
@@ -99,6 +103,13 @@ class WebConsoleWrapper {
   async init() {
     const { webConsoleUI } = this;
 
+    let fluentBundles;
+    if (webConsoleUI.isBrowserConsole) {
+      const fluentL10n = new FluentL10n();
+      await fluentL10n.init(["devtools/client/toolbox.ftl"]);
+      fluentBundles = fluentL10n.getBundles();
+    }
+
     return new Promise(resolve => {
       store = configureStore(this.webConsoleUI, {
         // We may not have access to the toolbox (e.g. in the browser console).
@@ -129,17 +140,35 @@ class WebConsoleWrapper {
 
       // Render the root Application component.
       if (this.parentNode) {
-        this.body = renderApp({
-          app,
-          store,
-          root: this.parentNode,
-          commands: this.hud.commands,
-        });
+        const maybeLocalizedElement = fluentBundles
+          ? createElement(LocalizationProvider, { bundles: fluentBundles }, app)
+          : app;
+
+        this.body = ReactDOM.render(
+          createElement(
+            Provider,
+            { store },
+            createElement(
+              createProvider(this.hud.commands.targetCommand.storeId),
+              { store: this.hud.commands.targetCommand.store },
+              maybeLocalizedElement
+            )
+          ),
+          this.parentNode
+        );
       } else {
         // If there's no parentNode, we are in a test. So we can resolve immediately.
         resolve();
       }
     });
+  }
+
+  destroy() {
+    // This component can be instantiated from mocha test, in which case we don't have
+    // a parentNode reference.
+    if (this.parentNode) {
+      ReactDOM.unmountComponentAtNode(this.parentNode);
+    }
   }
 
   dispatchMessageAdd(packet) {
@@ -224,6 +253,39 @@ class WebConsoleWrapper {
     store.dispatch(actions.privateMessagesClear());
   }
 
+  dispatchTargetMessagesRemove(targetFront) {
+    // We might still have pending packets in the queues from the target that we need to remove
+    // to prevent messages appearing in the output.
+
+    for (let i = this.queuedMessageUpdates.length - 1; i >= 0; i--) {
+      const packet = this.queuedMessageUpdates[i];
+      if (packet.targetFront == targetFront) {
+        this.queuedMessageUpdates.splice(i, 1);
+      }
+    }
+
+    for (let i = this.queuedRequestUpdates.length - 1; i >= 0; i--) {
+      const packet = this.queuedRequestUpdates[i];
+      if (packet.data.targetFront == targetFront) {
+        this.queuedRequestUpdates.splice(i, 1);
+      }
+    }
+
+    for (let i = this.queuedMessageAdds.length - 1; i >= 0; i--) {
+      const packet = this.queuedMessageAdds[i];
+      // Keep in sync with the check done in the reducer for the TARGET_MESSAGES_REMOVE action.
+      if (
+        packet.targetFront == targetFront &&
+        packet.type !== Constants.MESSAGE_TYPE.COMMAND &&
+        packet.type !== Constants.MESSAGE_TYPE.RESULT
+      ) {
+        this.queuedMessageAdds.splice(i, 1);
+      }
+    }
+
+    store.dispatch(actions.targetMessagesRemove(targetFront));
+  }
+
   dispatchMessagesUpdate(messages) {
     this.batchedMessagesUpdates(messages);
   }
@@ -261,7 +323,7 @@ class WebConsoleWrapper {
   }
 
   batchedMessagesUpdates(messages) {
-    if (messages.length > 0) {
+    if (messages.length) {
       this.queuedMessageUpdates.push(...messages);
       this.setTimeoutIfNeeded();
     }
@@ -273,7 +335,7 @@ class WebConsoleWrapper {
   }
 
   batchedMessagesAdd(messages) {
-    if (messages.length > 0) {
+    if (messages.length) {
       this.queuedMessageAdds.push(...messages);
       this.setTimeoutIfNeeded();
     }
@@ -339,14 +401,14 @@ class WebConsoleWrapper {
 
         this.queuedMessageAdds = [];
 
-        if (this.queuedMessageUpdates.length > 0) {
+        if (this.queuedMessageUpdates.length) {
           await store.dispatch(
             actions.networkMessageUpdates(this.queuedMessageUpdates, null)
           );
           this.webConsoleUI.emitForTests("network-messages-updated");
           this.queuedMessageUpdates = [];
         }
-        if (this.queuedRequestUpdates.length > 0) {
+        if (this.queuedRequestUpdates.length) {
           await store.dispatch(
             actions.networkUpdateRequests(this.queuedRequestUpdates)
           );

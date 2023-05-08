@@ -145,23 +145,44 @@
 }
 
 .urlbarView-row[dynamicType=quickactions] > .urlbarView-row-inner {
+  align-items: start;
+}
+
+.urlbarView-row[dynamicType=quickactions] .urlbarView-dynamic-quickactions-buttons {
   display: flex;
+  flex-grow: 1;
+  gap: 0.9em 1.8em;
+  /** parent width - help button width - gap to help button */
+  max-width: calc(100% - 28px - 1.8em);
+}
+
+#urlbar[searchmodesource=actions] .urlbarView-row[dynamicType=quickactions] .urlbarView-dynamic-quickactions-buttons {
   flex-wrap: wrap;
-  gap: 1em;
+}
+
+.urlbarView-results[wrap] > .urlbarView-row[dynamicType=quickactions] > .urlbarView-row-inner {
+  flex-wrap: unset;
 }
 
 .urlbarView-row[dynamicType=quickactions] .urlbarView-quickaction-row {
-  background: rgba(255, 255, 255, .1);
-  border-radius: 8px;
+  box-shadow: 0px 0px 1px rgba(128, 128, 142, 0.9), 0px 0px 4px rgba(128, 128, 142, 0.5);
+  border-radius: 4px;
   display: flex;
   align-items: center;
   padding: .5em;
-  border: .5px solid rgba(207,207,216, .6);
   margin-top: 2px;
   position: relative;
+  overflow: hidden;
+  min-width: 16px;
+}
+
+.urlbarView-row[dynamicType=quickactions] .urlbarView-quickaction-row[disabled] {
+  opacity: .4;
 }
 
 .urlbarView-row[dynamicType=quickactions] .urlbarView-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 11px;
   font-weight: 500;
 }
@@ -179,12 +200,11 @@
 
 .urlbarView-row[dynamicType=quickactions][label]::before {
   top: -1em;
-  margin-inline-start: 12px;
+  margin-inline-start: 6px;
 }
 
-.urlbarView-row[dynamicType=quickactions] .urlbarView-quickaction-row:hover {
-  background-color: var(--autocomplete-popup-highlight-background);
-  border: .5px solid #CFCFD8;
+.urlbarView-row[dynamicType=quickactions] .urlbarView-quickaction-row:hover:not([disabled]):not([selected]) {
+  background-color: var(--autocomplete-popup-hover-background);
 }
 
 .urlbarView-row[dynamicType=quickactions] .urlbarView-quickaction-row[selected] {
@@ -192,7 +212,6 @@
   color: var(--autocomplete-popup-highlight-color);
 }
 
-.urlbarView-row[dynamicType=quickactions] .urlbarView-title,
-.urlbarView-row[dynamicType=quickactions] .urlbarView-label {
-  display: flex
+.urlbarView-row[dynamicType=quickactions] .urlbarView-title {
+  display: flex;
 }

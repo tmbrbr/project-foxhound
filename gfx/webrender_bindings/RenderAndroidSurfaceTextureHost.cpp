@@ -17,12 +17,13 @@ namespace wr {
 
 RenderAndroidSurfaceTextureHost::RenderAndroidSurfaceTextureHost(
     const java::GeckoSurfaceTexture::GlobalRef& aSurfTex, gfx::IntSize aSize,
-    gfx::SurfaceFormat aFormat, bool aContinuousUpdate, bool aIgnoreTransform)
+    gfx::SurfaceFormat aFormat, bool aContinuousUpdate,
+    Maybe<gfx::Matrix4x4> aTransformOverride)
     : mSurfTex(aSurfTex),
       mSize(aSize),
       mFormat(aFormat),
       mContinuousUpdate(aContinuousUpdate),
-      mIgnoreTransform(aIgnoreTransform),
+      mTransformOverride(aTransformOverride),
       mPrepareStatus(STATUS_NONE),
       mAttachedToGLContext(false) {
   MOZ_COUNT_CTOR_INHERITED(RenderAndroidSurfaceTextureHost, RenderTextureHost);
@@ -41,8 +42,8 @@ RenderAndroidSurfaceTextureHost::~RenderAndroidSurfaceTextureHost() {
   }
 }
 
-wr::WrExternalImage RenderAndroidSurfaceTextureHost::Lock(
-    uint8_t aChannelIndex, gl::GLContext* aGL, wr::ImageRendering aRendering) {
+wr::WrExternalImage RenderAndroidSurfaceTextureHost::Lock(uint8_t aChannelIndex,
+                                                          gl::GLContext* aGL) {
   MOZ_ASSERT(aChannelIndex == 0);
   MOZ_ASSERT((mPrepareStatus == STATUS_PREPARED) ||
              (!mSurfTex->IsSingleBuffer() &&
@@ -61,14 +62,6 @@ wr::WrExternalImage RenderAndroidSurfaceTextureHost::Lock(
   MOZ_ASSERT(mAttachedToGLContext);
   if (!mAttachedToGLContext) {
     return InvalidToWrExternalImage();
-  }
-
-  if (IsFilterUpdateNecessary(aRendering)) {
-    // Cache new rendering filter.
-    mCachedRendering = aRendering;
-    ActivateBindAndTexParameteri(mGL, LOCAL_GL_TEXTURE0,
-                                 LOCAL_GL_TEXTURE_EXTERNAL_OES,
-                                 mSurfTex->GetTexName(), aRendering);
   }
 
   if (mContinuousUpdate) {
@@ -114,8 +107,7 @@ bool RenderAndroidSurfaceTextureHost::EnsureAttachedToGLContext() {
     GLuint texName;
     mGL->fGenTextures(1, &texName);
     ActivateBindAndTexParameteri(mGL, LOCAL_GL_TEXTURE0,
-                                 LOCAL_GL_TEXTURE_EXTERNAL_OES, texName,
-                                 mCachedRendering);
+                                 LOCAL_GL_TEXTURE_EXTERNAL_OES, texName);
 
     if (NS_FAILED(mSurfTex->AttachToGLContext((int64_t)mGL.get(), texName))) {
       MOZ_ASSERT(0);
@@ -273,11 +265,14 @@ std::pair<gfx::Point, gfx::Point> RenderAndroidSurfaceTextureHost::GetUvCoords(
     gfx::IntSize aTextureSize) const {
   gfx::Matrix4x4 transform;
 
-  // GetTransformMatrix() returns the transform set by the producer side of
-  // the SurfaceTexture. We should ignore this if we know the transform should
-  // be identity but the producer couldn't set it correctly, like is the
-  // case for AndroidNativeWindowTextureData.
-  if (mSurfTex && !mIgnoreTransform) {
+  // GetTransformMatrix() returns the transform set by the producer side of the
+  // SurfaceTexture that must be applied to texture coordinates when
+  // sampling. In some cases we may have set an override value, such as in
+  // AndroidNativeWindowTextureData where we own the producer side, or for
+  // MediaCodec output on devices where where we know the value is incorrect.
+  if (mTransformOverride) {
+    transform = *mTransformOverride;
+  } else if (mSurfTex) {
     const auto& surf = java::sdk::SurfaceTexture::LocalRef(
         java::sdk::SurfaceTexture::Ref::From(mSurfTex));
     gl::AndroidSurfaceTexture::GetTransformMatrix(surf, &transform);

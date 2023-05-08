@@ -40,7 +40,7 @@ class WindowGlobalChild final : public WindowGlobalActor,
 
  public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WindowGlobalChild)
+  NS_DECL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(WindowGlobalChild)
 
   static already_AddRefed<WindowGlobalChild> GetByInnerWindowId(
       uint64_t aInnerWindowId);
@@ -164,9 +164,6 @@ class WindowGlobalChild final : public WindowGlobalActor,
 
   mozilla::ipc::IPCResult RecvDispatchSecurityPolicyViolation(
       const nsString& aViolationEventJSON);
-
-  mozilla::ipc::IPCResult RecvGetSecurityInfo(
-      GetSecurityInfoResolver&& aResolve);
 
   mozilla::ipc::IPCResult RecvSaveStorageAccessPermissionGranted();
 

@@ -34,13 +34,13 @@ void RenderTextureHostWrapper::EnsureTextureHost() const {
   }
 }
 
-wr::WrExternalImage RenderTextureHostWrapper::Lock(
-    uint8_t aChannelIndex, gl::GLContext* aGL, wr::ImageRendering aRendering) {
+wr::WrExternalImage RenderTextureHostWrapper::Lock(uint8_t aChannelIndex,
+                                                   gl::GLContext* aGL) {
   if (!mTextureHost) {
     return InvalidToWrExternalImage();
   }
 
-  return mTextureHost->Lock(aChannelIndex, aGL, aRendering);
+  return mTextureHost->Lock(aChannelIndex, aGL);
 }
 
 void RenderTextureHostWrapper::Unlock() {
@@ -104,6 +104,14 @@ RenderTextureHostWrapper::AsRenderDXGIYCbCrTextureHost() {
     return nullptr;
   }
   return mTextureHost->AsRenderDXGIYCbCrTextureHost();
+}
+
+RenderDcompSurfaceTextureHost*
+RenderTextureHostWrapper::AsRenderDcompSurfaceTextureHost() {
+  if (!mTextureHost) {
+    return nullptr;
+  }
+  return mTextureHost->AsRenderDcompSurfaceTextureHost();
 }
 
 RenderTextureHostSWGL* RenderTextureHostWrapper::EnsureRenderTextureHostSWGL()

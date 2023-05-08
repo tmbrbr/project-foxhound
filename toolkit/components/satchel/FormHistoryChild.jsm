@@ -12,11 +12,9 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 
 const lazy = {};
 
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "CreditCard",
-  "resource://gre/modules/CreditCard.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  CreditCard: "resource://gre/modules/CreditCard.sys.mjs",
+});
 ChromeUtils.defineModuleGetter(
   lazy,
   "PrivateBrowsingUtils",
@@ -28,6 +26,12 @@ XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "gEnabled",
   "browser.formfill.enable"
+);
+XPCOMUtils.defineLazyServiceGetter(
+  lazy,
+  "gFormFillService",
+  "@mozilla.org/satchel/form-fill-controller;1",
+  "nsIFormFillController"
 );
 
 function log(message) {
@@ -86,8 +90,11 @@ class FormHistoryChild extends JSWindowActorChild {
         continue;
       }
 
-      // Bug 394612: If Login Manager marked this input, don't save it.
+      // Bug 1780571, Bug 394612: If Login Manager marked this input, don't save it.
       // The login manager will deal with remembering it.
+      if (lazy.gFormFillService.isLoginManagerField(input)) {
+        continue;
+      }
 
       // Don't save values when @autocomplete is "off" or has a sensitive field name.
       let autocompleteInfo = input.getAutocompleteInfo();
@@ -95,10 +102,17 @@ class FormHistoryChild extends JSWindowActorChild {
         continue;
       }
 
-      let value = input.value.trim();
+      const value = input.lastInteractiveValue?.trim();
 
-      // Don't save empty or unchanged values.
-      if (!value || value == input.defaultValue.trim()) {
+      // Only save user entered values even if they match the default value.
+      // Any script input is ignored.
+      // See Bug 1642570 for details.
+      if (!value) {
+        continue;
+      }
+
+      // Save only when user input was last.
+      if (value != input.value.trim()) {
         continue;
       }
 

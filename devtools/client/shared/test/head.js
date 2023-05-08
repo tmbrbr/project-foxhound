@@ -13,8 +13,10 @@ Services.scriptloader.loadSubScript(
   this
 );
 
-const { DOMHelpers } = require("devtools/shared/dom-helpers");
-const { Hosts } = require("devtools/client/framework/toolbox-hosts");
+const { DOMHelpers } = require("resource://devtools/shared/dom-helpers.js");
+const {
+  Hosts,
+} = require("resource://devtools/client/framework/toolbox-hosts.js");
 
 const TEST_URI_ROOT = "http://example.com/browser/devtools/client/shared/test/";
 const TEST_URI_ROOT_SSL =
@@ -126,7 +128,7 @@ const createHost = async function(
   // too early.
   await waitForPresShell(iframe);
 
-  return { host: host, win: iframe.contentWindow, doc: iframe.contentDocument };
+  return { host, win: iframe.contentWindow, doc: iframe.contentDocument };
 };
 
 /**

@@ -354,6 +354,48 @@ TEST_F(APZCOverscrollTester, OverscrollByVerticalPanGestures) {
 #endif
 
 #ifndef MOZ_WIDGET_ANDROID  // Currently fails on Android
+TEST_F(APZCOverscrollTester, StuckInOverscroll_Bug1767337) {
+  SCOPED_GFX_PREF_BOOL("apz.overscroll.enabled", true);
+
+  PanGesture(PanGestureInput::PANGESTURE_START, apzc, ScreenIntPoint(50, 80),
+             ScreenPoint(0, -2), mcc->Time());
+  mcc->AdvanceByMillis(5);
+  apzc->AdvanceAnimations(mcc->GetSampleTime());
+  PanGesture(PanGestureInput::PANGESTURE_PAN, apzc, ScreenIntPoint(50, 80),
+             ScreenPoint(0, -10), mcc->Time());
+  mcc->AdvanceByMillis(5);
+  PanGesture(PanGestureInput::PANGESTURE_PAN, apzc, ScreenIntPoint(50, 80),
+             ScreenPoint(0, -10), mcc->Time());
+  mcc->AdvanceByMillis(5);
+  PanGesture(PanGestureInput::PANGESTURE_PAN, apzc, ScreenIntPoint(50, 80),
+             ScreenPoint(0, -10), mcc->Time());
+  mcc->AdvanceByMillis(5);
+  PanGesture(PanGestureInput::PANGESTURE_PAN, apzc, ScreenIntPoint(50, 80),
+             ScreenPoint(0, -10), mcc->Time());
+  mcc->AdvanceByMillis(5);
+  apzc->AdvanceAnimations(mcc->GetSampleTime());
+  PanGesture(PanGestureInput::PANGESTURE_PAN, apzc, ScreenIntPoint(50, 80),
+             ScreenPoint(0, -2), mcc->Time());
+  mcc->AdvanceByMillis(5);
+  apzc->AdvanceAnimations(mcc->GetSampleTime());
+
+  // Send two PANGESTURE_END in a row, to see if the second one gets us
+  // stuck in overscroll.
+  PanGesture(PanGestureInput::PANGESTURE_END, apzc, ScreenIntPoint(50, 80),
+             ScreenPoint(0, 0), mcc->Time(), MODIFIER_NONE, true);
+  SampleAnimationOnce();
+  PanGesture(PanGestureInput::PANGESTURE_END, apzc, ScreenIntPoint(50, 80),
+             ScreenPoint(0, 0), mcc->Time(), MODIFIER_NONE, true);
+
+  EXPECT_TRUE(apzc->IsOverscrolled());
+
+  // Check that we recover from overscroll via an animation.
+  ParentLayerPoint expectedScrollOffset(0, 0);
+  SampleAnimationUntilRecoveredFromOverscroll(expectedScrollOffset);
+}
+#endif
+
+#ifndef MOZ_WIDGET_ANDROID  // Currently fails on Android
 TEST_F(APZCOverscrollTester, OverscrollByVerticalAndHorizontalPanGestures) {
   SCOPED_GFX_PREF_BOOL("apz.overscroll.enabled", true);
 
@@ -929,6 +971,10 @@ TEST_F(APZCOverscrollTester,
 // but having OverscrollAnimation on both axes initially.
 TEST_F(APZCOverscrollTester,
        BothAxesOverscrollAnimationWithPanMomentumScrolling) {
+  // TODO: This test currently requires gestures that cause movement on both
+  // axis, which excludes DOMINANT_AXIS locking mode. The gestures should be
+  // broken up into multiple gestures to cause the overscroll.
+  SCOPED_GFX_PREF_INT("apz.axis_lock.mode", 2);
   SCOPED_GFX_PREF_BOOL("apz.overscroll.enabled", true);
 
   ScrollMetadata metadata;
@@ -1592,6 +1638,42 @@ TEST_F(APZCOverscrollTester, SmallAmountOfOverscroll) {
   // The small horizontal overscroll amount should be restored to zero.
   ParentLayerPoint expectedScrollOffset(0, scrollOffset.y);
   SampleAnimationUntilRecoveredFromOverscroll(expectedScrollOffset);
+}
+#endif
+
+#ifdef MOZ_WIDGET_ANDROID  // Only applies to WidgetOverscrollEffect
+TEST_F(APZCOverscrollTester, StuckInOverscroll_Bug1786452) {
+  SCOPED_GFX_PREF_BOOL("apz.overscroll.enabled", true);
+
+  ScrollMetadata metadata;
+  FrameMetrics& metrics = metadata.GetMetrics();
+  metrics.SetCompositionBounds(ParentLayerRect(0, 0, 100, 100));
+  metrics.SetScrollableRect(CSSRect(0, 0, 100, 1000));
+
+  // Over the course of the test, expect one or more calls to
+  // UpdateOverscrollOffset(), followed by a call to UpdateOverscrollVelocity().
+  // The latter ensures the widget has a chance to end its overscroll effect.
+  InSequence s;
+  EXPECT_CALL(*mcc, UpdateOverscrollOffset(_, _, _, _)).Times(AtLeast(1));
+  EXPECT_CALL(*mcc, UpdateOverscrollVelocity(_, _, _, _)).Times(1);
+
+  // Pan into overscroll, keeping the finger down
+  ScreenIntPoint startPoint(10, 500);
+  ScreenIntPoint endPoint(10, 10);
+  Pan(apzc, startPoint, endPoint, PanOptions::KeepFingerDown);
+  EXPECT_TRUE(apzc->IsOverscrolled());
+
+  // Linger a while to cause the velocity to drop to very low or zero
+  mcc->AdvanceByMillis(100);
+  TouchMove(apzc, endPoint, mcc->Time());
+  EXPECT_LT(apzc->GetVelocityVector().Length(),
+            StaticPrefs::apz_fling_min_velocity_threshold());
+  EXPECT_TRUE(apzc->IsOverscrolled());
+
+  // Lift the finger
+  mcc->AdvanceByMillis(20);
+  TouchUp(apzc, endPoint, mcc->Time());
+  EXPECT_FALSE(apzc->IsOverscrolled());
 }
 #endif
 

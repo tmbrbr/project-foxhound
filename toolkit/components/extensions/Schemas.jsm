@@ -29,11 +29,9 @@ ChromeUtils.defineModuleGetter(
   "NetUtil",
   "resource://gre/modules/NetUtil.jsm"
 );
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "ShortcutUtils",
-  "resource://gre/modules/ShortcutUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
+});
 XPCOMUtils.defineLazyServiceGetter(
   lazy,
   "contentPolicyService",
@@ -303,6 +301,18 @@ const POSTPROCESSORS = {
     const msg = `Unsupported manifest version: ${value}`;
     context.logError(context.makeError(msg));
     throw new Error(msg);
+  },
+
+  webAccessibleMatching(value, context) {
+    // Ensure each object has at least one of matches or extension_ids array.
+    for (let obj of value) {
+      if (!obj.matches && !obj.extension_ids) {
+        const msg = `web_accessible_resources requires one of "matches" or "extension_ids"`;
+        context.logError(context.makeError(msg));
+        throw new Error(msg);
+      }
+    }
+    return value;
   },
 };
 
@@ -1141,14 +1151,13 @@ const FORMATS = {
   },
 
   contentSecurityPolicy(string, context) {
-    // Manifest V3 extension_pages allows localhost and WASM.  When sandbox is
+    // Manifest V3 extension_pages allows WASM.  When sandbox is
     // implemented, or any other V3 or later directive, the flags
     // logic will need to be updated.
     let flags =
       context.manifestVersion < 3
         ? Ci.nsIAddonContentPolicy.CSP_ALLOW_ANY
-        : Ci.nsIAddonContentPolicy.CSP_ALLOW_LOCALHOST |
-          Ci.nsIAddonContentPolicy.CSP_ALLOW_WASM;
+        : Ci.nsIAddonContentPolicy.CSP_ALLOW_WASM;
     let error = lazy.contentPolicyService.validateAddonCSP(string, flags);
     if (error != null) {
       // The CSP validation error is not reported as part of the "choices" error message,

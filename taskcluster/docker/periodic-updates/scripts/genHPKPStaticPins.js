@@ -20,7 +20,9 @@ if (arguments.length != 2) {
 }
 
 var { NetUtil } = ChromeUtils.import("resource://gre/modules/NetUtil.jsm");
-var { FileUtils } = ChromeUtils.import("resource://gre/modules/FileUtils.jsm");
+var { FileUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/FileUtils.sys.mjs"
+);
 
 var gCertDB = Cc["@mozilla.org/security/x509certdb;1"].getService(
   Ci.nsIX509CertDB
@@ -222,7 +224,7 @@ function downloadAndParseChromeCerts(filename, certNameToSKD, certSKDToName) {
   let chromeName;
   for (let line of lines) {
     // Skip comments and newlines.
-    if (line.length == 0 || line[0] == "#") {
+    if (!line.length || line[0] == "#") {
       continue;
     }
     switch (state) {
@@ -463,7 +465,7 @@ function genExpirationTime() {
 }
 
 function writeFullPinset(certNameToSKD, certSKDToName, pinset) {
-  if (!pinset.sha256_hashes || pinset.sha256_hashes.length == 0) {
+  if (!pinset.sha256_hashes || !pinset.sha256_hashes.length) {
     throw new Error(`ERROR: Pinset ${pinset.name} does not contain any hashes`);
   }
   writeFingerprints(
@@ -487,7 +489,7 @@ function writeFingerprints(certNameToSKD, certSKDToName, name, hashes) {
   for (let skd of SKDList.sort()) {
     writeString("  " + nameToAlias(certSKDToName[skd]) + ",\n");
   }
-  if (hashes.length == 0) {
+  if (!hashes.length) {
     // ANSI C requires that an initialiser list be non-empty.
     writeString("  0\n");
   }

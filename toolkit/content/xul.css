@@ -24,11 +24,14 @@
  */
 *|*:root {
   --animation-easing-function: cubic-bezier(.07, .95, 0, 1);
+  -moz-box-flex: 1;
 }
 
 :root {
   text-rendering: optimizeLegibility;
   -moz-control-character-visibility: visible;
+  width: 100%;
+  height: 100%;
 }
 
 :root:-moz-locale-dir(rtl) {
@@ -88,10 +91,23 @@ button,
 checkbox,
 menulist,
 radiogroup,
+richlistbox,
 tree,
 browser,
 editor,
-iframe {
+iframe,
+label:is(.text-link, [onclick]),
+tab[selected="true"]:not([ignorefocus="true"]) {
+  -moz-user-focus: normal;
+}
+
+/* Avoid losing focus on tabs by keeping them focusable, since some browser
+ * tests rely on this.
+ *
+ * TODO(emilio): Remove this and fix the tests / front-end code:
+ *  * browser/base/content/test/general/browser_tabfocus.js
+ */
+tab:focus {
   -moz-user-focus: normal;
 }
 
@@ -118,10 +134,6 @@ description {
   display: flow-root;
 }
 
-label.text-link, label[onclick] {
-  -moz-user-focus: normal;
-}
-
 label html|span.accesskey {
   text-decoration: underline;
   text-decoration-skip-ink: none;
@@ -133,6 +145,15 @@ toolbar[mode="icons"] .toolbarbutton-text,
 toolbar[mode="text"] .toolbarbutton-icon,
 html|label.toolbarbutton-badge:empty {
   display: none;
+}
+
+.toolbarbutton-icon,
+.toolbarbutton-text,
+.toolbarbutton-badge-stack,
+.toolbarbutton-menu-dropmarker,
+.button-box {
+  /* Preserves legacy behavior */
+  pointer-events: none;
 }
 
 /********** button **********/
@@ -150,11 +171,9 @@ iframe {
   display: inline;
 }
 
-@supports -moz-bool-pref("layout.css.emulate-moz-box-with-flex") {
-  browser,
-  editor,
-  iframe {
-    display: block;
+@media (-moz-box-flexbox-emulation) {
+  *|*:root {
+    -moz-box-layout: flex;
   }
 }
 
@@ -165,6 +184,7 @@ browser {
   justify-self: stretch;
   min-height: 0;
   min-width: 0;
+  contain: size;
 }
 
 /*********** popup notification ************/
@@ -269,6 +289,7 @@ tooltip {
   padding: 2px 3px;
   max-width: 40em;
   overflow: clip;
+  pointer-events: none;
 }
 
 tooltip:not([position]) {
@@ -406,8 +427,6 @@ treechildren {
 
 tree {
   -moz-box-orient: vertical;
-  width: 10px;
-  height: 10px;
 }
 
 tree[hidecolumnpicker="true"] treecolpicker {
@@ -432,18 +451,34 @@ treechildren::-moz-tree-cell(ltr) {
   direction: ltr !important;
 }
 
-/********** deck & stack *********/
+/********** deck, tabpanels & stack *********/
 
-deck {
-  display: -moz-deck;
+tabpanels > *|*:not(:-moz-native-anonymous) {
+  /* tabpanels is special: we want to avoid displaying them, but we still want
+   * the hidden children to be accessible */
+  -moz-subtree-hidden-only-visually: 1;
 }
 
+deck > *|*:not(:-moz-native-anonymous) {
+  visibility: hidden;
+}
+
+tabpanels > .deck-selected,
+deck > .deck-selected {
+  -moz-subtree-hidden-only-visually: 0;
+  visibility: inherit;
+}
+
+tabpanels,
+deck,
 stack {
   display: grid;
   position: relative;
 }
 
-/* We shouldn't style native anonymous children like scrollbars or what not */
+/* We shouldn't style native anonymous children like scrollbars or what not. */
+tabpanels > *|*:not(:-moz-native-anonymous),
+deck > *|*:not(:-moz-native-anonymous),
 stack > *|*:not(:-moz-native-anonymous) {
   grid-area: 1 / 1;
   z-index: 0;
@@ -471,14 +506,6 @@ tabs {
 tab {
   -moz-box-align: center;
   -moz-box-pack: center;
-}
-
-tab[selected="true"]:not([ignorefocus="true"]) {
-  -moz-user-focus: normal;
-}
-
-tabpanels {
-  display: -moz-deck;
 }
 
 /********** tooltip *********/
@@ -510,19 +537,12 @@ search-textbox {
   resize: none;
 }
 
-@supports -moz-bool-pref("layout.css.emulate-moz-box-with-flex") {
-  html|*.textbox-input {
-    /* Be block-level, so that -moz-box-flex can take effect, when we are an item
-       in a -moz-box being emulated by modified modern flex. */
-    display: block;
-  }
-}
-
 /********** autocomplete textbox **********/
 
 .autocomplete-richlistbox {
   -moz-user-focus: ignore;
   overflow-x: hidden !important;
+  -moz-box-flex: 1;
 }
 
 .autocomplete-richlistitem {
@@ -556,10 +576,11 @@ menulist[popuponly] {
 /********** splitter **********/
 
 .tree-splitter {
-  width: 0px;
-  max-width: 0px;
-  min-width: 0% ! important;
-  min-height: 0% ! important;
+  width: 0;
+  max-width: 0;
+  appearance: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
   -moz-box-ordinal-group: 2147483646;
 }
 
@@ -622,13 +643,13 @@ wizardpage {
 /********** Rich Listbox ********/
 
 richlistbox {
-  -moz-user-focus: normal;
   -moz-box-orient: vertical;
 }
 
 /*********** findbar ************/
 findbar {
   overflow-x: hidden;
+  contain: inline-size;
 }
 
 /* Some elements that in HTML blocks should be inline-level by default */
@@ -654,22 +675,5 @@ button, image {
 [pack="center"] { -moz-box-pack: center !important; }
 [pack="end"] { -moz-box-pack: end !important; }
 
-@supports -moz-bool-pref("layout.css.emulate-moz-box-with-flex") {
-  /* This isn't a real solution for [flex] and [ordinal], but it covers enough
-     cases to render the browser chrome for us to test emulated flex mode without
-     mass-changing existing markup and CSS.
-     If we get attr() in Bug 435426 this could  work for all cases. */
-  [flex="1"] { -moz-box-flex: 1; }
-  [flex="2"] { -moz-box-flex: 2; }
-  [flex="3"] { -moz-box-flex: 3; }
-  [flex="4"] { -moz-box-flex: 4; }
-  [flex="5"] { -moz-box-flex: 5; }
-  [flex="6"] { -moz-box-flex: 6; }
-  [flex="7"] { -moz-box-flex: 7; }
-  [flex="8"] { -moz-box-flex: 8; }
-  [flex="9"] { -moz-box-flex: 9; }
-  [flex="100"] { -moz-box-flex: 100; }
-  [flex="400"] { -moz-box-flex: 400; }
-  [flex="1000"] { -moz-box-flex: 1000; }
-  [flex="10000"] { -moz-box-flex: 10000; }
-}
+[flex="0"] { -moz-box-flex: 0 !important; }
+[flex="1"] { -moz-box-flex: 1 !important; }

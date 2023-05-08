@@ -7,7 +7,10 @@
  * Tests Curl Utils functionality.
  */
 
-const { Curl, CurlUtils } = require("devtools/client/shared/curl");
+const {
+  Curl,
+  CurlUtils,
+} = require("resource://devtools/client/shared/curl.js");
 
 add_task(async function() {
   const { tab, monitor } = await initNetMonitor(HTTPS_CURL_UTILS_URL, {
@@ -240,7 +243,7 @@ function testGetHeadersFromMultipartText(data) {
   const headers = CurlUtils.getHeadersFromMultipartText(data.postDataText);
 
   ok(Array.isArray(headers), "Should return an array.");
-  ok(headers.length > 0, "There should exist at least one request header.");
+  ok(!!headers.length, "There should exist at least one request header.");
   is(
     headers[0].name,
     "Content-Type",
@@ -361,7 +364,7 @@ async function createCurlData(selected, getLongString, requestData) {
   // Fetch header values.
   for (const { name, value } of requestHeaders.headers) {
     const text = await getLongString(value);
-    data.headers.push({ name: name, value: text });
+    data.headers.push({ name, value: text });
   }
 
   const requestPostData = await requestData(id, "requestPostData");

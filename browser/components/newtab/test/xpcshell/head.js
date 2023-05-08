@@ -10,11 +10,9 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 );
 
 const lazy = {};
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "JsonSchema",
-  "resource://gre/modules/JsonSchema.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  JsonSchema: "resource://gre/modules/JsonSchema.sys.mjs",
+});
 
 XPCOMUtils.defineLazyGlobalGetters(this, ["fetch"]);
 
@@ -92,6 +90,11 @@ async function makeValidators() {
     ),
     whatsnew_panel_message: await schemaValidatorFor(
       "resource://testing-common/WhatsNewMessage.schema.json",
+      { common: true }
+    ),
+    feature_callout: await schemaValidatorFor(
+      // For now, Feature Callout and Spotlight share a common schema
+      "resource://testing-common/Spotlight.schema.json",
       { common: true }
     ),
   };

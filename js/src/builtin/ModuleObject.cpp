@@ -16,22 +16,19 @@
 #include "frontend/ParserAtom.h"  // TaggedParserAtomIndex, ParserAtomsTable, ParserAtom
 #include "frontend/SharedContext.h"
 #include "gc/GCContext.h"
-#include "gc/Policy.h"
 #include "gc/Tracer.h"
 #include "js/friend/ErrorMessages.h"  // JSMSG_*
 #include "js/Modules.h"  // JS::GetModulePrivate, JS::ModuleDynamicImportHook
-#include "js/PropertySpec.h"
-#include "vm/AsyncFunction.h"
-#include "vm/AsyncIteration.h"
 #include "vm/EqualityOperations.h"  // js::SameValue
-#include "vm/ModuleBuilder.h"       // js::ModuleBuilder
+#include "vm/Interpreter.h"    // Execute, Lambda, ReportRuntimeLexicalError
+#include "vm/ModuleBuilder.h"  // js::ModuleBuilder
 #include "vm/Modules.h"
 #include "vm/PlainObject.h"    // js::PlainObject
 #include "vm/PromiseObject.h"  // js::PromiseObject
-#include "vm/SelfHosting.h"
 #include "vm/SharedStencil.h"  // js::GCThingIndex
 
 #include "builtin/HandlerFunction-inl.h"  // js::ExtraValueFromHandler, js::NewHandler{,WithExtraValue}, js::TargetFromHandler
+#include "gc/GCContext-inl.h"
 #include "vm/JSObject-inl.h"
 #include "vm/JSScript-inl.h"
 #include "vm/List-inl.h"
@@ -817,6 +814,7 @@ bool ModuleObject::initAsyncSlots(JSContext* cx, bool hasTopLevelAwait,
 
 static uint32_t NextPostOrder(JSRuntime* rt) {
   uint32_t ordinal = rt->moduleAsyncEvaluatingPostOrder;
+  MOZ_ASSERT(ordinal != ASYNC_EVALUATING_POST_ORDER_TRUE);
   MOZ_ASSERT(ordinal < MAX_UINT32);
   rt->moduleAsyncEvaluatingPostOrder++;
   return ordinal;
@@ -829,7 +827,7 @@ static uint32_t NextPostOrder(JSRuntime* rt) {
 // this one.
 static void MaybeResetPostOrderCounter(JSRuntime* rt,
                                        uint32_t finishedPostOrder) {
-  if (rt->moduleAsyncEvaluatingPostOrder == finishedPostOrder) {
+  if (rt->moduleAsyncEvaluatingPostOrder == finishedPostOrder + 1) {
     rt->moduleAsyncEvaluatingPostOrder = ASYNC_EVALUATING_POST_ORDER_INIT;
   }
 }
@@ -971,20 +969,7 @@ bool ModuleObject::hasTopLevelAwait() const {
 }
 
 bool ModuleObject::isAsyncEvaluating() const {
-  return !getReservedSlot(AsyncEvaluatingPostOrderSlot).isUndefined() &&
-         !wasAsyncEvaluating();
-}
-
-bool ModuleObject::wasAsyncEvaluating() const {
-  return getReservedSlot(AsyncEvaluatingPostOrderSlot) ==
-         PrivateUint32Value(ASYNC_EVALUATING_POST_ORDER_FALSE);
-}
-
-void ModuleObject::setAsyncEvaluatingFalse() {
-  JSRuntime* rt = runtimeFromMainThread();
-  MaybeResetPostOrderCounter(rt, getAsyncEvaluatingPostOrder());
-  return setReservedSlot(AsyncEvaluatingPostOrderSlot,
-                         PrivateUint32Value(ASYNC_EVALUATING_POST_ORDER_FALSE));
+  return !getReservedSlot(AsyncEvaluatingPostOrderSlot).isUndefined();
 }
 
 Maybe<uint32_t> ModuleObject::maybeDfsIndex() const {
@@ -1085,18 +1070,34 @@ uint32_t ModuleObject::pendingAsyncDependencies() const {
   return maybePendingAsyncDependencies().value();
 }
 
+bool ModuleObject::hasAsyncEvaluatingPostOrder() const {
+  Value value = getReservedSlot(AsyncEvaluatingPostOrderSlot);
+  return !value.isUndefined() &&
+         value.toPrivateUint32() != ASYNC_EVALUATING_POST_ORDER_TRUE;
+}
+
 Maybe<uint32_t> ModuleObject::maybeAsyncEvaluatingPostOrder() const {
   Value value = getReservedSlot(AsyncEvaluatingPostOrderSlot);
   if (value.isUndefined()) {
     return Nothing();
   }
 
-  MOZ_ASSERT(isAsyncEvaluating());
   return Some(value.toPrivateUint32());
 }
 
 uint32_t ModuleObject::getAsyncEvaluatingPostOrder() const {
+  MOZ_ASSERT(hasAsyncEvaluatingPostOrder());
   return maybeAsyncEvaluatingPostOrder().value();
+}
+
+void ModuleObject::clearAsyncEvaluatingPostOrder() {
+  MOZ_ASSERT(status() == ModuleStatus::Evaluated);
+
+  JSRuntime* rt = runtimeFromMainThread();
+  MaybeResetPostOrderCounter(rt, getAsyncEvaluatingPostOrder());
+
+  return setReservedSlot(AsyncEvaluatingPostOrderSlot,
+                         PrivateUint32Value(ASYNC_EVALUATING_POST_ORDER_TRUE));
 }
 
 void ModuleObject::setPendingAsyncDependencies(uint32_t newValue) {

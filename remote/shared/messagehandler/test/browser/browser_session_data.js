@@ -3,14 +3,14 @@
 
 "use strict";
 
-const { MessageHandlerRegistry } = ChromeUtils.import(
-  "chrome://remote/content/shared/messagehandler/MessageHandlerRegistry.jsm"
+const { MessageHandlerRegistry } = ChromeUtils.importESModule(
+  "chrome://remote/content/shared/messagehandler/MessageHandlerRegistry.sys.mjs"
 );
-const { RootMessageHandler } = ChromeUtils.import(
-  "chrome://remote/content/shared/messagehandler/RootMessageHandler.jsm"
+const { RootMessageHandler } = ChromeUtils.importESModule(
+  "chrome://remote/content/shared/messagehandler/RootMessageHandler.sys.mjs"
 );
-const { SessionData } = ChromeUtils.import(
-  "chrome://remote/content/shared/messagehandler/sessiondata/SessionData.jsm"
+const { SessionData } = ChromeUtils.importESModule(
+  "chrome://remote/content/shared/messagehandler/sessiondata/SessionData.sys.mjs"
 );
 
 const TEST_PAGE = "http://example.com/document-builder.sjs?html=tab";
@@ -171,6 +171,7 @@ add_task(async function test_sessionDataRootOnlyModule() {
 
   const windowGlobalCreated = rootMessageHandler.once("message-handler-event");
 
+  info("Test that adding SessionData items works the root module");
   // Updating the session data on the root message handler should not cause
   // failures for other message handlers if the module only exists for root.
   await rootMessageHandler.addSessionData({
@@ -184,6 +185,50 @@ add_task(async function test_sessionDataRootOnlyModule() {
 
   await windowGlobalCreated;
   ok(true, "Window global has been initialized");
+
+  let sessionDataReceivedByRoot = await rootMessageHandler.handleCommand({
+    moduleName: "rootOnly",
+    commandName: "getSessionDataReceived",
+    destination: {
+      type: RootMessageHandler.type,
+    },
+  });
+
+  is(sessionDataReceivedByRoot.length, 1);
+  is(sessionDataReceivedByRoot[0].category, "session_data_root_only");
+  is(sessionDataReceivedByRoot[0].added.length, 1);
+  is(sessionDataReceivedByRoot[0].added[0], true);
+  is(
+    sessionDataReceivedByRoot[0].contextDescriptor.type,
+    ContextDescriptorType.All
+  );
+
+  info("Now test that removing items also works on the root module");
+  await rootMessageHandler.removeSessionData({
+    moduleName: "rootOnly",
+    category: "session_data_root_only",
+    contextDescriptor: {
+      type: ContextDescriptorType.All,
+    },
+    values: [true],
+  });
+
+  sessionDataReceivedByRoot = await rootMessageHandler.handleCommand({
+    moduleName: "rootOnly",
+    commandName: "getSessionDataReceived",
+    destination: {
+      type: RootMessageHandler.type,
+    },
+  });
+
+  is(sessionDataReceivedByRoot.length, 2);
+  is(sessionDataReceivedByRoot[1].category, "session_data_root_only");
+  is(sessionDataReceivedByRoot[1].removed.length, 1);
+  is(sessionDataReceivedByRoot[1].removed[0], true);
+  is(
+    sessionDataReceivedByRoot[1].contextDescriptor.type,
+    ContextDescriptorType.All
+  );
 
   rootMessageHandler.destroy();
 });
@@ -201,8 +246,8 @@ function checkSessionDataItem(item, moduleName, category, contextType, value) {
 
 function getSessionDataFromContent() {
   return SpecialPowers.spawn(gBrowser.selectedBrowser, [], () => {
-    const { readSessionData } = ChromeUtils.import(
-      "chrome://remote/content/shared/messagehandler/sessiondata/SessionDataReader.jsm"
+    const { readSessionData } = ChromeUtils.importESModule(
+      "chrome://remote/content/shared/messagehandler/sessiondata/SessionDataReader.sys.mjs"
     );
     return readSessionData();
   });

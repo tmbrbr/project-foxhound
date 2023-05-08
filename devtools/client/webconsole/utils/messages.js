@@ -4,12 +4,11 @@
 
 "use strict";
 
-const Services = require("Services");
-const l10n = require("devtools/client/webconsole/utils/l10n");
-const ResourceCommand = require("devtools/shared/commands/resource/resource-command");
+const l10n = require("resource://devtools/client/webconsole/utils/l10n.js");
+const ResourceCommand = require("resource://devtools/shared/commands/resource/resource-command.js");
 const {
   isSupportedByConsoleTable,
-} = require("devtools/shared/webconsole/messages");
+} = require("resource://devtools/shared/webconsole/messages.js");
 
 // URL Regex, common idioms:
 //
@@ -71,11 +70,11 @@ const {
   MESSAGE_SOURCE,
   MESSAGE_TYPE,
   MESSAGE_LEVEL,
-} = require("devtools/client/webconsole/constants");
+} = require("resource://devtools/client/webconsole/constants.js");
 const {
   ConsoleMessage,
   NetworkEventMessage,
-} = require("devtools/client/webconsole/types");
+} = require("resource://devtools/client/webconsole/types.js");
 
 function prepareMessage(resource, idGenerator) {
   if (!resource.source) {
@@ -622,7 +621,7 @@ function createSimpleTableMessage(columns, items, timeStamp) {
     type: MESSAGE_TYPE.SIMPLE_TABLE,
     columns,
     items,
-    timeStamp: timeStamp,
+    timeStamp,
   });
 }
 

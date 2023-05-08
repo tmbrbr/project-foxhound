@@ -32,6 +32,7 @@
 #include "nsGkAtoms.h"
 #include "nsViewManager.h"
 #include "nsIWidget.h"
+#include "nsCanvasFrame.h"
 #include "nsCSSRendering.h"
 #include "nsError.h"
 #include "nsDisplayList.h"
@@ -687,8 +688,8 @@ void nsContainerFrame::ReparentFrameViewList(const nsFrameList& aChildFrameList,
     nsViewManager* viewManager = oldParentView->GetViewManager();
 
     // They're not so we need to reparent any child views
-    for (nsFrameList::Enumerator e(aChildFrameList); !e.AtEnd(); e.Next()) {
-      e.get()->ReparentFrameViewTo(viewManager, newParentView, oldParentView);
+    for (nsIFrame* f : aChildFrameList) {
+      f->ReparentFrameViewTo(viewManager, newParentView, oldParentView);
     }
   }
 }
@@ -734,17 +735,29 @@ static bool IsTopLevelWidget(nsIWidget* aWidget) {
 void nsContainerFrame::SyncWindowProperties(nsPresContext* aPresContext,
                                             nsIFrame* aFrame, nsView* aView,
                                             gfxContext* aRC, uint32_t aFlags) {
-  if (!aView || !nsCSSRendering::IsCanvasFrame(aFrame) || !aView->HasWidget())
+  if (!aView || !aView->HasWidget()) {
     return;
+  }
+
+  {
+    const bool isValid = aFrame->IsCanvasFrame() || aFrame->IsViewportFrame();
+    if (!isValid) {
+      return;
+    }
+  }
 
   nsCOMPtr<nsIWidget> windowWidget =
       GetPresContextContainerWidget(aPresContext);
-  if (!windowWidget || !IsTopLevelWidget(windowWidget)) return;
+  if (!windowWidget || !IsTopLevelWidget(windowWidget)) {
+    return;
+  }
 
   nsViewManager* vm = aView->GetViewManager();
   nsView* rootView = vm->GetRootView();
 
-  if (aView != rootView) return;
+  if (aView != rootView) {
+    return;
+  }
 
   Element* rootElement = aPresContext->Document()->GetRootElement();
   if (!rootElement) {
@@ -753,7 +766,9 @@ void nsContainerFrame::SyncWindowProperties(nsPresContext* aPresContext,
 
   nsIFrame* rootFrame =
       aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
-  if (!rootFrame) return;
+  if (!rootFrame) {
+    return;
+  }
 
   if (aFlags & SET_ASYNC) {
     aView->SetNeedsWindowPropertiesSync();
@@ -774,8 +789,9 @@ void nsContainerFrame::SyncWindowProperties(nsPresContext* aPresContext,
     // careful because apparently some Firefox extensions expect
     // openDialog("something.html") to produce an opaque window
     // even if the HTML doesn't have a background-color set.
-    nsTransparencyMode mode =
-        nsLayoutUtils::GetFrameTransparency(aFrame, rootFrame);
+    auto* canvas = aPresContext->PresShell()->GetCanvasFrame();
+    nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(
+        canvas ? canvas : aFrame, rootFrame);
     StyleWindowShadow shadow = rootFrame->StyleUIReset()->mWindowShadow;
     nsCOMPtr<nsIWidget> viewWidget = aView->GetWidget();
     viewWidget->SetTransparencyMode(mode);
@@ -787,7 +803,9 @@ void nsContainerFrame::SyncWindowProperties(nsPresContext* aPresContext,
     }
   }
 
-  if (!aRC) return;
+  if (!aRC) {
+    return;
+  }
 
   if (!weak.IsAlive()) {
     return;
@@ -795,7 +813,7 @@ void nsContainerFrame::SyncWindowProperties(nsPresContext* aPresContext,
 
   nsSize minSize(0, 0);
   nsSize maxSize(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-  if (rootElement->IsXULElement()) {
+  if (rootFrame->IsXULBoxFrame()) {
     nsBoxLayoutState aState(aPresContext, aRC);
     minSize = rootFrame->GetXULMinSize(aState);
     maxSize = rootFrame->GetXULMaxSize(aState);
@@ -921,7 +939,7 @@ LogicalSize nsContainerFrame::ComputeAutoSize(
                                  : StylePosition()->ISize(aWM);
     if (styleISize.IsAuto()) {
       result.ISize(aWM) =
-          ShrinkWidthToFit(aRenderingContext, availBased, aFlags);
+          ShrinkISizeToFit(aRenderingContext, availBased, aFlags);
     }
   } else {
     result.ISize(aWM) = availBased;
@@ -1406,26 +1424,21 @@ nsFrameList nsContainerFrame::StealFramesAfter(nsIFrame* aChild) {
   NS_ASSERTION(!IsBlockFrame(), "unexpected call");
 
   if (!aChild) {
-    nsFrameList copy(mFrames);
-    mFrames.Clear();
-    return copy;
+    return std::move(mFrames);
   }
 
-  for (nsFrameList::FrameLinkEnumerator iter(mFrames); !iter.AtEnd();
-       iter.Next()) {
-    if (iter.PrevFrame() == aChild) {
-      return mFrames.ExtractTail(iter);
+  for (nsIFrame* f : mFrames) {
+    if (f == aChild) {
+      return mFrames.TakeFramesAfter(f);
     }
   }
 
   // We didn't find the child in the principal child list.
   // Maybe it's on the overflow list?
-  nsFrameList* overflowFrames = GetOverflowFrames();
-  if (overflowFrames) {
-    for (nsFrameList::FrameLinkEnumerator iter(*overflowFrames); !iter.AtEnd();
-         iter.Next()) {
-      if (iter.PrevFrame() == aChild) {
-        return overflowFrames->ExtractTail(iter);
+  if (nsFrameList* overflowFrames = GetOverflowFrames()) {
+    for (nsIFrame* f : *overflowFrames) {
+      if (f == aChild) {
+        return mFrames.TakeFramesAfter(f);
       }
     }
   }
@@ -1513,7 +1526,7 @@ void nsContainerFrame::PushChildrenToOverflow(nsIFrame* aFromChild,
 
   // Add the frames to our overflow list (let our next in flow drain
   // our overflow list when it is ready)
-  SetOverflowFrames(mFrames.RemoveFramesAfter(aPrevSibling));
+  SetOverflowFrames(mFrames.TakeFramesAfter(aPrevSibling));
 }
 
 void nsContainerFrame::PushChildren(nsIFrame* aFromChild,
@@ -1523,7 +1536,7 @@ void nsContainerFrame::PushChildren(nsIFrame* aFromChild,
   MOZ_ASSERT(aPrevSibling->GetNextSibling() == aFromChild, "bad prev sibling");
 
   // Disconnect aFromChild from its previous sibling
-  nsFrameList tail = mFrames.RemoveFramesAfter(aPrevSibling);
+  nsFrameList tail = mFrames.TakeFramesAfter(aPrevSibling);
 
   nsContainerFrame* nextInFlow =
       static_cast<nsContainerFrame*>(GetNextInFlow());
@@ -2330,8 +2343,9 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
   auto* parentFrame = GetParent();
   const bool isGridItem = IsGridItem();
   const bool isFlexItem =
-      IsFlexItem() &&
-      !parentFrame->HasAnyStateBits(NS_STATE_FLEX_IS_EMULATING_LEGACY_BOX);
+      IsFlexItem() && !parentFrame->HasAnyStateBits(
+                          NS_STATE_FLEX_IS_EMULATING_LEGACY_WEBKIT_BOX |
+                          NS_STATE_FLEX_IS_EMULATING_LEGACY_MOZ_BOX);
   // This variable only gets set (and used) if isFlexItem is true.  It
   // indicates which axis (in this frame's own WM) corresponds to its
   // flex container's main axis.
@@ -2346,16 +2360,17 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
 
   // Handle intrinsic sizes and their interaction with
   // {min-,max-,}{width,height} according to the rules in
-  // http://www.w3.org/TR/CSS21/visudet.html#min-max-widths
+  // https://www.w3.org/TR/CSS22/visudet.html#min-max-widths and
+  // https://drafts.csswg.org/css-sizing-3/#intrinsic-sizes
 
   // Note: throughout the following section of the function, I avoid
   // a * (b / c) because of its reduced accuracy relative to a * b / c
   // or (a * b) / c (which are equivalent).
 
-  const bool isAutoISize = styleISize.IsAuto();
+  const bool isAutoOrMaxContentISize =
+      styleISize.IsAuto() || styleISize.IsMaxContent();
   const bool isAutoBSize =
-      nsLayoutUtils::IsAutoBSize(styleBSize, aCBSize.BSize(aWM)) ||
-      aFlags.contains(ComputeSizeFlag::UseAutoBSize);
+      nsLayoutUtils::IsAutoBSize(styleBSize, aCBSize.BSize(aWM));
 
   const auto boxSizingAdjust = stylePos->mBoxSizing == StyleBoxSizing::Border
                                    ? aBorderPadding
@@ -2367,7 +2382,7 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
   nscoord iSize, minISize, maxISize, bSize, minBSize, maxBSize;
   enum class Stretch {
     // stretch to fill the CB (preserving intrinsic ratio) in the relevant axis
-    StretchPreservingRatio,  // XXX not used yet
+    StretchPreservingRatio,
     // stretch to fill the CB in the relevant axis
     Stretch,
     // no stretching in the relevant axis
@@ -2394,7 +2409,7 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
   const bool hasIntrinsicBSize = bsizeCoord.isSome();
   nscoord intrinsicBSize = std::max(0, bsizeCoord.valueOr(0));
 
-  if (!isAutoISize) {
+  if (!isAutoOrMaxContentISize) {
     iSize = ComputeISizeValue(aRenderingContext, aWM, aCBSize, boxSizingAdjust,
                               boxSizingToMarginEdgeISize, styleISize,
                               aSizeOverrides, aFlags)
@@ -2514,7 +2529,7 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
                "Our containing block must not have unconstrained inline-size!");
 
   // Now calculate the used values for iSize and bSize:
-  if (isAutoISize) {
+  if (isAutoOrMaxContentISize) {
     if (isAutoBSize) {
       // 'auto' iSize, 'auto' bSize
 
@@ -2721,6 +2736,9 @@ bool nsContainerFrame::IsFrameTreeTooDeep(const ReflowInput& aReflowInput,
 
 bool nsContainerFrame::ShouldAvoidBreakInside(
     const ReflowInput& aReflowInput) const {
+  MOZ_ASSERT(this == aReflowInput.mFrame,
+             "Caller should pass a ReflowInput for this frame!");
+
   const auto* disp = StyleDisplay();
   const bool mayAvoidBreak = [&] {
     switch (disp->mBreakInside) {
@@ -2935,9 +2953,7 @@ nsresult nsOverflowContinuationTracker::Insert(nsIFrame* aOverflowCont,
     nsIFrame* nif = aOverflowCont->GetNextInFlow();
     if ((pif && pif->GetParent() == mParent && pif != mPrevOverflowCont) ||
         (nif && nif->GetParent() == mParent && mPrevOverflowCont)) {
-      for (nsFrameList::Enumerator e(*mOverflowContList); !e.AtEnd();
-           e.Next()) {
-        nsIFrame* f = e.get();
+      for (nsIFrame* f : *mOverflowContList) {
         if (f == pif) {
           mPrevOverflowCont = pif;
           break;

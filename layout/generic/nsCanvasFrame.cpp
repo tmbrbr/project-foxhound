@@ -27,6 +27,7 @@
 #include "mozilla/BasePrincipal.h"
 #include "mozilla/ComputedStyle.h"
 #include "mozilla/StaticPrefs_browser.h"
+#include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/dom/AnonymousContent.h"
 #include "mozilla/layers/StackingContextHelper.h"
 #include "mozilla/layers/RenderRootStateManager.h"
@@ -47,6 +48,10 @@ using namespace mozilla::layers;
 
 nsCanvasFrame* NS_NewCanvasFrame(PresShell* aPresShell, ComputedStyle* aStyle) {
   return new (aPresShell) nsCanvasFrame(aStyle, aPresShell->GetPresContext());
+}
+
+nsIPopupContainer* nsIPopupContainer::GetPopupContainer(PresShell* aPresShell) {
+  return aPresShell ? aPresShell->GetCanvasFrame() : nullptr;
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsCanvasFrame)
@@ -270,10 +275,10 @@ void nsCanvasFrame::AppendFrames(ChildListID aListID, nsFrameList& aFrameList) {
 #ifdef DEBUG
   MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
   if (!mFrames.IsEmpty()) {
-    for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
+    for (nsIFrame* f : aFrameList) {
       // We only allow native anonymous child frames to be in principal child
       // list in canvas frame.
-      MOZ_ASSERT(e.get()->GetContent()->IsInNativeAnonymousSubtree(),
+      MOZ_ASSERT(f->GetContent()->IsInNativeAnonymousSubtree(),
                  "invalid child list");
     }
   }
@@ -888,7 +893,6 @@ void nsCanvasFrame::Reflow(nsPresContext* aPresContext,
                                  aStatus);
 
   NS_FRAME_TRACE_REFLOW_OUT("nsCanvasFrame::Reflow", aStatus);
-  NS_FRAME_SET_TRUNCATION(aStatus, aReflowInput, aDesiredSize);
 }
 
 nsresult nsCanvasFrame::GetContentForEvent(const WidgetEvent* aEvent,

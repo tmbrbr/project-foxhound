@@ -7,6 +7,8 @@
 "use strict";
 
 XPCOMUtils.defineLazyModuleGetters(this, {
+  ExperimentFakes: "resource://testing-common/NimbusTestUtils.jsm",
+  NimbusFeatures: "resource://nimbus/ExperimentAPI.jsm",
   TelemetryTestUtils: "resource://testing-common/TelemetryTestUtils.jsm",
 });
 
@@ -113,6 +115,7 @@ const EXPECTED_MERINO_RESULT = {
 };
 
 let gMerinoResponse;
+let gMerinoEndpointURL;
 
 add_task(async function init() {
   UrlbarPrefs.set("quicksuggest.enabled", true);
@@ -127,6 +130,7 @@ add_task(async function init() {
   url.pathname = path;
   url.port = server.identity.primaryPort;
   UrlbarPrefs.set(PREF_MERINO_ENDPOINT_URL, url.toString());
+  gMerinoEndpointURL = url;
 
   UrlbarPrefs.set("merino.timeoutMs", TEST_MERINO_TIMEOUT_MS);
 
@@ -1267,6 +1271,118 @@ add_task(async function bestMatch() {
   UrlbarPrefs.clear("bestMatch.enabled");
   UrlbarPrefs.clear("suggest.bestmatch");
 });
+
+// Tests setting the endpoint URL and query parameters via Nimbus.
+add_task(async function nimbus() {
+  UrlbarPrefs.set(PREF_MERINO_ENABLED, true);
+  UrlbarPrefs.set(PREF_REMOTE_SETTINGS_ENABLED, false);
+  UrlbarPrefs.set(PREF_DATA_COLLECTION_ENABLED, true);
+
+  // Clear the endpoint pref so we know the URL is not being fetched from it.
+  UrlbarPrefs.set(PREF_MERINO_ENDPOINT_URL, "");
+
+  setMerinoResponse();
+  await QuickSuggestTestUtils.initNimbusFeature();
+
+  // First, with the endpoint pref set to an empty string, make sure no Merino
+  // results are returned.
+  await check_results({
+    context: createContext(SEARCH_STRING, {
+      providers: [UrlbarProviderQuickSuggest.name],
+      isPrivate: false,
+    }),
+    matches: [],
+  });
+
+  // Now install an experiment that sets the endpoint and other Merino-related
+  // variables. Make sure a result is returned and the request includes the
+  // correct query params.
+
+  // `param`: The param name in the request URL
+  // `value`: The value to use for the param
+  // `variable`: The name of the Nimbus variable corresponding to the param
+  let expectedParams = [
+    {
+      param: "client_variants",
+      value: "test-client-variants",
+      variable: "merinoClientVariants",
+    },
+    {
+      param: "providers",
+      value: "test-providers",
+      variable: "merinoProviders",
+    },
+  ];
+
+  // Set up the Nimbus variable values to create the experiment with.
+  let experimentValues = expectedParams.reduce(
+    (memo, { variable, value }) => {
+      memo[variable] = value;
+      return memo;
+    },
+    {
+      merinoEndpointURL: gMerinoEndpointURL.toString(),
+    }
+  );
+
+  await withExperiment(experimentValues, async () => {
+    // Save the actual params when the request is received.
+    let actualParams;
+    setMerinoResponse().checkRequest = req => {
+      info("Got request query string: " + req.queryString);
+      actualParams = new URLSearchParams(req.queryString);
+    };
+
+    // Do a search.
+    await check_results({
+      context: createContext(SEARCH_STRING, {
+        providers: [UrlbarProviderQuickSuggest.name],
+        isPrivate: false,
+      }),
+      matches: [EXPECTED_MERINO_RESULT],
+    });
+
+    // Check the actual params.
+    Assert.ok(actualParams, "Mock Merino server received the request");
+    for (let { param, value } of expectedParams) {
+      Assert.deepEqual(
+        actualParams.getAll(param),
+        [value],
+        "Param value is correct: " + param
+      );
+    }
+  });
+
+  UrlbarPrefs.set(PREF_MERINO_ENDPOINT_URL, gMerinoEndpointURL.toString());
+});
+
+async function withExperiment(values, callback) {
+  let {
+    enrollmentPromise,
+    doExperimentCleanup,
+  } = ExperimentFakes.enrollmentHelper(
+    ExperimentFakes.recipe("mock-experiment", {
+      active: true,
+      branches: [
+        {
+          slug: "treatment",
+          features: [
+            {
+              featureId: NimbusFeatures.urlbar.featureId,
+              value: {
+                enabled: true,
+                ...values,
+              },
+            },
+          ],
+        },
+      ],
+    })
+  );
+  await enrollmentPromise;
+  await callback();
+  await doExperimentCleanup();
+}
 
 function makeMerinoServer(endpointPath) {
   let server = makeTestServer();

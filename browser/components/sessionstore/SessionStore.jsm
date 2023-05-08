@@ -29,6 +29,14 @@ const NOTIFY_RESTORING_ON_STARTUP = "sessionstore-restoring-on-startup";
 const NOTIFY_INITIATING_MANUAL_RESTORE =
   "sessionstore-initiating-manual-restore";
 const NOTIFY_CLOSED_OBJECTS_CHANGED = "sessionstore-closed-objects-changed";
+// This next topic is an ugly hack to avoid increasing the notification volume
+// on NOTIFY_CLOSED_OBJECTS_CHANGED, but still have notifications when the
+// tab state gets updated via the Session History in Parent TabListener
+// and/or storage updater functions in SessionStoreFunctions.jsm,
+// UpdateSessionStore() and UpdateSessionStoreForStorage().
+// Bug 1789043 covers making this better.
+const NOTIFY_CLOSED_OBJECTS_TAB_STATE_CHANGED =
+  "sessionstore-closed-objects-tab-state-changed";
 
 const NOTIFY_TAB_RESTORED = "sessionstore-debug-tab-restored"; // WARNING: debug-only
 const NOTIFY_DOMWINDOWCLOSED_HANDLED =
@@ -245,14 +253,17 @@ XPCOMUtils.defineLazyServiceGetters(lazy, {
   gScreenManager: ["@mozilla.org/gfx/screenmanager;1", "nsIScreenManager"],
 });
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  DevToolsShim: "chrome://devtools-startup/content/DevToolsShim.sys.mjs",
+  PromiseUtils: "resource://gre/modules/PromiseUtils.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   AsyncShutdown: "resource://gre/modules/AsyncShutdown.jsm",
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.jsm",
-  DevToolsShim: "chrome://devtools-startup/content/DevToolsShim.jsm",
   E10SUtils: "resource://gre/modules/E10SUtils.jsm",
   HomePage: "resource:///modules/HomePage.jsm",
   PrivacyFilter: "resource://gre/modules/sessionstore/PrivacyFilter.jsm",
-  PromiseUtils: "resource://gre/modules/PromiseUtils.jsm",
   RunState: "resource:///modules/sessionstore/RunState.jsm",
   SessionCookies: "resource:///modules/sessionstore/SessionCookies.jsm",
   SessionFile: "resource:///modules/sessionstore/SessionFile.jsm",
@@ -498,6 +509,11 @@ var SessionStore = {
 
   isBrowserInCrashedSet(browser) {
     return SessionStoreInternal.isBrowserInCrashedSet(browser);
+  },
+
+  // this is used for testing purposes
+  resetNextClosedId() {
+    SessionStoreInternal._nextClosedId = 0;
   },
 
   /**
@@ -930,10 +946,11 @@ var SessionStoreInternal = {
             delete aWindow.__lastSessionWindowID;
           });
         }
+
         // clear _maybeDontRestoreTabs because we have restored (or not)
         // windows and so they don't matter
-        state.windows.forEach(win => delete win._maybeDontRestoreTabs);
-        state._closedWindows.forEach(win => delete win._maybeDontRestoreTabs);
+        state?.windows?.forEach(win => delete win._maybeDontRestoreTabs);
+        state?._closedWindows?.forEach(win => delete win._maybeDontRestoreTabs);
       } catch (ex) {
         this._log.error("The session file is invalid: " + ex);
       }
@@ -1303,6 +1320,15 @@ var SessionStoreInternal = {
       // Update the closed tab's state. This will be reflected in its
       // window's list of closed tabs as that refers to the same object.
       lazy.TabState.copyFromCache(permanentKey, closedTab.tabData.state);
+
+      // This is quite hacky, see note at NOTIFY_CLOSED_OBJECTS_TAB_STATE_CHANGED
+      // definition above.
+      lazy.setTimeout(() => {
+        Services.obs.notifyObservers(
+          null,
+          NOTIFY_CLOSED_OBJECTS_TAB_STATE_CHANGED
+        );
+      }, 0);
     }
   },
 
@@ -3957,6 +3983,16 @@ var SessionStoreInternal = {
       }
     }
 
+    if (
+      tabbrowser.tabs.length > tabbrowser.visibleTabs.length &&
+      tabbrowser.visibleTabs.length === removableTabs.length
+    ) {
+      // If all the visible tabs are also removable and the selected tab is hidden or removeable, we will later remove
+      // all "removable" tabs causing the browser to automatically close because the only tab left is hidden.
+      // To prevent the browser from automatically closing, we will leave one other visible tab open.
+      removableTabs.shift();
+    }
+
     if (tabbrowser.tabs.length == removableTabs.length) {
       canOverwriteTabs = true;
     } else {
@@ -4189,7 +4225,18 @@ var SessionStoreInternal = {
       tabMap.set(tab, tabData);
       tabsData.push(tabData);
     }
-    winData.selected = tabbrowser.tabbox.selectedIndex + 1;
+
+    // The FxView tab isn't recorded in the session state and because of this the
+    // selected tab can be off by 1 when we restore the previous state.
+    // To open the correct selected tab on restore we adjust the selected tab before saving.
+    let selectedIndex = tabbrowser.tabbox.selectedIndex + 1;
+    if (
+      aWindow.FirefoxViewHandler.tab &&
+      !aWindow.FirefoxViewHandler.tab.selected
+    ) {
+      selectedIndex -= 1;
+    }
+    winData.selected = selectedIndex;
 
     this._updateWindowFeatures(aWindow);
 
@@ -4229,6 +4276,17 @@ var SessionStoreInternal = {
     return Promise.all(windowOpenedPromises);
   },
 
+  /** reset closedId's from previous sessions to ensure these IDs are unique
+   * @param tabData
+   *        an array of data to be restored
+   * @returns the updated tabData array
+   */
+  _resetClosedIds(tabData) {
+    for (let entry of tabData) {
+      entry.closedId = this._nextClosedId++;
+    }
+    return tabData;
+  },
   /**
    * restore features to a single window
    * @param aWindow
@@ -4352,6 +4410,8 @@ var SessionStoreInternal = {
     }
 
     let newClosedTabsData = winData._closedTabs || [];
+    newClosedTabsData = this._resetClosedIds(newClosedTabsData);
+
     let newLastClosedTabGroupCount = winData._lastClosedTabGroupCount || -1;
 
     if (overwriteTabs || firstWindow) {

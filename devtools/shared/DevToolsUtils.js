@@ -8,28 +8,25 @@
 
 /* General utilities used throughout devtools. */
 
-var { Ci, Cc, Cu, components } = require("chrome");
-var Services = require("Services");
-var flags = require("devtools/shared/flags");
+var flags = require("resource://devtools/shared/flags.js");
 var {
   getStack,
   callFunctionWithAsyncStack,
-} = require("devtools/shared/platform/stack");
+} = require("resource://devtools/shared/platform/stack.js");
 
-loader.lazyRequireGetter(this, "OS", "resource://gre/modules/osfile.jsm", true);
+const lazy = {};
+ChromeUtils.defineModuleGetter(lazy, "OS", "resource://gre/modules/osfile.jsm");
 
-loader.lazyRequireGetter(
-  this,
+ChromeUtils.defineModuleGetter(
+  lazy,
   "FileUtils",
-  "resource://gre/modules/FileUtils.jsm",
-  true
+  "resource://gre/modules/FileUtils.jsm"
 );
 
-loader.lazyRequireGetter(
-  this,
+ChromeUtils.defineModuleGetter(
+  lazy,
   "ObjectUtils",
-  "resource://gre/modules/ObjectUtils.jsm",
-  true
+  "resource://gre/modules/ObjectUtils.jsm"
 );
 
 // Using this name lets the eslint plugin know about lazy defines in
@@ -37,7 +34,7 @@ loader.lazyRequireGetter(
 var DevToolsUtils = exports;
 
 // Re-export the thread-safe utils.
-const ThreadSafeDevToolsUtils = require("devtools/shared/ThreadSafeDevToolsUtils.js");
+const ThreadSafeDevToolsUtils = require("resource://devtools/shared/ThreadSafeDevToolsUtils.js");
 for (const key of Object.keys(ThreadSafeDevToolsUtils)) {
   exports[key] = ThreadSafeDevToolsUtils[key];
 }
@@ -135,13 +132,13 @@ exports.waitForTime = function(delay) {
 exports.defineLazyPrototypeGetter = function(object, key, callback) {
   Object.defineProperty(object, key, {
     configurable: true,
-    get: function() {
+    get() {
       const value = callback.call(this);
 
       Object.defineProperty(this, key, {
         configurable: true,
         writable: true,
-        value: value,
+        value,
       });
 
       return value;
@@ -409,7 +406,7 @@ exports.dumpv = function(msg) {
  */
 exports.defineLazyGetter = function(object, name, lambda) {
   Object.defineProperty(object, name, {
-    get: function() {
+    get() {
       delete object[name];
       object[name] = lambda.apply(object);
       return object[name];
@@ -423,7 +420,8 @@ DevToolsUtils.defineLazyGetter(this, "AppConstants", () => {
   if (isWorker) {
     return {};
   }
-  return require("resource://gre/modules/AppConstants.jsm").AppConstants;
+  return ChromeUtils.import("resource://gre/modules/AppConstants.jsm")
+    .AppConstants;
 });
 
 /**
@@ -470,33 +468,12 @@ Object.defineProperty(exports, "assert", {
       : exports.noop,
 });
 
-/**
- * Defines a getter on a specified object for a module.  The module will not
- * be imported until first use.
- *
- * @param object
- *        The object to define the lazy getter on.
- * @param name
- *        The name of the getter to define on object for the module.
- * @param resource
- *        The URL used to obtain the module.
- * @param symbol
- *        The name of the symbol exported by the module.
- *        This parameter is optional and defaults to name.
- */
-exports.defineLazyModuleGetter = function(object, name, resource, symbol) {
-  this.defineLazyGetter(object, name, function() {
-    const temp = ChromeUtils.import(resource);
-    return temp[symbol || name];
-  });
-};
-
 DevToolsUtils.defineLazyGetter(this, "NetUtil", () => {
-  return require("resource://gre/modules/NetUtil.jsm").NetUtil;
+  return ChromeUtils.import("resource://gre/modules/NetUtil.jsm").NetUtil;
 });
 
 DevToolsUtils.defineLazyGetter(this, "NetworkHelper", () => {
-  return require("devtools/shared/webconsole/network-helper");
+  return require("resource://devtools/shared/webconsole/network-helper.js");
 });
 
 /**
@@ -579,7 +556,7 @@ function mainThreadFetch(
 
     // eslint-disable-next-line complexity
     const onResponse = (stream, status, request) => {
-      if (!components.isSuccessCode(status)) {
+      if (!Components.isSuccessCode(status)) {
         reject(new Error(`Failed to fetch ${url}. Code ${status}.`));
         return;
       }
@@ -674,7 +651,7 @@ function mainThreadFetch(
           uri.QueryInterface(Ci.nsIFileURL);
           // Bug 1779574: IOUtils is not available in non-parent processes.
           // eslint-disable-next-line mozilla/reject-osfile
-          const result = OS.File.read(uri.file.path).then(bytes => {
+          const result = lazy.OS.File.read(uri.file.path).then(bytes => {
             // Convert the bytearray to a String.
             const decoder = new TextDecoder();
             const content = decoder.decode(bytes);
@@ -729,8 +706,8 @@ function newChannelForURL(
   }
   const channelOptions = {
     contentPolicyType: policy,
-    securityFlags: securityFlags,
-    uri: uri,
+    securityFlags,
+    uri,
   };
 
   // Ensure that we have some contentPolicyType type set if one was
@@ -800,11 +777,11 @@ if (this.isWorker) {
  */
 exports.openFileStream = function(filePath) {
   return new Promise((resolve, reject) => {
-    const uri = NetUtil.newURI(new FileUtils.File(filePath));
+    const uri = NetUtil.newURI(new lazy.FileUtils.File(filePath));
     NetUtil.asyncFetch(
       { uri, loadUsingSystemPrincipal: true },
       (stream, result) => {
-        if (!components.isSuccessCode(result)) {
+        if (!Components.isSuccessCode(result)) {
           reject(new Error(`Could not open "${filePath}": result = ${result}`));
           return;
         }
@@ -878,7 +855,7 @@ exports.showSaveFileDialog = function(
   }
 
   fp.init(parentWindow, null, fp.modeSave);
-  if (Array.isArray(filters) && filters.length > 0) {
+  if (Array.isArray(filters) && filters.length) {
     for (const { pattern, label } of filters) {
       fp.appendFilter(label, pattern);
     }
@@ -998,7 +975,7 @@ exports.getTopWindow = getTopWindow;
  * @return {Boolean}
  */
 exports.deepEqual = (a, b) => {
-  return ObjectUtils.deepEqual(a, b);
+  return lazy.ObjectUtils.deepEqual(a, b);
 };
 
 function isWorkerDebuggerAlive(dbg) {

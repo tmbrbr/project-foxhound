@@ -9,9 +9,7 @@ import {
   SearchEngine,
 } from "resource://gre/modules/SearchEngine.sys.mjs";
 
-const { XPCOMUtils } = ChromeUtils.importESModule(
-  "resource://gre/modules/XPCOMUtils.sys.mjs"
-);
+import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = {};
 
@@ -78,7 +76,6 @@ export class OpenSearchEngine extends SearchEngine {
    */
   constructor(options = {}) {
     super({
-      isAppProvided: false,
       // We don't know what this is until after it has loaded, so add a placeholder.
       loadPath: options.json?._loadPath ?? "[opensearch]loading",
     });
@@ -410,6 +407,18 @@ export class OpenSearchEngine extends SearchEngine {
       "self"
     );
     return !!(this._updateURL || this._iconUpdateURL || selfURL);
+  }
+
+  /**
+   * Returns the engine's updateURI if it exists and returns null otherwise
+   */
+  get _updateURI() {
+    let updateURL = this._getURLOfType(lazy.SearchUtils.URL_TYPE.OPENSEARCH);
+    let updateURI =
+      updateURL && updateURL._hasRelation("self")
+        ? updateURL.getSubmission("", this).uri
+        : lazy.SearchUtils.makeURI(this._updateURL);
+    return updateURI;
   }
 
   // This indicates where we found the .xml file to load the engine,

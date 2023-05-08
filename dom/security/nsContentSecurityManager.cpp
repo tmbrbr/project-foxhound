@@ -1248,7 +1248,7 @@ nsresult nsContentSecurityManager::CheckAllowLoadInPrivilegedAboutContext(
 }
 
 /*
- * Every protocol handler must set one of the five security flags
+ * Every protocol handler must set one of the six security flags
  * defined in nsIProtocolHandler - if not - deny the load.
  */
 nsresult nsContentSecurityManager::CheckChannelHasProtocolSecurityFlag(
@@ -1273,6 +1273,9 @@ nsresult nsContentSecurityManager::CheckChannelHasProtocolSecurityFlag(
   NS_ENSURE_SUCCESS(rv, rv);
 
   uint32_t securityFlagsSet = 0;
+  if (flags & nsIProtocolHandler::WEBEXT_URI_WEB_ACCESSIBLE) {
+    securityFlagsSet += 1;
+  }
   if (flags & nsIProtocolHandler::URI_LOADABLE_BY_ANYONE) {
     securityFlagsSet += 1;
   }
@@ -1328,8 +1331,6 @@ static nsresult CheckAllowFileProtocolScriptLoad(nsIChannel* aChannel) {
   rv = mime->GetTypeFromURI(uri, contentType);
   if (NS_FAILED(rv) || !nsContentUtils::IsJavascriptMIMEType(
                            NS_ConvertUTF8toUTF16(contentType))) {
-    Telemetry::Accumulate(Telemetry::SCRIPT_FILE_PROTOCOL_CORRECT_MIME, false);
-
     nsCOMPtr<Document> doc;
     if (nsINode* node = loadInfo->LoadingNode()) {
       doc = node->OwnerDoc();
@@ -1350,7 +1351,6 @@ static nsresult CheckAllowFileProtocolScriptLoad(nsIChannel* aChannel) {
     return NS_ERROR_CONTENT_BLOCKED;
   }
 
-  Telemetry::Accumulate(Telemetry::SCRIPT_FILE_PROTOCOL_CORRECT_MIME, true);
   return NS_OK;
 }
 

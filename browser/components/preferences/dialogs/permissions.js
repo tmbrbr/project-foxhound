@@ -8,27 +8,27 @@ var { AppConstants } = ChromeUtils.import(
 
 const permissionExceptionsL10n = {
   trackingprotection: {
-    window: "permissions-exceptions-etp-window",
+    window: "permissions-exceptions-etp-window2",
     description: "permissions-exceptions-etp-desc",
   },
   cookie: {
-    window: "permissions-exceptions-cookie-window",
+    window: "permissions-exceptions-cookie-window2",
     description: "permissions-exceptions-cookie-desc",
   },
   popup: {
-    window: "permissions-exceptions-popup-window",
+    window: "permissions-exceptions-popup-window2",
     description: "permissions-exceptions-popup-desc",
   },
   "login-saving": {
-    window: "permissions-exceptions-saved-logins-window",
+    window: "permissions-exceptions-saved-logins-window2",
     description: "permissions-exceptions-saved-logins-desc",
   },
   "https-only-load-insecure": {
-    window: "permissions-exceptions-https-only-window",
+    window: "permissions-exceptions-https-only-window2",
     description: "permissions-exceptions-https-only-desc",
   },
   install: {
-    window: "permissions-exceptions-addons-window",
+    window: "permissions-exceptions-addons-window2",
     description: "permissions-exceptions-addons-desc",
   },
 };
@@ -354,7 +354,7 @@ var gPermissionManager = {
     let richlistitem = document.createXULElement("richlistitem");
     richlistitem.setAttribute("origin", permission.origin);
     let row = document.createXULElement("hbox");
-    row.setAttribute("flex", "1");
+    row.setAttribute("style", "-moz-box-flex: 1");
 
     let hbox = document.createXULElement("hbox");
     let website = document.createXULElement("label");
@@ -363,7 +363,7 @@ var gPermissionManager = {
     website.setAttribute("value", permission.origin);
     hbox.setAttribute("width", "0");
     hbox.setAttribute("class", "website-name");
-    hbox.setAttribute("flex", "3");
+    hbox.setAttribute("style", "-moz-box-flex: 3");
     hbox.appendChild(website);
     row.appendChild(hbox);
 
@@ -378,7 +378,7 @@ var gPermissionManager = {
       );
       hbox.setAttribute("width", "0");
       hbox.setAttribute("class", "website-name");
-      hbox.setAttribute("flex", "1");
+      hbox.setAttribute("style", "-moz-box-flex: 1");
       hbox.appendChild(capability);
       row.appendChild(hbox);
     }

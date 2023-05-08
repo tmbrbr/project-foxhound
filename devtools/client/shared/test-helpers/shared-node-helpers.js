@@ -10,6 +10,25 @@
  * Adds mocks for browser-environment global variables/methods to Node global.
  */
 function setMocksInGlobal() {
+  global.Cc = {};
+  global.Ci = {
+    // sw states from
+    // mozilla-central/source/dom/interfaces/base/nsIServiceWorkerManager.idl
+    nsIServiceWorkerInfo: {
+      STATE_PARSED: 0,
+      STATE_INSTALLING: 1,
+      STATE_INSTALLED: 2,
+      STATE_ACTIVATING: 3,
+      STATE_ACTIVATED: 4,
+      STATE_REDUNDANT: 5,
+      STATE_UNKNOWN: 6,
+    },
+  };
+  global.Cu = {};
+
+  global.Services = require("Services-mock");
+  global.ChromeUtils = require("ChromeUtils-mock");
+
   global.isWorker = false;
 
   global.loader = {
@@ -34,7 +53,6 @@ function setMocksInGlobal() {
         });
       }
     },
-    lazyImporter: () => {},
   };
 
   global.define = function() {};
@@ -92,6 +110,16 @@ function setMocksInGlobal() {
       },
     };
   };
+
+  if (typeof global.TextEncoder === "undefined") {
+    const { TextEncoder } = require("util");
+    global.TextEncoder = TextEncoder;
+  }
+
+  if (typeof global.TextDecoder === "undefined") {
+    const { TextDecoder } = require("util");
+    global.TextDecoder = TextDecoder;
+  }
 }
 
 module.exports = {

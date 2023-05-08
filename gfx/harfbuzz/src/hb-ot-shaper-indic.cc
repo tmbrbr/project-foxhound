@@ -92,24 +92,22 @@ struct hb_indic_would_substitute_feature_t
   void init (const hb_ot_map_t *map, hb_tag_t feature_tag, bool zero_context_)
   {
     zero_context = zero_context_;
-    map->get_stage_lookups (0/*GSUB*/,
-			    map->get_feature_stage (0/*GSUB*/, feature_tag),
-			    &lookups, &count);
+    lookups = map->get_stage_lookups (0/*GSUB*/,
+				      map->get_feature_stage (0/*GSUB*/, feature_tag));
   }
 
   bool would_substitute (const hb_codepoint_t *glyphs,
 			 unsigned int          glyphs_count,
 			 hb_face_t            *face) const
   {
-    for (unsigned int i = 0; i < count; i++)
-      if (hb_ot_layout_lookup_would_substitute (face, lookups[i].index, glyphs, glyphs_count, zero_context))
+    for (const auto &lookup : lookups)
+      if (hb_ot_layout_lookup_would_substitute (face, lookup.index, glyphs, glyphs_count, zero_context))
 	return true;
     return false;
   }
 
   private:
-  const hb_ot_map_t::lookup_map_t *lookups;
-  unsigned int count;
+  hb_array_t<const hb_ot_map_t::lookup_map_t> lookups;
   bool zero_context;
 };
 
@@ -278,7 +276,7 @@ struct indic_shape_plan_t
 {
   bool load_virama_glyph (hb_font_t *font, hb_codepoint_t *pglyph) const
   {
-    hb_codepoint_t glyph = virama_glyph.get_relaxed ();
+    hb_codepoint_t glyph = virama_glyph;
     if (unlikely (glyph == (hb_codepoint_t) -1))
     {
       if (!config->virama || !font->get_nominal_glyph (config->virama, &glyph))
@@ -288,7 +286,7 @@ struct indic_shape_plan_t
 
       /* Our get_nominal_glyph() function needs a font, so we can't get the virama glyph
        * during shape planning...  Instead, overwrite it here. */
-      virama_glyph.set_relaxed ((int) glyph);
+      virama_glyph = (int) glyph;
     }
 
     *pglyph = glyph;
@@ -332,7 +330,7 @@ data_create_indic (const hb_ot_shape_plan_t *plan)
 #ifndef HB_NO_UNISCRIBE_BUG_COMPATIBLE
   indic_plan->uniscribe_bug_compatible = hb_options ().uniscribe_bug_compatible;
 #endif
-  indic_plan->virama_glyph.set_relaxed (-1);
+  indic_plan->virama_glyph = -1;
 
   /* Use zero-context would_substitute() matching for new-spec of the main
    * Indic scripts, and scripts with one spec only, but not for old-specs.
@@ -994,7 +992,7 @@ final_reordering_syllable_indic (const hb_ot_shape_plan_t *plan,
    * class of I_Cat(H) is desired but has been lost. */
   /* We don't call load_virama_glyph(), since we know it's already
    * loaded. */
-  hb_codepoint_t virama_glyph = indic_plan->virama_glyph.get_relaxed ();
+  hb_codepoint_t virama_glyph = indic_plan->virama_glyph;
   if (virama_glyph)
   {
     for (unsigned int i = start; i < end; i++)
@@ -1528,12 +1526,12 @@ const hb_ot_shaper_t _hb_ot_shaper_indic =
   data_destroy_indic,
   preprocess_text_indic,
   nullptr, /* postprocess_glyphs */
-  HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS_NO_SHORT_CIRCUIT,
   decompose_indic,
   compose_indic,
   setup_masks_indic,
-  HB_TAG_NONE, /* gpos_tag */
   nullptr, /* reorder_marks */
+  HB_TAG_NONE, /* gpos_tag */
+  HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS_NO_SHORT_CIRCUIT,
   HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
   false, /* fallback_position */
 };

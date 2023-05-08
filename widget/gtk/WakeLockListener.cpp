@@ -279,12 +279,11 @@ bool WakeLockTopic::InhibitWaylandIdle() {
 
   UninhibitWaylandIdle();
 
-  MozContainer* container = focusedWindow->GetMozContainer();
-  wl_surface* waylandSurface = moz_container_wayland_surface_lock(container);
+  MozContainerSurfaceLock lock(focusedWindow->GetMozContainer());
+  struct wl_surface* waylandSurface = lock.GetSurface();
   if (waylandSurface) {
     mWaylandInhibitor = zwp_idle_inhibit_manager_v1_create_inhibitor(
         waylandDisplay->GetIdleInhibitManager(), waylandSurface);
-    moz_container_wayland_surface_unlock(container, &waylandSurface);
   }
   return true;
 }
@@ -515,8 +514,7 @@ nsresult WakeLockListener::Callback(const nsAString& topic,
     return NS_ERROR_FAILURE;
   }
 
-  if (!topic.Equals(u"screen"_ns) && !topic.Equals(u"audio-playing"_ns) &&
-      !topic.Equals(u"video-playing"_ns))
+  if (!topic.Equals(u"screen"_ns) && !topic.Equals(u"video-playing"_ns))
     return NS_OK;
 
   WakeLockTopic* const topicLock =

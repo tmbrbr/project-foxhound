@@ -18,6 +18,10 @@ const { FileTestUtils } = ChromeUtils.import(
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  JsonSchema: "resource://gre/modules/JsonSchema.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   _ExperimentManager: "resource://nimbus/lib/ExperimentManager.jsm",
   ExperimentManager: "resource://nimbus/lib/ExperimentManager.jsm",
@@ -27,7 +31,6 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
     "resource://nimbus/lib/RemoteSettingsExperimentLoader.jsm",
   sinon: "resource://testing-common/Sinon.jsm",
   FeatureManifest: "resource://nimbus/FeatureManifest.js",
-  JsonSchema: "resource://gre/modules/JsonSchema.jsm",
 });
 
 const { SYNC_DATA_PREF_BRANCH, SYNC_DEFAULTS_PREF_BRANCH } = ExperimentStore;
@@ -234,7 +237,7 @@ const ExperimentFakes = {
   },
   async enrollWithFeatureConfig(
     featureConfig,
-    { manager = lazy.ExperimentManager } = {}
+    { manager = lazy.ExperimentManager, isRollout = false } = {}
   ) {
     await manager.store.ready();
     // Use id passed in featureConfig value to compute experimentId
@@ -259,6 +262,7 @@ const ExperimentFakes = {
           features: [featureConfig],
         },
       ],
+      isRollout,
     });
     let {
       enrollmentPromise,
@@ -269,7 +273,11 @@ const ExperimentFakes = {
 
     return doExperimentCleanup;
   },
-  enrollmentHelper(recipe = {}, { manager = lazy.ExperimentManager } = {}) {
+  enrollmentHelper(recipe, { manager = lazy.ExperimentManager } = {}) {
+    if (!recipe?.slug) {
+      throw new Error("Enrollment helper expects a recipe");
+    }
+
     let enrollmentPromise = new Promise(resolve =>
       manager.store.on(`update:${recipe.slug}`, (event, experiment) => {
         if (experiment.active) {
@@ -290,24 +298,42 @@ const ExperimentFakes = {
         })
       );
     let doExperimentCleanup = async () => {
-      for (let experiment of manager.store.getAllActive()) {
-        let promise = unenrollCompleted(experiment.slug);
-        manager.unenroll(experiment.slug, "cleanup");
-        await promise;
-      }
-      if (manager.store.getAllActive().length) {
-        throw new Error("Cleanup failed");
-      }
+      const experiment = manager.store.get(recipe.slug);
+      let promise = unenrollCompleted(experiment.slug);
+      manager.unenroll(experiment.slug, "cleanup");
+      await promise;
     };
 
-    if (recipe.slug) {
-      if (!manager.store._isReady) {
-        throw new Error("Manager store not ready, call `manager.onStartup`");
-      }
-      manager.enroll(recipe, "enrollmentHelper");
+    if (!manager.store._isReady) {
+      throw new Error("Manager store not ready, call `manager.onStartup`");
     }
+    manager.enroll(recipe, "enrollmentHelper");
 
     return { enrollmentPromise, doExperimentCleanup };
+  },
+  async cleanupAll(slugs, { manager = lazy.ExperimentManager } = {}) {
+    function unenrollCompleted(slug) {
+      return new Promise(resolve =>
+        manager.store.on(`update:${slug}`, (event, experiment) => {
+          if (!experiment.active) {
+            // Removes recipe from file storage which
+            // (normally the users archive of past experiments)
+            manager.store._deleteForTests(slug);
+            resolve();
+          }
+        })
+      );
+    }
+
+    for (const slug of slugs) {
+      let promise = unenrollCompleted(slug);
+      manager.unenroll(slug, "cleanup");
+      await promise;
+    }
+
+    if (manager.store.getAllActive().length) {
+      throw new Error("Cleanup failed");
+    }
   },
   // Experiment store caches in prefs Enrollments for fast sync access
   cleanupStorePrefCache() {

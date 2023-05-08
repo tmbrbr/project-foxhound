@@ -70,7 +70,7 @@ class MOZ_STACK_CLASS WSScanResult final {
   }
   MOZ_NEVER_INLINE_DEBUG WSScanResult(const EditorDOMPoint& aPoint,
                                       WSType aReason)
-      : mContent(aPoint.GetContainerAsContent()),
+      : mContent(aPoint.GetContainerAs<nsIContent>()),
         mOffset(Some(aPoint.Offset())),
         mReason(aReason) {
     AssertIfInvalidData();
@@ -338,8 +338,10 @@ class MOZ_STACK_CLASS WSRunScanner final {
   static EditorDOMPointType GetInclusiveNextEditableCharPoint(
       Element* aEditingHost, const EditorDOMPointBase<PT, CT>& aPoint) {
     if (aPoint.IsInTextNode() && !aPoint.IsEndOfContainer() &&
-        HTMLEditUtils::IsSimplyEditableNode(*aPoint.ContainerAsText())) {
-      return EditorDOMPointType(aPoint.ContainerAsText(), aPoint.Offset());
+        HTMLEditUtils::IsSimplyEditableNode(
+            *aPoint.template ContainerAs<Text>())) {
+      return EditorDOMPointType(aPoint.template ContainerAs<Text>(),
+                                aPoint.Offset());
     }
     return WSRunScanner(aEditingHost, aPoint)
         .GetInclusiveNextEditableCharPoint<EditorDOMPointType>(aPoint);
@@ -354,8 +356,10 @@ class MOZ_STACK_CLASS WSRunScanner final {
   static EditorDOMPointType GetPreviousEditableCharPoint(
       Element* aEditingHost, const EditorDOMPointBase<PT, CT>& aPoint) {
     if (aPoint.IsInTextNode() && !aPoint.IsStartOfContainer() &&
-        HTMLEditUtils::IsSimplyEditableNode(*aPoint.ContainerAsText())) {
-      return EditorDOMPointType(aPoint.ContainerAsText(), aPoint.Offset() - 1);
+        HTMLEditUtils::IsSimplyEditableNode(
+            *aPoint.template ContainerAs<Text>())) {
+      return EditorDOMPointType(aPoint.template ContainerAs<Text>(),
+                                aPoint.Offset() - 1);
     }
     return WSRunScanner(aEditingHost, aPoint)
         .GetPreviousEditableCharPoint<EditorDOMPointType>(aPoint);
@@ -1396,7 +1400,7 @@ class WhiteSpaceVisibilityKeeper final {
    *                            list element.
    * @param aEditingHost        The editing host.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT static EditActionResult
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT static Result<EditActionResult, nsresult>
   MergeFirstLineOfRightBlockElementIntoDescendantLeftBlockElement(
       HTMLEditor& aHTMLEditor, Element& aLeftBlockElement,
       Element& aRightBlockElement, const EditorDOMPoint& aAtRightBlockChild,
@@ -1425,7 +1429,7 @@ class WhiteSpaceVisibilityKeeper final {
    *                            list element.
    * @param aEditingHost        The editing host.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT static EditActionResult
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT static Result<EditActionResult, nsresult>
   MergeFirstLineOfRightBlockElementIntoAncestorLeftBlockElement(
       HTMLEditor& aHTMLEditor, Element& aLeftBlockElement,
       Element& aRightBlockElement, const EditorDOMPoint& aAtLeftBlockChild,
@@ -1449,7 +1453,7 @@ class WhiteSpaceVisibilityKeeper final {
    *                            element and its type needs to be changed.
    * @param aEditingHost        The editing host.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT static EditActionResult
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT static Result<EditActionResult, nsresult>
   MergeFirstLineOfRightBlockElementIntoLeftBlockElement(
       HTMLEditor& aHTMLEditor, Element& aLeftBlockElement,
       Element& aRightBlockElement, const Maybe<nsAtom*>& aListElementTagName,
@@ -1469,9 +1473,9 @@ class WhiteSpaceVisibilityKeeper final {
    * @return                If succeeded, returns the new <br> element and
    *                        point to put caret.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT static CreateElementResult InsertBRElement(
-      HTMLEditor& aHTMLEditor, const EditorDOMPoint& aPointToInsert,
-      const Element& aEditingHost);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT static Result<CreateElementResult, nsresult>
+  InsertBRElement(HTMLEditor& aHTMLEditor, const EditorDOMPoint& aPointToInsert,
+                  const Element& aEditingHost);
 
   /**
    * InsertText() inserts aStringToInsert to aPointToInsert and makes any needed

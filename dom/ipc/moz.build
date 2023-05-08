@@ -133,7 +133,6 @@ UNIFIED_SOURCES += [
     "SharedStringMap.cpp",
     "StructuredCloneData.cpp",
     "TabContext.cpp",
-    "TabMessageUtils.cpp",
     "URLClassifierParent.cpp",
     "WindowGlobalActor.cpp",
     "WindowGlobalChild.cpp",
@@ -221,6 +220,11 @@ if CONFIG["MOZ_SANDBOX"] and CONFIG["OS_ARCH"] == "WINNT":
     LOCAL_INCLUDES += [
         "/security/sandbox/chromium",
         "/security/sandbox/chromium-shim",
+    ]
+
+if CONFIG["MOZ_SANDBOX"] and CONFIG["OS_ARCH"] == "OpenBSD":
+    LOCAL_INCLUDES += [
+        "/xpcom/build",
     ]
 
 if CONFIG["OS_ARCH"] != "WINNT":

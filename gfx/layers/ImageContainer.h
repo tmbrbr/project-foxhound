@@ -108,6 +108,9 @@ class Image {
     return gfx::IntRect(GetOrigin().x, GetOrigin().y, GetSize().width,
                         GetSize().height);
   }
+  virtual gfx::ColorDepth GetColorDepth() const {
+    return gfx::ColorDepth::COLOR_8;
+  }
 
   ImageBackendData* GetBackendData(LayersBackend aBackend) {
     return mBackendData[aBackend].get();
@@ -117,6 +120,9 @@ class Image {
   }
 
   int32_t GetSerial() const { return mSerial; }
+
+  bool IsDRM() const { return mIsDRM; }
+  void SetIsDRM(bool aIsDRM) { mIsDRM = aIsDRM; }
 
   virtual already_AddRefed<gfx::SourceSurface> GetAsSourceSurface() = 0;
 
@@ -152,7 +158,10 @@ class Image {
       TextureClient* tcOverride = nullptr);
 
   Image(void* aImplData, ImageFormat aFormat)
-      : mImplData(aImplData), mSerial(++sSerialCounter), mFormat(aFormat) {}
+      : mImplData(aImplData),
+        mSerial(++sSerialCounter),
+        mFormat(aFormat),
+        mIsDRM(false) {}
 
   // Protected destructor, to discourage deletion outside of Release():
   virtual ~Image() = default;
@@ -165,6 +174,7 @@ class Image {
   void* mImplData;
   int32_t mSerial;
   ImageFormat mFormat;
+  bool mIsDRM;
 
   static mozilla::Atomic<int32_t> sSerialCounter;
 };
@@ -633,6 +643,14 @@ class AutoLockImage {
   AutoTArray<ImageContainer::OwningImage, 4> mImages;
 };
 
+// This type is currently only used for AVIF and WebCodecs therefore makes some
+// specific assumptions (e.g., Alpha's bpc and stride is equal to Y's one)
+struct PlanarAlphaData {
+  uint8_t* mChannel = nullptr;
+  gfx::IntSize mSize = gfx::IntSize(0, 0);
+  gfx::ColorDepth mDepth = gfx::ColorDepth::COLOR_8;
+  bool mPremultiplied = false;
+};
 struct PlanarYCbCrData {
   // Luminance buffer
   uint8_t* mYChannel = nullptr;
@@ -644,11 +662,14 @@ struct PlanarYCbCrData {
   int32_t mCbCrStride = 0;
   int32_t mCbSkip = 0;
   int32_t mCrSkip = 0;
+  // Alpha buffer and its metadata
+  Maybe<PlanarAlphaData> mAlpha = Nothing();
   // Picture region
   gfx::IntRect mPictureRect = gfx::IntRect(0, 0, 0, 0);
   StereoMode mStereoMode = StereoMode::MONO;
   gfx::ColorDepth mColorDepth = gfx::ColorDepth::COLOR_8;
   gfx::YUVColorSpace mYUVColorSpace = gfx::YUVColorSpace::Default;
+  gfx::ColorSpace2 mColorPrimaries = gfx::ColorSpace2::UNKNOWN;
   gfx::TransferFunction mTransferFunction = gfx::TransferFunction::BT709;
   gfx::ColorRange mColorRange = gfx::ColorRange::LIMITED;
   gfx::ChromaSubsampling mChromaSubsampling = gfx::ChromaSubsampling::FULL;
@@ -674,15 +695,6 @@ struct PlanarYCbCrData {
   }
 
   static Maybe<PlanarYCbCrData> From(const SurfaceDescriptorBuffer&);
-};
-
-// This type is currently only used for AVIF and therefore makes some
-// AVIF-specific assumptions (e.g., Alpha's bpc and stride is equal to Y's one)
-struct PlanarAlphaData {
-  uint8_t* mChannel = nullptr;
-  gfx::IntSize mSize = gfx::IntSize(0, 0);
-  gfx::ColorDepth mDepth = gfx::ColorDepth::COLOR_8;
-  bool mPremultiplied = false;
 };
 
 /****** Image subtypes for the different formats ******/
@@ -747,13 +759,6 @@ class PlanarYCbCrImage : public Image {
   bool CreateEmptyBuffer(const Data& aData) {
     return CreateEmptyBuffer(aData, aData.YDataSize(), aData.CbCrDataSize());
   }
-
-  /**
-   * Ask this Image to not convert YUV to RGB during SetData, and make
-   * the original data available through GetData. This is optional,
-   * and not all PlanarYCbCrImages will support it.
-   */
-  virtual void SetDelayedConversion(bool aDelayed) {}
 
   /**
    * Grab the original YUV data. This is optional.

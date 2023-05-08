@@ -109,7 +109,7 @@ this.VideoControlsWidget = class {
     this.impl.onPrefChange(prefName, prefValue);
   }
 
-  // If you change this, also change SEEK_TIME_SECS in PictureInPictureChild.jsm
+  // If you change this, also change SEEK_TIME_SECS in PictureInPictureChild.sys.mjs
   static SEEK_TIME_SECS = 5;
 
   static isPictureInPictureVideo(someVideo) {
@@ -298,6 +298,10 @@ this.VideoControlsImplWidget = class {
       maxCurrentTimeSeen: 0,
       isPausedByDragging: false,
       _isAudioOnly: false,
+
+      get isAudioTag() {
+        return this.video.localName == "audio";
+      },
 
       get isAudioOnly() {
         return this._isAudioOnly;
@@ -788,7 +792,7 @@ this.VideoControlsImplWidget = class {
             this.controlsSpacer.removeAttribute("aria-label");
             this.statusOverlay.removeAttribute("status");
             this.statusIcon.setAttribute("type", "throbber");
-            this.isAudioOnly = this.video.localName == "audio";
+            this.isAudioOnly = this.isAudioTag;
             this.setPlayButtonState(true);
             this.setupNewLoadState();
             this.setupStatusFader();
@@ -1705,9 +1709,12 @@ this.VideoControlsImplWidget = class {
       },
 
       toggleFullscreen() {
-        this.isVideoInFullScreen
-          ? this.document.exitFullscreen()
-          : this.video.requestFullscreen();
+        // audio tags cannot toggle fullscreen
+        if (!this.isAudioTag) {
+          this.isVideoInFullScreen
+            ? this.document.exitFullscreen()
+            : this.video.requestFullscreen();
+        }
       },
 
       setFullscreenButtonState() {
@@ -2433,7 +2440,7 @@ this.VideoControlsImplWidget = class {
 
         // Since the size of videocontrols is expanded with controlBar in <audio>, we
         // should fix the dimensions in order not to recursively trigger reflow afterwards.
-        if (this.video.localName == "audio") {
+        if (this.isAudioTag) {
           if (givenHeight) {
             // The height of controlBar should be capped with the bounds between controlBarMinHeight
             // and controlBarMinVisibleHeight.
@@ -2593,7 +2600,7 @@ this.VideoControlsImplWidget = class {
           this.volumeStack,
         ];
 
-        this.isAudioOnly = this.video.localName == "audio";
+        this.isAudioOnly = this.isAudioTag;
         this.setupInitialState();
         this.setupNewLoadState();
         this.initTextTracks();
@@ -2865,7 +2872,7 @@ this.VideoControlsImplWidget = class {
                   <span class="pip-icon"></span>
                   <span class="pip-label" data-l10n-id="videocontrols-picture-in-picture-toggle-label2"></span>
                 </span>
-                <div class="pip-explainer clickable" data-l10n-id="videocontrols-picture-in-picture-explainer2"></div>
+                <div class="pip-explainer clickable" data-l10n-id="videocontrols-picture-in-picture-explainer3"></div>
               </div>
               <div class="pip-icon clickable"></div>
             </button>
@@ -3371,7 +3378,7 @@ this.NoControlsDesktopImplWidget = class {
                   <span class="pip-icon"></span>
                   <span class="pip-label" data-l10n-id="videocontrols-picture-in-picture-toggle-label2"></span>
                 </span>
-                <div class="pip-explainer clickable" data-l10n-id="videocontrols-picture-in-picture-explainer2"></div>
+                <div class="pip-explainer clickable" data-l10n-id="videocontrols-picture-in-picture-explainer3"></div>
               </div>
               <div class="pip-icon"></div>
             </button>

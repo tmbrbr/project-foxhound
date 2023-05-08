@@ -303,8 +303,8 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     auto path = reinterpret_cast<const char*>(aArgs.args[1]);
     auto flags = static_cast<int>(aArgs.args[2]);
     if (fd != AT_FDCWD && path[0] != '/') {
-      SANDBOX_LOG_ERROR("unsupported fd-relative openat(%d, \"%s\", 0%o)", fd,
-                        path, flags);
+      SANDBOX_LOG("unsupported fd-relative openat(%d, \"%s\", 0%o)", fd, path,
+                  flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return broker->Open(path, flags);
@@ -323,8 +323,8 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     // Starting with kernel 5.8+ and glibc 2.33, there is faccessat2 that
     // supports flags, handled below.
     if (fd != AT_FDCWD && path[0] != '/') {
-      SANDBOX_LOG_ERROR("unsupported fd-relative faccessat(%d, \"%s\", %d)", fd,
-                        path, mode);
+      SANDBOX_LOG("unsupported fd-relative faccessat(%d, \"%s\", %d)", fd, path,
+                  mode);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return broker->Access(path, mode);
@@ -337,9 +337,8 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     auto mode = static_cast<int>(aArgs.args[2]);
     auto flags = static_cast<int>(aArgs.args[3]);
     if (fd != AT_FDCWD && path[0] != '/') {
-      SANDBOX_LOG_ERROR(
-          "unsupported fd-relative faccessat2(%d, \"%s\", %d, %d)", fd, path,
-          mode, flags);
+      SANDBOX_LOG("unsupported fd-relative faccessat2(%d, \"%s\", %d, %d)", fd,
+                  path, mode, flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     if ((flags & ~AT_EACCESS) == 0) {
@@ -369,16 +368,15 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     }
 
     if (fd != AT_FDCWD && path && path[0] != '/') {
-      SANDBOX_LOG_ERROR("unsupported fd-relative fstatat(%d, \"%s\", %p, 0x%x)",
-                        fd, path, buf, flags);
+      SANDBOX_LOG("unsupported fd-relative fstatat(%d, \"%s\", %p, 0x%x)", fd,
+                  path, buf, flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
 
     int badFlags = flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT);
     if (badFlags != 0) {
-      SANDBOX_LOG_ERROR(
-          "unsupported flags 0x%x in fstatat(%d, \"%s\", %p, 0x%x)", badFlags,
-          fd, path, buf, flags);
+      SANDBOX_LOG("unsupported flags 0x%x in fstatat(%d, \"%s\", %p, 0x%x)",
+                  badFlags, fd, path, buf, flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return (flags & AT_SYMLINK_NOFOLLOW) == 0 ? broker->Stat(path, buf)
@@ -392,13 +390,13 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     auto mode = static_cast<mode_t>(aArgs.args[2]);
     auto flags = static_cast<int>(aArgs.args[3]);
     if (fd != AT_FDCWD && path[0] != '/') {
-      SANDBOX_LOG_ERROR("unsupported fd-relative chmodat(%d, \"%s\", 0%o, %d)",
-                        fd, path, mode, flags);
+      SANDBOX_LOG("unsupported fd-relative chmodat(%d, \"%s\", 0%o, %d)", fd,
+                  path, mode, flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     if (flags != 0) {
-      SANDBOX_LOG_ERROR("unsupported flags in chmodat(%d, \"%s\", 0%o, %d)", fd,
-                        path, mode, flags);
+      SANDBOX_LOG("unsupported flags in chmodat(%d, \"%s\", 0%o, %d)", fd, path,
+                  mode, flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return broker->Chmod(path, mode);
@@ -413,15 +411,14 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     auto flags = static_cast<int>(aArgs.args[4]);
     if ((fd != AT_FDCWD && path[0] != '/') ||
         (fd2 != AT_FDCWD && path2[0] != '/')) {
-      SANDBOX_LOG_ERROR(
+      SANDBOX_LOG(
           "unsupported fd-relative linkat(%d, \"%s\", %d, \"%s\", 0x%x)", fd,
           path, fd2, path2, flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     if (flags != 0) {
-      SANDBOX_LOG_ERROR(
-          "unsupported flags in linkat(%d, \"%s\", %d, \"%s\", 0x%x)", fd, path,
-          fd2, path2, flags);
+      SANDBOX_LOG("unsupported flags in linkat(%d, \"%s\", %d, \"%s\", 0x%x)",
+                  fd, path, fd2, path2, flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return broker->Link(path, path2);
@@ -433,8 +430,8 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     auto fd2 = static_cast<int>(aArgs.args[1]);
     auto path2 = reinterpret_cast<const char*>(aArgs.args[2]);
     if (fd2 != AT_FDCWD && path2[0] != '/') {
-      SANDBOX_LOG_ERROR("unsupported fd-relative symlinkat(\"%s\", %d, \"%s\")",
-                        path, fd2, path2);
+      SANDBOX_LOG("unsupported fd-relative symlinkat(\"%s\", %d, \"%s\")", path,
+                  fd2, path2);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return broker->Symlink(path, path2);
@@ -448,9 +445,8 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     auto path2 = reinterpret_cast<const char*>(aArgs.args[3]);
     if ((fd != AT_FDCWD && path[0] != '/') ||
         (fd2 != AT_FDCWD && path2[0] != '/')) {
-      SANDBOX_LOG_ERROR(
-          "unsupported fd-relative renameat(%d, \"%s\", %d, \"%s\")", fd, path,
-          fd2, path2);
+      SANDBOX_LOG("unsupported fd-relative renameat(%d, \"%s\", %d, \"%s\")",
+                  fd, path, fd2, path2);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return broker->Rename(path, path2);
@@ -462,8 +458,8 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     auto path = reinterpret_cast<const char*>(aArgs.args[1]);
     auto mode = static_cast<mode_t>(aArgs.args[2]);
     if (fd != AT_FDCWD && path[0] != '/') {
-      SANDBOX_LOG_ERROR("unsupported fd-relative mkdirat(%d, \"%s\", 0%o)", fd,
-                        path, mode);
+      SANDBOX_LOG("unsupported fd-relative mkdirat(%d, \"%s\", 0%o)", fd, path,
+                  mode);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return broker->Mkdir(path, mode);
@@ -479,14 +475,14 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
       return -ENOENT;
     }
     if (fd != AT_FDCWD && path[0] != '/') {
-      SANDBOX_LOG_ERROR("unsupported fd-relative unlinkat(%d, \"%s\", 0x%x)",
-                        fd, path, flags);
+      SANDBOX_LOG("unsupported fd-relative unlinkat(%d, \"%s\", 0x%x)", fd,
+                  path, flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     int badFlags = flags & ~AT_REMOVEDIR;
     if (badFlags != 0) {
-      SANDBOX_LOG_ERROR("unsupported flags 0x%x in unlinkat(%d, \"%s\", 0x%x)",
-                        badFlags, fd, path, flags);
+      SANDBOX_LOG("unsupported flags 0x%x in unlinkat(%d, \"%s\", 0x%x)",
+                  badFlags, fd, path, flags);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return (flags & AT_REMOVEDIR) == 0 ? broker->Unlink(path)
@@ -500,8 +496,8 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
     auto buf = reinterpret_cast<char*>(aArgs.args[2]);
     auto size = static_cast<size_t>(aArgs.args[3]);
     if (fd != AT_FDCWD && path[0] != '/') {
-      SANDBOX_LOG_ERROR("unsupported fd-relative readlinkat(%d, %s, %p, %u)",
-                        fd, path, buf, size);
+      SANDBOX_LOG("unsupported fd-relative readlinkat(%d, %s, %p, %d)", fd,
+                  path, buf, size);
       return BlockedSyscallTrap(aArgs, nullptr);
     }
     return broker->Readlink(path, buf, size);
@@ -648,6 +644,40 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
                              static_cast<int>(innerArgs[0]),
                              reinterpret_cast<AddrPtr>(innerArgs[1]),
                              static_cast<socklen_t>(innerArgs[2]));
+  }
+
+  static intptr_t StatFsTrap(ArgsRef aArgs, void* aux) {
+    // Warning: the kernel interface is not the C interface.  The
+    // structs are different (<asm/statfs.h> vs. <sys/statfs.h>), and
+    // the statfs64 version takes an additional size parameter.
+    auto path = reinterpret_cast<const char*>(aArgs.args[0]);
+    int fd = open(path, O_RDONLY | O_LARGEFILE);
+    if (fd < 0) {
+      return -errno;
+    }
+
+    intptr_t rv;
+    switch (aArgs.nr) {
+      case __NR_statfs: {
+        auto buf = reinterpret_cast<void*>(aArgs.args[1]);
+        rv = DoSyscall(__NR_fstatfs, fd, buf);
+        break;
+      }
+#ifdef __NR_statfs64
+      case __NR_statfs64: {
+        auto sz = static_cast<size_t>(aArgs.args[1]);
+        auto buf = reinterpret_cast<void*>(aArgs.args[2]);
+        rv = DoSyscall(__NR_fstatfs64, fd, sz, buf);
+        break;
+      }
+#endif
+      default:
+        MOZ_ASSERT(false);
+        rv = -ENOSYS;
+    }
+
+    close(fd);
+    return rv;
   }
 
  public:
@@ -1179,6 +1209,12 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
         return Error(ENOENT);
 #endif  // MOZ_ASAN
 
+        // Replace statfs with open (which may be brokered) and
+        // fstatfs (which is not allowed in this policy, but may be
+        // allowed by subclasses if they wish to enable statfs).
+      CASES_FOR_statfs:
+        return Trap(StatFsTrap, nullptr);
+
       default:
         return SandboxPolicyBase::EvaluateSyscall(sysno);
     }
@@ -1211,40 +1247,6 @@ class ContentSandboxPolicy : public SandboxPolicyCommon {
     // of the real parent pid to see what breaks when we introduce the
     // pid namespace (Bug 1151624).
     return 0;
-  }
-
-  static intptr_t StatFsTrap(ArgsRef aArgs, void* aux) {
-    // Warning: the kernel interface is not the C interface.  The
-    // structs are different (<asm/statfs.h> vs. <sys/statfs.h>), and
-    // the statfs64 version takes an additional size parameter.
-    auto path = reinterpret_cast<const char*>(aArgs.args[0]);
-    int fd = open(path, O_RDONLY | O_LARGEFILE);
-    if (fd < 0) {
-      return -errno;
-    }
-
-    intptr_t rv;
-    switch (aArgs.nr) {
-      case __NR_statfs: {
-        auto buf = reinterpret_cast<void*>(aArgs.args[1]);
-        rv = DoSyscall(__NR_fstatfs, fd, buf);
-        break;
-      }
-#ifdef __NR_statfs64
-      case __NR_statfs64: {
-        auto sz = static_cast<size_t>(aArgs.args[1]);
-        auto buf = reinterpret_cast<void*>(aArgs.args[2]);
-        rv = DoSyscall(__NR_fstatfs64, fd, sz, buf);
-        break;
-      }
-#endif
-      default:
-        MOZ_ASSERT(false);
-        rv = -ENOSYS;
-    }
-
-    close(fd);
-    return rv;
   }
 
  public:
@@ -1345,7 +1347,7 @@ class ContentSandboxPolicy : public SandboxPolicyCommon {
     if (std::find(whitelist.begin(), whitelist.end(), sysno) !=
         whitelist.end()) {
       if (SandboxInfo::Get().Test(SandboxInfo::kVerbose)) {
-        SANDBOX_LOG_ERROR("Allowing syscall nr %d via whitelist", sysno);
+        SANDBOX_LOG("Allowing syscall nr %d via whitelist", sysno);
       }
       return Allow();
     }
@@ -1389,9 +1391,6 @@ class ContentSandboxPolicy : public SandboxPolicyCommon {
 #ifdef DESKTOP
       case __NR_getppid:
         return Trap(GetPPidTrap, nullptr);
-
-      CASES_FOR_statfs:
-        return Trap(StatFsTrap, nullptr);
 
         // GTK's theme parsing tries to getcwd() while sandboxed, but
         // only during Talos runs.
@@ -1674,8 +1673,8 @@ class GMPSandboxPolicy : public SandboxPolicyCommon {
     }
 
     if ((flags & O_ACCMODE) != O_RDONLY) {
-      SANDBOX_LOG_ERROR("non-read-only open of file %s attempted (flags=0%o)",
-                        path, flags);
+      SANDBOX_LOG("non-read-only open of file %s attempted (flags=0%o)", path,
+                  flags);
       return -EROFS;
     }
     int fd = files->GetDesc(path);
@@ -1913,6 +1912,13 @@ class RDDSandboxPolicy final : public SandboxPolicyCommon {
       case __NR_mknodat:
         return Error(EPERM);
 
+        // Used by the nvidia GPU driver, including in multi-GPU
+        // systems when we intend to use a non-nvidia GPU.  (Also used
+        // by Mesa for its shader cache, but we disable that in this
+        // process.)
+      CASES_FOR_fstatfs:
+        return Allow();
+
         // Pass through the common policy.
       default:
         return SandboxPolicyCommon::EvaluateSyscall(sysno);
@@ -2084,26 +2090,6 @@ class UtilitySandboxPolicy : public SandboxPolicyCommon {
       case __NR_getrusage:
         return Allow();
 
-      // Pass through the common policy.
-      default:
-        return SandboxPolicyCommon::EvaluateSyscall(sysno);
-    }
-  }
-};
-
-UniquePtr<sandbox::bpf_dsl::Policy> GetUtilitySandboxPolicy(
-    SandboxBrokerClient* aMaybeBroker) {
-  return UniquePtr<sandbox::bpf_dsl::Policy>(
-      new UtilitySandboxPolicy(aMaybeBroker));
-}
-
-class UtilityAudioDecoderSandboxPolicy final : public UtilitySandboxPolicy {
- public:
-  explicit UtilityAudioDecoderSandboxPolicy(SandboxBrokerClient* aBroker)
-      : UtilitySandboxPolicy(aBroker) {}
-
-  ResultExpr EvaluateSyscall(int sysno) const override {
-    switch (sysno) {
       // Required by FFmpeg
       case __NR_get_mempolicy:
         return Allow();
@@ -2120,15 +2106,15 @@ class UtilityAudioDecoderSandboxPolicy final : public UtilitySandboxPolicy {
 
       // Pass through the common policy.
       default:
-        return UtilitySandboxPolicy::EvaluateSyscall(sysno);
+        return SandboxPolicyCommon::EvaluateSyscall(sysno);
     }
   }
 };
 
-UniquePtr<sandbox::bpf_dsl::Policy> GetUtilityAudioDecoderSandboxPolicy(
+UniquePtr<sandbox::bpf_dsl::Policy> GetUtilitySandboxPolicy(
     SandboxBrokerClient* aMaybeBroker) {
   return UniquePtr<sandbox::bpf_dsl::Policy>(
-      new UtilityAudioDecoderSandboxPolicy(aMaybeBroker));
+      new UtilitySandboxPolicy(aMaybeBroker));
 }
 
 }  // namespace mozilla

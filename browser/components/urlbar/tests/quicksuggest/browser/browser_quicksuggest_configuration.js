@@ -7,11 +7,14 @@
  * Tests QuickSuggest configurations.
  */
 
-XPCOMUtils.defineLazyModuleGetters(this, {
+ChromeUtils.defineESModuleGetters(this, {
   EnterprisePolicyTesting:
-    "resource://testing-common/EnterprisePolicyTesting.jsm",
+    "resource://testing-common/EnterprisePolicyTesting.sys.mjs",
+  UrlbarQuickSuggest: "resource:///modules/UrlbarQuickSuggest.sys.mjs",
+});
+
+XPCOMUtils.defineLazyModuleGetters(this, {
   sinon: "resource://testing-common/Sinon.jsm",
-  UrlbarQuickSuggest: "resource:///modules/UrlbarQuickSuggest.jsm",
 });
 
 // We use this pref in enterprise preference policy tests. We specifically use a
@@ -21,7 +24,7 @@ const POLICY_PREF = "suggest.quicksuggest.nonsponsored";
 let gDefaultBranch = Services.prefs.getDefaultBranch("browser.urlbar.");
 let gUserBranch = Services.prefs.getBranch("browser.urlbar.");
 
-add_task(async function init() {
+add_setup(async function() {
   await QuickSuggestTestUtils.ensureQuickSuggestInit();
 });
 
@@ -106,7 +109,8 @@ add_task(async function test_merino() {
     valueOverrides: {
       merinoEnabled: true,
       merinoEndpointURL: "http://example.com/test_merino_config",
-      merinoEndpointParamQuery: "test_merino_config_param",
+      merinoClientVariants: "test-client-variants",
+      merinoProviders: "test-providers",
     },
     callback: () => {
       Assert.equal(UrlbarPrefs.get("merinoEnabled"), true, "merinoEnabled");
@@ -116,9 +120,14 @@ add_task(async function test_merino() {
         "merinoEndpointURL"
       );
       Assert.equal(
-        UrlbarPrefs.get("merinoEndpointParamQuery"),
-        "test_merino_config_param",
-        "merinoEndpointParamQuery"
+        UrlbarPrefs.get("merinoClientVariants"),
+        "test-client-variants",
+        "merinoClientVariants"
+      );
+      Assert.equal(
+        UrlbarPrefs.get("merinoProviders"),
+        "test-providers",
+        "merinoProviders"
       );
     },
   });

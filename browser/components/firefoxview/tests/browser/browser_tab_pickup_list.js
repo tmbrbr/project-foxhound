@@ -1,65 +1,13 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const { UIState } = ChromeUtils.import("resource://services-sync/UIState.jsm");
 const { TabsSetupFlowManager } = ChromeUtils.importESModule(
   "resource:///modules/firefox-view-tabs-setup-manager.sys.mjs"
 );
-const { sinon } = ChromeUtils.import("resource://testing-common/Sinon.jsm");
 
 XPCOMUtils.defineLazyModuleGetters(globalThis, {
   SyncedTabs: "resource://services-sync/SyncedTabs.jsm",
 });
-const sandbox = sinon.createSandbox();
-const syncedTabsData1 = [
-  {
-    id: 1,
-    type: "client",
-    name: "My desktop",
-    clientType: "desktop",
-    lastModified: 1655730486760,
-    tabs: [
-      {
-        type: "tab",
-        title: "Sandboxes - Sinon.JS",
-        url: "https://sinonjs.org/releases/latest/sandbox/",
-        icon: "https://sinonjs.org/assets/images/favicon.png",
-        lastUsed: 1655391592, // Thu Jun 16 2022 14:59:52 GMT+0000
-      },
-      {
-        type: "tab",
-        title: "Internet for people, not profits - Mozilla",
-        url: "https://www.mozilla.org/",
-        icon:
-          "https://www.mozilla.org/media/img/favicons/mozilla/favicon.d25d81d39065.ico",
-        lastUsed: 1655730486, // Mon Jun 20 2022 13:08:06 GMT+0000
-      },
-    ],
-  },
-  {
-    id: 2,
-    type: "client",
-    name: "My iphone",
-    clientType: "mobile",
-    lastModified: 1655727832930,
-    tabs: [
-      {
-        type: "tab",
-        title: "The Guardian",
-        url: "https://www.theguardian.com/",
-        icon: "page-icon:https://www.theguardian.com/",
-        lastUsed: 1655291890, // Wed Jun 15 2022 11:18:10 GMT+0000
-      },
-      {
-        type: "tab",
-        title: "The Times",
-        url: "https://www.thetimes.co.uk/",
-        icon: "page-icon:https://www.thetimes.co.uk/",
-        lastUsed: 1655727485, // Mon Jun 20 2022 12:18:05 GMT+0000
-      },
-    ],
-  },
-];
 
 const twoTabs = [
   {
@@ -122,305 +70,425 @@ const syncedTabsData5 = [
   },
 ];
 
-function setupMocks(mockData1, mockData2) {
-  const mockDeviceData = [
-    {
-      id: 1,
-      name: "My desktop",
-      isCurrentDevice: true,
-      type: "desktop",
-    },
-    {
-      id: 2,
-      name: "My iphone",
-      type: "mobile",
-    },
-  ];
-  sandbox.stub(fxAccounts.device, "recentDeviceList").get(() => mockDeviceData);
+const NO_TABS_EVENTS = [
+  ["firefoxview", "entered", "firefoxview", undefined],
+  ["firefoxview", "synced_tabs", "tabs", undefined, { count: "0" }],
+];
 
-  sandbox.stub(UIState, "get").returns({
-    status: UIState.STATUS_SIGNED_IN,
-    syncEnabled: true,
-  });
+const TAB_PICKUP_EVENT = [
+  ["firefoxview", "entered", "firefoxview", undefined],
+  ["firefoxview", "synced_tabs", "tabs", undefined, { count: "1" }],
+  [
+    "firefoxview",
+    "tab_pickup",
+    "tabs",
+    undefined,
+    { position: "1", deviceType: "desktop" },
+  ],
+];
 
-  const syncedTabsMock = sandbox.stub(SyncedTabs, "getTabClients");
-  syncedTabsMock.onFirstCall().returns(mockData1);
-  syncedTabsMock.onSecondCall().returns(mockData2);
-}
+const TAB_PICKUP_OPEN_EVENT = [
+  ["firefoxview", "tab_pickup_open", "tabs", "false"],
+];
 
-async function setupListState(browser) {
-  // Skip the synced tabs sign up flow to get to a loaded list state
-  await SpecialPowers.pushPrefEnv({
-    set: [["services.sync.engine.tabs", true]],
-  });
-
-  Services.obs.notifyObservers(null, UIState.ON_UPDATE);
-  const recentFetchTime = Math.floor(Date.now() / 1000);
-  info("updating lastFetch:" + recentFetchTime);
-  Services.prefs.setIntPref("services.sync.lastTabFetch", recentFetchTime);
-
-  await waitForElementVisible(browser, "#tabpickup-steps", false);
-  await waitForElementVisible(browser, "#tabpickup-tabs-container", true);
-
-  const tabsContainer = browser.contentWindow.document.querySelector(
-    "#tabpickup-tabs-container"
-  );
-  await BrowserTestUtils.waitForMutationCondition(
-    tabsContainer,
-    { attributeFilter: ["class"], attributes: true },
-    () => {
-      return !tabsContainer.classList.contains("loading");
-    }
-  );
-}
+const TAB_PICKUP_STATE_PREF =
+  "browser.tabs.firefox-view.ui-state.tab-pickup.open";
 
 function cleanup() {
-  sandbox.restore();
   Services.prefs.clearUserPref("services.sync.engine.tabs");
   Services.prefs.clearUserPref("services.sync.lastTabFetch");
+  Services.prefs.clearUserPref(TAB_PICKUP_STATE_PREF);
 }
 
 registerCleanupFunction(async function() {
   cleanup();
 });
 
+add_task(async function test_keyboard_accessibility() {
+  await withFirefoxView({}, async browser => {
+    const win = browser.ownerGlobal;
+    const { document } = browser.contentWindow;
+    const enter = async () => {
+      info("Enter");
+      EventUtils.synthesizeKey("KEY_Enter", {}, win);
+    };
+    let details = document.getElementById("tab-pickup-container");
+    let summary = details.querySelector("summary");
+    ok(summary, "summary element should exist");
+    ok(details.open, "Tab pickup container should be initially open on load");
+    summary.focus();
+    await enter();
+    ok(!details.open, "Tab pickup container should be closed");
+    await enter();
+    ok(details.open, "Tab pickup container should be opened");
+  });
+  cleanup();
+});
+
 add_task(async function test_tab_list_ordering() {
-  await BrowserTestUtils.withNewTab(
-    {
-      gBrowser,
-      url: "about:firefoxview",
-    },
-    async browser => {
-      const { document } = browser.contentWindow;
+  await withFirefoxView({}, async browser => {
+    const { document } = browser.contentWindow;
 
-      setupMocks(syncedTabsData1, syncedTabsData2);
-      await setupListState(browser);
+    const sandbox = setupRecentDeviceListMocks();
+    const syncedTabsMock = sandbox.stub(SyncedTabs, "getRecentTabs");
+    let mockTabs1 = getMockTabData(syncedTabsData1);
+    let mockTabs2 = getMockTabData(syncedTabsData2);
+    syncedTabsMock.returns(mockTabs1);
 
-      testVisibility(browser, {
-        expectedVisible: {
-          "ol.synced-tabs-list": true,
-        },
-      });
+    await setupListState(browser);
 
-      ok(
-        document.querySelector("ol.synced-tabs-list").children.length === 3,
-        "synced-tabs-list should have three list items"
-      );
+    testVisibility(browser, {
+      expectedVisible: {
+        "ol.synced-tabs-list": true,
+      },
+    });
 
-      ok(
-        document
-          .querySelector("ol.synced-tabs-list")
-          .firstChild.textContent.includes("Internet for people, not profits"),
-        "First list item in synced-tabs-list is in the correct order"
-      );
+    ok(
+      document.querySelector("ol.synced-tabs-list").children.length === 3,
+      "synced-tabs-list should have three list items"
+    );
 
-      ok(
-        document
-          .querySelector("ol.synced-tabs-list")
-          .children[2].textContent.includes("Sandboxes - Sinon.JS"),
-        "Last list item in synced-tabs-list is in the correct order"
-      );
+    ok(
+      document
+        .querySelector("ol.synced-tabs-list")
+        .firstChild.textContent.includes("Internet for people, not profits"),
+      "First list item in synced-tabs-list is in the correct order"
+    );
 
-      // Initiate a synced tabs update
-      Services.obs.notifyObservers(null, "services.sync.tabs.changed");
+    ok(
+      document
+        .querySelector("ol.synced-tabs-list")
+        .children[2].textContent.includes("Sandboxes - Sinon.JS"),
+      "Last list item in synced-tabs-list is in the correct order"
+    );
 
-      const syncedTabsList = document.querySelector("ol.synced-tabs-list");
-      // first list item has been updated
-      await BrowserTestUtils.waitForMutationCondition(
-        syncedTabsList,
-        { childList: true },
-        () => syncedTabsList.firstChild.textContent.includes("Firefox")
-      );
+    syncedTabsMock.returns(mockTabs2);
+    // Initiate a synced tabs update
+    Services.obs.notifyObservers(null, "services.sync.tabs.changed");
 
-      ok(
-        document.querySelector("ol.synced-tabs-list").children.length === 3,
-        "Synced-tabs-list should still have three list items"
-      );
+    const syncedTabsList = document.querySelector("ol.synced-tabs-list");
+    // first list item has been updated
+    await BrowserTestUtils.waitForMutationCondition(
+      syncedTabsList,
+      { childList: true },
+      () => syncedTabsList.firstChild.textContent.includes("Firefox")
+    );
 
-      ok(
-        document
-          .querySelector("ol.synced-tabs-list")
-          .children[1].textContent.includes("Phabricator"),
-        "Second list item in synced-tabs-list has been updated"
-      );
+    ok(
+      document.querySelector("ol.synced-tabs-list").children.length === 3,
+      "Synced-tabs-list should still have three list items"
+    );
 
-      ok(
-        document
-          .querySelector("ol.synced-tabs-list")
-          .children[2].textContent.includes("Internet for people, not profits"),
-        "Last list item in synced-tabs-list has been updated"
-      );
-      cleanup();
-    }
-  );
+    ok(
+      document
+        .querySelector("ol.synced-tabs-list")
+        .children[1].textContent.includes("Phabricator"),
+      "Second list item in synced-tabs-list has been updated"
+    );
+
+    ok(
+      document
+        .querySelector("ol.synced-tabs-list")
+        .children[2].textContent.includes("Internet for people, not profits"),
+      "Last list item in synced-tabs-list has been updated"
+    );
+
+    sandbox.restore();
+    cleanup();
+  });
 });
 
 add_task(async function test_empty_list_items() {
-  await BrowserTestUtils.withNewTab(
-    {
-      gBrowser,
-      url: "about:firefoxview",
-    },
-    async browser => {
-      const { document } = browser.contentWindow;
+  await withFirefoxView({}, async browser => {
+    const { document } = browser.contentWindow;
 
-      setupMocks(syncedTabsData3, syncedTabsData4);
-      await setupListState(browser);
+    const sandbox = setupRecentDeviceListMocks();
+    const syncedTabsMock = sandbox.stub(SyncedTabs, "getRecentTabs");
+    let mockTabs1 = getMockTabData(syncedTabsData3);
+    let mockTabs2 = getMockTabData(syncedTabsData4);
+    syncedTabsMock.returns(mockTabs1);
 
-      testVisibility(browser, {
-        expectedVisible: {
-          "ol.synced-tabs-list": true,
-        },
-      });
+    await setupListState(browser);
 
-      ok(
-        document.querySelector("ol.synced-tabs-list").children.length === 3,
-        "synced-tabs-list should have three list items"
-      );
+    testVisibility(browser, {
+      expectedVisible: {
+        "ol.synced-tabs-list": true,
+      },
+    });
 
-      ok(
-        document
-          .querySelector("ol.synced-tabs-list")
-          .firstChild.textContent.includes("Sandboxes - Sinon.JS"),
-        "First list item in synced-tabs-list is in the correct order"
-      );
+    ok(
+      document.querySelector("ol.synced-tabs-list").children.length === 3,
+      "synced-tabs-list should have three list items"
+    );
 
-      ok(
-        document
-          .querySelector("ol.synced-tabs-list")
-          .children[1].classList.contains("synced-tab-li-placeholder"),
-        "Second list item in synced-tabs-list should be a placeholder"
-      );
+    ok(
+      document
+        .querySelector("ol.synced-tabs-list")
+        .firstChild.textContent.includes("Sandboxes - Sinon.JS"),
+      "First list item in synced-tabs-list is in the correct order"
+    );
 
-      ok(
-        document
-          .querySelector("ol.synced-tabs-list")
-          .lastChild.classList.contains("synced-tab-li-placeholder"),
-        "Last list item in synced-tabs-list should be a placeholder"
-      );
+    ok(
+      document
+        .querySelector("ol.synced-tabs-list")
+        .children[1].classList.contains("synced-tab-li-placeholder"),
+      "Second list item in synced-tabs-list should be a placeholder"
+    );
 
-      // Initiate a synced tabs update
-      Services.obs.notifyObservers(null, "services.sync.tabs.changed");
+    ok(
+      document
+        .querySelector("ol.synced-tabs-list")
+        .lastChild.classList.contains("synced-tab-li-placeholder"),
+      "Last list item in synced-tabs-list should be a placeholder"
+    );
 
-      const syncedTabsList = document.querySelector("ol.synced-tabs-list");
-      // first list item has been updated
-      await BrowserTestUtils.waitForMutationCondition(
-        syncedTabsList,
-        { childList: true },
-        () =>
-          syncedTabsList.firstChild.textContent.includes(
-            "Firefox Privacy Notice"
-          )
-      );
+    syncedTabsMock.returns(mockTabs2);
+    // Initiate a synced tabs update
+    Services.obs.notifyObservers(null, "services.sync.tabs.changed");
 
-      ok(
-        document
-          .querySelector("ol.synced-tabs-list")
-          .children[1].textContent.includes("Phabricator"),
-        "Second list item in synced-tabs-list has been updated"
-      );
+    const syncedTabsList = document.querySelector("ol.synced-tabs-list");
+    // first list item has been updated
+    await BrowserTestUtils.waitForMutationCondition(
+      syncedTabsList,
+      { childList: true },
+      () =>
+        syncedTabsList.firstChild.textContent.includes("Firefox Privacy Notice")
+    );
 
-      ok(
-        document
-          .querySelector("ol.synced-tabs-list")
-          .lastChild.textContent.includes("Sandboxes - Sinon.JS"),
-        "Last list item in synced-tabs-list has been updated"
-      );
+    ok(
+      document
+        .querySelector("ol.synced-tabs-list")
+        .children[1].textContent.includes("Phabricator"),
+      "Second list item in synced-tabs-list has been updated"
+    );
 
-      cleanup();
-    }
-  );
+    ok(
+      document
+        .querySelector("ol.synced-tabs-list")
+        .lastChild.textContent.includes("Sandboxes - Sinon.JS"),
+      "Last list item in synced-tabs-list has been updated"
+    );
+
+    sandbox.restore();
+    cleanup();
+  });
 });
 
 add_task(async function test_empty_list() {
-  await BrowserTestUtils.withNewTab(
-    {
-      gBrowser,
-      url: "about:firefoxview",
-    },
-    async browser => {
-      const { document } = browser.contentWindow;
+  await clearAllParentTelemetryEvents();
+  await withFirefoxView({}, async browser => {
+    const { document } = browser.contentWindow;
 
-      setupMocks([], syncedTabsData4);
-      await setupListState(browser);
+    const sandbox = setupRecentDeviceListMocks();
+    const syncedTabsMock = sandbox.stub(SyncedTabs, "getRecentTabs");
+    let mockTabs1 = getMockTabData([]);
+    let mockTabs2 = getMockTabData(syncedTabsData4);
+    syncedTabsMock.returns(mockTabs1);
 
-      testVisibility(browser, {
-        expectedVisible: {
-          "#synced-tabs-placeholder": true,
-          "ol.synced-tabs-list": false,
-        },
-      });
+    await setupListState(browser);
 
-      ok(
-        document
-          .querySelector("#synced-tabs-placeholder")
-          .classList.contains("empty-container"),
-        "collapsible container should have correct styling when the list is empty"
-      );
+    testVisibility(browser, {
+      expectedVisible: {
+        "#synced-tabs-placeholder": true,
+        "ol.synced-tabs-list": false,
+      },
+    });
 
-      // Initiate a synced tabs update
-      Services.obs.notifyObservers(null, "services.sync.tabs.changed");
+    ok(
+      document
+        .querySelector("#synced-tabs-placeholder")
+        .classList.contains("empty-container"),
+      "collapsible container should have correct styling when the list is empty"
+    );
 
-      const syncedTabsList = document.querySelector("ol.synced-tabs-list");
-      await BrowserTestUtils.waitForMutationCondition(
-        syncedTabsList,
-        { childList: true },
-        () => syncedTabsList.children.length
-      );
+    await TestUtils.waitForCondition(
+      () => {
+        let events = Services.telemetry.snapshotEvents(
+          Ci.nsITelemetry.DATASET_PRERELEASE_CHANNELS,
+          false
+        ).parent;
+        return events && events.length >= 2;
+      },
+      "Waiting for entered and synced_tabs firefoxview telemetry events.",
+      200,
+      100
+    );
 
-      testVisibility(browser, {
-        expectedVisible: {
-          "#synced-tabs-placeholder": false,
-          "ol.synced-tabs-list": true,
-        },
-      });
+    TelemetryTestUtils.assertEvents(
+      NO_TABS_EVENTS,
+      { category: "firefoxview" },
+      { clear: true, process: "parent" }
+    );
 
-      cleanup();
-    }
-  );
+    syncedTabsMock.returns(mockTabs2);
+    // Initiate a synced tabs update
+    Services.obs.notifyObservers(null, "services.sync.tabs.changed");
+
+    const syncedTabsList = document.querySelector("ol.synced-tabs-list");
+    await BrowserTestUtils.waitForMutationCondition(
+      syncedTabsList,
+      { childList: true },
+      () => syncedTabsList.children.length
+    );
+
+    testVisibility(browser, {
+      expectedVisible: {
+        "#synced-tabs-placeholder": false,
+        "ol.synced-tabs-list": true,
+      },
+    });
+
+    sandbox.restore();
+    cleanup();
+  });
 });
 
 add_task(async function test_time_updates_correctly() {
   await SpecialPowers.pushPrefEnv({
     set: [["browser.tabs.firefox-view.updateTimeMs", 100]],
   });
+  await clearAllParentTelemetryEvents();
 
-  await BrowserTestUtils.withNewTab(
-    {
-      gBrowser,
-      url: "about:firefoxview",
-    },
-    async browser => {
-      const { document } = browser.contentWindow;
+  const sandbox = setupRecentDeviceListMocks();
+  const syncedTabsMock = sandbox.stub(SyncedTabs, "getRecentTabs");
+  let mockTabs1 = getMockTabData(syncedTabsData5);
+  syncedTabsMock.returns(mockTabs1);
 
-      setupMocks(syncedTabsData5, []);
-      await setupListState(browser);
+  await withFirefoxView({}, async browser => {
+    const { document } = browser.contentWindow;
 
-      ok(
-        document
-          .querySelector("span.synced-tab-li-time")
-          .textContent.includes("Just now"),
-        "synced-tab-li-time text is 'Just now'"
-      );
+    await setupListState(browser);
 
-      await SpecialPowers.pushPrefEnv({
-        set: [["browser.tabs.firefox-view.updateTimeMs", 100]],
-      });
+    let initialTimeText = document.querySelector("span.synced-tab-li-time")
+      .textContent;
+    Assert.stringContains(
+      initialTimeText,
+      "Just now",
+      "synced-tab-li-time text is 'Just now'"
+    );
 
-      const timeLabel = document.querySelector("span.synced-tab-li-time");
-      await BrowserTestUtils.waitForMutationCondition(
-        timeLabel,
-        { childList: true },
-        () => !timeLabel.textContent.includes("now")
-      );
+    await SpecialPowers.pushPrefEnv({
+      set: [["browser.tabs.firefox-view.updateTimeMs", 100]],
+    });
 
-      ok(
-        timeLabel.textContent.includes("minute"),
-        "synced-tab-li-time text has updated"
-      );
+    const timeLabel = document.querySelector("span.synced-tab-li-time");
+    await BrowserTestUtils.waitForMutationCondition(
+      timeLabel,
+      { childList: true },
+      () => !timeLabel.textContent.includes("now")
+    );
 
-      cleanup();
-      await SpecialPowers.popPrefEnv();
-    }
-  );
+    isnot(
+      timeLabel.textContent,
+      initialTimeText,
+      "synced-tab-li-time text has updated"
+    );
+
+    document.querySelector(".synced-tab-a").click();
+
+    await TestUtils.waitForCondition(
+      () => {
+        let events = Services.telemetry.snapshotEvents(
+          Ci.nsITelemetry.DATASET_PRERELEASE_CHANNELS,
+          false
+        ).parent;
+        return events && events.length >= 3;
+      },
+      "Waiting for entered, synced_tabs, and tab_pickup firefoxview telemetry events.",
+      200,
+      100
+    );
+
+    TelemetryTestUtils.assertEvents(
+      TAB_PICKUP_EVENT,
+      { category: "firefoxview" },
+      { clear: true, process: "parent" }
+    );
+
+    let gBrowser = browser.getTabBrowser();
+    is(
+      gBrowser.visibleTabs.indexOf(gBrowser.selectedTab),
+      0,
+      "Tab opened at the beginning of the tab strip"
+    );
+    gBrowser.removeTab(gBrowser.selectedTab);
+    // make sure we're back on fx-view
+    browser.ownerGlobal.FirefoxViewHandler.openTab();
+
+    info("Waiting for the tab pickup summary to be visible");
+    await waitForElementVisible(browser, "#tab-pickup-container > summary");
+    // click on the details summary and verify telemetry gets logged for this event
+    await clearAllParentTelemetryEvents();
+    info("clicking the summary to collapse it");
+    document.querySelector("#tab-pickup-container > summary").click();
+
+    await TestUtils.waitForCondition(
+      () => {
+        let events = Services.telemetry.snapshotEvents(
+          Ci.nsITelemetry.DATASET_PRERELEASE_CHANNELS,
+          false
+        ).parent;
+        return events && events.length >= 1;
+      },
+      "Waiting for tab_pickup_open firefoxview telemetry event.",
+      200,
+      100
+    );
+    TelemetryTestUtils.assertEvents(
+      TAB_PICKUP_OPEN_EVENT,
+      { category: "firefoxview" },
+      { clear: true, process: "parent" }
+    );
+
+    sandbox.restore();
+    cleanup();
+    await SpecialPowers.popPrefEnv();
+  });
+});
+
+/**
+ * Ensure that tabs sync when a user reloads Firefox View.
+ */
+add_task(async function test_tabs_sync_on_user_page_reload() {
+  await withFirefoxView({}, async browser => {
+    let reloadButton = browser.ownerDocument.getElementById("reload-button");
+
+    const sandbox = setupRecentDeviceListMocks();
+    sandbox.stub(SyncedTabs._internal, "syncTabs").resolves(true);
+    const syncedTabsMock = sandbox.stub(SyncedTabs, "getRecentTabs");
+    let mockTabs1 = getMockTabData(syncedTabsData1);
+    let mockTabs2 = getMockTabData(syncedTabsData5);
+    syncedTabsMock.returns(mockTabs1);
+
+    await setupListState(browser);
+
+    let tabLoaded = BrowserTestUtils.browserLoaded(browser);
+    EventUtils.synthesizeMouseAtCenter(reloadButton, {}, browser.ownerGlobal);
+    await tabLoaded;
+    // Wait until the window is reloaded, then get the current instance
+    // of the contentWindow
+    const { document } = browser.contentWindow;
+    ok(true, "Firefox View has been reloaded");
+    ok(TabsSetupFlowManager.waitingForTabs, "waitingForTabs is true");
+
+    syncedTabsMock.returns(mockTabs2);
+    Services.obs.notifyObservers(null, "services.sync.tabs.changed");
+    ok(!TabsSetupFlowManager.waitingForTabs, "waitingForTabs is false");
+
+    const syncedTabsList = document.querySelector("ol.synced-tabs-list");
+    // The tab pickup list has been updated
+    await BrowserTestUtils.waitForMutationCondition(
+      syncedTabsList,
+      { childList: true },
+      () => syncedTabsList.firstChild.textContent.includes("Example2")
+    );
+    const timeLabel = document.querySelector("span.synced-tab-li-time");
+    await BrowserTestUtils.waitForMutationCondition(
+      timeLabel,
+      { childList: true },
+      () => timeLabel.textContent.includes("now")
+    );
+    sandbox.restore();
+    cleanup();
+  });
 });

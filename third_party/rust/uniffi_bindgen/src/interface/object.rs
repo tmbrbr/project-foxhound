@@ -63,10 +63,13 @@ use std::{collections::HashSet, iter};
 
 use anyhow::{bail, Result};
 
-use super::attributes::{ConstructorAttributes, InterfaceAttributes, MethodAttributes};
 use super::ffi::{FFIArgument, FFIFunction, FFIType};
 use super::function::Argument;
 use super::types::{Type, TypeIterator};
+use super::{
+    attributes::{ConstructorAttributes, InterfaceAttributes, MethodAttributes},
+    convert_type,
+};
 use super::{APIConverter, ComponentInterface};
 
 /// An "object" is an opaque type that can be instantiated and passed around by reference,
@@ -93,7 +96,7 @@ pub struct Object {
 }
 
 impl Object {
-    fn new(name: String) -> Object {
+    pub(super) fn new(name: String) -> Object {
         Object {
             name,
             constructors: Default::default(),
@@ -136,7 +139,7 @@ impl Object {
         let matches: Vec<_> = self.methods.iter().filter(|m| m.name() == name).collect();
         match matches.len() {
             1 => matches[0].clone(),
-            n => panic!("{} methods named {}", n, name),
+            n => panic!("{n} methods named {name}"),
         }
     }
 
@@ -155,7 +158,7 @@ impl Object {
     }
 
     pub fn derive_ffi_funcs(&mut self, ci_prefix: &str) -> Result<()> {
-        self.ffi_func_free.name = format!("ffi_{}_{}_object_free", ci_prefix, self.name);
+        self.ffi_func_free.name = format!("ffi_{ci_prefix}_{}_object_free", self.name);
         self.ffi_func_free.arguments = vec![FFIArgument {
             name: "ptr".to_string(),
             type_: FFIType::RustArcPtr(self.name().to_string()),
@@ -276,7 +279,7 @@ impl Constructor {
     }
 
     fn derive_ffi_func(&mut self, ci_prefix: &str, obj_name: &str) {
-        self.ffi_func.name = format!("{}_{}_{}", ci_prefix, obj_name, self.name);
+        self.ffi_func.name = format!("{ci_prefix}_{obj_name}_{}", self.name);
         self.ffi_func.arguments = self.arguments.iter().map(Into::into).collect();
         self.ffi_func.return_type = Some(FFIType::RustArcPtr(obj_name.to_string()));
     }
@@ -389,7 +392,12 @@ impl Method {
     }
 
     pub fn derive_ffi_func(&mut self, ci_prefix: &str, obj_prefix: &str) -> Result<()> {
-        self.ffi_func.name = format!("{}_{}_{}", ci_prefix, obj_prefix, self.name);
+        // The name is already set if the function is defined through a proc-macro invocation
+        // rather than in UDL. Don't overwrite it in that case.
+        if self.ffi_func.name.is_empty() {
+            self.ffi_func.name = format!("{ci_prefix}_{obj_prefix}_{}", self.name);
+        }
+
         self.ffi_func.arguments = self.full_arguments().iter().map(Into::into).collect();
         self.ffi_func.return_type = self.return_type.as_ref().map(Into::into);
         Ok(())
@@ -402,6 +410,29 @@ impl Method {
                 .flat_map(Argument::iter_types)
                 .chain(self.return_type.iter().flat_map(Type::iter_types)),
         )
+    }
+}
+
+impl From<uniffi_meta::MethodMetadata> for Method {
+    fn from(meta: uniffi_meta::MethodMetadata) -> Self {
+        let ffi_name = meta.ffi_symbol_name();
+
+        let return_type = meta.return_type.map(|out| convert_type(&out));
+        let arguments = meta.inputs.into_iter().map(Into::into).collect();
+
+        let ffi_func = FFIFunction {
+            name: ffi_name,
+            ..FFIFunction::default()
+        };
+
+        Self {
+            name: meta.name,
+            object_name: meta.self_name,
+            arguments,
+            return_type,
+            ffi_func,
+            attributes: Default::default(),
+        }
     }
 }
 

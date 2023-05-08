@@ -12,62 +12,64 @@
  * browser window is ready (i.e. fired browser-delayed-startup-finished event)
  **/
 
-const Services = require("Services");
-const { gDevTools } = require("devtools/client/framework/devtools");
+const lazy = {};
+ChromeUtils.defineESModuleGetters(lazy, {
+  BrowserToolboxLauncher:
+    "resource://devtools/client/framework/browser-toolbox/Launcher.sys.mjs",
+});
+
+const {
+  gDevTools,
+} = require("resource://devtools/client/framework/devtools.js");
 const {
   getTheme,
   addThemeObserver,
   removeThemeObserver,
-} = require("devtools/client/shared/theme");
+} = require("resource://devtools/client/shared/theme.js");
 
 // Load toolbox lazily as it needs gDevTools to be fully initialized
 loader.lazyRequireGetter(
   this,
   "Toolbox",
-  "devtools/client/framework/toolbox",
+  "resource://devtools/client/framework/toolbox.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "DevToolsServer",
-  "devtools/server/devtools-server",
-  true
-);
-loader.lazyRequireGetter(
-  this,
-  "DevToolsClient",
-  "devtools/client/devtools-client",
+  "resource://devtools/server/devtools-server.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "BrowserMenus",
-  "devtools/client/framework/browser-menus"
+  "resource://devtools/client/framework/browser-menus.js"
 );
 loader.lazyRequireGetter(
   this,
   "appendStyleSheet",
-  "devtools/client/shared/stylesheet-utils",
+  "resource://devtools/client/shared/stylesheet-utils.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "ResponsiveUIManager",
-  "devtools/client/responsive/manager"
+  "resource://devtools/client/responsive/manager.js"
 );
 loader.lazyRequireGetter(
   this,
   "toggleEnableDevToolsPopup",
-  "devtools/client/framework/enable-devtools-popup",
+  "resource://devtools/client/framework/enable-devtools-popup.js",
   true
 );
-loader.lazyImporter(
+loader.lazyRequireGetter(
   this,
-  "BrowserToolboxLauncher",
-  "resource://devtools/client/framework/browser-toolbox/Launcher.jsm"
+  "CommandsFactory",
+  "resource://devtools/shared/commands/commands-factory.js",
+  true
 );
 
-const { LocalizationHelper } = require("devtools/shared/l10n");
+const { LocalizationHelper } = require("resource://devtools/shared/l10n.js");
 const L10N = new LocalizationHelper(
   "devtools/client/locales/toolbox.properties"
 );
@@ -321,12 +323,12 @@ var gDevToolsBrowser = (exports.gDevToolsBrowser = {
         }
         break;
       case "browserToolbox":
-        BrowserToolboxLauncher.init();
+        lazy.BrowserToolboxLauncher.init();
         break;
       case "browserConsole":
         const {
           BrowserConsoleManager,
-        } = require("devtools/client/webconsole/browser-console-manager");
+        } = require("resource://devtools/client/webconsole/browser-console-manager.js");
         BrowserConsoleManager.openBrowserConsoleOrFocus();
         break;
       case "responsiveDesignMode":
@@ -344,19 +346,6 @@ var gDevToolsBrowser = (exports.gDevToolsBrowser = {
   openAboutDebugging(gBrowser, hash) {
     const url = "about:debugging" + (hash ? "#" + hash : "");
     gBrowser.selectedTab = gBrowser.addTrustedTab(url);
-  },
-
-  async _getContentProcessDescriptor(processId) {
-    // Create a DevToolsServer in order to connect locally to it
-    DevToolsServer.init();
-    DevToolsServer.registerAllActors();
-    DevToolsServer.allowChromeProcess = true;
-
-    const transport = DevToolsServer.connectPipe();
-    const client = new DevToolsClient(transport);
-
-    await client.connect();
-    return client.mainRoot.getProcess(processId);
   },
 
   /**
@@ -380,10 +369,15 @@ var gDevToolsBrowser = (exports.gDevToolsBrowser = {
     }
     if (processId) {
       try {
-        const descriptor = await this._getContentProcessDescriptor(processId);
+        const commands = await CommandsFactory.forProcess(processId);
         // Display a new toolbox in a new window
-        const toolbox = await gDevTools.showToolbox(descriptor, {
+        const toolbox = await gDevTools.showToolbox(commands, {
           hostType: Toolbox.HostType.WINDOW,
+          hostOptions: {
+            // Will be used by the WINDOW host to decide whether to create a
+            // private window or not.
+            browserContentToolboxOpener: gBrowser.ownerGlobal,
+          },
         });
 
         // Ensure closing the connection in order to cleanup
@@ -405,6 +399,8 @@ var gDevToolsBrowser = (exports.gDevToolsBrowser = {
       Services.prompt.alert(null, "", msg);
       throw new Error(msg);
     }
+
+    return null;
   },
 
   /**
@@ -415,7 +411,7 @@ var gDevToolsBrowser = (exports.gDevToolsBrowser = {
    * @return {Promise} promise that resolves when the stylesheet is loaded (or rejects
    *         if it fails to load).
    */
-  loadBrowserStyleSheet: function(win) {
+  loadBrowserStyleSheet(win) {
     if (this._browserStyleSheets.has(win)) {
       return Promise.resolve();
     }
@@ -517,8 +513,8 @@ var gDevToolsBrowser = (exports.gDevToolsBrowser = {
 
   hasToolboxOpened(win) {
     const tab = win.gBrowser.selectedTab;
-    for (const [descriptor] of gDevTools._toolboxes) {
-      if (descriptor.localTab == tab) {
+    for (const commands of gDevTools._toolboxesPerCommands.keys()) {
+      if (commands.descriptorFront.localTab == tab) {
         return true;
       }
     }
@@ -618,10 +614,9 @@ var gDevToolsBrowser = (exports.gDevToolsBrowser = {
     BrowserMenus.removeMenus(win.document);
 
     // Destroy toolboxes for closed window
-    for (const [descriptor, toolbox] of gDevTools._toolboxes) {
+    for (const [commands, toolbox] of gDevTools._toolboxesPerCommands) {
       if (
-        descriptor.localTab &&
-        descriptor.localTab.ownerDocument.defaultView == win
+        commands.descriptorFront.localTab?.ownerDocument?.defaultView == win
       ) {
         toolbox.destroy();
       }

@@ -7,11 +7,9 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
 
-ChromeUtils.defineModuleGetter(
-  this,
-  "FileUtils",
-  "resource://gre/modules/FileUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(this, {
+  FileUtils: "resource://gre/modules/FileUtils.sys.mjs",
+});
 XPCOMUtils.defineLazyServiceGetter(
   this,
   "FilePicker",
@@ -411,11 +409,11 @@ function renderPeerConnection(report) {
         renderText("span", pcid, { className: "info-body" }),
       ]),
       renderConfiguration(configuration),
+      renderRTPStats(report),
       renderICEStats(report),
       renderSDPStats(report),
       renderBandwidthStats(report),
-      renderFrameRateStats(report),
-      renderRTPStats(report)
+      renderFrameRateStats(report)
     );
     pcDiv.append(section);
   }

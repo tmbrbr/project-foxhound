@@ -36,10 +36,13 @@ use std::hash::{Hash, Hasher};
 
 use anyhow::{bail, Result};
 
-use super::attributes::{ArgumentAttributes, FunctionAttributes};
 use super::ffi::{FFIArgument, FFIFunction};
 use super::literal::{convert_default_value, Literal};
 use super::types::{Type, TypeIterator};
+use super::{
+    attributes::{ArgumentAttributes, FunctionAttributes},
+    convert_type,
+};
 use super::{APIConverter, ComponentInterface};
 
 /// Represents a standalone function.
@@ -89,10 +92,49 @@ impl Function {
     }
 
     pub fn derive_ffi_func(&mut self, ci_prefix: &str) -> Result<()> {
-        self.ffi_func.name = format!("{}_{}", ci_prefix, self.name);
+        // The name is already set if the function is defined through a proc-macro invocation
+        // rather than in UDL. Don't overwrite it in that case.
+        if self.ffi_func.name.is_empty() {
+            self.ffi_func.name = format!("{ci_prefix}_{}", self.name);
+        }
+
         self.ffi_func.arguments = self.arguments.iter().map(|arg| arg.into()).collect();
         self.ffi_func.return_type = self.return_type.as_ref().map(|rt| rt.into());
         Ok(())
+    }
+}
+
+impl From<uniffi_meta::FnParamMetadata> for Argument {
+    fn from(meta: uniffi_meta::FnParamMetadata) -> Self {
+        Argument {
+            name: meta.name,
+            type_: convert_type(&meta.ty),
+            by_ref: false,
+            optional: false,
+            default: None,
+        }
+    }
+}
+
+impl From<uniffi_meta::FnMetadata> for Function {
+    fn from(meta: uniffi_meta::FnMetadata) -> Self {
+        let ffi_name = meta.ffi_symbol_name();
+
+        let return_type = meta.return_type.map(|out| convert_type(&out));
+        let arguments = meta.inputs.into_iter().map(Into::into).collect();
+
+        let ffi_func = FFIFunction {
+            name: ffi_name,
+            ..FFIFunction::default()
+        };
+
+        Self {
+            name: meta.name,
+            arguments,
+            return_type,
+            ffi_func,
+            attributes: Default::default(),
+        }
     }
 }
 

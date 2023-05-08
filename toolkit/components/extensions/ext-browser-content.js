@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* eslint-env mozilla/frame-script */
+
 "use strict";
 
 var { XPCOMUtils } = ChromeUtils.importESModule(
@@ -12,8 +15,6 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   ExtensionCommon: "resource://gre/modules/ExtensionCommon.jsm",
   setTimeout: "resource://gre/modules/Timer.jsm",
 });
-
-/* eslint-env mozilla/frame-script */
 
 // Minimum time between two resizes.
 const RESIZE_TIMEOUT = 100;
@@ -254,21 +255,17 @@ const BrowserListener = {
       this.oldBackground = background;
 
       // Adjust the size of the browser based on its content's preferred size.
-      let { contentViewer } = docShell;
-      let ratio = content.devicePixelRatio;
-
       let w = {},
         h = {};
-      contentViewer.getContentSizeConstrained(
-        this.maxWidth * ratio,
-        this.maxHeight * ratio,
+      docShell.contentViewer.getContentSize(
+        this.maxWidth,
+        this.maxHeight,
         w,
         h
       );
 
-      let width = Math.ceil((w.value * zoom) / ratio);
-      let height = Math.ceil((h.value * zoom) / ratio);
-
+      let width = Math.ceil(w.value * zoom);
+      let height = Math.ceil(h.value * zoom);
       result = { width, height, detail };
     }
 

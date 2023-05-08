@@ -17,8 +17,8 @@ const { AppConstants } = ChromeUtils.import(
 const { Downloads } = ChromeUtils.import(
   "resource://gre/modules/Downloads.jsm"
 );
-const { Integration } = ChromeUtils.import(
-  "resource://gre/modules/Integration.jsm"
+const { Integration } = ChromeUtils.importESModule(
+  "resource://gre/modules/Integration.sys.mjs"
 );
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
@@ -46,11 +46,9 @@ ChromeUtils.defineModuleGetter(
   "DownloadUIHelper",
   "resource://gre/modules/DownloadUIHelper.jsm"
 );
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "FileUtils",
-  "resource://gre/modules/FileUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  FileUtils: "resource://gre/modules/FileUtils.sys.mjs",
+});
 ChromeUtils.defineModuleGetter(
   lazy,
   "NetUtil",
@@ -701,16 +699,10 @@ var DownloadIntegration = {
       fileExtension &&
       fileExtension.toLowerCase() == "exe";
 
-    let isExemptExecutableExtension = false;
-    try {
-      let url = new URL(aDownload.source.url);
-      isExemptExecutableExtension = Services.policies.isExemptExecutableExtension(
-        url.origin,
-        fileExtension?.toLowerCase()
-      );
-    } catch (e) {
-      // Invalid URL, go down the original path.
-    }
+    let isExemptExecutableExtension = Services.policies.isExemptExecutableExtension(
+      aDownload.source.url,
+      fileExtension
+    );
 
     // Ask for confirmation if the file is executable, except for .exe on
     // Windows where the operating system will show the prompt based on the
@@ -940,12 +932,15 @@ var DownloadIntegration = {
   _getDirectory(name) {
     return Services.dirsvc.get(name, Ci.nsIFile).path;
   },
+
   /**
    * Initializes the DownloadSpamProtection instance.
    * This is used to observe and group multiple automatic downloads.
    */
   _initializeDownloadSpamProtection() {
-    this.downloadSpamProtection = new lazy.DownloadSpamProtection();
+    if (!this.downloadSpamProtection) {
+      this.downloadSpamProtection = new lazy.DownloadSpamProtection();
+    }
   },
 
   /**
@@ -1199,13 +1194,13 @@ var DownloadObserver = {
         }
         break;
       case "blocked-automatic-download":
-        if (
-          AppConstants.MOZ_BUILD_APP == "browser" &&
-          !DownloadIntegration.downloadSpamProtection
-        ) {
+        if (AppConstants.MOZ_BUILD_APP == "browser") {
           DownloadIntegration._initializeDownloadSpamProtection();
+          DownloadIntegration.downloadSpamProtection.update(
+            aData,
+            aSubject.topChromeWindow
+          );
         }
-        DownloadIntegration.downloadSpamProtection.update(aData);
         break;
     }
   },

@@ -13,19 +13,12 @@ const CORRUPT_DB_RETAIN_DAYS = 14;
 // Seconds between maintenance runs.
 const MAINTENANCE_INTERVAL_SECONDS = 7 * 86400;
 
-const { XPCOMUtils } = ChromeUtils.importESModule(
-  "resource://gre/modules/XPCOMUtils.sys.mjs"
-);
-
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   PlacesPreviews: "resource://gre/modules/PlacesPreviews.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
-});
-
-XPCOMUtils.defineLazyModuleGetters(lazy, {
-  Sqlite: "resource://gre/modules/Sqlite.jsm",
+  Sqlite: "resource://gre/modules/Sqlite.sys.mjs",
 });
 
 export var PlacesDBUtils = {
@@ -799,8 +792,8 @@ export var PlacesDBUtils = {
           SELECT h.id FROM moz_places h
           WHERE visit_count <> (SELECT count(*) FROM moz_historyvisits v
                                 WHERE v.place_id = h.id AND visit_type NOT IN (0,4,7,8,9))
-              OR last_visit_date <> (SELECT MAX(visit_date) FROM moz_historyvisits v
-                                    WHERE v.place_id = h.id)
+              OR last_visit_date IS NOT
+                (SELECT MAX(visit_date) FROM moz_historyvisits v WHERE v.place_id = h.id)
         )`,
       },
 

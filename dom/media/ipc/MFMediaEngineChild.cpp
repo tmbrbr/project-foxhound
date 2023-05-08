@@ -27,10 +27,12 @@ namespace mozilla {
 
 using media::TimeUnit;
 
-MFMediaEngineChild::MFMediaEngineChild(MFMediaEngineWrapper* aOwner)
+MFMediaEngineChild::MFMediaEngineChild(MFMediaEngineWrapper* aOwner,
+                                       FrameStatistics* aFrameStats)
     : mOwner(aOwner),
       mManagerThread(RemoteDecoderManagerChild::GetManagerThread()),
-      mMediaEngineId(0 /* invalid id, will be initialized later */) {}
+      mMediaEngineId(0 /* invalid id, will be initialized later */),
+      mFrameStats(WrapNotNull(aFrameStats)) {}
 
 RefPtr<GenericNonExclusivePromise> MFMediaEngineChild::Init(
     bool aShouldPreload) {
@@ -48,47 +50,54 @@ RefPtr<GenericNonExclusivePromise> MFMediaEngineChild::Init(
   CLOG("Init");
   MOZ_ASSERT(mMediaEngineId == 0);
   RefPtr<MFMediaEngineChild> self = this;
-  RemoteDecoderManagerChild::LaunchRDDProcessIfNeeded()->Then(
-      mManagerThread, __func__,
-      [self, this, aShouldPreload](bool) {
-        RefPtr<RemoteDecoderManagerChild> manager =
-            RemoteDecoderManagerChild::GetSingleton(RemoteDecodeIn::RddProcess);
-        if (!manager || !manager->CanSend()) {
-          mInitPromiseHolder.Reject(NS_ERROR_FAILURE, __func__);
-          return;
-        }
+  RemoteDecoderManagerChild::LaunchUtilityProcessIfNeeded(
+      RemoteDecodeIn::UtilityProcess_MFMediaEngineCDM)
+      ->Then(
+          mManagerThread, __func__,
+          [self, this, aShouldPreload](bool) {
+            RefPtr<RemoteDecoderManagerChild> manager =
+                RemoteDecoderManagerChild::GetSingleton(
+                    RemoteDecodeIn::UtilityProcess_MFMediaEngineCDM);
+            if (!manager || !manager->CanSend()) {
+              CLOG("Manager not exists or can't send");
+              mInitPromiseHolder.RejectIfExists(NS_ERROR_FAILURE, __func__);
+              return;
+            }
 
-        mIPDLSelfRef = this;
-        Unused << manager->SendPMFMediaEngineConstructor(this);
-        MediaEngineInfoIPDL info(aShouldPreload);
-        SendInitMediaEngine(info)
-            ->Then(
-                mManagerThread, __func__,
-                [self, this](uint64_t aId) {
-                  mInitEngineRequest.Complete();
-                  // Id 0 is used to indicate error.
-                  if (aId == 0) {
-                    CLOG("Failed to initialize MFMediaEngineChild");
-                    mInitPromiseHolder.Reject(NS_ERROR_FAILURE, __func__);
-                    return;
-                  }
-                  mMediaEngineId = aId;
-                  CLOG("Initialized MFMediaEngineChild");
-                  mInitPromiseHolder.Resolve(true, __func__);
-                },
-                [self,
-                 this](const mozilla::ipc::ResponseRejectReason& aReason) {
-                  mInitEngineRequest.Complete();
-                  CLOG(
-                      "Failed to initialize MFMediaEngineChild due to "
-                      "IPC failure");
-                  mInitPromiseHolder.Reject(NS_ERROR_FAILURE, __func__);
-                })
-            ->Track(mInitEngineRequest);
-      },
-      [self](nsresult aResult) {
-        self->mInitPromiseHolder.Reject(NS_ERROR_FAILURE, __func__);
-      });
+            mIPDLSelfRef = this;
+            Unused << manager->SendPMFMediaEngineConstructor(this);
+            MediaEngineInfoIPDL info(aShouldPreload);
+            SendInitMediaEngine(info)
+                ->Then(
+                    mManagerThread, __func__,
+                    [self, this](uint64_t aId) {
+                      mInitEngineRequest.Complete();
+                      // Id 0 is used to indicate error.
+                      if (aId == 0) {
+                        CLOG("Failed to initialize MFMediaEngineChild");
+                        mInitPromiseHolder.RejectIfExists(NS_ERROR_FAILURE,
+                                                          __func__);
+                        return;
+                      }
+                      mMediaEngineId = aId;
+                      CLOG("Initialized MFMediaEngineChild");
+                      mInitPromiseHolder.ResolveIfExists(true, __func__);
+                    },
+                    [self,
+                     this](const mozilla::ipc::ResponseRejectReason& aReason) {
+                      mInitEngineRequest.Complete();
+                      CLOG(
+                          "Failed to initialize MFMediaEngineChild due to "
+                          "IPC failure");
+                      mInitPromiseHolder.RejectIfExists(NS_ERROR_FAILURE,
+                                                        __func__);
+                    })
+                ->Track(mInitEngineRequest);
+          },
+          [self, this](nsresult aResult) {
+            CLOG("SendInitMediaEngine Failed");
+            self->mInitPromiseHolder.Reject(NS_ERROR_FAILURE, __func__);
+          });
   return mInitPromiseHolder.Ensure(__func__);
 }
 
@@ -161,6 +170,25 @@ mozilla::ipc::IPCResult MFMediaEngineChild::RecvNotifyError(
   return IPC_OK();
 }
 
+mozilla::ipc::IPCResult MFMediaEngineChild::RecvUpdateStatisticData(
+    const StatisticData& aData) {
+  AssertOnManagerThread();
+  const uint64_t currentRenderedFrames = mFrameStats->GetPresentedFrames();
+  // Media engine won't tell us that which stage those dropped frames happened,
+  // so we treat all of them as the frames dropped in the a/v sync stage (sink).
+  const uint64_t currentDroppedSinkFrames = mFrameStats->GetDroppedSinkFrames();
+  MOZ_ASSERT(aData.renderedFrames() >= currentRenderedFrames);
+  MOZ_ASSERT(aData.droppedFrames() >= currentDroppedSinkFrames);
+  mFrameStats->Accumulate({0, 0, aData.renderedFrames() - currentRenderedFrames,
+                           0, aData.droppedFrames() - currentDroppedSinkFrames,
+                           0});
+  CLOG("Update statictis data (rendered %" PRIu64 " -> %" PRIu64
+       ", dropped %" PRIu64 " -> %" PRIu64 ")",
+       currentRenderedFrames, mFrameStats->GetPresentedFrames(),
+       currentDroppedSinkFrames, mFrameStats->GetDroppedSinkFrames());
+  return IPC_OK();
+}
+
 void MFMediaEngineChild::OwnerDestroyed() {
   Unused << ManagerThread()->Dispatch(NS_NewRunnableFunction(
       "MFMediaEngineChild::OwnerDestroy", [self = RefPtr{this}, this] {
@@ -180,12 +208,14 @@ void MFMediaEngineChild::IPDLActorDestroyed() {
 void MFMediaEngineChild::Shutdown() {
   AssertOnManagerThread();
   SendShutdown();
+  mInitPromiseHolder.RejectIfExists(NS_ERROR_FAILURE, __func__);
   mInitEngineRequest.DisconnectIfExists();
 }
 
-MFMediaEngineWrapper::MFMediaEngineWrapper(ExternalEngineStateMachine* aOwner)
+MFMediaEngineWrapper::MFMediaEngineWrapper(ExternalEngineStateMachine* aOwner,
+                                           FrameStatistics* aFrameStats)
     : ExternalPlaybackEngine(aOwner),
-      mEngine(new MFMediaEngineChild(this)),
+      mEngine(new MFMediaEngineChild(this, aFrameStats)),
       mCurrentTimeInSecond(0.0) {}
 
 RefPtr<GenericNonExclusivePromise> MFMediaEngineWrapper::Init(
@@ -236,7 +266,7 @@ void MFMediaEngineWrapper::SetPlaybackRate(double aPlaybackRate) {
   Unused << ManagerThread()->Dispatch(
       NS_NewRunnableFunction("MFMediaEngineWrapper::SetPlaybackRate",
                              [engine = mEngine, aPlaybackRate] {
-                               engine->SendSetVolume(aPlaybackRate);
+                               engine->SendSetPlaybackRate(aPlaybackRate);
                              }));
 }
 

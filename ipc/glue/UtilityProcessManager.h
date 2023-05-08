@@ -29,7 +29,7 @@ class UtilityProcessManager final : public UtilityProcessHost::Listener {
   friend class UtilityProcessParent;
 
  public:
-  using AudioDecodingPromise =
+  using StartRemoteDecodingUtilityPromise =
       MozPromise<Endpoint<PRemoteDecoderManagerChild>, nsresult, true>;
 
   static void Initialize();
@@ -46,8 +46,8 @@ class UtilityProcessManager final : public UtilityProcessHost::Listener {
   RefPtr<GenericNonExclusivePromise> StartUtility(RefPtr<Actor> aActor,
                                                   SandboxingKind aSandbox);
 
-  RefPtr<AudioDecodingPromise> StartAudioDecoding(
-      base::ProcessId aOtherProcess);
+  RefPtr<StartRemoteDecodingUtilityPromise> StartProcessForRemoteMediaDecoding(
+      base::ProcessId aOtherProcess, SandboxingKind aSandbox);
 
   void OnProcessUnexpectedShutdown(UtilityProcessHost* aHost);
 
@@ -96,6 +96,16 @@ class UtilityProcessManager final : public UtilityProcessHost::Listener {
         return;
       }
     }
+  }
+
+  Span<const UtilityActorName> GetActors(
+      const RefPtr<UtilityProcessParent>& aParent) {
+    for (auto& p : mProcesses) {
+      if (p && p->mProcessParent && p->mProcessParent == aParent) {
+        return p->mActors;
+      }
+    }
+    return {};
   }
 
   Span<const UtilityActorName> GetActors(GeckoChildProcessHost* aHost) {

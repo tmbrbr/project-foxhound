@@ -49,6 +49,10 @@ const { AppConstants } = ChromeUtils.import(
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  Log: "resource://gre/modules/Log.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   AddonManager: "resource://gre/modules/AddonManager.jsm",
   AddonManagerPrivate: "resource://gre/modules/AddonManager.jsm",
@@ -59,11 +63,11 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
   ExtensionPreferencesManager:
     "resource://gre/modules/ExtensionPreferencesManager.jsm",
   ExtensionProcessScript: "resource://gre/modules/ExtensionProcessScript.jsm",
+  ExtensionScriptingStore: "resource://gre/modules/ExtensionScriptingStore.jsm",
   ExtensionStorage: "resource://gre/modules/ExtensionStorage.jsm",
   ExtensionStorageIDB: "resource://gre/modules/ExtensionStorageIDB.jsm",
   ExtensionTelemetry: "resource://gre/modules/ExtensionTelemetry.jsm",
   LightweightThemeManager: "resource://gre/modules/LightweightThemeManager.jsm",
-  Log: "resource://gre/modules/Log.jsm",
   NetUtil: "resource://gre/modules/NetUtil.jsm",
   PluralForm: "resource://gre/modules/PluralForm.jsm",
   Schemas: "resource://gre/modules/Schemas.jsm",
@@ -156,6 +160,7 @@ XPCOMUtils.defineLazyGetter(lazy, "NO_PROMPT_PERMISSIONS", async () => {
   );
 });
 
+// TODO(Bug 1789718): Remove after the deprecated XPIProvider-based implementation is also removed.
 XPCOMUtils.defineLazyGetter(lazy, "SCHEMA_SITE_PERMISSIONS", async () => {
   // Wait until all extension API schemas have been loaded and parsed.
   await Management.lazyInit();
@@ -208,6 +213,9 @@ if (
     PRIVILEGED_PERMS.delete(perm);
   }
 }
+
+const PREF_DNR_ENABLED = "extensions.dnr.enabled";
+const PREF_DNR_FEEDBACK = "extensions.dnr.feedback";
 
 // Message included in warnings and errors related to privileged permissions and
 // privileged manifest properties. Provides a link to the firefox-source-docs.mozilla.org
@@ -262,6 +270,23 @@ function isMozillaExtension(extension) {
   return isSigned && isMozillaLineExtension;
 }
 
+function isDNRPermissionAllowed(perm) {
+  // DNR is under development and therefore disabled by default for now.
+  if (!Services.prefs.getBoolPref(PREF_DNR_ENABLED, false)) {
+    return false;
+  }
+
+  // APIs tied to declarativeNetRequestFeedback are for debugging purposes and
+  // are only supposed to be available when the (add-on dev) user opts in.
+  if (
+    perm === "declarativeNetRequestFeedback" &&
+    !Services.prefs.getBoolPref(PREF_DNR_FEEDBACK, false)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * Classify an individual permission from a webextension manifest
  * as a host/origin permission, an api permission, or a regular permission.
@@ -294,6 +319,11 @@ function classifyPermission(perm, restrictSchemes, isPrivileged) {
     return { api: match[2] };
   } else if (!isPrivileged && PRIVILEGED_PERMS.has(match[1])) {
     return { invalid: perm, privileged: true };
+  } else if (
+    perm.startsWith("declarativeNetRequest") &&
+    !isDNRPermissionAllowed(perm)
+  ) {
+    return { invalid: perm };
   }
   return { permission: perm };
 }
@@ -482,6 +512,13 @@ var ExtensionAddonObserver = {
       lazy.ServiceWorkerCleanUp.removeFromPrincipal(principal)
     );
 
+    // Clear the persisted dynamic content scripts created with the scripting
+    // API (if any).
+    lazy.AsyncShutdown.profileChangeTeardown.addBlocker(
+      `Clear scripting store for ${addon.id}`,
+      lazy.ExtensionScriptingStore.clearOnUninstall(addon.id)
+    );
+
     if (!Services.prefs.getBoolPref(LEAVE_STORAGE_PREF, false)) {
       // Clear browser.storage.local backends.
       lazy.AsyncShutdown.profileChangeTeardown.addBlocker(
@@ -538,10 +575,11 @@ ExtensionAddonObserver.init();
 
 const manifestTypes = new Map([
   ["theme", "manifest.ThemeManifest"],
-  ["sitepermission", "manifest.WebExtensionSitePermissionsManifest"],
   ["locale", "manifest.WebExtensionLangpackManifest"],
   ["dictionary", "manifest.WebExtensionDictionaryManifest"],
   ["extension", "manifest.WebExtensionManifest"],
+  // TODO(Bug 1789718): Remove after the deprecated XPIProvider-based implementation is also removed.
+  ["sitepermission-deprecated", "manifest.WebExtensionSitePermissionsManifest"],
 ]);
 
 /**
@@ -1151,7 +1189,8 @@ class ExtensionData {
     } else if (manifest.dictionaries) {
       this.type = "dictionary";
     } else if (manifest.site_permissions) {
-      this.type = "sitepermission";
+      // TODO(Bug 1789718): Remove after the deprecated XPIProvider-based implementation is also removed.
+      this.type = "sitepermission-deprecated";
     } else {
       this.type = "extension";
     }
@@ -1234,6 +1273,16 @@ class ExtensionData {
       !manifest.background.persistent
     ) {
       this.logWarning("Event pages are not currently supported.");
+    }
+
+    if (
+      this.isPrivileged &&
+      manifest.hidden &&
+      (manifest.action || manifest.browser_action || manifest.page_action)
+    ) {
+      this.manifestError(
+        "Cannot use browser and/or page actions in hidden add-ons"
+      );
     }
 
     let apiNames = new Set();
@@ -1942,6 +1991,9 @@ class ExtensionData {
     // Generate a map of site_permission names to permission strings for site
     // permissions.  Since SitePermission addons cannot have regular permissions,
     // we reuse msgs to pass the strings to the permissions panel.
+    // NOTE: this is used as part of the synthetic addon install flow implemented for the
+    // SitePermissionAddonProvider.
+    // (and so it should not be removed as part of Bug 1789718 changes, while this additional note should be).
     if (info.sitePermissions) {
       for (let permission of info.sitePermissions) {
         try {
@@ -2295,6 +2347,7 @@ class LangpackBootstrapScope extends BootstrapScope {
   }
 }
 
+// TODO(Bug 1789718): Remove after the deprecated XPIProvider-based implementation is also removed.
 class SitePermissionBootstrapScope extends BootstrapScope {
   install(data, reason) {}
   uninstall(data, reason) {}
@@ -2684,6 +2737,7 @@ class Extension extends ExtensionData {
       id: this.id,
       uuid: this.uuid,
       name: this.name,
+      type: this.type,
       manifestVersion: this.manifestVersion,
       extensionPageCSP: this.extensionPageCSP,
       instanceId: this.instanceId,
@@ -3019,6 +3073,12 @@ class Extension extends ExtensionData {
         this.permissions.add(PRIVATE_ALLOWED_PERMISSION);
       }
 
+      // Allow other extensions to access static themes in private browsing windows
+      // (See Bug 1790115).
+      if (this.type === "theme") {
+        this.permissions.add(PRIVATE_ALLOWED_PERMISSION);
+      }
+
       // We only want to update the SVG_CONTEXT_PROPERTIES_PERMISSION during install and
       // upgrade/downgrade startups.
       if (INSTALL_AND_UPDATE_STARTUP_REASONS.has(this.startupReason)) {
@@ -3052,6 +3112,20 @@ class Extension extends ExtensionData {
       }
 
       GlobalManager.init(this);
+
+      if (this.hasPermission("scripting")) {
+        this.state = "Startup: Initialize scripting store";
+        // We have to await here because `initSharedData` depends on the data
+        // fetched from the scripting store. This has to be done early because
+        // we need the data to run the content scripts in existing pages at
+        // startup.
+        try {
+          await lazy.ExtensionScriptingStore.initExtension(this);
+          this.state = "Startup: Scripting store initialized";
+        } catch (err) {
+          this.logError(`Failed to initialize scripting store: ${err}`);
+        }
+      }
 
       this.initSharedData();
 
@@ -3394,6 +3468,7 @@ class Langpack extends ExtensionData {
   }
 }
 
+// TODO(Bug 1789718): Remove after the deprecated XPIProvider-based implementation is also removed.
 class SitePermission extends ExtensionData {
   constructor(addonData, startupReason) {
     super(addonData.resourceURI);

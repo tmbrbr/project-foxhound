@@ -20,6 +20,7 @@
 #include "nsHttpChannel.h"
 #include "mozilla/dom/ipc/IdType.h"
 #include "nsIMultiPartChannel.h"
+#include "nsIURI.h"
 
 class nsICacheEntry;
 
@@ -41,10 +42,6 @@ namespace net {
 class HttpBackgroundChannelParent;
 class ParentChannelListener;
 class ChannelEventQueue;
-
-// Note: nsIInterfaceRequestor must be the first base so that do_QueryObject()
-// works correctly on this object, as it's needed to compute a void* pointing to
-// the beginning of this object.
 
 class HttpChannelParent final : public nsIInterfaceRequestor,
                                 public PHttpChannelParent,
@@ -125,6 +122,7 @@ class HttpChannelParent final : public nsIInterfaceRequestor,
   [[nodiscard]] RefPtr<ChildEndpointPromise> AttachStreamFilter(
       Endpoint<extensions::PStreamFilterParent>&& aParentEndpoint,
       Endpoint<extensions::PStreamFilterChild>&& aChildEndpoint);
+  [[nodiscard]] RefPtr<GenericPromise> DetachStreamFilters();
 
  protected:
   // used to connect redirected-to channel in parent with just created
@@ -132,10 +130,9 @@ class HttpChannelParent final : public nsIInterfaceRequestor,
   [[nodiscard]] bool ConnectChannel(const uint32_t& registrarId);
 
   [[nodiscard]] bool DoAsyncOpen(
-      const URIParams& uri, const Maybe<URIParams>& originalUri,
-      const Maybe<URIParams>& docUri, nsIReferrerInfo* aReferrerInfo,
-      const Maybe<URIParams>& aAPIRedirectToURI,
-      const Maybe<URIParams>& topWindowUri, const uint32_t& loadFlags,
+      nsIURI* uri, nsIURI* originalUri, nsIURI* docUri,
+      nsIReferrerInfo* aReferrerInfo, nsIURI* aAPIRedirectToURI,
+      nsIURI* topWindowUri, const uint32_t& loadFlags,
       const RequestHeaderTuples& requestHeaders, const nsCString& requestMethod,
       const Maybe<IPCStream>& uploadStream, const bool& uploadStreamHasHeaders,
       const int16_t& priority, const ClassOfService& classOfService,
@@ -173,19 +170,19 @@ class HttpChannelParent final : public nsIInterfaceRequestor,
   virtual mozilla::ipc::IPCResult RecvResume() override;
   virtual mozilla::ipc::IPCResult RecvCancel(
       const nsresult& status, const uint32_t& requestBlockingReason,
+      const nsACString& reason,
       const mozilla::Maybe<nsCString>& logString) override;
   virtual mozilla::ipc::IPCResult RecvRedirect2Verify(
       const nsresult& result, const RequestHeaderTuples& changedHeaders,
       const uint32_t& aSourceRequestBlockingReason,
       const Maybe<ChildLoadInfoForwarderArgs>& aTargetLoadInfoForwarder,
       const uint32_t& loadFlags, nsIReferrerInfo* aReferrerInfo,
-      const Maybe<URIParams>& apiRedirectUri,
+      nsIURI* apiRedirectUri,
       const Maybe<CorsPreflightArgs>& aCorsPreflightArgs) override;
   virtual mozilla::ipc::IPCResult RecvDocumentChannelCleanup(
       const bool& clearCacheEntry) override;
   virtual mozilla::ipc::IPCResult RecvRemoveCorsPreflightCacheEntry(
-      const URIParams& uri,
-      const mozilla::ipc::PrincipalInfo& requestingPrincipal,
+      nsIURI* uri, const mozilla::ipc::PrincipalInfo& requestingPrincipal,
       const OriginAttributes& originAttributes) override;
   virtual mozilla::ipc::IPCResult RecvBytesRead(const int32_t& aCount) override;
   virtual mozilla::ipc::IPCResult RecvOpenOriginalCacheInputStream() override;
@@ -209,7 +206,7 @@ class HttpChannelParent final : public nsIInterfaceRequestor,
   virtual mozilla::ipc::IPCResult RecvDeletingChannel() override;
 
  private:
-  void UpdateAndSerializeSecurityInfo(nsACString& aSerializedSecurityInfoOut);
+  already_AddRefed<nsITransportSecurityInfo> SecurityInfo();
 
   // final step for Redirect2Verify procedure, will be invoked while both
   // redirecting and redirected channel are ready or any error happened.

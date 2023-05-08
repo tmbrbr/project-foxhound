@@ -15,7 +15,7 @@ requestLongerTimeout(4);
 
 /* eslint-disable mozilla/no-arbitrary-setTimeout */
 
-const { fetch } = require("devtools/shared/DevToolsUtils");
+const { fetch } = require("resource://devtools/shared/DevToolsUtils.js");
 
 const debuggerHeadURL =
   CHROME_URL_ROOT + "../../../debugger/test/mochitest/shared-head.js";
@@ -29,6 +29,8 @@ add_task(async function runTest() {
     /Services.scriptloader.loadSubScript[^\)]*\);/g,
     ""
   );
+
+  await pushPref("devtools.browsertoolbox.scope", "everything");
 
   const ToolboxTask = await initBrowserToolboxTask({
     enableBrowserToolboxFission: true,

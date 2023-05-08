@@ -4,8 +4,7 @@
 
 "use strict";
 
-const Services = require("Services");
-const EventEmitter = require("devtools/shared/event-emitter");
+const EventEmitter = require("resource://devtools/shared/event-emitter.js");
 
 const BROWSERTOOLBOX_FISSION_ENABLED = "devtools.browsertoolbox.fission";
 const BROWSERTOOLBOX_SCOPE_PREF = "devtools.browsertoolbox.scope";
@@ -14,13 +13,13 @@ const BROWSERTOOLBOX_SCOPE_EVERYTHING = "everything";
 const BROWSERTOOLBOX_SCOPE_PARENTPROCESS = "parent-process";
 
 // eslint-disable-next-line mozilla/reject-some-requires
-const createStore = require("devtools/client/shared/redux/create-store");
-const reducer = require("devtools/shared/commands/target/reducers/targets");
+const createStore = require("resource://devtools/client/shared/redux/create-store.js");
+const reducer = require("resource://devtools/shared/commands/target/reducers/targets.js");
 
 loader.lazyRequireGetter(
   this,
   ["refreshTargets", "registerTarget", "unregisterTarget"],
-  "devtools/shared/commands/target/actions/targets",
+  "resource://devtools/shared/commands/target/actions/targets.js",
   true
 );
 
@@ -157,7 +156,10 @@ class TargetCommand extends EventEmitter {
       // The related targets will be destroyed by the server
       // and reported as destroyed to the frontend.
       for (const type of disabledTargetTypes) {
-        this.stopListeningForType(type, { isTargetSwitching: false });
+        this.stopListeningForType(type, {
+          isTargetSwitching: false,
+          isModeSwitching: true,
+        });
       }
     }
   }
@@ -316,19 +318,26 @@ class TargetCommand extends EventEmitter {
    *
    * @param {TargetFront} targetFront
    *        The target that just got destroyed.
-   * @param Object options
-   *        Dictionary object with:
-   *        - `isTargetSwitching` optional boolean. To be set to true when this
-   *           is about the top level target which is being replaced by a new one.
-   *           The passed target should be still the one store in TargetCommand.targetFront
-   *           and will be replaced via a call to onTargetAvailable with a new target front.
-   *        - `shouldDestroyTargetFront` optional boolean. By default, the passed target
-   *           front will be destroyed. But in some cases like legacy listeners for service workers
-   *           we want to keep the front alive.
+   * @param {Object} options
+   * @param {Boolean} [options.isTargetSwitching]
+   *        To be set to true when this is about the top level target which is being replaced
+   *        by a new one.
+   *        The passed target should be still the one store in TargetCommand.targetFront
+   *        and will be replaced via a call to onTargetAvailable with a new target front.
+   * @param {Boolean} [options.isModeSwitching]
+   *        To be set to true when the target was destroyed was called as the result of a
+   *        change to the devtools.browsertoolbox.scope pref.
+   * @param {Boolean} [options.shouldDestroyTargetFront]
+   *        By default, the passed target front will be destroyed. But in some cases like
+   *        legacy listeners for service workers we want to keep the front alive.
    */
   _onTargetDestroyed(
     targetFront,
-    { isTargetSwitching = false, shouldDestroyTargetFront = true } = {}
+    {
+      isModeSwitching = false,
+      isTargetSwitching = false,
+      shouldDestroyTargetFront = true,
+    } = {}
   ) {
     // The watcher actor may notify us about the destruction of the top level target.
     // But second argument to this method, isTargetSwitching is only passed from the frontend.
@@ -340,6 +349,7 @@ class TargetCommand extends EventEmitter {
     this._destroyListeners.emit(targetFront.targetType, {
       targetFront,
       isTargetSwitching,
+      isModeSwitching,
     });
     this._targets.delete(targetFront);
 
@@ -618,7 +628,21 @@ class TargetCommand extends EventEmitter {
     }
   }
 
-  stopListeningForType(type, { isTargetSwitching }) {
+  /**
+   * Stop listening for targets of a given type from the server
+   *
+   * @param String type
+   *        target type we want to stop listening for
+   * @param Object options
+   * @param Boolean options.isTargetSwitching
+   *        Set to true when this is called while a target switching happens. In such case,
+   *        we won't unregister listener set on the Watcher Actor, but still unregister
+   *        listeners set via Legacy Listeners.
+   * @param Boolean options.isModeSwitching
+   *        Set to true when this is called as the result of a change to the
+   *        devtools.browsertoolbox.scope pref.
+   */
+  stopListeningForType(type, { isTargetSwitching, isModeSwitching }) {
     if (!this._isListening(type)) {
       return;
     }
@@ -633,10 +657,13 @@ class TargetCommand extends EventEmitter {
       // Also, TargetCommand.destroy may be called after the client is closed.
       // So avoid calling the RDP method in that situation.
       if (!isTargetSwitching && !this.watcherFront.isDestroyed()) {
-        this.watcherFront.unwatchTargets(type);
+        this.watcherFront.unwatchTargets(type, { isModeSwitching });
       }
     } else if (this.legacyImplementation[type]) {
-      this.legacyImplementation[type].unlisten({ isTargetSwitching });
+      this.legacyImplementation[type].unlisten({
+        isTargetSwitching,
+        isModeSwitching,
+      });
     } else {
       throw new Error(`Unsupported target type '${type}'`);
     }
@@ -732,7 +759,7 @@ class TargetCommand extends EventEmitter {
     const unsupportedKeys = Object.keys(options).filter(
       key => !availableOptions.includes(key)
     );
-    if (unsupportedKeys.length > 0) {
+    if (unsupportedKeys.length) {
       throw new Error(
         `TargetCommand.watchTargets does not expect the following options: ${unsupportedKeys.join(
           ", "
@@ -833,7 +860,7 @@ class TargetCommand extends EventEmitter {
     const unsupportedKeys = Object.keys(options).filter(
       key => !availableOptions.includes(key)
     );
-    if (unsupportedKeys.length > 0) {
+    if (unsupportedKeys.length) {
       throw new Error(
         `TargetCommand.unwatchTargets does not expect the following options: ${unsupportedKeys.join(
           ", "
@@ -969,7 +996,7 @@ class TargetCommand extends EventEmitter {
     // TabDescriptor may emit the event with a null targetFront, interpret that as if the previous target
     // has already been destroyed
     if (targetFront) {
-      // Wait for the target to be destroyed so that TabDescriptorFactory clears its memoized target for this tab
+      // Wait for the target to be destroyed so that LocalTabCommandsFactory clears its memoized target for this tab
       await targetFront.once("target-destroyed");
     }
 
@@ -1152,22 +1179,22 @@ const LegacyTargetWatchers = {};
 loader.lazyRequireGetter(
   LegacyTargetWatchers,
   TargetCommand.TYPES.PROCESS,
-  "devtools/shared/commands/target/legacy-target-watchers/legacy-processes-watcher"
+  "resource://devtools/shared/commands/target/legacy-target-watchers/legacy-processes-watcher.js"
 );
 loader.lazyRequireGetter(
   LegacyTargetWatchers,
   TargetCommand.TYPES.WORKER,
-  "devtools/shared/commands/target/legacy-target-watchers/legacy-workers-watcher"
+  "resource://devtools/shared/commands/target/legacy-target-watchers/legacy-workers-watcher.js"
 );
 loader.lazyRequireGetter(
   LegacyTargetWatchers,
   TargetCommand.TYPES.SHARED_WORKER,
-  "devtools/shared/commands/target/legacy-target-watchers/legacy-sharedworkers-watcher"
+  "resource://devtools/shared/commands/target/legacy-target-watchers/legacy-sharedworkers-watcher.js"
 );
 loader.lazyRequireGetter(
   LegacyTargetWatchers,
   TargetCommand.TYPES.SERVICE_WORKER,
-  "devtools/shared/commands/target/legacy-target-watchers/legacy-serviceworkers-watcher"
+  "resource://devtools/shared/commands/target/legacy-target-watchers/legacy-serviceworkers-watcher.js"
 );
 
 module.exports = TargetCommand;

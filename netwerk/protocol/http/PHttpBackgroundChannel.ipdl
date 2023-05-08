@@ -34,7 +34,7 @@ child:
                            nsresult  transportStatus,
                            uint64_t  offset,
                            uint32_t  count,
-                           nsDependentCSubstring data,
+                           nsCString data,
                            bool dataFromSocketProcess);
 
 
@@ -66,6 +66,8 @@ child:
   async SetClassifierMatchedTrackingInfo(ClassifierInfo info);
 
   async AttachStreamFilter(Endpoint<PStreamFilterParent> aEndpoint);
+
+  async DetachStreamFilters();
 
   async __delete__();
 

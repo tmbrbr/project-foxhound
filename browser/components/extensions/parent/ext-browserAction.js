@@ -36,6 +36,11 @@ ChromeUtils.defineModuleGetter(
   "BrowserUsageTelemetry",
   "resource:///modules/BrowserUsageTelemetry.jsm"
 );
+ChromeUtils.defineModuleGetter(
+  this,
+  "OriginControls",
+  "resource://gre/modules/ExtensionPermissions.jsm"
+);
 
 var { DefaultWeakMap } = ExtensionUtils;
 
@@ -202,6 +207,7 @@ this.browserAction = class extends ExtensionAPIPersistent {
       tooltiptext: this.action.getProperty(null, "title"),
       defaultArea: browserAreas[this.action.getDefaultArea()],
       showInPrivateBrowsing: this.extension.privateBrowsingAllowed,
+      disallowSubView: true,
 
       // Don't attempt to load properties from the built-in widget string
       // bundle.
@@ -213,6 +219,7 @@ this.browserAction = class extends ExtensionAPIPersistent {
         view.setAttribute("flex", "1");
         view.setAttribute("extension", true);
         view.setAttribute("neverhidden", true);
+        view.setAttribute("disallowSubView", true);
 
         document.getElementById("appMenu-viewCache").appendChild(view);
 
@@ -247,7 +254,7 @@ this.browserAction = class extends ExtensionAPIPersistent {
         node.onmouseout = event => this.handleEvent(event);
         node.onauxclick = event => this.handleEvent(event);
 
-        this.updateButton(node, this.action.getContextData(null), true);
+        this.updateButton(node, this.action.getContextData(null), true, false);
       },
 
       onBeforeCommand: event => {
@@ -450,13 +457,7 @@ this.browserAction = class extends ExtensionAPIPersistent {
         ];
 
         if (contexts.includes(menu.id) && node && node.contains(trigger)) {
-          const action =
-            this.extension.manifestVersion < 3 ? "onBrowserAction" : "onAction";
-          global.actionContextMenu({
-            extension: this.extension,
-            [action]: true,
-            menu: menu,
-          });
+          this.updateContextMenu(menu);
         }
         break;
 
@@ -478,6 +479,23 @@ this.browserAction = class extends ExtensionAPIPersistent {
         }
         break;
     }
+  }
+
+  /**
+   * Updates the given context menu with the extension's actions.
+   *
+   * @param {Element} menu
+   *        The context menu element that should be updated.
+   */
+  updateContextMenu(menu) {
+    const action =
+      this.extension.manifestVersion < 3 ? "onBrowserAction" : "onAction";
+
+    global.actionContextMenu({
+      extension: this.extension,
+      [action]: true,
+      menu,
+    });
   }
 
   /**
@@ -515,15 +533,12 @@ this.browserAction = class extends ExtensionAPIPersistent {
       pendingPopup.destroy();
     }
 
-    let fixedWidth =
-      this.widget.areaType == CustomizableUI.TYPE_MENU_PANEL ||
-      this.widget.forWindow(window).overflowed;
     return new ViewPopup(
       this.extension,
       window,
       popupURL,
       this.browserStyle,
-      fixedWidth,
+      false,
       blockParser
     );
   }
@@ -556,11 +571,13 @@ this.browserAction = class extends ExtensionAPIPersistent {
 
   // Update the toolbar button |node| with the tab context data
   // in |tabData|.
-  updateButton(node, tabData, sync = false) {
+  updateButton(node, tabData, sync = false, attention = false) {
     let title = tabData.title || this.extension.name;
     let callback = () => {
       node.setAttribute("tooltiptext", title);
       node.setAttribute("label", title);
+
+      node.setAttribute("attention", attention);
 
       if (tabData.badgeText) {
         node.setAttribute("badge", tabData.badgeText);
@@ -630,7 +647,12 @@ this.browserAction = class extends ExtensionAPIPersistent {
     let node = this.widget.forWindow(window).node;
     if (node) {
       let tab = window.gBrowser.selectedTab;
-      this.updateButton(node, this.action.getContextData(tab));
+      this.updateButton(
+        node,
+        this.action.getContextData(tab),
+        false,
+        OriginControls.getAttention(this.extension.policy, window)
+      );
     }
   }
 

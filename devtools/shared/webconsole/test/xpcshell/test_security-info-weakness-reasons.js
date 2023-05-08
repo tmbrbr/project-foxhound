@@ -6,8 +6,8 @@
 // weak requests.
 
 Object.defineProperty(this, "NetworkHelper", {
-  get: function() {
-    return require("devtools/shared/webconsole/network-helper");
+  get() {
+    return require("resource://devtools/shared/webconsole/network-helper.js");
   },
   configurable: true,
   writeable: false,

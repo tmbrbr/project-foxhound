@@ -1,12 +1,15 @@
 "use strict";
 
+ChromeUtils.defineESModuleGetters(this, {
+  Region: "resource://gre/modules/Region.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(this, {
   ASRouter: "resource://activity-stream/lib/ASRouter.jsm",
   DoHController: "resource:///modules/DoHController.jsm",
   DoHConfigController: "resource:///modules/DoHConfig.jsm",
   DoHTestUtils: "resource://testing-common/DoHTestUtils.jsm",
   Preferences: "resource://gre/modules/Preferences.jsm",
-  Region: "resource://gre/modules/Region.jsm",
   RegionTestUtils: "resource://testing-common/RegionTestUtils.jsm",
   RemoteSettings: "resource://services-settings/remote-settings.js",
 });
@@ -43,8 +46,6 @@ const prefs = {
   SKIP_HEURISTICS_PREF: "doh-rollout.skipHeuristicsCheck",
   CLEAR_ON_SHUTDOWN_PREF: "doh-rollout.clearModeOnShutdown",
   FIRST_RUN_PREF: "doh-rollout.doneFirstRun",
-  BALROG_MIGRATION_PREF: "doh-rollout.balrog-migration-done",
-  PREVIOUS_TRR_MODE_PREF: "doh-rollout.previous.trr.mode",
   PROVIDER_LIST_PREF: "doh-rollout.provider-list",
   TRR_SELECT_ENABLED_PREF: "doh-rollout.trr-selection.enabled",
   TRR_SELECT_URI_PREF: "doh-rollout.uri",

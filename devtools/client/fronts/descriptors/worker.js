@@ -3,18 +3,20 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const { Ci } = require("chrome");
 const {
   workerDescriptorSpec,
-} = require("devtools/shared/specs/descriptors/worker");
+} = require("resource://devtools/shared/specs/descriptors/worker.js");
 const {
   FrontClassWithSpec,
   registerFront,
-} = require("devtools/shared/protocol");
-const { TargetMixin } = require("devtools/client/fronts/targets/target-mixin");
+} = require("resource://devtools/shared/protocol.js");
+const {
+  TargetMixin,
+} = require("resource://devtools/client/fronts/targets/target-mixin.js");
 const {
   DescriptorMixin,
-} = require("devtools/client/fronts/descriptors/descriptor-mixin");
+} = require("resource://devtools/client/fronts/descriptors/descriptor-mixin.js");
+const DESCRIPTOR_TYPES = require("resource://devtools/client/fronts/descriptors/descriptor-types.js");
 
 class WorkerDescriptorFront extends DescriptorMixin(
   TargetMixin(FrontClassWithSpec(workerDescriptorSpec))
@@ -24,6 +26,8 @@ class WorkerDescriptorFront extends DescriptorMixin(
 
     this.traits = {};
   }
+
+  descriptorType = DESCRIPTOR_TYPES.WORKER;
 
   form(json) {
     this.actorID = json.actor;

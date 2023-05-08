@@ -10,8 +10,8 @@ http://creativecommons.org/publicdomain/zero/1.0/ */
 add_task(async function validate_filename_method() {
   let mimeService = Cc["@mozilla.org/mime;1"].getService(Ci.nsIMIMEService);
 
-  function checkFilename(filename, flags) {
-    return mimeService.validateFileNameForSaving(filename, "image/png", flags);
+  function checkFilename(filename, flags, mime = "image/png") {
+    return mimeService.validateFileNameForSaving(filename, mime, flags);
   }
 
   Assert.equal(checkFilename("basicfile.png", 0), "basicfile.png");
@@ -133,6 +133,24 @@ add_task(async function validate_filename_method() {
     repeatStr + "sev.png"
   );
 
+  // no filename, so index is used by default.
+  Assert.equal(checkFilename(".png", 0), "index.png");
+
+  // sanitization only, so index is not added, but initial period is stripped.
+  Assert.equal(
+    checkFilename(".png", mimeService.VALIDATE_SANITIZE_ONLY),
+    "png"
+  );
+
+  // correct .png extension is applied.
+  Assert.equal(checkFilename(".butterpecan.icecream", 0), "butterpecan.png");
+
+  // sanitization only, so extension is not modified, but initial period is stripped.
+  Assert.equal(
+    checkFilename(".butterpecan.icecream", mimeService.VALIDATE_SANITIZE_ONLY),
+    "butterpecan.icecream"
+  );
+
   let ext = ".fairlyLongExtension";
   Assert.equal(
     checkFilename(repeatStr + ext, mimeService.VALIDATE_SANITIZE_ONLY),
@@ -158,5 +176,105 @@ add_task(async function validate_filename_method() {
   Assert.equal(
     checkFilename("test_ﾃｽﾄ_T\x83E\\S\x83T.pﾃ\x83ng", 0),
     "test_ﾃｽﾄ_T E_S T.png"
+  );
+
+  // Check we don't invalidate surrogate pairs when trimming.
+  Assert.equal(checkFilename("test😀", 0, ""), "test😀");
+  Assert.equal(checkFilename("test😀😀", 0, ""), "test😀😀");
+
+  // Now check some media types
+  Assert.equal(
+    mimeService.validateFileNameForSaving("video.ogg", "video/ogg", 0),
+    "video.ogg",
+    "video.ogg"
+  );
+  Assert.equal(
+    mimeService.validateFileNameForSaving("video.ogv", "video/ogg", 0),
+    "video.ogv",
+    "video.ogv"
+  );
+  Assert.equal(
+    mimeService.validateFileNameForSaving("video.ogt", "video/ogg", 0),
+    "video.ogv",
+    "video.ogt"
+  );
+
+  Assert.equal(
+    mimeService.validateFileNameForSaving("audio.mp3", "audio/mpeg", 0),
+    "audio.mp3",
+    "audio.mp3"
+  );
+  Assert.equal(
+    mimeService.validateFileNameForSaving("audio.mpega", "audio/mpeg", 0),
+    "audio.mpega",
+    "audio.mpega"
+  );
+  Assert.equal(
+    mimeService.validateFileNameForSaving("audio.mp2", "audio/mpeg", 0),
+    "audio.mp2",
+    "audio.mp2"
+  );
+
+  let expected = "audio.mp3";
+  if (AppConstants.platform == "linux") {
+    expected = "audio.mpga";
+  } else if (AppConstants.platform == "android") {
+    expected = "audio.mp4";
+  }
+
+  Assert.equal(
+    mimeService.validateFileNameForSaving("audio.mp4", "audio/mpeg", 0),
+    expected,
+    "audio.mp4"
+  );
+
+  Assert.equal(
+    mimeService.validateFileNameForSaving("sound.m4a", "audio/mp4", 0),
+    "sound.m4a",
+    "sound.m4a"
+  );
+  Assert.equal(
+    mimeService.validateFileNameForSaving("sound.m4b", "audio/mp4", 0),
+    AppConstants.platform == "android" ? "sound.m4a" : "sound.m4b",
+    "sound.m4b"
+  );
+  Assert.equal(
+    mimeService.validateFileNameForSaving("sound.m4c", "audio/mp4", 0),
+    AppConstants.platform == "macosx" ? "sound.mp4" : "sound.m4a",
+    "sound.mpc"
+  );
+
+  // This has a long filename with a 13 character extension. The end of the filename should be
+  // cropped to fit into 255 bytes.
+  Assert.equal(
+    mimeService.validateFileNameForSaving(
+      "라이브9.9만 시청컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 증정) - 선물용 쇼핑백 2장컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 증정) - 선물용 쇼핑백 2장24%102 000원 브랜드데이 앵콜 🎁 1.등 유산균 컬처렐 특가!",
+      "text/unknown",
+      mimeService.VALIDATE_SANITIZE_ONLY
+    ),
+    "라이브9.9만 시청컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 증정) - 선물용 쇼핑백 2장컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 .등 유산균 컬처렐 특가!",
+    "very long filename with extension"
+  );
+
+  // This filename has a very long extension, almost the entire filename.
+  Assert.equal(
+    mimeService.validateFileNameForSaving(
+      "라이브9.9만 시청컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 증정) - 선물용 쇼핑백 2장컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 증정) - 선물용 쇼핑백 2장24%102 000원 브랜드데이 앵콜 🎁 1등 유산균 컬처렐 특가!",
+      "text/unknown",
+      mimeService.VALIDATE_SANITIZE_ONLY
+    ),
+    "라이브9",
+    "another very long filename with long extension"
+  );
+
+  // This filename is cropped at 254 bytes.
+  Assert.equal(
+    mimeService.validateFileNameForSaving(
+      ".라이브99만 시청컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 증정) - 선물용 쇼핑백 2장컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 증정) - 선물용 쇼핑백 2장24%102 000원 브랜드데이 앵콜 🎁 1등 유산균 컬처렐 특가!",
+      "text/unknown",
+      mimeService.VALIDATE_SANITIZE_ONLY
+    ),
+    "라이브99만 시청컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 증정) - 선물용 쇼핑백 2장컬처렐 다이제스티브 3박스 - 3박스 더 (뚱랑이 굿즈 증정) - 선물용 쇼핑백 2장24%102 000원 브랜드데",
+    "very filename with extension only"
   );
 });

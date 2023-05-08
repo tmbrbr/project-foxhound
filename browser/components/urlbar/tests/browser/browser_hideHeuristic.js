@@ -16,9 +16,12 @@ if (AppConstants.platform == "macosx") {
   requestLongerTimeout(3);
 }
 
-add_task(async function init() {
+add_setup(async function() {
   await SpecialPowers.pushPrefEnv({
-    set: [["browser.urlbar.experimental.hideHeuristic", true]],
+    set: [
+      ["browser.urlbar.experimental.hideHeuristic", true],
+      ["browser.urlbar.suggest.quickactions", false],
+    ],
   });
   await PlacesUtils.bookmarks.eraseEverything();
   await PlacesUtils.history.clear();
@@ -405,11 +408,17 @@ async function withEngine(
   let originalEngine;
   if (makeDefault) {
     originalEngine = await Services.search.getDefault();
-    await Services.search.setDefault(engine);
+    await Services.search.setDefault(
+      engine,
+      Ci.nsISearchService.CHANGE_REASON_UNKNOWN
+    );
   }
   await callback();
   if (originalEngine) {
-    await Services.search.setDefault(originalEngine);
+    await Services.search.setDefault(
+      originalEngine,
+      Ci.nsISearchService.CHANGE_REASON_UNKNOWN
+    );
   }
   await Services.search.removeEngine(engine);
 }

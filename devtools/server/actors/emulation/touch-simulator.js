@@ -4,13 +4,11 @@
 
 "use strict";
 
-const Services = require("Services");
-
 loader.lazyRequireGetter(this, "InspectorUtils", "InspectorUtils");
 loader.lazyRequireGetter(
   this,
   "PICKER_TYPES",
-  "devtools/shared/picker-constants"
+  "resource://devtools/shared/picker-constants.js"
 );
 
 var isClickHoldEnabled = Services.prefs.getBoolPref(

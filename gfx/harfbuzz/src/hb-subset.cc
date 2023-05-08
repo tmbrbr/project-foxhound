@@ -50,12 +50,14 @@
 #include "hb-ot-color-cbdt-table.hh"
 #include "hb-ot-layout-gsub-table.hh"
 #include "hb-ot-layout-gpos-table.hh"
+#include "hb-ot-var-fvar-table.hh"
 #include "hb-ot-var-gvar-table.hh"
 #include "hb-ot-var-hvar-table.hh"
 #include "hb-ot-math-table.hh"
+#include "hb-ot-stat-table.hh"
 #include "hb-repacker.hh"
 
-using OT::Layout::GSUB::GSUB;
+using OT::Layout::GSUB;
 using OT::Layout::GPOS;
 
 /**
@@ -242,10 +244,15 @@ _try_subset (const TableType *table,
 
   unsigned buf_size = buf->allocated;
   buf_size = buf_size * 2 + 16;
+
+
+
+
   DEBUG_MSG (SUBSET, nullptr, "OT::%c%c%c%c ran out of room; reallocating to %u bytes.",
              HB_UNTAG (c->table_tag), buf_size);
 
-  if (unlikely (!buf->alloc (buf_size)))
+  if (unlikely (buf_size > c->source_blob->length * 16 ||
+		!buf->alloc (buf_size)))
   {
     DEBUG_MSG (SUBSET, nullptr, "OT::%c%c%c%c failed to reallocate %u bytes.",
                HB_UNTAG (c->table_tag), buf_size);
@@ -260,15 +267,15 @@ template<typename TableType>
 static bool
 _subset (hb_subset_plan_t *plan, hb_vector_t<char> &buf)
 {
-  hb_blob_t *source_blob = hb_sanitize_context_t ().reference_table<TableType> (plan->source);
-  const TableType *table = source_blob->as<TableType> ();
+  hb_blob_ptr_t<TableType> source_blob = plan->source_table<TableType> ();
+  const TableType *table = source_blob.get ();
 
   hb_tag_t tag = TableType::tableTag;
-  if (!source_blob->data)
+  if (!source_blob.get_blob()->data)
   {
     DEBUG_MSG (SUBSET, nullptr,
                "OT::%c%c%c%c::subset sanitize failed on source table.", HB_UNTAG (tag));
-    hb_blob_destroy (source_blob);
+    source_blob.destroy ();
     return false;
   }
 
@@ -278,23 +285,23 @@ _subset (hb_subset_plan_t *plan, hb_vector_t<char> &buf)
 			 TableType::tableTag == HB_OT_TAG_GPOS ||
 			 TableType::tableTag == HB_OT_TAG_name;
 
-  unsigned buf_size = _plan_estimate_subset_table_size (plan, source_blob->length, same_size_table);
+  unsigned buf_size = _plan_estimate_subset_table_size (plan, source_blob.get_length (), same_size_table);
   DEBUG_MSG (SUBSET, nullptr,
              "OT::%c%c%c%c initial estimated table size: %u bytes.", HB_UNTAG (tag), buf_size);
   if (unlikely (!buf.alloc (buf_size)))
   {
     DEBUG_MSG (SUBSET, nullptr, "OT::%c%c%c%c failed to allocate %u bytes.", HB_UNTAG (tag), buf_size);
-    hb_blob_destroy (source_blob);
+    source_blob.destroy ();
     return false;
   }
 
   bool needed = false;
   hb_serialize_context_t serializer (buf.arrayZ, buf.allocated);
   {
-    hb_subset_context_t c (source_blob, plan, &serializer, tag);
+    hb_subset_context_t c (source_blob.get_blob (), plan, &serializer, tag);
     needed = _try_subset (table, &buf, &c);
   }
-  hb_blob_destroy (source_blob);
+  source_blob.destroy ();
 
   if (serializer.in_error () && !serializer.only_offset_overflow ())
   {
@@ -356,6 +363,8 @@ _should_drop_table (hb_subset_plan_t *plan, hb_tag_t tag)
   switch (tag)
   {
   case HB_TAG ('c','v','a','r'): /* hint table, fallthrough */
+    return plan->all_axes_pinned || (plan->flags & HB_SUBSET_FLAGS_NO_HINTING);
+
   case HB_TAG ('c','v','t',' '): /* hint table, fallthrough */
   case HB_TAG ('f','p','g','m'): /* hint table, fallthrough */
   case HB_TAG ('p','r','e','p'): /* hint table, fallthrough */
@@ -375,6 +384,14 @@ _should_drop_table (hb_subset_plan_t *plan, hb_tag_t tag)
     return true;
 #endif
 
+  case HB_TAG ('a','v','a','r'):
+  case HB_TAG ('f','v','a','r'):
+  case HB_TAG ('g','v','a','r'):
+  case HB_OT_TAG_HVAR:
+  case HB_OT_TAG_VVAR:
+  case HB_TAG ('M','V','A','R'):
+    return plan->all_axes_pinned;
+
   default:
     return false;
   }
@@ -387,6 +404,27 @@ _passthrough (hb_subset_plan_t *plan, hb_tag_t tag)
   bool result = plan->add_table (tag, source_table);
   hb_blob_destroy (source_table);
   return result;
+}
+
+static bool
+_dependencies_satisfied (hb_subset_plan_t *plan, hb_tag_t tag,
+                         hb_set_t &visited_set, hb_set_t &revisit_set)
+{
+  switch (tag)
+  {
+  case HB_OT_TAG_hmtx:
+  case HB_OT_TAG_vmtx:
+    if (!plan->pinned_at_default &&
+        !visited_set.has (HB_OT_TAG_glyf))
+    {
+      revisit_set.add (tag);
+      return false;
+    }
+    return true;
+
+  default:
+    return true;
+  }
 }
 
 static bool
@@ -438,6 +476,14 @@ _subset_table (hb_subset_plan_t *plan,
   case HB_OT_TAG_HVAR: return _subset<const OT::HVAR> (plan, buf);
   case HB_OT_TAG_VVAR: return _subset<const OT::VVAR> (plan, buf);
 #endif
+  case HB_OT_TAG_fvar:
+    if (plan->user_axes_location->is_empty ()) return _passthrough (plan, tag);
+    return _subset<const OT::fvar> (plan, buf);
+  case HB_OT_TAG_STAT:
+    /*TODO(qxliu): change the condition as we support more complex
+     * instancing operation*/
+    if (plan->all_axes_pinned) return _subset<const OT::STAT> (plan, buf);
+    else return _passthrough (plan, tag);
 
   default:
     if (plan->flags & HB_SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED)
@@ -493,7 +539,7 @@ hb_subset_plan_execute_or_fail (hb_subset_plan_t *plan)
     return nullptr;
   }
 
-  hb_set_t tags_set;
+  hb_set_t tags_set, revisit_set;
   bool success = true;
   hb_tag_t table_tags[32];
   unsigned offset = 0, num_tables = ARRAY_LENGTH (table_tags);
@@ -506,9 +552,26 @@ hb_subset_plan_execute_or_fail (hb_subset_plan_t *plan)
     {
       hb_tag_t tag = table_tags[i];
       if (_should_drop_table (plan, tag) && !tags_set.has (tag)) continue;
+      if (!_dependencies_satisfied (plan, tag, tags_set, revisit_set)) continue;
       tags_set.add (tag);
       success = _subset_table (plan, buf, tag);
       if (unlikely (!success)) goto end;
+    }
+
+    /*delayed subsetting for some tables since they might have dependency on other tables in some cases:
+    e.g: during instantiating glyf tables, hmetrics/vmetrics are updated and saved in subset plan,
+    hmtx/vmtx subsetting need to use these updated metrics values*/
+    while (!revisit_set.is_empty ())
+    {
+      hb_set_t revisit_temp;
+      for (hb_tag_t tag : revisit_set)
+      {
+        if (!_dependencies_satisfied (plan, tag, tags_set, revisit_temp)) continue;
+        tags_set.add (tag);
+        success = _subset_table (plan, buf, tag);
+        if (unlikely (!success)) goto end;
+      }
+      revisit_set = revisit_temp;
     }
     offset += num_tables;
   }

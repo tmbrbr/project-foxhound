@@ -7,27 +7,28 @@
 const {
   prepareMessage,
   getNaturalOrder,
-} = require("devtools/client/webconsole/utils/messages");
+} = require("resource://devtools/client/webconsole/utils/messages.js");
 const {
   IdGenerator,
-} = require("devtools/client/webconsole/utils/id-generator");
+} = require("resource://devtools/client/webconsole/utils/id-generator.js");
 const {
   batchActions,
-} = require("devtools/client/shared/redux/middleware/debounce");
+} = require("resource://devtools/client/shared/redux/middleware/debounce.js");
 
 const {
+  CSS_MESSAGE_ADD_MATCHING_ELEMENTS,
+  MESSAGE_CLOSE,
+  MESSAGE_OPEN,
+  MESSAGE_REMOVE,
+  MESSAGE_TYPE,
   MESSAGES_ADD,
-  NETWORK_MESSAGES_UPDATE,
-  NETWORK_UPDATES_REQUEST,
   MESSAGES_CLEAR,
   MESSAGES_DISABLE,
-  MESSAGE_OPEN,
-  MESSAGE_CLOSE,
-  MESSAGE_TYPE,
-  MESSAGE_REMOVE,
-  CSS_MESSAGE_ADD_MATCHING_ELEMENTS,
+  NETWORK_MESSAGES_UPDATE,
+  NETWORK_UPDATES_REQUEST,
   PRIVATE_MESSAGES_CLEAR,
-} = require("devtools/client/webconsole/constants");
+  TARGET_MESSAGES_REMOVE,
+} = require("resource://devtools/client/webconsole/constants.js");
 
 const defaultIdGenerator = new IdGenerator();
 
@@ -74,6 +75,13 @@ function messagesDisable(ids) {
 function privateMessagesClear() {
   return {
     type: PRIVATE_MESSAGES_CLEAR,
+  };
+}
+
+function targetMessagesRemove(targetFront) {
+  return {
+    type: TARGET_MESSAGES_REMOVE,
+    targetFront,
   };
 }
 
@@ -161,4 +169,5 @@ module.exports = {
   networkMessageUpdates,
   networkUpdateRequests,
   privateMessagesClear,
+  targetMessagesRemove,
 };

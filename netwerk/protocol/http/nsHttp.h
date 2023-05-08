@@ -12,6 +12,7 @@
 #include "nsString.h"
 #include "nsError.h"
 #include "nsTArray.h"
+#include "mozilla/OriginAttributes.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Tuple.h"
 #include "mozilla/UniquePtr.h"
@@ -152,6 +153,9 @@ extern const nsCString kHttp3Versions[];
 
 // If set, then the initial TLS handshake failed.
 #define NS_HTTP_IS_RETRY (1 << 27)
+
+// When set, disallow to connect to a HTTP/2 proxy.
+#define NS_HTTP_DISALLOW_HTTP2_PROXY (1 << 28)
 
 #define NS_HTTP_TRR_FLAGS_FROM_MODE(x) ((static_cast<uint32_t>(x) & 3) << 19)
 
@@ -417,6 +421,18 @@ static inline bool AllowedErrorForHTTPSRRFallback(nsresult aError) {
 }
 
 bool SecurityErrorThatMayNeedRestart(nsresult aReason);
+
+[[nodiscard]] nsresult MakeOriginURL(const nsACString& origin,
+                                     nsCOMPtr<nsIURI>& url);
+
+[[nodiscard]] nsresult MakeOriginURL(const nsACString& scheme,
+                                     const nsACString& origin,
+                                     nsCOMPtr<nsIURI>& url);
+
+void CreatePushHashKey(const nsCString& scheme, const nsCString& hostHeader,
+                       const mozilla::OriginAttributes& originAttributes,
+                       uint64_t serial, const nsACString& pathInfo,
+                       nsCString& outOrigin, nsCString& outKey);
 
 }  // namespace net
 }  // namespace mozilla

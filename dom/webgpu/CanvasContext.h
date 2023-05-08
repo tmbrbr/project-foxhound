@@ -31,7 +31,7 @@ class CanvasContext final : public nsICanvasRenderingContextInternal,
  public:
   // nsISupports interface + CC
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(CanvasContext)
+  NS_DECL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(CanvasContext)
 
   CanvasContext();
 
@@ -65,11 +65,12 @@ class CanvasContext final : public nsICanvasRenderingContextInternal,
 
   void SetOpaqueValueFromOpaqueAttr(bool aOpaqueAttrValue) override {}
   bool GetIsOpaque() override { return true; }
-  NS_IMETHOD Reset() override { return NS_OK; }
+
+  void ResetBitmap() override { Unconfigure(); }
+
   void MarkContextClean() override {}
 
   NS_IMETHOD Redraw(const gfxRect& aDirty) override { return NS_OK; }
-  NS_IMETHOD SetIsIPC(bool aIsIPC) override { return NS_OK; }
 
   void DidRefresh() override {}
 

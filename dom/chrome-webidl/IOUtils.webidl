@@ -120,7 +120,7 @@ namespace IOUtils {
    *         a DOMException.
    */
   [NewObject]
-  Promise<void> move(DOMString sourcePath, DOMString destPath, optional MoveOptions options = {});
+  Promise<undefined> move(DOMString sourcePath, DOMString destPath, optional MoveOptions options = {});
   /**
    * Removes a file or directory at |path| according to |options|.
    *
@@ -131,7 +131,7 @@ namespace IOUtils {
    *         with a DOMException.
    */
   [NewObject]
-  Promise<void> remove(DOMString path, optional RemoveOptions options = {});
+  Promise<undefined> remove(DOMString path, optional RemoveOptions options = {});
   /**
    * Creates a new directory at |path| according to |options|.
    *
@@ -141,7 +141,7 @@ namespace IOUtils {
    *         rejects with a DOMException.
    */
   [NewObject]
-  Promise<void> makeDirectory(DOMString path, optional MakeDirectoryOptions options = {});
+  Promise<undefined> makeDirectory(DOMString path, optional MakeDirectoryOptions options = {});
   /**
    * Obtains information about a file, such as size, modification dates, etc.
    *
@@ -168,7 +168,7 @@ namespace IOUtils {
    *         with a DOMException.
    */
   [NewObject]
-  Promise<void> copy(DOMString sourcePath, DOMString destPath, optional CopyOptions options = {});
+  Promise<undefined> copy(DOMString sourcePath, DOMString destPath, optional CopyOptions options = {});
   /**
    * Updates the |modification| time for the file at |path|.
    *
@@ -218,7 +218,7 @@ namespace IOUtils {
    *         rejects with a DOMException.
    */
   [NewObject]
-  Promise<void> setPermissions(DOMString path, unsigned long permissions, optional boolean honorUmask = true);
+  Promise<undefined> setPermissions(DOMString path, unsigned long permissions, optional boolean honorUmask = true);
   /**
    * Return whether or not the file exists at the given path.
    *
@@ -286,7 +286,7 @@ namespace IOUtils {
    * @return A promise that resolves is the attributes were set successfully.
    */
   [NewObject]
-  Promise<void> setWindowsAttributes(DOMString path, optional WindowsFileAttributes attrs = {});
+  Promise<undefined> setWindowsAttributes(DOMString path, optional WindowsFileAttributes attrs = {});
 #elif defined(XP_MACOSX)
   /**
    * Return whether or not the file has a specific extended attribute.
@@ -321,7 +321,7 @@ namespace IOUtils {
    *         attribute, or rejects with an error.
    */
   [NewObject]
-  Promise<void> setMacXAttr(DOMString path, UTF8String attr, Uint8Array value);
+  Promise<undefined> setMacXAttr(DOMString path, UTF8String attr, Uint8Array value);
   /**
    * Delete the extended attribute on a file.
    *
@@ -332,14 +332,26 @@ namespace IOUtils {
    *         with an error.
    */
   [NewObject]
-  Promise<void> delMacXAttr(DOMString path, UTF8String attr);
+  Promise<undefined> delMacXAttr(DOMString path, UTF8String attr);
 #endif
 };
 
 [Exposed=Window]
 partial namespace IOUtils {
+  /**
+   * The async shutdown client for the profile-before-change shutdown phase.
+   */
   [Throws]
   readonly attribute any profileBeforeChange;
+
+  /**
+   * The async shutdown client for the profile-before-change-telemetry shutdown
+   * phase.
+   *
+   * ONLY telemetry should register blockers on this client.
+   */
+  [Throws]
+  readonly attribute any sendTelemetry;
 };
 
 [Exposed=Worker]
@@ -353,6 +365,30 @@ partial namespace IOUtils {
    */
   [Throws]
   SyncReadFile openFileForSyncReading(DOMString path);
+
+#ifdef XP_UNIX
+  /**
+   * Launch a child process; uses `base::LaunchApp` from IPC.  (This WebIDL
+   * binding is currently Unix-only; it could also be supported on Windows
+   * but it would use u16-based strings, so it would basically be a separate
+   * copy of the bindings.)
+   *
+   * This interface was added for use by `Subprocess.jsm`; other would-be
+   * callers may want to just use Subprocess instead of calling this directly.
+   *
+   * @param argv The command to run and its arguments.
+   * @param options Various parameters about how the child process is launched
+   *                and its initial environment.
+   *
+   * @return The process ID.  Note that various errors (e.g., the
+   *         executable to be launched doesn't exist) may not be
+   *         encountered until after the process is created, so a
+   *         successful return doesn't necessarily imply a successful
+   *         launch.
+   */
+  [Throws]
+  unsigned long launchProcess(sequence<UnixString> argv, LaunchOptions options);
+#endif
 };
 
 /**
@@ -376,13 +412,13 @@ interface SyncReadFile {
    *               range is given by |dest.length|.)
    */
   [Throws]
-  void readBytesInto(Uint8Array dest, long long offset);
+  undefined readBytesInto(Uint8Array dest, long long offset);
 
   /**
    * Close the file. Subsequent calls to readBytesInto will throw.
    * If the file is not closed manually, it will be closed once this object is GC'ed.
    */
-  void close();
+  undefined close();
 };
 
 /**
@@ -612,5 +648,62 @@ dictionary WindowsFileAttributes {
    * Whether or not the file is classified as a system file.
    */
   boolean system;
+};
+#endif
+
+#ifdef XP_UNIX
+/**
+ * Used where the POSIX API allows an arbitrary byte string but in
+ * practice it's usually UTF-8, so JS strings are accepted for
+ * convenience.
+ */
+typedef (UTF8String or Uint8Array) UnixString;
+
+/**
+ * Options for the `launchApp` method.  See also `base::LaunchOptions`
+ * in C++.
+ */
+dictionary LaunchOptions {
+  /**
+   * The environment variables, as a sequence of `NAME=value` strings.
+   * (The underlying C++ code can also inherit the current environment
+   * with optional changes; that feature could be added here if needed.)
+   */
+  required sequence<UnixString> environment;
+
+  /**
+   * The initial current working directory.
+   */
+  UnixString workdir;
+
+  /**
+   * File descriptors to pass to the child process.  Any fds not
+   * mentioned here, other than stdin/out/err, will not be inherited
+   * even if they aren't marked close-on-exec.
+   */
+  sequence<FdMapping> fdMap;
+
+  /**
+   * On macOS 10.14+, disclaims responsibility for the child process
+   * with respect to privacy/security permission prompts and
+   * decisions.  Ignored if not supported by the OS.
+   */
+  boolean disclaim = false;
+};
+
+/**
+ * Describes a file descriptor to give to the child process.
+ */
+dictionary FdMapping {
+  /**
+   * The fd in the parent process to pass.  This must remain open during
+   * the call to `launchApp` but can be closed after it returns (or throws).
+   */
+  required unsigned long src;
+
+  /**
+   * The fd number to map it to in the child process.
+   */
+  required unsigned long dst;
 };
 #endif

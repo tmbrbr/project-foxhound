@@ -3,14 +3,12 @@
 
 "use strict";
 
-const kSearchEngineID1 = "ignorelist_test_engine1";
-const kSearchEngineURL1 =
-  "http://example.com/?search={searchTerms}&ignore=true";
-const kExtensionID = "searchignore@mozilla.com";
+ChromeUtils.defineESModuleGetters(this, {
+  IgnoreLists: "resource://gre/modules/IgnoreLists.sys.mjs",
+  PromiseUtils: "resource://gre/modules/PromiseUtils.sys.mjs",
+});
 
 XPCOMUtils.defineLazyModuleGetters(this, {
-  IgnoreLists: "resource://gre/modules/IgnoreLists.jsm",
-  PromiseUtils: "resource://gre/modules/PromiseUtils.jsm",
   RemoteSettings: "resource://services-settings/remote-settings.js",
   RemoteSettingsClient: "resource://services-settings/RemoteSettingsClient.jsm",
   sinon: "resource://testing-common/Sinon.jsm",

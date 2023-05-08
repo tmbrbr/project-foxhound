@@ -971,6 +971,7 @@ static inline void AssertMatchesCallSite(void* callerPC, uint8_t* callerFP) {
 void ProfilingFrameIterator::initFromExitFP(const Frame* fp) {
   MOZ_ASSERT(fp);
   stackAddress_ = (void*)fp;
+  endStackAddress_ = stackAddress_;
   code_ = LookupCode(fp->returnAddress(), &codeRange_);
 
   if (!code_) {
@@ -1371,6 +1372,7 @@ ProfilingFrameIterator::ProfilingFrameIterator(const JitActivation& activation,
   code_ = unwindState.code;
   codeRange_ = unwindState.codeRange;
   stackAddress_ = state.sp;
+  endStackAddress_ = state.sp;
   MOZ_ASSERT(!done());
 }
 
@@ -1505,7 +1507,7 @@ static const char* ThunkedNativeToDescription(SymbolicAddress func) {
       return "call to native i32.div_u (in wasm)";
 #endif
     case SymbolicAddress::AllocateBigInt:
-      return "call to native Allocate<BigInt, NoGC> (in wasm)";
+      return "call to native newCell<BigInt, NoGC> (in wasm)";
     case SymbolicAddress::ModD:
       return "call to asm.js native f64 % (mod)";
     case SymbolicAddress::SinD:
@@ -1618,12 +1620,14 @@ static const char* ThunkedNativeToDescription(SymbolicAddress func) {
       return "call to native throw exception (in wasm)";
     case SymbolicAddress::ArrayNew:
       return "call to native array.new (in wasm)";
+    case SymbolicAddress::ArrayNewData:
+      return "call to native array.new_data function";
+    case SymbolicAddress::ArrayNewElem:
+      return "call to native array.new_elem function";
+    case SymbolicAddress::ArrayCopy:
+      return "call to native array.copy function";
     case SymbolicAddress::RefTest:
       return "call to native ref.test (in wasm)";
-    case SymbolicAddress::RttSub:
-      return "call to native rtt.sub (in wasm)";
-    case SymbolicAddress::InlineTypedObjectClass:
-      MOZ_CRASH();
 #define OP(op, export, sa_name, abitype, entry, idx) \
   case SymbolicAddress::sa_name:                     \
     return "call to native " #op " intrinsic (in wasm)";

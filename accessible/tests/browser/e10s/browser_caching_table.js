@@ -206,16 +206,16 @@ addAccessibleTask(
 <table id="layout"><tr><td>a</td></tr></table>
 <table id="data"><tr><th>a</th></tr></table>
 <table id="mutate"><tr><td>a</td><td>b</td></tr></table>
+<div id="newTableContainer"></div>
   `,
   async function(browser, docAcc) {
-    const layout = findAccessibleChildByID(docAcc, "layout", [
-      nsIAccessibleTable,
-    ]);
+    const layout = findAccessibleChildByID(docAcc, "layout");
     testAttrs(layout, { "layout-guess": "true" }, true);
-    const data = findAccessibleChildByID(docAcc, "data", [nsIAccessibleTable]);
+    const data = findAccessibleChildByID(docAcc, "data");
     testAbsentAttrs(data, { "layout-guess": "true" });
     const mutate = findAccessibleChildByID(docAcc, "mutate");
     testAttrs(mutate, { "layout-guess": "true" }, true);
+
     info("mutate: Adding 5 rows");
     let reordered = waitForEvent(EVENT_REORDER, mutate);
     await invokeContentTask(browser, [], () => {
@@ -229,12 +229,68 @@ addAccessibleTask(
     });
     await reordered;
     testAbsentAttrs(mutate, { "layout-guess": "true" });
+
+    info("mutate: Removing 5 rows");
+    reordered = waitForEvent(EVENT_REORDER, mutate);
+    await invokeContentTask(browser, [], () => {
+      // Pause refresh driver so all the children removals below will
+      // be collated into the same tick and only one 'reorder' event will
+      // be dispatched.
+      content.windowUtils.advanceTimeAndRefresh(100);
+
+      let tBody = content.document.getElementById("mutate").tBodies[0];
+      for (let r = 0; r < 6; ++r) {
+        tBody.lastChild.remove();
+      }
+
+      // Resume refresh driver
+      content.windowUtils.restoreNormalRefresh();
+    });
+    await reordered;
+    testAttrs(mutate, { "layout-guess": "true" }, true);
+
+    info("mutate: Adding new table");
+    let shown = waitForEvent(EVENT_SHOW, "newTable");
+    await invokeContentTask(browser, [], () => {
+      content.document.getElementById(
+        "newTableContainer"
+      ).innerHTML = `<table id="newTable"><tr><th>a</th></tr></table>`;
+    });
+    let newTable = (await shown).accessible;
+    testAbsentAttrs(newTable, { "layout-guess": "true" });
   },
   {
     chrome: true,
-    topLevel: isCacheEnabled,
-    iframe: isCacheEnabled,
-    remoteIframe: isCacheEnabled,
+    topLevel: true,
+    iframe: true,
+    remoteIframe: true,
+  }
+);
+
+/**
+ * Test table layout guess with border styling changes.
+ */
+addAccessibleTask(
+  `
+  <table id="layout"><tr><td id="cell">a</td><td>b</td></tr>
+  <tr><td>c</td><td>d</td></tr><tr><td>c</td><td>d</td></tr></table>
+  `,
+  async function(browser, docAcc) {
+    const layout = findAccessibleChildByID(docAcc, "layout");
+    testAttrs(layout, { "layout-guess": "true" }, true);
+    info("changing border style on table cell");
+    let styleChanged = waitForEvent(EVENT_TABLE_STYLING_CHANGED, layout);
+    await invokeContentTask(browser, [], () => {
+      content.document.getElementById("cell").style.border = "1px solid black";
+    });
+    await styleChanged;
+    testAbsentAttrs(layout, { "layout-guess": "true" });
+  },
+  {
+    chrome: true,
+    topLevel: true,
+    iframe: true,
+    remoteIframe: true,
   }
 );
 
@@ -302,6 +358,7 @@ addAccessibleTask(
   <tr id="r1"><td>a</td><td id="b">b</td></tr>
   <tr id="r2" hidden><td>c</td><td>d</td></tr>
 </table>
+<div id="owner"></div>
   `,
   async function(browser, docAcc) {
     const table = findAccessibleChildByID(docAcc, "table", [
@@ -312,7 +369,7 @@ addAccessibleTask(
     testTableIndexes(table, [[0, 1]]);
     info("Showing r2");
     let reordered = waitForEvent(EVENT_REORDER, table);
-    setNodeHidden(browser, "r2", false);
+    await setNodeHidden(browser, "r2", false);
     await reordered;
     is(table.rowCount, 2, "table rowCount correct");
     testTableIndexes(table, [
@@ -321,21 +378,98 @@ addAccessibleTask(
     ]);
     info("Hiding r2");
     reordered = waitForEvent(EVENT_REORDER, table);
-    setNodeHidden(browser, "r2", true);
+    await setNodeHidden(browser, "r2", true);
     await reordered;
     is(table.rowCount, 1, "table rowCount correct");
     testTableIndexes(table, [[0, 1]]);
     info("Hiding b");
     reordered = waitForEvent(EVENT_REORDER, "r1");
-    setNodeHidden(browser, "b", true);
+    await setNodeHidden(browser, "b", true);
     await reordered;
     is(table.columnCount, 1, "table columnCount correct");
     testTableIndexes(table, [[0]]);
     info("Showing b");
     reordered = waitForEvent(EVENT_REORDER, "r1");
-    setNodeHidden(browser, "b", false);
+    await setNodeHidden(browser, "b", false);
     await reordered;
     is(table.columnCount, 2, "table columnCount correct");
+    if (isCacheEnabled) {
+      info("Moving b out of table using aria-owns");
+      reordered = waitForEvent(EVENT_REORDER, "r1");
+      await invokeContentTask(browser, [], () => {
+        content.document.getElementById("owner").setAttribute("aria-owns", "b");
+      });
+      await reordered;
+      is(table.columnCount, 1, "table columnCount correct");
+    } else {
+      todo(
+        false,
+        "CachedTableAccessible disabled, so counts broken when cell moved with aria-owns"
+      );
+    }
+  },
+  {
+    chrome: true,
+    topLevel: isCacheEnabled,
+    iframe: isCacheEnabled,
+    remoteIframe: isCacheEnabled,
+  }
+);
+
+/**
+ * Test the handling of ARIA tables with display: contents.
+ */
+addAccessibleTask(
+  `
+<div id="table" role="table" style="display: contents;">
+  <div role="row"><div role="cell">a</div></div>
+</div>
+  `,
+  async function(browser, docAcc) {
+    // XXX We don't create a TableAccessible in this case (bug 1494196). For
+    // now, just ensure we don't crash (bug 1793073).
+    const table = findAccessibleChildByID(docAcc, "table");
+    let queryOk = false;
+    try {
+      table.QueryInterface(nsIAccessibleTable);
+      queryOk = true;
+    } catch (e) {}
+    todo(queryOk, "Got nsIAccessibleTable");
+  },
+  {
+    chrome: true,
+    topLevel: isCacheEnabled,
+    iframe: isCacheEnabled,
+    remoteIframe: isCacheEnabled,
+  }
+);
+
+/**
+ * Test a broken ARIA table with an invalid cell.
+ */
+addAccessibleTask(
+  `
+<div id="table" role="table">
+  <div role="main">
+    <div role="row">
+      <div id="cell" role="cell">a</div>
+    </div>
+  </div>
+</div>
+  `,
+  async function(browser, docAcc) {
+    const table = findAccessibleChildByID(docAcc, "table", [
+      nsIAccessibleTable,
+    ]);
+    is(table.rowCount, 0, "table rowCount correct");
+    is(table.columnCount, 0, "table columnCount correct");
+    const cell = findAccessibleChildByID(docAcc, "cell");
+    let queryOk = false;
+    try {
+      cell.QueryInterface(nsIAccessibleTableCell);
+      queryOk = true;
+    } catch (e) {}
+    ok(!queryOk, "Got nsIAccessibleTableCell on an invalid cell");
   },
   {
     chrome: true,

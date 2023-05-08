@@ -16,29 +16,10 @@ module.exports = {
     browser: true,
     es2021: true,
     "mozilla/privileged": true,
+    "mozilla/specific": true,
   },
 
   extends: ["eslint:recommended", "plugin:prettier/recommended"],
-
-  globals: {
-    // These are all specific to Firefox unless otherwise stated.
-    Cc: false,
-    ChromeUtils: false,
-    Ci: false,
-    Components: false,
-    Cr: false,
-    Cu: false,
-    Debugger: false,
-    InstallTrigger: false,
-    // https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/InternalError
-    InternalError: true,
-    Services: false,
-    // https://developer.mozilla.org/docs/Web/API/Window/dump
-    dump: true,
-    openDialog: false,
-    // https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/uneval
-    uneval: false,
-  },
 
   overrides: [
     {
@@ -85,6 +66,14 @@ module.exports = {
       rules: {
         "mozilla/reject-import-system-module-from-non-system": "error",
         "mozilla/reject-lazy-imports-into-globals": "error",
+      },
+    },
+    {
+      files: ["**/*.mjs"],
+      rules: {
+        // This rule defaults to not allowing "use strict" in module files since
+        // they are always loaded in strict mode.
+        strict: "error",
       },
     },
     {
@@ -165,6 +154,7 @@ module.exports = {
     "mozilla/reject-addtask-only": "error",
     "mozilla/reject-chromeutils-import-params": "error",
     "mozilla/reject-importGlobalProperties": ["error", "allownonwebidl"],
+    "mozilla/reject-multiple-getters-calls": "error",
     "mozilla/reject-osfile": "warn",
     "mozilla/reject-scriptableunicodeconverter": "warn",
     "mozilla/rejects-requires-await": "error",

@@ -45,7 +45,9 @@ browser-main-window-mac-window-titles =
 # `browser-main-window` and `browser-main-window-mac`.
 browser-main-window-title = { -brand-full-name }
 
-private-browsing-shortcut-text = { -brand-short-name } Private Browsing
+# The non-variable portion of this MUST match the translation of
+# "PRIVATE_BROWSING_SHORTCUT_TITLE" in custom.properties
+private-browsing-shortcut-text-2 = { -brand-shortcut-name } Private Browsing
 
 ##
 
@@ -167,10 +169,12 @@ urlbar-star-add-bookmark =
 
 ## Page Action Context Menu
 
-page-action-manage-extension =
+page-action-manage-extension2 =
     .label = Manage Extension…
-page-action-remove-extension =
+    .accesskey = E
+page-action-remove-extension2 =
     .label = Remove Extension
+    .accesskey = v
 
 ## Auto-hide Context Menu
 
@@ -237,21 +241,80 @@ search-one-offs-actions =
     .tooltiptext = Actions ({ $restrict })
 
 ## QuickActions are shown in the urlbar as the user types a matching string
+## The -cmd- strings are comma separated list of keywords that will match
+## the action.
 
+# Opens the about:addons page in the home / recommendations section
 quickactions-addons = View Add-ons
+quickactions-cmd-addons2 = add-ons
+
+# Opens the bookmarks library window
 quickactions-bookmarks = View Bookmarks
+quickactions-cmd-bookmarks = bookmarks
+
+# Opens a SUMO article explaining how to clear history
 quickactions-clearhistory = Clear History
+quickactions-cmd-clearhistory = clear history
+
+# Opens about:downloads page
 quickactions-downloads = Open Downloads
+quickactions-cmd-downloads = downloads
+
+# Opens about:addons page in the extensions section
+quickactions-extensions = Manage extensions
+quickactions-cmd-extensions = extensions
+
+# Opens the devtools web inspector
 quickactions-inspector = Open Inspector
+quickactions-cmd-inspector = inspector, devtools
+
+# Opens about:logins
 quickactions-logins = View Logins
+quickactions-cmd-logins = logins, passwords
+
+# Opens about:addons page in the plugins section
+quickactions-plugins = Manage plugins
+quickactions-cmd-plugins = plugins
+
+# Opens the print dialog
 quickactions-print = Print
+quickactions-cmd-print = print
+
+# Opens a new private browsing window
 quickactions-private = Open Private Browsing Window
+quickactions-cmd-private = private browsing
+
+# Opens a SUMO article explaining how to refresh
 quickactions-refresh = Refresh { -brand-short-name }
+quickactions-cmd-refresh = refresh
+
+# Restarts the browser
 quickactions-restart = Restart { -brand-short-name }
+quickactions-cmd-restart = restart
+
+# Opens the screenshot tool
 quickactions-screenshot2 = Take a Screenshot
+quickactions-cmd-screenshot = screenshot
+
+# Opens about:preferences
 quickactions-settings = Open Settings
+quickactions-cmd-settings = settings, preferences, options
+
+# Opens about:addons page in the themes section
+quickactions-themes = Manage themes
+quickactions-cmd-themes = themes
+
+# Opens a SUMO article explaining how to update the browser
 quickactions-update = Update { -brand-short-name }
+quickactions-cmd-update = update
+
+# Opens the view-source UI with current pages source
 quickactions-viewsource = View Source
+quickactions-cmd-viewsource = view source, source
+
+# Tooltip text for the help button shown in the result.
+quickactions-learn-more =
+    .title = Learn more about Quick actions
 
 ## Bookmark Panel
 
@@ -416,17 +479,10 @@ popup-select-microphone-icon =
     .tooltiptext = Microphone
 popup-select-speaker-icon =
     .tooltiptext = Speakers
+popup-select-window-or-screen =
+    .label = Window or screen:
+    .accesskey = W
 popup-all-windows-shared = All visible windows on your screen will be shared.
-
-popup-screen-sharing-block =
-  .label = Block
-  .accesskey = B
-
-popup-screen-sharing-always-block =
-  .label = Always block
-  .accesskey = w
-
-popup-mute-notifications-checkbox = Mute website notifications while sharing
 
 ## WebRTC window or screen share tab switch warning
 
@@ -439,7 +495,7 @@ sharing-warning-disable-for-session =
 
 ## DevTools F12 popup
 
-enable-devtools-popup-description = To use the F12 shortcut, first open DevTools via the Web Developer menu.
+enable-devtools-popup-description2 = To use the F12 shortcut, first open DevTools via the Browser Tools menu.
 
 ## URL Bar
 
@@ -584,6 +640,15 @@ urlbar-group-search-suggestions =
 urlbar-group-quickactions =
   .label = Quick Actions
 
+## Reader View toolbar buttons
+
+# This should match menu-view-enter-readerview in menubar.ftl
+reader-view-enter-button =
+    .aria-label = Enter Reader View
+# This should match menu-view-close-readerview in menubar.ftl
+reader-view-close-button =
+    .aria-label = Close Reader View
+
 ## Full Screen and Pointer Lock UI
 
 # Please ensure that the domain stays in the `<span data-l10n-name="domain">` markup.
@@ -602,20 +667,6 @@ fullscreen-exit-mac-button = Exit Full Screen (esc)
 #  $domain (String): the domain that is using pointer-lock, e.g. "mozilla.org"
 pointerlock-warning-domain = <span data-l10n-name="domain">{ $domain }</span> has control of your pointer. Press Esc to take back control.
 pointerlock-warning-no-domain = This document has control of your pointer. Press Esc to take back control.
-
-## Subframe crash notification
-
-crashed-subframe-message = <strong>Part of this page crashed.</strong> To let { -brand-product-name } know about this issue and get it fixed faster, please submit a report.
-
-# The string for crashed-subframe-title.title should match crashed-subframe-message,
-# but without any markup.
-crashed-subframe-title =
-  .title = Part of this page crashed. To let { -brand-product-name } know about this issue and get it fixed faster, please submit a report.
-crashed-subframe-learnmore-link =
-  .value = Learn more
-crashed-subframe-submit =
-  .label = Submit report
-  .accesskey = S
 
 ## Bookmarks panels, menus and toolbar
 
@@ -656,8 +707,8 @@ bookmarks-search =
   .label = Search bookmarks
 bookmarks-tools =
   .label = Bookmarking Tools
-bookmarks-bookmark-edit-panel =
-  .label = Edit this bookmark
+bookmarks-subview-edit-bookmark =
+  .label = Edit this bookmark…
 
 # The aria-label is a spoken label that should not include the word "toolbar" or
 # such, because screen readers already know that this container is a toolbar.
@@ -674,8 +725,8 @@ bookmarks-toolbar-placeholder-button =
   .label = Bookmarks toolbar items
 
 # "Bookmark" is a verb, as in "Add current tab to bookmarks".
-bookmarks-current-tab =
-  .label = Bookmark current tab
+bookmarks-subview-bookmark-tab =
+  .label = Bookmark current tab…
 
 ## Library Panel items
 
@@ -839,9 +890,6 @@ navbar-library =
 
 navbar-search =
     .title = Search
-
-navbar-accessibility-indicator =
-    .tooltiptext = Accessibility Features Enabled
 
 # Name for the tabs toolbar as spoken by screen readers. The word
 # "toolbar" is appended automatically and should not be included in

@@ -1,4 +1,5 @@
 // Copyright 2019 Google LLC
+// SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -21,7 +21,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/shift_test.cc"
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -43,7 +43,8 @@ struct TestLeftShifts {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
 
-    const auto values = Iota(d, kSigned ? -TI(N) : TI(0));  // value to shift
+    // Values to shift
+    const auto values = Iota(d, static_cast<T>(kSigned ? -TI(N) : TI(0)));
     constexpr size_t kMaxShift = (sizeof(T) * 8) - 1;
 
     // 0
@@ -241,7 +242,7 @@ T RightShiftNegative(T val) {
   // seen divisions replaced with shifts, so resort to bit operations.
   using TU = hwy::MakeUnsigned<T>;
   TU bits;
-  CopyBytes<sizeof(T)>(&val, &bits);
+  CopySameSize(&val, &bits);
 
   const TU shifted = TU(bits >> kAmount);
 
@@ -250,7 +251,7 @@ T RightShiftNegative(T val) {
   const TU sign_extended = static_cast<TU>((all << num_zero) & LimitsMax<TU>());
 
   bits = shifted | sign_extended;
-  CopyBytes<sizeof(T)>(&bits, &val);
+  CopySameSize(&bits, &val);
   return val;
 }
 
@@ -354,7 +355,7 @@ struct TestVariableSignedRightShifts {
     for (size_t i = 0; i < N; ++i) {
       const size_t amount = i & kMaxShift;
       const TU shifted = ~((1ull << (kMaxShift - amount)) - 1);
-      CopyBytes<sizeof(T)>(&shifted, &expected[i]);
+      CopySameSize(&shifted, &expected[i]);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(Set(d, kMin), small_shifts));
 
@@ -362,7 +363,7 @@ struct TestVariableSignedRightShifts {
     for (size_t i = 0; i < N; ++i) {
       const size_t amount = kMaxShift - (i & kMaxShift);
       const TU shifted = ~((1ull << (kMaxShift - amount)) - 1);
-      CopyBytes<sizeof(T)>(&shifted, &expected[i]);
+      CopySameSize(&shifted, &expected[i]);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(Set(d, kMin), large_shifts));
   }
@@ -423,11 +424,5 @@ HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllShifts);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableShifts);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllRotateRight);
 }  // namespace hwy
-
-// Ought not to be necessary, but without this, no tests run on RVV.
-int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
 
 #endif

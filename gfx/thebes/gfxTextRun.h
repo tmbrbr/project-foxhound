@@ -252,6 +252,8 @@ class gfxTextRun : public gfxShapedText {
     gfxContext* context;
     DrawMode drawMode = DrawMode::GLYPH_FILL;
     nscolor textStrokeColor = 0;
+    nsAtom* fontPalette = nullptr;
+    mozilla::gfx::FontPaletteValueSet* paletteValueSet = nullptr;
     gfxPattern* textStrokePattern = nullptr;
     const mozilla::gfx::StrokeOptions* strokeOpts = nullptr;
     const mozilla::gfx::DrawOptions* drawOpts = nullptr;
@@ -675,7 +677,7 @@ class gfxTextRun : public gfxShapedText {
    * that some glyph extents might not be fetched due to OOM or other
    * errors.
    */
-  void FetchGlyphExtents(DrawTarget* aRefDrawTarget);
+  void FetchGlyphExtents(DrawTarget* aRefDrawTarget) const;
 
   const GlyphRun* GetGlyphRuns(uint32_t* aNumGlyphRuns) const {
     if (mHasGlyphRunArray) {
@@ -796,6 +798,9 @@ class gfxTextRun : public gfxShapedText {
   gfxTextRun(const gfxTextRunFactory::Parameters* aParams, uint32_t aLength,
              gfxFontGroup* aFontGroup, mozilla::gfx::ShapedTextFlags aFlags,
              nsTextFrameUtils::Flags aFlags2);
+
+  // Whether we need to fetch actual glyph extents from the fonts.
+  bool NeedsGlyphExtents() const;
 
   /**
    * Helper for the Create() factory method to allocate the required

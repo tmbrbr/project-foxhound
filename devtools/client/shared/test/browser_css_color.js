@@ -3,7 +3,7 @@
 
 "use strict";
 
-var { colorUtils } = require("devtools/shared/css/color");
+var { colorUtils } = require("resource://devtools/shared/css/color.js");
 /* global getFixtureColorData */
 loadHelperScript("helper_color_data.js");
 
@@ -86,7 +86,7 @@ function testColorMatch(name, hex, hsl, rgb, rgba, canvas) {
     // All colors have rgba so we can use this to compare against.
     setColor(rgba);
     const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
-    target = { r: r, g: g, b: b, a: a };
+    target = { r, g, b, a };
   };
   const test = function(color, type) {
     // hsla -> rgba -> hsla produces inaccurate results so we

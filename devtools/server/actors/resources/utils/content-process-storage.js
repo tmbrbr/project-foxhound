@@ -4,17 +4,16 @@
 
 "use strict";
 
-const { storageTypePool } = require("devtools/server/actors/storage");
-const EventEmitter = require("devtools/shared/event-emitter");
-const { Ci } = require("chrome");
-const Services = require("Services");
+const {
+  storageTypePool,
+} = require("resource://devtools/server/actors/storage.js");
+const EventEmitter = require("resource://devtools/shared/event-emitter.js");
 
-loader.lazyRequireGetter(
-  this,
-  "getAddonIdForWindowGlobal",
-  "devtools/server/actors/watcher/browsing-context-helpers.jsm",
-  true
-);
+const lazy = {};
+ChromeUtils.defineESModuleGetters(lazy, {
+  getAddonIdForWindowGlobal:
+    "resource://devtools/server/actors/watcher/browsing-context-helpers.sys.mjs",
+});
 
 // ms of delay to throttle updates
 const BATCH_DELAY = 200;
@@ -35,7 +34,7 @@ function getFilteredStorageEvents(updates, storageType) {
     }
   }
 
-  return Object.keys(filteredUpdate).length > 0 ? filteredUpdate : null;
+  return Object.keys(filteredUpdate).length ? filteredUpdate : null;
 }
 
 class ContentProcessStorage {
@@ -225,7 +224,7 @@ class StorageActorMock extends EventEmitter {
   }
 
   isIncludedInTargetExtension(subject) {
-    const addonId = getAddonIdForWindowGlobal(subject.windowGlobalChild);
+    const addonId = lazy.getAddonIdForWindowGlobal(subject.windowGlobalChild);
     return addonId && addonId === this.targetActor.addonId;
   }
 
@@ -392,7 +391,7 @@ class StorageActorMock extends EventEmitter {
 
       for (const host in data) {
         if (
-          data[host].length == 0 &&
+          !data[host].length &&
           this.boundUpdate.added &&
           this.boundUpdate.added[storeType] &&
           this.boundUpdate.added[storeType][host]
@@ -400,7 +399,7 @@ class StorageActorMock extends EventEmitter {
           delete this.boundUpdate.added[storeType][host];
         }
         if (
-          data[host].length == 0 &&
+          !data[host].length &&
           this.boundUpdate.changed &&
           this.boundUpdate.changed[storeType] &&
           this.boundUpdate.changed[storeType][host]

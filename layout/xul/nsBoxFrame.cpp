@@ -87,14 +87,7 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::gfx;
 
-nsIFrame* NS_NewBoxFrame(PresShell* aPresShell, ComputedStyle* aStyle,
-                         bool aIsRoot, nsBoxLayout* aLayoutManager) {
-  return new (aPresShell)
-      nsBoxFrame(aStyle, aPresShell->GetPresContext(), nsBoxFrame::kClassID,
-                 aIsRoot, aLayoutManager);
-}
-
-nsIFrame* NS_NewBoxFrame(PresShell* aPresShell, ComputedStyle* aStyle) {
+nsContainerFrame* NS_NewBoxFrame(PresShell* aPresShell, ComputedStyle* aStyle) {
   return new (aPresShell) nsBoxFrame(aStyle, aPresShell->GetPresContext());
 }
 
@@ -107,22 +100,16 @@ NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 #endif
 
 nsBoxFrame::nsBoxFrame(ComputedStyle* aStyle, nsPresContext* aPresContext,
-                       ClassID aID, bool aIsRoot, nsBoxLayout* aLayoutManager)
-    : nsContainerFrame(aStyle, aPresContext, aID), mFlex(0), mAscent(0) {
+                       ClassID aID)
+    : nsContainerFrame(aStyle, aPresContext, aID), mAscent(0) {
   AddStateBits(NS_STATE_IS_HORIZONTAL | NS_STATE_AUTO_STRETCH);
-
-  if (aIsRoot) AddStateBits(NS_STATE_IS_ROOT);
 
   mValign = vAlign_Top;
   mHalign = hAlign_Left;
 
-  // if no layout manager specified us the static sprocket layout
-  nsCOMPtr<nsBoxLayout> layout = aLayoutManager;
-
-  if (layout == nullptr) {
-    NS_NewSprocketLayout(layout);
-  }
-
+  // Use the static sprocket layout
+  nsCOMPtr<nsBoxLayout> layout;
+  NS_NewSprocketLayout(layout);
   SetXULLayoutManager(layout);
 }
 
@@ -538,7 +525,7 @@ void nsBoxFrame::Reflow(nsPresContext* aPresContext, ReflowOutput& aDesiredSize,
 
   // getting the ascent could be a lot of work. Don't get it if
   // we are the root. The viewport doesn't care about it.
-  if (!(mState & NS_STATE_IS_ROOT)) {
+  if (!Style()->IsRootElementStyle()) {
     ascent = GetXULBoxAscent(state);
   }
 
@@ -561,8 +548,6 @@ void nsBoxFrame::Reflow(nsPresContext* aPresContext, ReflowOutput& aDesiredSize,
 #endif
 
   ReflowAbsoluteFrames(aPresContext, aDesiredSize, aReflowInput, aStatus);
-
-  NS_FRAME_SET_TRUNCATION(aStatus, aReflowInput, aDesiredSize);
 }
 
 nsSize nsBoxFrame::GetXULPrefSize(nsBoxLayoutState& aBoxLayoutState) {
@@ -675,14 +660,6 @@ nsSize nsBoxFrame::GetXULMaxSize(nsBoxLayoutState& aBoxLayoutState) {
   return size;
 }
 
-nscoord nsBoxFrame::GetXULFlex() {
-  if (XULNeedsRecalc(mFlex)) {
-    nsIFrame::AddXULFlex(this, mFlex);
-  }
-
-  return mFlex;
-}
-
 /**
  * If subclassing please subclass this method not layout.
  * layout will call this method.
@@ -717,7 +694,7 @@ nsBoxFrame::DoXULLayout(nsBoxLayoutState& aState) {
 
     // getting the ascent could be a lot of work. Don't get it if
     // we are the root. The viewport doesn't care about it.
-    if (!(mState & NS_STATE_IS_ROOT)) {
+    if (!Style()->IsRootElementStyle()) {
       ascent = GetXULBoxAscent(aState);
     }
     desiredSize.SetBlockStartAscent(ascent);
@@ -748,7 +725,6 @@ void nsBoxFrame::MarkIntrinsicISizesDirty() {
   XULSizeNeedsRecalc(mPrefSize);
   XULSizeNeedsRecalc(mMinSize);
   XULSizeNeedsRecalc(mMaxSize);
-  XULCoordNeedsRecalc(mFlex);
   XULCoordNeedsRecalc(mAscent);
 
   if (mLayoutManager) {
@@ -820,14 +796,6 @@ void nsBoxFrame::AppendFrames(ChildListID aListID, nsFrameList& aFrameList) {
   }
 }
 
-/* virtual */
-nsContainerFrame* nsBoxFrame::GetContentInsertionFrame() {
-  if (HasAnyStateBits(NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK)) {
-    return PrincipalChildList().FirstChild()->GetContentInsertionFrame();
-  }
-  return nsContainerFrame::GetContentInsertionFrame();
-}
-
 nsresult nsBoxFrame::AttributeChanged(int32_t aNameSpaceID, nsAtom* aAttribute,
                                       int32_t aModType) {
   nsresult rv =
@@ -846,9 +814,9 @@ nsresult nsBoxFrame::AttributeChanged(int32_t aNameSpaceID, nsAtom* aAttribute,
       aAttribute == nsGkAtoms::align || aAttribute == nsGkAtoms::valign ||
       aAttribute == nsGkAtoms::minwidth || aAttribute == nsGkAtoms::maxwidth ||
       aAttribute == nsGkAtoms::minheight ||
-      aAttribute == nsGkAtoms::maxheight || aAttribute == nsGkAtoms::flex ||
-      aAttribute == nsGkAtoms::orient || aAttribute == nsGkAtoms::pack ||
-      aAttribute == nsGkAtoms::dir || aAttribute == nsGkAtoms::equalsize) {
+      aAttribute == nsGkAtoms::maxheight || aAttribute == nsGkAtoms::orient ||
+      aAttribute == nsGkAtoms::pack || aAttribute == nsGkAtoms::dir ||
+      aAttribute == nsGkAtoms::equalsize) {
     if (aAttribute == nsGkAtoms::align || aAttribute == nsGkAtoms::valign ||
         aAttribute == nsGkAtoms::orient || aAttribute == nsGkAtoms::pack ||
         aAttribute == nsGkAtoms::dir) {
@@ -1000,12 +968,6 @@ nsresult nsBoxFrame::GetFrameName(nsAString& aResult) const {
   return MakeFrameName(u"Box"_ns, aResult);
 }
 #endif
-
-void nsBoxFrame::AppendDirectlyOwnedAnonBoxes(nsTArray<OwnedAnonBox>& aResult) {
-  if (HasAnyStateBits(NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK)) {
-    aResult.AppendElement(OwnedAnonBox(PrincipalChildList().FirstChild()));
-  }
-}
 
 nsresult nsBoxFrame::LayoutChildAt(nsBoxLayoutState& aState, nsIFrame* aBox,
                                    const nsRect& aRect) {

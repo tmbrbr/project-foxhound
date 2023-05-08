@@ -67,7 +67,7 @@ class FrameworkGatherer(object):
             return self._manifest_path
 
         yaml_content = read_yaml(self._yaml_path)
-        self._manifest_path = os.path.join(self.workspace_dir, yaml_content["manifest"])
+        self._manifest_path = pathlib.Path(self.workspace_dir, yaml_content["manifest"])
         return self._manifest_path
 
     def get_suite_list(self):
@@ -121,7 +121,7 @@ class RaptorGatherer(FrameworkGatherer):
         manifest_path = self.get_manifest_path()
 
         # Get the tests from the manifest
-        test_manifest = TestManifest([manifest_path], strict=False)
+        test_manifest = TestManifest([str(manifest_path)], strict=False)
         test_list = test_manifest.active_tests(exists=False, disabled=False)
 
         # Parse the tests into the expected dictionary
@@ -167,8 +167,8 @@ class RaptorGatherer(FrameworkGatherer):
         :param str manifest_path: path to the ini file
         :return list: the list of the tests
         """
-        desc_exclusion = ["here", "manifest", "manifest_relpath", "path", "relpath"]
-        test_manifest = TestManifest([manifest_path], strict=False)
+        desc_exclusion = ["here", "manifest_relpath", "path", "relpath"]
+        test_manifest = TestManifest([str(manifest_path)], strict=False)
         test_list = test_manifest.active_tests(exists=False, disabled=False)
         subtests = {}
         for subtest in test_list:
@@ -178,6 +178,15 @@ class RaptorGatherer(FrameworkGatherer):
             for key, value in subtest.items():
                 if key not in desc_exclusion:
                     description[key] = value
+
+            # Prepare alerting metrics for verification
+            description["metrics"] = [
+                metric.strip()
+                for metric in description.get("alert_on", "").split(",")
+                if metric.strip() != ""
+            ]
+
+            subtests[subtest["name"]] = description
             self._descriptions.setdefault(suite_name, []).append(description)
 
         self._descriptions[suite_name].sort(key=lambda item: item["name"])
@@ -252,7 +261,7 @@ class RaptorGatherer(FrameworkGatherer):
                 result += f"   **Owner**: {description['owner']}\n\n"
 
             for key in sorted(description.keys()):
-                if key in ["owner", "name"]:
+                if key in ["owner", "name", "manifest", "metrics"]:
                     continue
                 sub_title = key.replace("_", " ")
                 if key == "test_url":
@@ -323,7 +332,7 @@ class MozperftestGatherer(FrameworkGatherer):
         for path in pathlib.Path(self.workspace_dir).rglob("perftest.ini"):
             if "obj-" in str(path):
                 continue
-            suite_name = re.sub(self.workspace_dir, "", os.path.dirname(path))
+            suite_name = str(path.parent).replace(str(self.workspace_dir), "")
 
             # If the workspace dir doesn't end with a forward-slash,
             # the substitution above won't work completely
@@ -341,7 +350,7 @@ class MozperftestGatherer(FrameworkGatherer):
                 si = ScriptInfo(test["path"])
                 self.script_infos[si["name"]] = si
                 self._test_list.setdefault(suite_name.replace("\\", "/"), {}).update(
-                    {si["name"]: str(path)}
+                    {si["name"]: {"path": str(path)}}
                 )
 
         return self._test_list
@@ -356,7 +365,7 @@ class MozperftestGatherer(FrameworkGatherer):
 class TalosGatherer(FrameworkGatherer):
     def _get_ci_tasks(self):
         with open(
-            os.path.join(self.workspace_dir, "testing", "talos", "talos.json")
+            pathlib.Path(self.workspace_dir, "testing", "talos", "talos.json")
         ) as f:
             config_suites = json.load(f)["suites"]
 
@@ -394,7 +403,7 @@ class TalosGatherer(FrameworkGatherer):
         suite_name = "Talos Tests"
 
         for test in test_lists:
-            self._test_list.setdefault(suite_name, {}).update({test: ""})
+            self._test_list.setdefault(suite_name, {}).update({test: {}})
 
             klass = getattr(mod, test)
             self._descriptions.setdefault(test, klass.__dict__)
@@ -435,7 +444,13 @@ class TalosGatherer(FrameworkGatherer):
                 elif key == "filters":
                     continue
 
-                result += f"   * {key}: {self._descriptions[title][key]}\n"
+                # On windows, we get the paths in the wrong style
+                value = self._descriptions[title][key]
+                if isinstance(value, dict):
+                    for k, v in value.items():
+                        if isinstance(v, str) and "\\" in v:
+                            value[k] = str(v).replace("\\", r"/")
+                result += r"   * " + key + r": " + str(value) + r"\n"
 
         if self._task_list.get(title, []):
             result += "   * **Test Task**:\n\n"
@@ -499,10 +514,10 @@ class AwsyGatherer(FrameworkGatherer):
         self._generate_ci_tasks()
         return {
             "Awsy tests": {
-                "tp6": "",
-                "base": "",
-                "dmd": "",
-                "tp5": "",
+                "tp6": {},
+                "base": {},
+                "dmd": {},
+                "tp5": {},
             }
         }
 

@@ -174,7 +174,10 @@ class JS_PUBLIC_API RealmCreationOptions {
 
   bool getStreamsEnabled() const { return streams_; }
   RealmCreationOptions& setStreamsEnabled(bool flag) {
-#ifndef MOZ_DOM_STREAMS
+#ifdef MOZ_JS_STREAMS
+#  ifdef MOZ_DOM_STREAMS
+#    error "JS and DOM streams shouldn't be simultaneously configured"
+#  endif
     streams_ = flag;
 #else
     MOZ_ASSERT(!streams_);
@@ -218,6 +221,14 @@ class JS_PUBLIC_API RealmCreationOptions {
   bool getArrayGroupingEnabled() const { return arrayGrouping_; }
   RealmCreationOptions& setArrayGroupingEnabled(bool flag) {
     arrayGrouping_ = flag;
+    return *this;
+  }
+#endif
+
+#ifdef ENABLE_CHANGE_ARRAY_BY_COPY
+  bool getChangeArrayByCopyEnabled() const { return changeArrayByCopy_; }
+  RealmCreationOptions& setChangeArrayByCopyEnabled(bool flag) {
+    changeArrayByCopy_ = flag;
     return *this;
   }
 #endif
@@ -276,6 +287,9 @@ class JS_PUBLIC_API RealmCreationOptions {
   bool shadowRealms_ = false;
 #ifdef NIGHTLY_BUILD
   bool arrayGrouping_ = true;
+#endif
+#ifdef ENABLE_CHANGE_ARRAY_BY_COPY
+  bool changeArrayByCopy_ = false;
 #endif
 #ifdef ENABLE_NEW_SET_METHODS
   bool newSetMethods_ = false;

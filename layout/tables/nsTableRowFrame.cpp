@@ -10,6 +10,7 @@
 #include "nsTableRowGroupFrame.h"
 #include "nsPresContext.h"
 #include "mozilla/ComputedStyle.h"
+#include "mozilla/StaticPrefs_layout.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
@@ -214,8 +215,7 @@ void nsTableRowFrame::AppendFrames(ChildListID aListID,
 
   // Add the new cell frames to the table
   nsTableFrame* tableFrame = GetTableFrame();
-  for (nsFrameList::Enumerator e(newCells); !e.AtEnd(); e.Next()) {
-    nsIFrame* childFrame = e.get();
+  for (nsIFrame* childFrame : newCells) {
     NS_ASSERTION(childFrame->IsTableCellFrame(),
                  "Not a table cell frame/pseudo frame construction failure");
     tableFrame->AppendCell(static_cast<nsTableCellFrame&>(*childFrame),
@@ -250,8 +250,7 @@ void nsTableRowFrame::InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
       static_cast<nsTableCellFrame*>(nsTableFrame::GetFrameAtOrBefore(
           this, aPrevFrame, LayoutFrameType::TableCell));
   nsTArray<nsTableCellFrame*> cellChildren;
-  for (nsFrameList::Enumerator e(newCells); !e.AtEnd(); e.Next()) {
-    nsIFrame* childFrame = e.get();
+  for (nsIFrame* childFrame : newCells) {
     NS_ASSERTION(childFrame->IsTableCellFrame(),
                  "Not a table cell frame/pseudo frame construction failure");
     cellChildren.AppendElement(static_cast<nsTableCellFrame*>(childFrame));
@@ -1058,8 +1057,6 @@ void nsTableRowFrame::Reflow(nsPresContext* aPresContext,
   // nsIFrame::FixupPositionedTableParts in another pass, so propagate our
   // dirtiness to them before our parent clears our dirty bits.
   PushDirtyBitToAbsoluteFrames();
-
-  NS_FRAME_SET_TRUNCATION(aStatus, aReflowInput, aDesiredSize);
 }
 
 /**
@@ -1073,6 +1070,8 @@ nscoord nsTableRowFrame::ReflowCellFrame(nsPresContext* aPresContext,
                                          nsTableCellFrame* aCellFrame,
                                          nscoord aAvailableBSize,
                                          nsReflowStatus& aStatus) {
+  MOZ_ASSERT(aAvailableBSize != NS_UNCONSTRAINEDSIZE,
+             "Why split cell frame if available bsize is unconstrained?");
   WritingMode wm = aReflowInput.GetWritingMode();
 
   // Reflow the cell frame with the specified height. Use the existing width
@@ -1096,8 +1095,11 @@ nscoord nsTableRowFrame::ReflowCellFrame(nsPresContext* aPresContext,
 
   ReflowChild(aCellFrame, aPresContext, desiredSize, cellReflowInput, 0, 0,
               ReflowChildFlags::NoMoveFrame, aStatus);
-  bool fullyComplete = aStatus.IsComplete() && !aStatus.IsTruncated();
-  if (fullyComplete) {
+  const bool isTruncated =
+      aAvailableBSize < desiredSize.BSize(wm) &&
+      !aIsTopOfPage;  // XXX Is !aIsTopOfPage check really necessary?
+  const bool isCompleteAndNotTruncated = aStatus.IsComplete() && !isTruncated;
+  if (isCompleteAndNotTruncated) {
     desiredSize.BSize(wm) = aAvailableBSize;
   }
   aCellFrame->SetSize(
@@ -1106,7 +1108,7 @@ nscoord nsTableRowFrame::ReflowCellFrame(nsPresContext* aPresContext,
   // Note: BlockDirAlignChild can affect the overflow rect.
   // XXX What happens if this cell has 'vertical-align: baseline' ?
   // XXX Why is it assumed that the cell's ascent hasn't changed ?
-  if (fullyComplete) {
+  if (isCompleteAndNotTruncated) {
     aCellFrame->BlockDirAlignChild(wm, mMaxCellAscent);
   }
 

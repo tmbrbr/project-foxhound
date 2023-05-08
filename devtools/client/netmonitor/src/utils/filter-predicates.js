@@ -6,7 +6,7 @@
 
 const {
   isFreetextMatch,
-} = require("devtools/client/netmonitor/src/utils/filter-text-utils");
+} = require("resource://devtools/client/netmonitor/src/utils/filter-text-utils.js");
 
 /**
  * Predicates used when filtering items.
@@ -122,7 +122,7 @@ function isOther(item) {
 
 module.exports = {
   Filters: {
-    all: all,
+    all,
     html: isHtml,
     css: isCss,
     js: isJs,

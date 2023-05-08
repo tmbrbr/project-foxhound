@@ -24,7 +24,7 @@
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"
 #include "mozilla/Casting.h"
-#include "mozilla/EditorUtils.h"
+#include "mozilla/TextEditor.h"
 #include "mozilla/dom/CharacterData.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLBRElement.h"
@@ -107,10 +107,44 @@ static void DetermineLineBreak(const int32_t aFlags, nsAString& aLineBreak) {
 
 void nsPlainTextSerializer::CurrentLine::MaybeReplaceNbspsInContent(
     const int32_t aFlags) {
+  // HTML editors may enforce consecutive spaces in HTML output by replacing
+  // them with non-breaking spaces.
+  // Here we revert this hack when converting HTML text to plain text.
   if (!(aFlags & nsIDocumentEncoder::OutputPersistNBSP)) {
-    // First, replace all nbsp characters with spaces,
-    // which the unicode encoder won't do for us.
-    mContent.ReplaceChar(kNBSP, kSPACE);
+    //
+    // Replace NBSP characters with spaces if they are adjacent to a space.
+    //
+    const uint32_t length = mContent.Length();
+    bool containsSpace = false;
+    bool containsNBSP = false;
+    // 1. Inspect the string forwards, and replace NBSPs that are **after**
+    // regular spaces.
+    //
+    // After that loop, all sequences of "spaceNBSP*" have been replaced by
+    // equally long "space*" sequences.
+    for (uint32_t i = 0; i < length; i++) {
+      if (mContent[i] == kSPACE) {
+        containsSpace = true;
+      } else if (mContent[i] == kNBSP) {
+        if (i > 0 && mContent[i - 1] == kSPACE) {
+          mContent.SetCharAt(kSPACE, i);
+        } else {
+          containsNBSP = true;
+        }
+      }
+    }
+    // 2. If we found spaces and didn't replace all relevant NBSPs, inpect the
+    // string backwards, and replace NBSPs that are **before** regular spaces.
+    //
+    // After that loop, all sequences of "NBSP*space" have been replaced by
+    // equally long "space*" sequences.
+    if (containsSpace && containsNBSP && length >= 1) {
+      for (uint32_t i = length - 1; i > 0; i--) {
+        if (mContent[i - 1] == kNBSP && mContent[i] == kSPACE) {
+          mContent.SetCharAt(kSPACE, i - 1);
+        }
+      }
+    }
   }
 }
 
@@ -430,13 +464,13 @@ nsPlainTextSerializer::AppendText(nsIContent* aText, int32_t aStartOffset,
 
   // Mask the text if the text node is in a password field.
   if (content->HasFlag(NS_MAYBE_MASKED)) {
-    EditorUtils::MaskString(textstr, *content->AsText(), 0, aStartOffset);
+    TextEditor::MaskString(textstr, *content->AsText(), 0, aStartOffset);
   }
 
   // We have to split the string across newlines
   // to match parser behavior
   int32_t start = 0;
-  int32_t offset = textstr.FindCharInSet("\n\r");
+  int32_t offset = textstr.FindCharInSet(u"\n\r");
   while (offset != kNotFound) {
     if (offset > start) {
       // Pass in the line
@@ -447,7 +481,7 @@ nsPlainTextSerializer::AppendText(nsIContent* aText, int32_t aStartOffset,
     DoAddText();
 
     start = offset + 1;
-    offset = textstr.FindCharInSet("\n\r", start);
+    offset = textstr.FindCharInSet(u"\n\r", start);
   }
 
   // Consume the last bit of the string if there's any left
@@ -644,13 +678,13 @@ nsresult nsPlainTextSerializer::DoOpenContainer(const nsAtom* aTag) {
     nsAutoString style;
     int32_t whitespace;
     if (NS_SUCCEEDED(GetAttributeValue(nsGkAtoms::style, style)) &&
-        (kNotFound != (whitespace = style.Find("white-space:")))) {
-      if (kNotFound != style.Find("pre-wrap", true, whitespace)) {
+        (kNotFound != (whitespace = style.Find(u"white-space:")))) {
+      if (kNotFound != style.LowerCaseFindASCII("pre-wrap", whitespace)) {
 #ifdef DEBUG_preformatted
         printf("Set mPreFormattedMail based on style pre-wrap\n");
 #endif
         mPreFormattedMail = true;
-      } else if (kNotFound != style.Find("pre", true, whitespace)) {
+      } else if (kNotFound != style.LowerCaseFindASCII("pre", whitespace)) {
 #ifdef DEBUG_preformatted
         printf("Set mPreFormattedMail based on style pre\n");
 #endif
@@ -1583,7 +1617,7 @@ void nsPlainTextSerializer::Write(const nsAString& aStr) {
   int32_t bol = 0;
   while (bol < totLen) {  // Loop over lines
     // Find a place where we may have to do whitespace compression
-    nextpos = str.FindCharInSet(" \t\n\r", bol);
+    nextpos = str.FindCharInSet(u" \t\n\r", bol);
 #ifdef DEBUG_wrapping
     nsAutoString remaining;
     str.Right(remaining, totLen - bol);
@@ -1670,8 +1704,11 @@ nsresult nsPlainTextSerializer::GetAttributeValue(const nsAtom* aName,
 bool nsPlainTextSerializer::IsCurrentNodeConverted() const {
   nsAutoString value;
   nsresult rv = GetAttributeValue(nsGkAtoms::_class, value);
-  return (NS_SUCCEEDED(rv) && (value.EqualsIgnoreCase("moz-txt", 7) ||
-                               value.EqualsIgnoreCase("\"moz-txt", 8)));
+  return (NS_SUCCEEDED(rv) &&
+          (StringBeginsWith(value, u"moz-txt"_ns,
+                            nsASCIICaseInsensitiveStringComparator) ||
+           StringBeginsWith(value, u"\"moz-txt"_ns,
+                            nsASCIICaseInsensitiveStringComparator)));
 }
 
 // static

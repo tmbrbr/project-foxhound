@@ -11,7 +11,7 @@
 // And especially cover sources being GC-ed before DevTools are opened
 // which are later recreated by `ThreadActor.resurrectSource`.
 
-const ResourceCommand = require("devtools/shared/commands/resource/resource-command");
+const ResourceCommand = require("resource://devtools/shared/commands/resource/resource-command.js");
 
 const TEST_URL = URL_ROOT_SSL + "sources.html";
 
@@ -344,7 +344,7 @@ add_task(async function testParentProcessPrivilegedSources() {
     onAvailable: resources => availableResources.push(...resources),
   });
   ok(
-    availableResources.length > 0,
+    !!availableResources.length,
     "We get many sources reported from a multiprocess command"
   );
 

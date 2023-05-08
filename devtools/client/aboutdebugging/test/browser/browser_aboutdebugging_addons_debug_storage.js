@@ -16,7 +16,7 @@ add_task(async () => {
 
   const { extension } = await installTemporaryExtensionFromXPI(
     {
-      background: function() {
+      background() {
         const open = indexedDB.open("TestDatabase", 1);
 
         open.onupgradeneeded = function() {
@@ -40,7 +40,7 @@ add_task(async () => {
     document
   );
 
-  const { devtoolsTab, devtoolsWindow } = await openAboutDevtoolsToolbox(
+  const { devtoolsWindow } = await openAboutDevtoolsToolbox(
     document,
     tab,
     window,
@@ -71,8 +71,11 @@ add_task(async () => {
   storage.UI.tree.selectedItem = ids;
   await updated;
 
-  info("Check the content of the storage panel table");
+  info("Wait until table populated");
+  await waitUntil(() => storage.UI.table.items.size === 2);
   const items = storage.UI.table.items;
+
+  info("Check the content of the storage panel table");
   is(items.size, 2);
   const user1 = JSON.parse(items.get(1).value);
   const user2 = JSON.parse(items.get(2).value);
@@ -81,7 +84,7 @@ add_task(async () => {
   is(user2.name, "Bob", "user 2 has the expected name");
   is(user2.age, 24, "user 2 has the expected age");
 
-  await closeAboutDevtoolsToolbox(document, devtoolsTab, window);
+  await closeWebExtAboutDevtoolsToolbox(devtoolsWindow, window);
   await removeTemporaryExtension(EXTENSION_NAME, document);
   await removeTab(tab);
 });

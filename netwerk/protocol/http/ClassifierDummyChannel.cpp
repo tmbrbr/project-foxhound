@@ -154,7 +154,8 @@ ClassifierDummyChannel::SetNotificationCallbacks(
 }
 
 NS_IMETHODIMP
-ClassifierDummyChannel::GetSecurityInfo(nsISupports** aSecurityInfo) {
+ClassifierDummyChannel::GetSecurityInfo(
+    nsITransportSecurityInfo** aSecurityInfo) {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -264,6 +265,20 @@ ClassifierDummyChannel::IsPending(bool* aRetval) {
 
 NS_IMETHODIMP
 ClassifierDummyChannel::GetStatus(nsresult* aStatus) {
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP ClassifierDummyChannel::SetCanceledReason(
+    const nsACString& aReason) {
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP ClassifierDummyChannel::GetCanceledReason(nsACString& aReason) {
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP ClassifierDummyChannel::CancelWithReason(
+    nsresult aStatus, const nsACString& aReason) {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 

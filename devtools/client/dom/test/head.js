@@ -12,7 +12,7 @@ Services.scriptloader.loadSubScript(
 );
 
 // DOM panel actions.
-const constants = require("devtools/client/dom/content/constants");
+const constants = require("resource://devtools/client/dom/content/constants.js");
 
 // Uncomment this pref to dump all devtools emitted events to the console.
 // Services.prefs.setBoolPref("devtools.dom.enabled", true);
@@ -46,7 +46,7 @@ async function addTestTab(url) {
   // initialization. So this might be racy.
   const doc = panel.panelWin.document;
   const nodes = [...doc.querySelectorAll(".treeLabel")];
-  ok(nodes.length > 0, "The DOM panel is already populated");
+  ok(!!nodes.length, "The DOM panel is already populated");
 
   return {
     tab,

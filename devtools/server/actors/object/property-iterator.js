@@ -4,17 +4,15 @@
 
 "use strict";
 
-const { Cu } = require("chrome");
-const DevToolsUtils = require("devtools/shared/DevToolsUtils");
-const protocol = require("devtools/shared/protocol");
+const DevToolsUtils = require("resource://devtools/shared/DevToolsUtils.js");
+const protocol = require("resource://devtools/shared/protocol.js");
 const {
   propertyIteratorSpec,
-} = require("devtools/shared/specs/property-iterator");
-loader.lazyRequireGetter(this, "ChromeUtils");
+} = require("resource://devtools/shared/specs/property-iterator.js");
 loader.lazyRequireGetter(
   this,
   "ObjectUtils",
-  "devtools/server/actors/object/utils"
+  "resource://devtools/server/actors/object/utils.js"
 );
 
 /**
@@ -68,7 +66,12 @@ const PropertyIteratorActor = protocol.ActorClassWithSpec(
           this.iterator = enumStorageEntries(objectActor);
         } else if (cls == "URLSearchParams") {
           this.iterator = enumURLSearchParamsEntries(objectActor);
-        } else {
+        } else if (cls == "Headers") {
+          this.iterator = enumHeadersEntries(objectActor);
+        } else if (cls == "FormData") {
+          this.iterator = enumFormDataEntries(objectActor);
+        }
+         else {
           throw new Error(
             "Unsupported class to enumerate entries from: " + cls
           );
@@ -381,6 +384,61 @@ function enumURLSearchParamsEntries(objectActor) {
   };
 }
 
+function enumFormDataEntries(objectActor) {
+  let obj = objectActor.obj;
+  let raw = obj.unsafeDereference();
+  const entries = [...waiveXrays(FormData.prototype.entries.call(raw))];
+
+  return {
+    [Symbol.iterator]: function*() {
+      for (const [key, value] of entries) {
+        yield [key, value];
+      }
+    },
+    size: entries.length,
+    propertyName(index) {
+      return index;
+    },
+    propertyDescription(index) {
+      const [key, value] = entries[index];
+
+      return {
+        enumerable: true,
+        value: {
+          type: "formDataEntry",
+          preview: {
+            key: gripFromEntry(objectActor, key),
+            value: gripFromEntry(objectActor, value),
+          },
+        },
+      };
+    },
+  };
+}
+
+function enumHeadersEntries(objectActor) {
+  let raw = objectActor.obj.unsafeDereference();
+  const entries = [...waiveXrays(Headers.prototype.entries.call(raw))];
+
+  return {
+    [Symbol.iterator]: function*() {
+      for (const [key, value] of entries) {
+        yield [key, value];
+      }
+    },
+    size: entries.length,
+    propertyName(index) {
+      return entries[index][0];
+    },
+    propertyDescription(index) {
+      return {
+        enumerable: true,
+        value: gripFromEntry(objectActor, entries[index][1]),
+      };
+    },
+  };
+}
+
 function getWeakMapEntries(obj) {
   // We currently lack XrayWrappers for WeakMap, so when we iterate over
   // the values, the temporary iterator objects get created in the target
@@ -525,6 +583,8 @@ module.exports = {
   enumMapEntries,
   enumSetEntries,
   enumURLSearchParamsEntries,
+  enumFormDataEntries,
+  enumHeadersEntries,
   enumWeakMapEntries,
   enumWeakSetEntries,
 };

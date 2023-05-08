@@ -26,16 +26,19 @@
 #include "gc/ZoneAllocator.h"  // for AddCellMemory
 #include "js/CallArgs.h"       // for CallArgs, CallArgsFromVp
 #include "js/friend/ErrorMessages.h"  // for GetErrorMessage, JSMSG_*
+#include "js/GCVariant.h"             // for GCVariant
 #include "js/HeapAPI.h"               // for GCCellPtr
 #include "js/RootingAPI.h"            // for Rooted
 #include "js/Wrapper.h"               // for UncheckedUnwrap
 #include "vm/ArrayObject.h"           // for ArrayObject
 #include "vm/BytecodeUtil.h"          // for GET_JUMP_OFFSET
+#include "vm/Compartment.h"           // for JS::Compartment
 #include "vm/EnvironmentObject.h"     // for EnvironmentCoordinateNameSlow
 #include "vm/GlobalObject.h"          // for GlobalObject
 #include "vm/JSContext.h"             // for JSContext, ReportValueError
 #include "vm/JSFunction.h"            // for JSFunction
 #include "vm/JSObject.h"              // for RequireObject, JSObject
+#include "vm/JSScript.h"              // for BaseScript
 #include "vm/ObjectOperations.h"      // for DefineDataProperty, HasOwnProperty
 #include "vm/PlainObject.h"           // for js::PlainObject
 #include "vm/Realm.h"                 // for AutoRealm
@@ -1514,9 +1517,12 @@ static bool BytecodeIsEffectful(JSOp op) {
     case JSOp::InitHiddenElemSetter:
     case JSOp::SpreadCall:
     case JSOp::Call:
+    case JSOp::CallContent:
     case JSOp::CallIgnoresRv:
     case JSOp::CallIter:
+    case JSOp::CallContentIter:
     case JSOp::New:
+    case JSOp::NewContent:
     case JSOp::Eval:
     case JSOp::StrictEval:
     case JSOp::Int8:

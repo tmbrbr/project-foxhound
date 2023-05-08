@@ -2,9 +2,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-
 import os
+from taskgraph import config as taskgraph_config
+from taskgraph import morph as taskgraph_morph
 from taskgraph.util import taskcluster as tc_util, schema
+
+from gecko_taskgraph.config import graph_config_schema
 
 GECKO = os.path.normpath(os.path.realpath(os.path.join(__file__, "..", "..", "..")))
 
@@ -14,22 +17,25 @@ GECKO = os.path.normpath(os.path.realpath(os.path.join(__file__, "..", "..", "..
 # taskgraph.create, so let's set this to 99.
 MAX_DEPENDENCIES = 99
 
+# Overwrite Taskgraph's default graph_config_schema with a custom one.
+taskgraph_config.graph_config_schema = graph_config_schema
+
+# Don't use any of the upstream morphs.
+# TODO Investigate merging our morphs with upstream.
+taskgraph_morph.registered_morphs = []
+
 # Default rootUrl to use if none is given in the environment; this should point
 # to the production Taskcluster deployment used for CI.
 tc_util.PRODUCTION_TASKCLUSTER_ROOT_URL = "https://firefox-ci-tc.services.mozilla.com"
 
-# Schemas for YAML files should use dashed identifiers by default.  If there are
+# Schemas for YAML files should use dashed identifiers by default. If there are
 # components of the schema for which there is a good reason to use another format,
-# they can be whitelisted here.
-schema.WHITELISTED_SCHEMA_IDENTIFIERS.extend(
+# exceptions can be added here.
+schema.EXCEPTED_SCHEMA_IDENTIFIERS.extend(
     [
-        # upstream-artifacts are handed directly to scriptWorker, which expects interCaps
-        lambda path: "[{!r}]".format("upstream-artifacts") in path,
-        lambda path: (
-            "[{!r}]".format("test_name") in path
-            or "[{!r}]".format("json_location") in path
-            or "[{!r}]".format("video_location") in path
-        ),
+        "test_name",
+        "json_location",
+        "video_location",
     ]
 )
 
@@ -44,5 +50,6 @@ def register(graph_config):
     from gecko_taskgraph import (  # noqa: trigger target task method registration
         target_tasks,
     )
+    from gecko_taskgraph import morph  # noqa: trigger morph registration
 
     register_parameters()

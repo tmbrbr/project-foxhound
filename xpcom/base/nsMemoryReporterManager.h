@@ -179,10 +179,17 @@ class nsMemoryReporterManager final : public nsIMemoryReporterManager,
 #ifdef XP_WIN
   static int64_t ResidentUnique(HANDLE aProcess = nullptr);
 #elif XP_MACOSX
+  // On MacOS this can sometimes be significantly slow. It should not be used
+  // except in debugging or at the request of a user (eg about:memory).
   static int64_t ResidentUnique(mach_port_t aPort = 0);
 #else
   static int64_t ResidentUnique(pid_t aPid = 0);
 #endif  // XP_{WIN, MACOSX, LINUX, *}
+
+#ifdef XP_MACOSX
+  // Retrive the "phys_footprint" memory statistic on MacOS.
+  static int64_t PhysicalFootprint(mach_port_t aPort = 0);
+#endif
 
   // Functions that measure per-tab memory consumption.
   struct SizeOfTabFns {
@@ -192,7 +199,7 @@ class nsMemoryReporterManager final : public nsIMemoryReporterManager,
   SizeOfTabFns mSizeOfTabFns;
 
  private:
-  bool IsRegistrationBlocked() EXCLUDES(mMutex) {
+  bool IsRegistrationBlocked() MOZ_EXCLUDES(mMutex) {
     mozilla::MutexAutoLock lock(mMutex);
     return mIsRegistrationBlocked;
   }
@@ -215,14 +222,14 @@ class nsMemoryReporterManager final : public nsIMemoryReporterManager,
   static const uint32_t kTimeoutLengthMS = 180000;
 
   mozilla::Mutex mMutex;
-  bool mIsRegistrationBlocked GUARDED_BY(mMutex);
+  bool mIsRegistrationBlocked MOZ_GUARDED_BY(mMutex);
 
-  StrongReportersTable* mStrongReporters GUARDED_BY(mMutex);
-  WeakReportersTable* mWeakReporters GUARDED_BY(mMutex);
+  StrongReportersTable* mStrongReporters MOZ_GUARDED_BY(mMutex);
+  WeakReportersTable* mWeakReporters MOZ_GUARDED_BY(mMutex);
 
   // These two are only used for testing purposes.
-  StrongReportersTable* mSavedStrongReporters GUARDED_BY(mMutex);
-  WeakReportersTable* mSavedWeakReporters GUARDED_BY(mMutex);
+  StrongReportersTable* mSavedStrongReporters MOZ_GUARDED_BY(mMutex);
+  WeakReportersTable* mSavedWeakReporters MOZ_GUARDED_BY(mMutex);
 
   uint32_t mNextGeneration;  // MainThread only
 
@@ -284,7 +291,7 @@ class nsMemoryReporterManager final : public nsIMemoryReporterManager,
   PendingReportersState* mPendingReportersState;  // MainThread only
 
   // Used in GetHeapAllocatedAsync() to run jemalloc_stats async.
-  nsCOMPtr<nsIEventTarget> mThreadPool GUARDED_BY(mMutex);
+  nsCOMPtr<nsIEventTarget> mThreadPool MOZ_GUARDED_BY(mMutex);
 
   PendingProcessesState* GetStateForGeneration(uint32_t aGeneration);
   [[nodiscard]] static bool StartChildReport(

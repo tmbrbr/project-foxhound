@@ -494,9 +494,7 @@ NS_IMETHODIMP
 nsFocusManager::ElementIsFocusable(Element* aElement, uint32_t aFlags,
                                    bool* aIsFocusable) {
   NS_ENSURE_TRUE(aElement, NS_ERROR_INVALID_ARG);
-
-  *aIsFocusable = FlushAndCheckIfFocusable(aElement, aFlags) != nullptr;
-
+  *aIsFocusable = !!FlushAndCheckIfFocusable(aElement, aFlags);
   return NS_OK;
 }
 
@@ -533,6 +531,11 @@ nsFocusManager::MoveFocus(mozIDOMWindowProxy* aWindow, Element* aStartElement,
   }
 
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+
+  // Flush to ensure that focusability of descendants is computed correctly.
+  if (RefPtr<Document> doc = window->GetExtantDoc()) {
+    doc->FlushPendingNotifications(FlushType::EnsurePresShellInitAndFrames);
+  }
 
   bool noParentTraversal = aFlags & FLAG_NOPARENTFRAME;
   nsCOMPtr<nsIContent> newFocus;
@@ -2096,34 +2099,21 @@ Element* nsFocusManager::FlushAndCheckIfFocusable(Element* aElement,
 
   // If this is an iframe that doesn't have an in-process subdocument, it is
   // either an OOP iframe or an in-process iframe without lazy about:blank
-  // creation having taken place. In the OOP case, treat the frame as
-  // focusable for consistency with Chrome. In the in-process case, create
-  // the initial about:blank for in-process BrowsingContexts in order to
-  // have the `GetSubDocumentFor` call after this block return something.
+  // creation having taken place. In the OOP case, iframe is always focusable.
+  // In the in-process case, create the initial about:blank for in-process
+  // BrowsingContexts in order to have the `GetSubDocumentFor` call after this
+  // block return something.
+  //
+  // TODO(emilio): This block can probably go after bug 543435 lands.
   if (RefPtr<nsFrameLoaderOwner> flo = do_QueryObject(aElement)) {
-    // dom/webauthn/tests/browser/browser_abort_visibility.js fails without
-    // the exclusion of XUL.
-    if (aElement->NodeInfo()->NamespaceID() != kNameSpaceID_XUL) {
+    if (!aElement->IsXULElement()) {
       // Only look at pre-existing browsing contexts. If this function is
       // called during reflow, calling GetBrowsingContext() could cause frame
       // loader initialization at a time when it isn't safe.
       if (BrowsingContext* bc = flo->GetExtantBrowsingContext()) {
         // This call may create a contentViewer-created about:blank.
         // That's intentional, so we can move focus there.
-        Document* subdoc = bc->GetDocument();
-        if (!subdoc) {
-          return aElement;
-        }
-        nsIPrincipal* framerPrincipal = doc->GetPrincipal();
-        nsIPrincipal* frameePrincipal = subdoc->GetPrincipal();
-        if (framerPrincipal && frameePrincipal &&
-            !framerPrincipal->Equals(frameePrincipal)) {
-          // Assume focusability of different-origin iframes even in the
-          // in-process case for consistency with the OOP case.
-          // This is likely already the case anyway, but in case not,
-          // this makes it explicitly so.
-          return aElement;
-        }
+        Unused << bc->GetDocument();
       }
     }
   }
@@ -2136,19 +2126,19 @@ Element* nsFocusManager::FlushAndCheckIfFocusable(Element* aElement,
     if (root->DelegatesFocus()) {
       // If focus target is a shadow-including inclusive ancestor of the
       // currently focused area of a top-level browsing context's DOM anchor,
-      // then return null.
+      // then return the already-focused element.
       if (nsPIDOMWindowInner* innerWindow =
               aElement->OwnerDoc()->GetInnerWindow()) {
         if (Element* focusedElement = innerWindow->GetFocusedElement()) {
           if (focusedElement->IsShadowIncludingInclusiveDescendantOf(
                   aElement)) {
-            return nullptr;
+            return focusedElement;
           }
         }
       }
 
       if (Element* firstFocusable =
-              root->GetFirstFocusable(aFlags & FLAG_BYMOUSE)) {
+              root->GetFocusDelegate(aFlags & FLAG_BYMOUSE)) {
         return firstFocusable;
       }
     }
@@ -2540,10 +2530,10 @@ void nsFocusManager::Focus(
     // if the window isn't visible, for instance because it is a hidden tab,
     // update the current focus and scroll it into view but don't do anything
     // else
-    if (FlushAndCheckIfFocusable(aElement, aFlags)) {
-      aWindow->SetFocusedElement(aElement, focusMethod);
+    if (RefPtr elementToFocus = FlushAndCheckIfFocusable(aElement, aFlags)) {
+      aWindow->SetFocusedElement(elementToFocus, focusMethod);
       if (aFocusChanged) {
-        ScrollIntoView(presShell, aElement, aFlags);
+        ScrollIntoView(presShell, elementToFocus, aFlags);
       }
     }
     return;
@@ -2622,33 +2612,35 @@ void nsFocusManager::Focus(
 
   // check to ensure that the element is still focusable, and that nothing
   // else was focused during the events above.
-  if (FlushAndCheckIfFocusable(aElement, aFlags) &&
+  RefPtr elementToFocus = FlushAndCheckIfFocusable(aElement, aFlags);
+  if (elementToFocus &&
       GetFocusedBrowsingContext() == aWindow->GetBrowsingContext() &&
       mFocusedElement == nullptr) {
-    mFocusedElement = aElement;
+    mFocusedElement = elementToFocus;
 
     nsIContent* focusedNode = aWindow->GetFocusedElement();
-    const bool sendFocusEvent = aElement && aElement->IsInComposedDoc() &&
-                                !IsNonFocusableRoot(aElement);
-    const bool isRefocus = focusedNode && focusedNode == aElement;
+    const bool sendFocusEvent = elementToFocus->IsInComposedDoc() &&
+                                !IsNonFocusableRoot(elementToFocus);
+    const bool isRefocus = focusedNode && focusedNode == elementToFocus;
     const bool shouldShowFocusRing =
-        sendFocusEvent && ShouldMatchFocusVisible(aWindow, *aElement, aFlags);
+        sendFocusEvent &&
+        ShouldMatchFocusVisible(aWindow, *elementToFocus, aFlags);
 
-    aWindow->SetFocusedElement(aElement, focusMethod, false);
+    aWindow->SetFocusedElement(elementToFocus, focusMethod, false);
 
     const RefPtr<nsPresContext> presContext = presShell->GetPresContext();
     if (sendFocusEvent) {
-      NotifyFocusStateChange(aElement, nullptr, aFlags,
+      NotifyFocusStateChange(elementToFocus, nullptr, aFlags,
                              /* aGettingFocus = */ true, shouldShowFocusRing);
 
       // If this is a remote browser, focus its widget and activate remote
       // content.  Note that we might no longer be in the same document,
       // due to the events we fired above when aIsNewDocument.
-      if (presShell->GetDocument() == aElement->GetComposedDoc()) {
-        ActivateRemoteFrameIfNeeded(*aElement, aActionId);
+      if (presShell->GetDocument() == elementToFocus->GetComposedDoc()) {
+        ActivateRemoteFrameIfNeeded(*elementToFocus, aActionId);
       }
 
-      IMEStateManager::OnChangeFocus(presContext, aElement,
+      IMEStateManager::OnChangeFocus(presContext, elementToFocus,
                                      GetFocusMoveActionCause(aFlags));
 
       // as long as this focus wasn't because a window was raised, update the
@@ -2660,15 +2652,16 @@ void nsFocusManager::Focus(
 
       // If the focused element changed, scroll it into view
       if (aFocusChanged) {
-        ScrollIntoView(presShell, aElement, aFlags);
+        ScrollIntoView(presShell, elementToFocus, aFlags);
       }
 
       if (!focusInOtherContentProcess) {
-        RefPtr<Document> composedDocument = aElement->GetComposedDoc();
+        RefPtr<Document> composedDocument = elementToFocus->GetComposedDoc();
         RefPtr<Element> relatedTargetElement =
             aBlurredElementInfo ? aBlurredElementInfo->mElement.get() : nullptr;
-        SendFocusOrBlurEvent(eFocus, presShell, composedDocument, aElement,
-                             aWindowRaised, isRefocus, relatedTargetElement);
+        SendFocusOrBlurEvent(eFocus, presShell, composedDocument,
+                             elementToFocus, aWindowRaised, isRefocus,
+                             relatedTargetElement);
       }
     } else {
       IMEStateManager::OnChangeFocus(presContext, nullptr,
@@ -2676,9 +2669,9 @@ void nsFocusManager::Focus(
       if (!aWindowRaised) {
         aWindow->UpdateCommands(u"focus"_ns, nullptr, 0);
       }
-      if (aFocusChanged && aElement) {
+      if (aFocusChanged) {
         // If the focused element changed, scroll it into view
-        ScrollIntoView(presShell, aElement, aFlags);
+        ScrollIntoView(presShell, elementToFocus, aFlags);
       }
     }
   } else {
@@ -2701,7 +2694,7 @@ void nsFocusManager::Focus(
   // needed. If this is a different document than was focused before, also
   // update the caret's visibility. If this is the same document, the caret
   // visibility should be the same as before so there is no need to update it.
-  if (mFocusedElement == aElement) {
+  if (mFocusedElement == elementToFocus) {
     RefPtr<Element> focusedElement = mFocusedElement;
     UpdateCaret(aFocusChanged && !(aFlags & FLAG_BYMOUSE), aIsNewDocument,
                 focusedElement);

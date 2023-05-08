@@ -9,17 +9,22 @@
 
 "use strict";
 
+ChromeUtils.defineESModuleGetters(this, {
+  BuiltInThemes: "resource:///modules/BuiltInThemes.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(this, {
   AddonManager: "resource://gre/modules/AddonManager.jsm",
   AddonRepository: "resource://gre/modules/addons/AddonRepository.jsm",
   AMTelemetry: "resource://gre/modules/AddonManager.jsm",
-  BuiltInThemes: "resource:///modules/BuiltInThemes.jsm",
   ClientID: "resource://gre/modules/ClientID.jsm",
+  ColorwayClosetOpener: "resource:///modules/ColorwayClosetOpener.jsm",
   DeferredTask: "resource://gre/modules/DeferredTask.jsm",
   E10SUtils: "resource://gre/modules/E10SUtils.jsm",
   ExtensionCommon: "resource://gre/modules/ExtensionCommon.jsm",
   ExtensionParent: "resource://gre/modules/ExtensionParent.jsm",
   ExtensionPermissions: "resource://gre/modules/ExtensionPermissions.jsm",
+  NimbusFeatures: "resource://nimbus/ExperimentAPI.jsm",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
 });
 
@@ -38,10 +43,6 @@ XPCOMUtils.defineLazyGetter(this, "extensionStylesheets", () => {
     "resource://gre/modules/ExtensionParent.jsm"
   );
   return ExtensionParent.extensionStylesheets;
-});
-
-XPCOMUtils.defineLazyModuleGetters(this, {
-  ColorwayClosetOpener: "resource:///modules/ColorwayClosetOpener.jsm",
 });
 
 XPCOMUtils.defineLazyPreferenceGetter(
@@ -66,12 +67,9 @@ XPCOMUtils.defineLazyPreferenceGetter(
   true
 );
 
-XPCOMUtils.defineLazyPreferenceGetter(
-  this,
-  "COLORWAY_CLOSET_ENABLED",
-  "browser.theme.colorway-closet",
-  false
-);
+XPCOMUtils.defineLazyGetter(this, "COLORWAY_CLOSET_ENABLED", () => {
+  return NimbusFeatures.majorRelease2022.getVariable("colorwayCloset");
+});
 
 XPCOMUtils.defineLazyPreferenceGetter(
   this,
@@ -1730,7 +1728,10 @@ class CategoryButton extends HTMLButtonElement {
   }
 
   get isVisible() {
-    return true;
+    // Make a category button visible only if the related addon type is
+    // supported by the AddonManager Providers actually registered to
+    // the AddonManager.
+    return AddonManager.hasAddonType(this.name);
   }
 
   get badgeCount() {
@@ -3698,13 +3699,13 @@ class ColorwayClosetCard extends HTMLElement {
 
     // Listen for changes to actively selected theme.
     // Update button label for Colorway Closet card, according to
-    // whether or not a colorway theme is currently enabled.
-    const isCurrentThemeColorway = BuiltInThemes.isMonochromaticTheme(addon.id);
+    // whether or not a colorway theme from the active collection is
+    // currently enabled.
     let colorwaysButton = document.querySelector("[action='open-colorways']");
 
     document.l10n.setAttributes(
       colorwaysButton,
-      isCurrentThemeColorway
+      BuiltInThemes.isColorwayFromCurrentCollection?.(addon.id)
         ? "theme-colorways-button-colorway-enabled"
         : "theme-colorways-button"
     );
@@ -3775,20 +3776,18 @@ class ColorwayClosetCard extends HTMLElement {
     );
 
     let colorwaysButton = card.querySelector("[action='open-colorways']");
-    const isCurrentThemeColorway = BuiltInThemes.isMonochromaticTheme(
-      ACTIVE_THEME_ID
-    );
-
     document.l10n.setAttributes(
       colorwaysButton,
-      isCurrentThemeColorway
+      BuiltInThemes.isColorwayFromCurrentCollection?.(ACTIVE_THEME_ID)
         ? "theme-colorways-button-colorway-enabled"
         : "theme-colorways-button"
     );
 
     colorwaysButton.hidden = false;
     colorwaysButton.onclick = () => {
-      ColorwayClosetOpener.openModal();
+      ColorwayClosetOpener.openModal({
+        source: "aboutaddons",
+      });
     };
   }
 }
@@ -4898,7 +4897,7 @@ gViewController.defineView("list", async type => {
         !addon.isActive &&
         !isPending(addon, "uninstall") &&
         // For performance related details about this check see the
-        // documentation for themeIsExpired in BuiltInThemeConfig.jsm.
+        // documentation for themeIsExpired in BuiltInThemeConfig.sys.mjs.
         BuiltInThemes.isMonochromaticTheme(addon.id) &&
         BuiltInThemes.isRetainedExpiredTheme(addon.id),
     });

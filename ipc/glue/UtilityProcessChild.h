@@ -29,17 +29,13 @@ class UtilityProcessChild final : public PUtilityProcessChild {
 
   SandboxingKind mSandbox{};
 
-  bool Init(base::ProcessId aParentPid, const nsCString& aParentBuildID,
-            uint64_t aSandboxingKind, mozilla::ipc::ScopedPort aPort);
+  bool Init(mozilla::ipc::UntypedEndpoint&& aEndpoint,
+            const nsCString& aParentBuildID, uint64_t aSandboxingKind);
 
   mozilla::ipc::IPCResult RecvInit(const Maybe<ipc::FileDescriptor>& aBrokerFd,
                                    const bool& aCanRecordReleaseTelemetry);
   mozilla::ipc::IPCResult RecvInitProfiler(
       Endpoint<PProfilerChild>&& aEndpoint);
-
-  mozilla::ipc::IPCResult RecvNewContentRemoteDecoderManager(
-      Endpoint<PRemoteDecoderManagerParent>&& aEndpoint,
-      const bool& aAllowHardwareDecoding);
 
   mozilla::ipc::IPCResult RecvPreferenceUpdate(const Pref& pref);
 
@@ -53,6 +49,8 @@ class UtilityProcessChild final : public PUtilityProcessChild {
 
   mozilla::ipc::IPCResult RecvTestTriggerMetrics(
       TestTriggerMetricsResolver&& aResolve);
+
+  mozilla::ipc::IPCResult RecvTestTelemetryProbes();
 
   mozilla::ipc::IPCResult RecvStartUtilityAudioDecoderService(
       Endpoint<PUtilityAudioDecoderParent>&& aEndpoint);

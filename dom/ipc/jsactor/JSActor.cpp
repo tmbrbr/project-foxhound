@@ -36,7 +36,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(JSActor)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(JSActor)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(JSActor)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(JSActor)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(JSActor)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobal)
@@ -52,8 +52,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(JSActor)
     CycleCollectionNoteChild(cb, query.mPromise.get(), "Pending Query Promise");
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(JSActor)
 
 JSActor::JSActor(nsISupports* aGlobal) {
   mGlobal = do_QueryInterface(aGlobal);
@@ -129,21 +127,6 @@ nsresult JSActor::QueryInterfaceActor(const nsIID& aIID, void** aPtr) {
   }
 
   return mWrappedJS->QueryInterface(aIID, aPtr);
-}
-
-/* static */
-bool JSActor::AllowMessage(const JSActorMessageMeta& aMetadata,
-                           size_t aDataLength) {
-  // A message includes more than structured clone data, so subtract
-  // 20KB to make it more likely that a message within this bound won't
-  // result in an overly large IPC message.
-  static const size_t kMaxMessageSize =
-      IPC::Channel::kMaximumMessageSize - 20 * 1024;
-  if (aDataLength < kMaxMessageSize) {
-    return true;
-  }
-
-  return false;
 }
 
 void JSActor::SetName(const nsACString& aName) {

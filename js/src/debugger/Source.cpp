@@ -21,9 +21,11 @@
 #include "js/ErrorReport.h"  // for JS_ReportErrorASCII,  JS_ReportErrorNumberASCII
 #include "js/experimental/TypedData.h"  // for JS_NewUint8Array
 #include "js/friend/ErrorMessages.h"    // for GetErrorMessage, JSMSG_*
+#include "js/GCVariant.h"               // for GCVariant
 #include "js/SourceText.h"              // for JS::SourceOwnership
 #include "js/String.h"                  // for JS_CopyStringCharsZ
 #include "vm/BytecodeUtil.h"            // for JSDVG_SEARCH_STACK
+#include "vm/ErrorContext.h"            // for AutoReportFrontendContext
 #include "vm/JSContext.h"               // for JSContext (ptr only)
 #include "vm/JSObject.h"                // for JSObject, RequireObject
 #include "vm/JSScript.h"                // for ScriptSource, ScriptSourceObject
@@ -525,7 +527,8 @@ bool DebuggerSource::CallData::setSourceMapURL() {
     return false;
   }
 
-  if (!ss->setSourceMapURL(cx, std::move(chars))) {
+  AutoReportFrontendContext ec(cx);
+  if (!ss->setSourceMapURL(cx, &ec, std::move(chars))) {
     return false;
   }
 

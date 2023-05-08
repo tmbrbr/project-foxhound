@@ -19,6 +19,7 @@
 
 namespace mozilla {
 
+class MFMediaEngineVideoStream;
 class MFMediaSource;
 
 /**
@@ -72,22 +73,37 @@ class MFMediaEngineStream
   TaskQueue* GetTaskQueue() { return mTaskQueue; }
 
   void NotifyNewData(MediaRawData* aSample);
-  void NotifyEndOfStream();
+  void NotifyEndOfStream() {
+    Microsoft::WRL::ComPtr<MFMediaEngineStream> self = this;
+    Unused << mTaskQueue->Dispatch(NS_NewRunnableFunction(
+        "MFMediaEngineStream::NotifyEndOfStream",
+        [self]() { self->NotifyEndOfStreamInternal(); }));
+  }
 
   // Return the type of the track, the result should be either audio or video.
   virtual TrackInfo::TrackType TrackType() = 0;
 
   RefPtr<MediaDataDecoder::FlushPromise> Flush();
 
-  bool IsEnded() const;
-
   MediaEventProducer<TrackInfo::TrackType>& EndedEvent() { return mEndedEvent; }
 
   // True if the stream has been shutdown, it's a thread safe method.
   bool IsShutdown() const { return mIsShutdown; }
 
+  virtual MFMediaEngineVideoStream* AsVideoStream() { return nullptr; }
+
+  // Overwrite this method to support returning decoded data.
+  virtual already_AddRefed<MediaData> OutputData(MediaRawData* aSample) {
+    return nullptr;
+  }
+
+  virtual MediaDataDecoder::ConversionRequired NeedsConversion() const {
+    return MediaDataDecoder::ConversionRequired::kNeedNone;
+  }
+
  protected:
-  HRESULT GenerateStreamDescriptor(uint64_t aStreamId, const TrackInfo& aInfo);
+  HRESULT GenerateStreamDescriptor(
+      Microsoft::WRL::ComPtr<IMFMediaType>& aMediaType);
 
   // Create a IMFMediaType which includes the details about the stream.
   // https://docs.microsoft.com/en-us/windows/win32/medfound/media-type-attributes
@@ -101,6 +117,10 @@ class MFMediaEngineStream
   void ReplySampleRequestIfPossible();
   bool ShouldServeSamples() const;
 
+  void NotifyEndOfStreamInternal();
+
+  bool IsEnded() const;
+
   void AssertOnTaskQueue() const;
   void AssertOnMFThreadPool() const;
 
@@ -111,6 +131,10 @@ class MFMediaEngineStream
 
   // This an unique ID retrieved from the IMFStreamDescriptor.
   DWORD mStreamDescriptorId = 0;
+
+  // A unique ID assigned by MFMediaSource, which won't be changed after first
+  // assignment.
+  uint64_t mStreamId = 0;
 
   RefPtr<TaskQueue> mTaskQueue;
 
@@ -125,13 +149,6 @@ class MFMediaEngineStream
   // Modify on MF thread pool, access from any threads.
   Atomic<bool> mIsSelected;
 
-  // True if the stream has received the last data.
-  // Modify on the task queue, access from any threads.
-  Atomic<bool> mReceivedEOS;
-
-  // Only serve samples when the stream is already started.
-  Atomic<bool> mShouldServeSmamples;
-
   // A thread-safe queue storing input sample.
   MediaQueue<MediaRawData> mRawDataQueue;
 
@@ -143,6 +160,10 @@ class MFMediaEngineStream
 
   // Notify when playback reachs the end for this track.
   MediaEventProducer<TrackInfo::TrackType> mEndedEvent;
+
+  // True if the stream has received the last data, but it could be reset if the
+  // stream starts delivering more data. Used on the task queue only.
+  bool mReceivedEOS;
 };
 
 /**
@@ -171,6 +192,7 @@ class MFMediaEngineStreamWrapper : public MediaDataDecoder {
   RefPtr<FlushPromise> Flush() override;
   RefPtr<ShutdownPromise> Shutdown() override;
   nsCString GetDescriptionName() const override;
+  ConversionRequired NeedsConversion() const override;
 
  private:
   Microsoft::WRL::ComPtr<MFMediaEngineStream> mStream;

@@ -42,14 +42,19 @@ namespace mozilla {
 //   }
 //
 //  private:
-//   void IncreaseMediaCount() REQUIRES(mTargetCapability) { mMediaCount += 1; }
+//   void IncreaseMediaCount() MOZ_REQUIRES(mTargetCapability) { mMediaCount +=
+//   1; }
 //
-//   uint32_t mMediaCount GUARDED_BY(mTargetCapability) = 0;
+//   uint32_t mMediaCount MOZ_GUARDED_BY(mTargetCapability) = 0;
 //   EventTargetCapability<nsIEventTarget> mTargetCapability;
 // };
+//
+// NOTE: If you need a thread-safety capability for specifically the main
+// thread, the static `mozilla::sMainThreadCapability` capability exists, and
+// can be asserted using `AssertIsOnMainThread()`.
 
 template <typename T>
-class CAPABILITY EventTargetCapability final {
+class MOZ_CAPABILITY EventTargetCapability final {
   static_assert(std::is_base_of_v<nsIEventTarget, T>,
                 "T must derive from nsIEventTarget");
 
@@ -64,13 +69,16 @@ class CAPABILITY EventTargetCapability final {
   EventTargetCapability& operator=(const EventTargetCapability&) = default;
   EventTargetCapability& operator=(EventTargetCapability&&) = default;
 
-  void AssertOnCurrentThread() const ASSERT_CAPABILITY(this) {
-    MOZ_ASSERT(mTarget->IsOnCurrentThread());
+  void AssertOnCurrentThread() const MOZ_ASSERT_CAPABILITY(this) {
+    MOZ_ASSERT(IsOnCurrentThread());
   }
+
+  // Allow users to check if we're on the same thread as the event target.
+  bool IsOnCurrentThread() const { return mTarget->IsOnCurrentThread(); }
 
   // Allow users to get the event target, so classes don't have to store the
   // target as a separate member to use it.
-  T* GetEventTarget() { return mTarget; }
+  T* GetEventTarget() const { return mTarget; }
 
   // Helper to simplify dispatching to mTarget.
   nsresult Dispatch(already_AddRefed<nsIRunnable> aRunnable,

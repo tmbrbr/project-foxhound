@@ -786,7 +786,8 @@ class GMut {
     MOZ_CRASH("unreachable");
   }
 
-  void EnsureValidAndInUse(GMutLock, void* aPtr, uintptr_t aIndex) {
+  void EnsureValidAndInUse(GMutLock, void* aPtr, uintptr_t aIndex)
+      MOZ_REQUIRES(sMutex) {
     const AllocPageInfo& page = mAllocPages[aIndex];
 
     // The pointer must point to the start of the allocation.
@@ -800,9 +801,7 @@ class GMut {
       // first, because that self-same PHC machinery needs to re-lock it, and
       // the crash causes non-local control flow so sMutex won't be unlocked
       // the normal way in the caller.
-      PUSH_IGNORE_THREAD_SAFETY
       sMutex.Unlock();
-      POP_THREAD_SAFETY
       *static_cast<uint8_t*>(aPtr) = 0;
       MOZ_CRASH("unreachable");
     }
@@ -880,8 +879,10 @@ class GMut {
   }
 
 #ifndef XP_WIN
-  static void prefork() NO_THREAD_SAFETY_ANALYSIS { sMutex.Lock(); }
-  static void postfork_parent() NO_THREAD_SAFETY_ANALYSIS { sMutex.Unlock(); }
+  static void prefork() MOZ_NO_THREAD_SAFETY_ANALYSIS { sMutex.Lock(); }
+  static void postfork_parent() MOZ_NO_THREAD_SAFETY_ANALYSIS {
+    sMutex.Unlock();
+  }
   static void postfork_child() { sMutex.Init(); }
 #endif
 

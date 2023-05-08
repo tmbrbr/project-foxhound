@@ -350,6 +350,12 @@ class BrowsertimeResultsHandler(PerftestResultsHandler):
             shutil.rmtree(test_result_dir)
         return test_result_dir
 
+    def result_dir_for_test_profiling(self, test):
+        profiling_dir = os.path.join(self.result_dir_for_test(test), "profiling")
+        if not os.path.exists(profiling_dir):
+            os.mkdir(profiling_dir)
+        return profiling_dir
+
     def add(self, new_result_json):
         # not using control server with bt
         pass
@@ -608,6 +614,13 @@ class BrowsertimeResultsHandler(PerftestResultsHandler):
                 for custom_type in custom_types:
                     for k, v in custom_types[custom_type].items():
                         bt_result["measurements"].setdefault(k, []).append(v)
+
+                if self.perfstats:
+                    for cycle in raw_result["geckoPerfStats"]:
+                        for metric in cycle:
+                            bt_result["measurements"].setdefault(
+                                "perfstat-" + metric, []
+                            ).append(cycle[metric])
             else:
                 # extracting values from browserScripts and statistics
                 for bt, raptor in conversion:
@@ -802,7 +815,7 @@ class BrowsertimeResultsHandler(PerftestResultsHandler):
                 raw_btresults[0] = cold_data
                 raw_btresults[1] = warm_data
 
-                # Overwrite the contents of the browertime.json file
+                # Overwrite the contents of the browsertime.json file
                 # to update it with the new file paths
                 try:
                     with open(bt_res_json, "w", encoding="utf8") as f:

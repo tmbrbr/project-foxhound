@@ -276,7 +276,7 @@ void BFCachePreventionObserver::ContentRemoved(nsIContent* aChild,
   MutationHappened();
 }
 
-void BFCachePreventionObserver::NodeWillBeDestroyed(const nsINode* aNode) {
+void BFCachePreventionObserver::NodeWillBeDestroyed(nsINode* aNode) {
   mDocument = nullptr;
 }
 
@@ -375,10 +375,6 @@ class nsDocumentViewer final : public nsIContentViewer,
   already_AddRefed<nsINode> GetPopupNode();
   already_AddRefed<nsINode> GetPopupLinkNode();
   already_AddRefed<nsIImageLoadingContent> GetPopupImageNode();
-
-  MOZ_CAN_RUN_SCRIPT_BOUNDARY
-  nsresult GetContentSizeInternal(int32_t* aWidth, int32_t* aHeight,
-                                  nscoord aMaxWidth, nscoord aMaxHeight);
 
   void PrepareToStartLoad(void);
 
@@ -1166,8 +1162,9 @@ nsDocumentViewer::LoadComplete(nsresult aStatus) {
       // We call into the inner because it ensures there's an active document
       // and such, and it also waits until the whole thing completes, which is
       // nice because it allows us to close if needed right here.
-      if (RefPtr<nsPIDOMWindowInner> inner = window->GetCurrentInnerWindow()) {
-        nsGlobalWindowInner::Cast(inner)->Print(IgnoreErrors());
+      if (RefPtr inner =
+              nsGlobalWindowInner::Cast(window->GetCurrentInnerWindow())) {
+        inner->Print(IgnoreErrors());
       }
       if (outerWin->DelayedCloseForPrinting()) {
         outerWin->Close();
@@ -1979,7 +1976,7 @@ nsDocumentViewer::SetBoundsWithFlags(const nsIntRect& aBounds,
     // of windows/widgets competing to handle the notifications.
     // (See bug 1154125.)
     if (mPresContext->DeviceContext()->CheckDPIChange()) {
-      mPresContext->UIResolutionChanged();
+      mPresContext->UIResolutionChangedSync();
     }
 
     int32_t p2a = mPresContext->AppUnitsPerDevPixel();
@@ -2600,11 +2597,26 @@ nsDocumentViewer::ForgetReloadEncoding() {
   mReloadEncodingSource = kCharsetUninitialized;
 }
 
-nsresult nsDocumentViewer::GetContentSizeInternal(int32_t* aWidth,
-                                                  int32_t* aHeight,
-                                                  nscoord aMaxWidth,
-                                                  nscoord aMaxHeight) {
-  NS_ENSURE_TRUE(mDocument, NS_ERROR_NOT_AVAILABLE);
+MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHODIMP nsDocumentViewer::GetContentSize(
+    int32_t aMaxWidth, int32_t aMaxHeight, int32_t* aWidth, int32_t* aHeight) {
+  RefPtr<BrowsingContext> bc = mContainer->GetBrowsingContext();
+  NS_ENSURE_TRUE(bc, NS_ERROR_NOT_AVAILABLE);
+
+  // It's only valid to access this from a top frame.  Doesn't work from
+  // sub-frames.
+  NS_ENSURE_TRUE(bc->IsTop(), NS_ERROR_FAILURE);
+
+  // Convert max-width/height to app units.
+  if (aMaxWidth > 0) {
+    aMaxWidth = CSSPixel::ToAppUnits(aMaxWidth);
+  } else {
+    aMaxWidth = NS_UNCONSTRAINEDSIZE;
+  }
+  if (aMaxHeight > 0) {
+    aMaxHeight = CSSPixel::ToAppUnits(aMaxHeight);
+  } else {
+    aMaxHeight = NS_UNCONSTRAINEDSIZE;
+  }
 
   RefPtr<PresShell> presShell = GetPresShell();
   NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
@@ -2633,9 +2645,8 @@ nsresult nsDocumentViewer::GetContentSizeInternal(int32_t* aWidth,
 
   nscoord height = wm.IsVertical() ? prefISize : aMaxHeight;
   nscoord width = wm.IsVertical() ? aMaxWidth : prefISize;
-  nsresult rv =
-      presShell->ResizeReflow(width, height, ResizeReflowOptions::BSizeLimit);
-  NS_ENSURE_SUCCESS(rv, rv);
+
+  presShell->ResizeReflow(width, height, ResizeReflowOptions::BSizeLimit);
 
   RefPtr<nsPresContext> presContext = GetPresContext();
   NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);
@@ -2648,44 +2659,10 @@ nsresult nsDocumentViewer::GetContentSizeInternal(int32_t* aWidth,
 
   // Ceil instead of rounding here, so we can actually guarantee showing all the
   // content.
-  *aWidth = std::ceil(presContext->AppUnitsToFloatDevPixels(shellArea.width));
-  *aHeight = std::ceil(presContext->AppUnitsToFloatDevPixels(shellArea.height));
+  *aWidth = std::ceil(CSSPixel::FromAppUnits(shellArea.width));
+  *aHeight = std::ceil(CSSPixel::FromAppUnits(shellArea.height));
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocumentViewer::GetContentSize(int32_t* aWidth, int32_t* aHeight) {
-  NS_ENSURE_TRUE(mContainer, NS_ERROR_NOT_AVAILABLE);
-
-  RefPtr<BrowsingContext> bc = mContainer->GetBrowsingContext();
-  NS_ENSURE_TRUE(bc, NS_ERROR_NOT_AVAILABLE);
-
-  // It's only valid to access this from a top frame.  Doesn't work from
-  // sub-frames.
-  NS_ENSURE_TRUE(bc->IsTop(), NS_ERROR_FAILURE);
-
-  return GetContentSizeInternal(aWidth, aHeight, NS_UNCONSTRAINEDSIZE,
-                                NS_UNCONSTRAINEDSIZE);
-}
-
-NS_IMETHODIMP
-nsDocumentViewer::GetContentSizeConstrained(int32_t aMaxWidth,
-                                            int32_t aMaxHeight, int32_t* aWidth,
-                                            int32_t* aHeight) {
-  RefPtr<nsPresContext> presContext = GetPresContext();
-  NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);
-
-  nscoord maxWidth = NS_UNCONSTRAINEDSIZE;
-  nscoord maxHeight = NS_UNCONSTRAINEDSIZE;
-  if (aMaxWidth > 0) {
-    maxWidth = presContext->DevPixelsToAppUnits(aMaxWidth);
-  }
-  if (aMaxHeight > 0) {
-    maxHeight = presContext->DevPixelsToAppUnits(aMaxHeight);
-  }
-
-  return GetContentSizeInternal(aWidth, aHeight, maxWidth, maxHeight);
 }
 
 NS_IMPL_ISUPPORTS(nsDocViewerSelectionListener, nsISelectionListener)

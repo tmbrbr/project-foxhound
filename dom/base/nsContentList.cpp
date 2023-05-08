@@ -41,7 +41,7 @@ using namespace mozilla::dom;
 
 nsBaseContentList::~nsBaseContentList() = default;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsBaseContentList)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(nsBaseContentList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBaseContentList)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mElements)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
@@ -50,7 +50,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBaseContentList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElements)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(nsBaseContentList)
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsBaseContentList)
   if (nsCCUncollectableMarker::sGeneration && tmp->HasKnownLiveWrapper()) {
@@ -591,7 +590,7 @@ int32_t nsContentList::IndexOf(nsIContent* aContent) {
   return IndexOf(aContent, true);
 }
 
-void nsContentList::NodeWillBeDestroyed(const nsINode* aNode) {
+void nsContentList::NodeWillBeDestroyed(nsINode* aNode) {
   // We shouldn't do anything useful from now on
 
   RemoveFromCaches();

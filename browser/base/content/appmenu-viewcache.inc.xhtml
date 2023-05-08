@@ -21,7 +21,7 @@
              lockpanelvertical="true">
     <vbox class="panel-subview-body">
       <vbox id="appMenu-proton-addon-banners"/>
-      <toolbarbutton id="appMenu-proton-update-banner" class="panel-banner-item"
+      <toolbarbutton id="appMenu-proton-update-banner" class="panel-banner-item subviewbutton"
                      oncommand="PanelUI._onBannerItemSelected(event)"
                      wrap="true"
                      hidden="true"/>
@@ -256,6 +256,7 @@
           <vbox class="PanelUI-profiler-toolbarbutton-container">
             <toolbarbutton id="PanelUI-profiler-info-button"
                           class="panel-info-button"
+                          closemenu="none"
                           data-l10n-id="profiler-popup-reveal-description-button">
               <image/>
             </toolbarbutton>
@@ -387,7 +388,6 @@
           data-l10n-id="appmenu-developer-tools-subheader"
           class="subview-subheader"/>
       <vbox id="appmenu-developer-tools-view"
-            class="panel-subview-body"
             role="group"
             aria-labelledby="appmenu-developer-tools">
         <!-- Developer Tools menu items are inserted here -->
@@ -679,5 +679,26 @@
               class="panelMenu-toggleWhatsNew-checkbox"
               onclick="ToolbarPanelHub.toggleWhatsNewPref(event)"
               data-l10n-id="whatsnew-panel-footer-checkbox"/>
+  </panelview>
+
+  <panelview id="unified-extensions-view"
+             class="cui-widget-panelview PanelUI-subView"
+             flex="1">
+    <vbox class="unified-extensions-panel-header">
+      <html:h1 data-l10n-id="unified-extensions-header-title"/>
+    </vbox>
+
+    <toolbarseparator />
+
+    <vbox class="panel-subview-body unified-extensions-list">
+      <!-- active visible extensions go here -->
+    </vbox>
+
+    <toolbarseparator />
+
+    <toolbarbutton id="unified-extensions-manage-extensions"
+                   class="subviewbutton panel-subview-footer-button unified-extensions-manage-extensions"
+                   data-l10n-id="unified-extensions-manage-extensions"
+                   oncommand="BrowserOpenAddonsMgr('addons://list/extension');" />
   </panelview>
 </html:template>

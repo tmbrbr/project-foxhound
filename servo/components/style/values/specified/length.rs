@@ -7,7 +7,6 @@
 //! [length]: https://drafts.csswg.org/css-values/#lengths
 
 use super::{AllowQuirks, Number, Percentage, ToComputedValue};
-use crate::computed_value_flags::ComputedValueFlags;
 use crate::font_metrics::{FontMetrics, FontMetricsOrientation};
 use crate::parser::{Parse, ParserContext};
 use crate::values::computed::{self, CSSPixelLength, Context};
@@ -19,7 +18,7 @@ use crate::values::generics::NonNegative;
 use crate::values::specified::calc::{self, CalcNode};
 use crate::values::specified::NonNegativeNumber;
 use crate::values::CSSFloat;
-use crate::Zero;
+use crate::{Zero, ZeroNoPercent};
 use app_units::Au;
 use cssparser::{Parser, Token};
 use std::cmp;
@@ -91,25 +90,23 @@ impl FontBaseSize {
 impl FontRelativeLength {
     /// Return true if this is a zero value.
     fn is_zero(&self) -> bool {
+        self.unitless_value() == 0.
+    }
+
+    /// Return the unitless, raw value.
+    fn unitless_value(&self) -> CSSFloat {
         match *self {
             FontRelativeLength::Em(v) |
             FontRelativeLength::Ex(v) |
             FontRelativeLength::Ch(v) |
             FontRelativeLength::Cap(v) |
             FontRelativeLength::Ic(v) |
-            FontRelativeLength::Rem(v) => v == 0.,
+            FontRelativeLength::Rem(v) => v,
         }
     }
 
     fn is_negative(&self) -> bool {
-        match *self {
-            FontRelativeLength::Em(v) |
-            FontRelativeLength::Ex(v) |
-            FontRelativeLength::Ch(v) |
-            FontRelativeLength::Cap(v) |
-            FontRelativeLength::Ic(v) |
-            FontRelativeLength::Rem(v) => v < 0.,
-        }
+        self.unitless_value() < 0.
     }
 
     fn try_sum(&self, other: &Self) -> Result<Self, ()> {
@@ -164,16 +161,11 @@ impl FontRelativeLength {
             base_size: FontBaseSize,
             orientation: FontMetricsOrientation,
         ) -> FontMetrics {
-            context
-                .font_metrics_provider
-                .query(context, base_size, orientation)
+            let retrieve_math_scales = false;
+            context.query_font_metrics(base_size, orientation, retrieve_math_scales)
         }
 
         let reference_font_size = base_size.resolve(context);
-        let font_metrics_flag = match base_size {
-            FontBaseSize::CurrentStyle => ComputedValueFlags::DEPENDS_ON_SELF_FONT_METRICS,
-            FontBaseSize::InheritedStyle => ComputedValueFlags::DEPENDS_ON_INHERITED_FONT_METRICS,
-        };
         match *self {
             FontRelativeLength::Em(length) => {
                 if context.for_non_inherited_property.is_some() {
@@ -188,10 +180,6 @@ impl FontRelativeLength {
                 (reference_font_size, length)
             },
             FontRelativeLength::Ex(length) => {
-                if context.for_non_inherited_property.is_some() {
-                    context.rule_cache_conditions.borrow_mut().set_uncacheable();
-                }
-                context.builder.add_flags(font_metrics_flag);
                 // The x-height is an intrinsically horizontal metric.
                 let metrics =
                     query_font_metrics(context, base_size, FontMetricsOrientation::Horizontal);
@@ -207,10 +195,6 @@ impl FontRelativeLength {
                 (reference_size, length)
             },
             FontRelativeLength::Ch(length) => {
-                if context.for_non_inherited_property.is_some() {
-                    context.rule_cache_conditions.borrow_mut().set_uncacheable();
-                }
-                context.builder.add_flags(font_metrics_flag);
                 // https://drafts.csswg.org/css-values/#ch:
                 //
                 //     Equal to the used advance measure of the “0” (ZERO,
@@ -244,10 +228,6 @@ impl FontRelativeLength {
                 (reference_size, length)
             },
             FontRelativeLength::Cap(length) => {
-                if context.for_non_inherited_property.is_some() {
-                    context.rule_cache_conditions.borrow_mut().set_uncacheable();
-                }
-                context.builder.add_flags(font_metrics_flag);
                 let metrics =
                     query_font_metrics(context, base_size, FontMetricsOrientation::Horizontal);
                 let reference_size = metrics.cap_height.unwrap_or_else(|| {
@@ -261,10 +241,6 @@ impl FontRelativeLength {
                 (reference_size, length)
             },
             FontRelativeLength::Ic(length) => {
-                if context.for_non_inherited_property.is_some() {
-                    context.rule_cache_conditions.borrow_mut().set_uncacheable();
-                }
-                context.builder.add_flags(font_metrics_flag);
                 let metrics = query_font_metrics(
                     context,
                     base_size,
@@ -410,136 +386,48 @@ pub enum ViewportPercentageLength {
 impl ViewportPercentageLength {
     /// Return true if this is a zero value.
     fn is_zero(&self) -> bool {
-        let (_, _, v) = self.unpack();
-        v == 0.
+        self.unitless_value() == 0.
     }
 
     fn is_negative(&self) -> bool {
-        let (_, _, v) = self.unpack();
-        v < 0.
+        self.unitless_value() < 0.
+    }
+
+    /// Return the unitless, raw value.
+    fn unitless_value(&self) -> CSSFloat {
+        self.unpack().2
     }
 
     fn unpack(&self) -> (ViewportVariant, ViewportUnit, CSSFloat) {
         match *self {
-            ViewportPercentageLength::Vw(v) => (
-                ViewportVariant::UADefault,
-                ViewportUnit::Vw,
-                v,
-            ),
-            ViewportPercentageLength::Svw(v) => (
-                ViewportVariant::Small,
-                ViewportUnit::Vw,
-                v,
-            ),
-            ViewportPercentageLength::Lvw(v) => (
-                ViewportVariant::Large,
-                ViewportUnit::Vw,
-                v,
-            ),
-            ViewportPercentageLength::Dvw(v) => (
-                ViewportVariant::Dynamic,
-                ViewportUnit::Vw,
-                v,
-            ),
-            ViewportPercentageLength::Vh(v) => (
-                ViewportVariant::UADefault,
-                ViewportUnit::Vh,
-                v,
-            ),
-            ViewportPercentageLength::Svh(v) => (
-                ViewportVariant::Small,
-                ViewportUnit::Vh,
-                v,
-            ),
-            ViewportPercentageLength::Lvh(v) => (
-                ViewportVariant::Large,
-                ViewportUnit::Vh,
-                v),
-            ViewportPercentageLength::Dvh(v) => (
-                ViewportVariant::Dynamic,
-                ViewportUnit::Vh,
-                v,
-            ),
-            ViewportPercentageLength::Vmin(v) => (
-                ViewportVariant::UADefault,
-                ViewportUnit::Vmin,
-                v,
-            ),
-            ViewportPercentageLength::Svmin(v) => (
-                ViewportVariant::Small,
-                ViewportUnit::Vmin,
-                v,
-            ),
-            ViewportPercentageLength::Lvmin(v) => (
-                ViewportVariant::Large,
-                ViewportUnit::Vmin,
-                v,
-            ),
-            ViewportPercentageLength::Dvmin(v) => (
-                ViewportVariant::Dynamic,
-                ViewportUnit::Vmin,
-                v,
-            ),
-            ViewportPercentageLength::Vmax(v) => (
-                ViewportVariant::UADefault,
-                ViewportUnit::Vmax,
-                v,
-            ),
-            ViewportPercentageLength::Svmax(v) => (
-                ViewportVariant::Small,
-                ViewportUnit::Vmax,
-                v,
-            ),
-            ViewportPercentageLength::Lvmax(v) => (
-                ViewportVariant::Large,
-                ViewportUnit::Vmax,
-                v,
-            ),
-            ViewportPercentageLength::Dvmax(v) => (
-                ViewportVariant::Dynamic,
-                ViewportUnit::Vmax,
-                v,
-            ),
-            ViewportPercentageLength::Vb(v) => (
-                ViewportVariant::UADefault,
-                ViewportUnit::Vb,
-                v,
-            ),
-            ViewportPercentageLength::Svb(v) => (
-                ViewportVariant::Small,
-                ViewportUnit::Vb,
-                v,
-            ),
-            ViewportPercentageLength::Lvb(v) => (
-                ViewportVariant::Large,
-                ViewportUnit::Vb,
-                v,
-            ),
-            ViewportPercentageLength::Dvb(v) => (
-                ViewportVariant::Dynamic,
-                ViewportUnit::Vb,
-                v,
-            ),
-            ViewportPercentageLength::Vi(v) => (
-                ViewportVariant::UADefault,
-                ViewportUnit::Vi,
-                v,
-            ),
-            ViewportPercentageLength::Svi(v) => (
-                ViewportVariant::Small,
-                ViewportUnit::Vi,
-                v,
-            ),
-            ViewportPercentageLength::Lvi(v) => (
-                ViewportVariant::Large,
-                ViewportUnit::Vi,
-                v,
-            ),
-            ViewportPercentageLength::Dvi(v) => (
-                ViewportVariant::Dynamic,
-                ViewportUnit::Vi,
-                v,
-            ),
+            ViewportPercentageLength::Vw(v) => (ViewportVariant::UADefault, ViewportUnit::Vw, v),
+            ViewportPercentageLength::Svw(v) => (ViewportVariant::Small, ViewportUnit::Vw, v),
+            ViewportPercentageLength::Lvw(v) => (ViewportVariant::Large, ViewportUnit::Vw, v),
+            ViewportPercentageLength::Dvw(v) => (ViewportVariant::Dynamic, ViewportUnit::Vw, v),
+            ViewportPercentageLength::Vh(v) => (ViewportVariant::UADefault, ViewportUnit::Vh, v),
+            ViewportPercentageLength::Svh(v) => (ViewportVariant::Small, ViewportUnit::Vh, v),
+            ViewportPercentageLength::Lvh(v) => (ViewportVariant::Large, ViewportUnit::Vh, v),
+            ViewportPercentageLength::Dvh(v) => (ViewportVariant::Dynamic, ViewportUnit::Vh, v),
+            ViewportPercentageLength::Vmin(v) => {
+                (ViewportVariant::UADefault, ViewportUnit::Vmin, v)
+            },
+            ViewportPercentageLength::Svmin(v) => (ViewportVariant::Small, ViewportUnit::Vmin, v),
+            ViewportPercentageLength::Lvmin(v) => (ViewportVariant::Large, ViewportUnit::Vmin, v),
+            ViewportPercentageLength::Dvmin(v) => (ViewportVariant::Dynamic, ViewportUnit::Vmin, v),
+            ViewportPercentageLength::Vmax(v) => {
+                (ViewportVariant::UADefault, ViewportUnit::Vmax, v)
+            },
+            ViewportPercentageLength::Svmax(v) => (ViewportVariant::Small, ViewportUnit::Vmax, v),
+            ViewportPercentageLength::Lvmax(v) => (ViewportVariant::Large, ViewportUnit::Vmax, v),
+            ViewportPercentageLength::Dvmax(v) => (ViewportVariant::Dynamic, ViewportUnit::Vmax, v),
+            ViewportPercentageLength::Vb(v) => (ViewportVariant::UADefault, ViewportUnit::Vb, v),
+            ViewportPercentageLength::Svb(v) => (ViewportVariant::Small, ViewportUnit::Vb, v),
+            ViewportPercentageLength::Lvb(v) => (ViewportVariant::Large, ViewportUnit::Vb, v),
+            ViewportPercentageLength::Dvb(v) => (ViewportVariant::Dynamic, ViewportUnit::Vb, v),
+            ViewportPercentageLength::Vi(v) => (ViewportVariant::UADefault, ViewportUnit::Vi, v),
+            ViewportPercentageLength::Svi(v) => (ViewportVariant::Small, ViewportUnit::Vi, v),
+            ViewportPercentageLength::Lvi(v) => (ViewportVariant::Large, ViewportUnit::Vi, v),
+            ViewportPercentageLength::Dvi(v) => (ViewportVariant::Dynamic, ViewportUnit::Vi, v),
         }
     }
 
@@ -579,11 +467,9 @@ impl ViewportPercentageLength {
             // able to figure it own on its own so we help.
             _ => unsafe {
                 match *self {
-                    Vw(..) | Svw(..) | Lvw(..) | Dvw(..) |
-                    Vh(..) | Svh(..) | Lvh(..) | Dvh(..) |
-                    Vmin(..) | Svmin(..) | Lvmin(..) | Dvmin(..) |
-                    Vmax(..) | Svmax(..) | Lvmax(..) | Dvmax(..) |
-                    Vb(..) | Svb(..) | Lvb(..) | Dvb(..) |
+                    Vw(..) | Svw(..) | Lvw(..) | Dvw(..) | Vh(..) | Svh(..) | Lvh(..) |
+                    Dvh(..) | Vmin(..) | Svmin(..) | Lvmin(..) | Dvmin(..) | Vmax(..) |
+                    Svmax(..) | Lvmax(..) | Dvmax(..) | Vb(..) | Svb(..) | Lvb(..) | Dvb(..) |
                     Vi(..) | Svi(..) | Lvi(..) | Dvi(..) => {},
                 }
                 debug_unreachable!("Forgot to handle unit in try_sum()")
@@ -665,7 +551,8 @@ pub enum AbsoluteLength {
 }
 
 impl AbsoluteLength {
-    fn is_zero(&self) -> bool {
+    /// Return the unitless, raw value.
+    fn unitless_value(&self) -> CSSFloat {
         match *self {
             AbsoluteLength::Px(v) |
             AbsoluteLength::In(v) |
@@ -673,20 +560,16 @@ impl AbsoluteLength {
             AbsoluteLength::Mm(v) |
             AbsoluteLength::Q(v) |
             AbsoluteLength::Pt(v) |
-            AbsoluteLength::Pc(v) => v == 0.,
+            AbsoluteLength::Pc(v) => v,
         }
     }
 
+    fn is_zero(&self) -> bool {
+        self.unitless_value() == 0.
+    }
+
     fn is_negative(&self) -> bool {
-        match *self {
-            AbsoluteLength::Px(v) |
-            AbsoluteLength::In(v) |
-            AbsoluteLength::Cm(v) |
-            AbsoluteLength::Mm(v) |
-            AbsoluteLength::Q(v) |
-            AbsoluteLength::Pt(v) |
-            AbsoluteLength::Pc(v) => v < 0.,
-        }
+        self.unitless_value() < 0.
     }
 
     /// Convert this into a pixel value.
@@ -803,6 +686,16 @@ impl Mul<CSSFloat> for NoCalcLength {
 }
 
 impl NoCalcLength {
+    /// Return the unitless, raw value.
+    pub fn unitless_value(&self) -> CSSFloat {
+        match *self {
+            NoCalcLength::Absolute(v) => v.unitless_value(),
+            NoCalcLength::FontRelative(v) => v.unitless_value(),
+            NoCalcLength::ViewportPercentage(v) => v.unitless_value(),
+            NoCalcLength::ServoCharacterWidth(c) => c.0 as f32,
+        }
+    }
+
     /// Returns whether the value of this length without unit is less than zero.
     pub fn is_negative(&self) -> bool {
         match *self {
@@ -819,10 +712,8 @@ impl NoCalcLength {
     /// because the font they're relative to should be zoomed already.
     pub fn should_zoom_text(&self) -> bool {
         match *self {
-            Self::Absolute(..) |
-            Self::ViewportPercentage(..) => true,
-            Self::ServoCharacterWidth(..) |
-            Self::FontRelative(..) => false,
+            Self::Absolute(..) | Self::ViewportPercentage(..) => true,
+            Self::ServoCharacterWidth(..) | Self::FontRelative(..) => false,
         }
     }
 
@@ -1167,11 +1058,9 @@ impl PartialOrd for ViewportPercentageLength {
             // able to figure it own on its own so we help.
             _ => unsafe {
                 match *self {
-                    Vw(..) | Svw(..) | Lvw(..) | Dvw(..) |
-                    Vh(..) | Svh(..) | Lvh(..) | Dvh(..) |
-                    Vmin(..) | Svmin(..) | Lvmin(..) | Dvmin(..) |
-                    Vmax(..) | Svmax(..) | Lvmax(..) | Dvmax(..) |
-                    Vb(..) | Svb(..) | Lvb(..) | Dvb(..) |
+                    Vw(..) | Svw(..) | Lvw(..) | Dvw(..) | Vh(..) | Svh(..) | Lvh(..) |
+                    Dvh(..) | Vmin(..) | Svmin(..) | Lvmin(..) | Dvmin(..) | Vmax(..) |
+                    Svmax(..) | Lvmax(..) | Dvmax(..) | Vb(..) | Svb(..) | Lvb(..) | Dvb(..) |
                     Vi(..) | Svi(..) | Lvi(..) | Dvi(..) => {},
                 }
                 debug_unreachable!("Forgot an arm in partial_cmp?")
@@ -1497,6 +1386,15 @@ impl Zero for LengthPercentage {
             LengthPercentage::Length(l) => l.is_zero(),
             LengthPercentage::Percentage(p) => p.0 == 0.0,
             LengthPercentage::Calc(_) => false,
+        }
+    }
+}
+
+impl ZeroNoPercent for LengthPercentage {
+    fn is_zero_no_percent(&self) -> bool {
+        match *self {
+            LengthPercentage::Percentage(_) => false,
+            _ => self.is_zero(),
         }
     }
 }

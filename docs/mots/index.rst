@@ -1,15 +1,24 @@
 ..
     This file was automatically generated using `mots export`.
-.. note::
-    To add, remove, or update module information, see the `mots documentation <https://mots.readthedocs.io/en/latest/#adding-a-module>`_.
 
-=======
-Modules
-=======
+==========
+Governance
+==========
 
-Mozilla operates under a `module ownership governance system <http://www.mozilla.org/hacking/module-ownership.html>`_. A module is a discrete unit of code or activity. An owner is the person in charge of a module or sub-module. A peer is a person whom the owner has appointed to help them. A module may have multiple peers and, very occasionally, multiple owners.
+--------
+Overview
+--------
+To add, remove, or update module information, see the `mots documentation <https://mots.readthedocs.io/en/latest/#adding-a-module>`_.
+
+Mozilla operates under a `module ownership governance system <https://www.mozilla.org/hacking/module-ownership.html>`_. A module is a discrete unit of code or activity. An owner is the person in charge of a module or sub-module. A peer is a person whom the owner has appointed to help them. A module may have multiple peers and, very occasionally, multiple owners.
 
 The system is overseen by the owner and peers of the Module Ownership module. For the modules that make up Firefox, oversight is provided by the Firefox Technical Leadership module. Owners may add and remove peers from their modules as they wish, without reference to anyone else.
+
+
+
+-------
+Modules
+-------
 
 Mots config
 ~~~~~~~~~~~
@@ -25,6 +34,23 @@ Mots config
     * - Includes
       -
         | `mots.yaml <https://searchfox.org/mozilla-central/search?q=&path=mots.yaml>`__
+
+mozilla-toplevel
+~~~~~~~~~~~~~~~~
+The top level directory for the mozilla tree.
+
+.. warning::
+    This module does not have any owners specified.
+
+.. list-table::
+    :stub-columns: 1
+    :widths: 30 70
+
+    * - Owner(s) Emeritus
+      - Brendan Eich
+    * - Includes
+      -
+        | `README <https://searchfox.org/mozilla-central/search?q=&path=README>`__
 
 Code Coverage
 ~~~~~~~~~~~~~
@@ -150,10 +176,13 @@ Asynchronous panning and zooming
     * - Peer(s)
       -
         | `Timothy Nikkel (tnikkel) <https://people.mozilla.org/s?query=tnikkel>`__
-        | `Ryan Hunt (rhunt) <https://people.mozilla.org/s?query=rhunt>`__
+        | `Dan Robertson (dlrobertson) <https://people.mozilla.org/s?query=dlrobertson>`__
+        | `Hiroyuki Ikezoe (hiro) <https://people.mozilla.org/s?query=hiro>`__
         | `Markus Stange (mstange) <https://people.mozilla.org/s?query=mstange>`__
     * - Owner(s) Emeritus
       - Kartikaya Gupta
+    * - Peer(s) Emeritus
+      - Ryan Hunt
     * - Includes
       -
         | `gfx/layers/apz/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=gfx/layers/apz/\*\*/\*>`__
@@ -692,6 +721,30 @@ DOM Events and Event Handling
     * - Bugzilla Components
       - Core::DOM: Events, Core::DOM: UI Events & Focus Handling
 
+Core: Firefox Source Documentation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The infrastructure platform used to generate Firefox's source documentation, excluding editorial control over the content.
+
+
+.. list-table::
+    :stub-columns: 1
+    :widths: 30 70
+
+    * - Owner(s)
+      -
+        | `Andrew Halberstadt (ahal) <https://people.mozilla.org/s?query=ahal>`__
+    * - Peer(s)
+      -
+        | `Sylvestre Ledru (Sylvestre) <https://people.mozilla.org/s?query=Sylvestre>`__
+    * - Includes
+      -
+        | `docs/ <https://searchfox.org/mozilla-central/search?q=&path=docs/>`__
+        | `tools/moztreedocs/ <https://searchfox.org/mozilla-central/search?q=&path=tools/moztreedocs/>`__
+    * - URL
+      - https://firefox-source-docs.mozilla.org/
+    * - Bugzilla Components
+      - Developer Infrastructure::Source Documentation
+
 Core: Gecko Profiler
 ~~~~~~~~~~~~~~~~~~~~
 Gecko's built-in profiler
@@ -737,7 +790,7 @@ Framework for embedding Gecko into Android applications
 
     * - Owner(s)
       -
-        | `Agi Sferro (agi) <https://people.mozilla.org/s?query=agi>`__
+        | `agi <https://people.mozilla.org/s?query=agi>`__
     * - Peer(s)
       -
         | `Makoto Kato (m_kato) <https://people.mozilla.org/s?query=m_kato>`__
@@ -996,33 +1049,27 @@ JavaScript engine (SpiderMonkey)
     * - Peer(s)
       -
         | `André Bargull (anba) <https://people.mozilla.org/s?query=anba>`__
-        | `Ted Campbell (tcampbell) <https://people.mozilla.org/s?query=tcampbell>`__
-        | `Jon Coppeard (jonco) <https://people.mozilla.org/s?query=jonco>`__
-        | `sfink <https://people.mozilla.org/s?query=sfink>`__
         | `Tooru Fujisawa (arai) <https://people.mozilla.org/s?query=arai>`__
-        | `Tom Schuster (evilpie) <https://people.mozilla.org/s?query=evilpie>`__
-        | `Kannan Vijayan (djvj) <https://people.mozilla.org/s?query=djvj>`__
-        | `Jeff Walden (Waldo) <https://people.mozilla.org/s?query=Waldo>`__
-        | `Yulia Startsev (yulia) <https://people.mozilla.org/s?query=yulia>`__
-        | `Matthew Gaudet (mgaudet) <https://people.mozilla.org/s?query=mgaudet>`__
-        | `Iain Ireland (iain) <https://people.mozilla.org/s?query=iain>`__
-        | `Nicolas B (nbp) <https://people.mozilla.org/s?query=nbp>`__
-        | `Caroline Cullen (caroline) <https://people.mozilla.org/s?query=caroline>`__
-        | `Nick Fitzgerald (fitzgen) <https://people.mozilla.org/s?query=fitzgen>`__
-        | `Luke Wagner (luke) <https://people.mozilla.org/s?query=luke>`__
-        | `Dan Gohman (sunfish) <https://people.mozilla.org/s?query=sunfish>`__
         | `Bobby Holley (bholley) <https://people.mozilla.org/s?query=bholley>`__
+        | `Tom Schuster (evilpie) <https://people.mozilla.org/s?query=evilpie>`__
+        | `Iain Ireland (iain) <https://people.mozilla.org/s?query=iain>`__
+        | `Jon Coppeard (jonco) <https://people.mozilla.org/s?query=jonco>`__
+        | `Matthew Gaudet (mgaudet) <https://people.mozilla.org/s?query=mgaudet>`__
+        | `Nicolas B (nbp) <https://people.mozilla.org/s?query=nbp>`__
+        | `Steve Fink (sfink) <https://people.mozilla.org/s?query=sfink>`__
+        | `Ted Campbell (tcampbell) <https://people.mozilla.org/s?query=tcampbell>`__
+        | `Yulia Startsev (yulia) <https://people.mozilla.org/s?query=yulia>`__
+    * - Owner(s) Emeritus
+      - Brendan Eich, Dave Mandelin, Luke Wagner, Jason Orendorff
     * - Peer(s) Emeritus
-      - Brendan Eich, Hannes Verschore, Blake Kaplan, Bill McCloskey, Shu-yu Guo, Niko Matsakis, Eddy Bruel, David Anderson, Igor Bukanov, Andreas Gal, Eric Faust, Ashley Hauck, Brian Hackett, Till Schneidereit, Nicholas Nethercote, Jason Orendorff
+      - Andreas Gal, Ashley Hauck, Bill McCloskey, Blake Kaplan, Brian Hackett, Caroline Cullen, Dan Gohman, David Anderson, Eddy Bruel, Eric Faust, Hannes Verschore, Igor Bukanov, Jeff Walden, Kannan Vijayan, Nicholas Nethercote, Nick Fitzgerald, Niko Matsakis, Shu-yu Guo, Till Schneidereit
     * - Includes
       -
         | `js/src/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=js/src/\*\*/\*>`__
-    * - Group
-      - dev-tech-js-engine
     * - URL
-      - http://www.mozilla.org/js/spidermonkey, http://developer.mozilla.org/en/docs/About_JavaScript
+      - https://spidermonkey.dev/
     * - Bugzilla Components
-      - Core::JavaScript Engine
+      - Core::JavaScript Engine, Core::JavaScript: GC, Core::JavaScript: Internationalization API, Core::JavaScript: Standard Library, Core::JavaScript: WebAssembly, Core::js-ctypes
 
 Core: JavaScript JIT
 ~~~~~~~~~~~~~~~~~~~~
@@ -1055,10 +1102,8 @@ JavaScript engine's JIT compilers (IonMonkey, Baseline)
     * - Includes
       -
         | `js/src/jit/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=js/src/jit/\*\*/\*>`__
-    * - Group
-      - dev-tech-js-engine-internals
     * - URL
-      - http://www.mozilla.org/js/spidermonkey
+      - https://spidermonkey.dev/
     * - Bugzilla Components
       - Core::JavaScript Engine: JIT
 
@@ -1391,23 +1436,6 @@ Glue library containing various low-level functionality, including a dynamic lin
       - dev-platform
     * - Bugzilla Components
       - Core::mozglue
-
-Core: mozilla-toplevel
-~~~~~~~~~~~~~~~~~~~~~~
-The top level directory for the mozilla tree.
-
-.. warning::
-    This module does not have any owners specified.
-
-.. list-table::
-    :stub-columns: 1
-    :widths: 30 70
-
-    * - Owner(s) Emeritus
-      - Brendan Eich
-    * - Includes
-      -
-        | `README <https://searchfox.org/mozilla-central/search?q=&path=README>`__
 
 Core: MSCOM
 ~~~~~~~~~~~
@@ -1913,7 +1941,7 @@ Tools for checking C++ code looking for problems at compile time, plus tools for
     * - Peer(s)
       -
         | `Nika Layzell (nika) <https://people.mozilla.org/s?query=nika>`__
-        | `sfink <https://people.mozilla.org/s?query=sfink>`__
+        | `Steve Fink (sfink) <https://people.mozilla.org/s?query=sfink>`__
         | `Jeff Muizelaar (jrmuizel) <https://people.mozilla.org/s?query=jrmuizel>`__
     * - Peer(s) Emeritus
       - Birunthan Mohanathas, Ehsan Akhgari
@@ -2361,7 +2389,7 @@ This is part of the [https://wiki.mozilla.org/Modules/Core#GeckoView GeckoView] 
 
     * - Owner(s)
       -
-        | `Agi Sferro (agi) <https://people.mozilla.org/s?query=agi>`__
+        | `agi <https://people.mozilla.org/s?query=agi>`__
 
 Core: Widget - GTK
 ~~~~~~~~~~~~~~~~~~
@@ -2661,7 +2689,7 @@ Standalone Web Browser.
     * - Peer(s)
       -
         | `Dão Gottwald (dao) <https://people.mozilla.org/s?query=dao>`__
-        | `Jared Wein (jaws) <https://people.mozilla.org/s?query=jaws>`__
+        | `jaws <https://people.mozilla.org/s?query=jaws>`__
         | `Marco Bonardo (mak) <https://people.mozilla.org/s?query=mak>`__
         | `Matthew N (MattN) <https://people.mozilla.org/s?query=MattN>`__
     * - Peer(s) Emeritus
@@ -2808,7 +2836,7 @@ The main browser UI except where covered by more specific submodules.
 
     * - Owner(s)
       -
-        | `Jared Wein (jaws) <https://people.mozilla.org/s?query=jaws>`__
+        | `jaws <https://people.mozilla.org/s?query=jaws>`__
     * - Peer(s)
       -
         | `Mike Conley (mconley) <https://people.mozilla.org/s?query=mconley>`__
@@ -2855,7 +2883,7 @@ System policies for controlling Firefox.
     * - Peer(s)
       -
         | `Dão Gottwald (dao) <https://people.mozilla.org/s?query=dao>`__
-        | `Jared Wein (jaws) <https://people.mozilla.org/s?query=jaws>`__
+        | `jaws <https://people.mozilla.org/s?query=jaws>`__
         | `Marco Bonardo (mak) <https://people.mozilla.org/s?query=mak>`__
         | `Matthew N (MattN) <https://people.mozilla.org/s?query=MattN>`__
     * - Includes
@@ -3046,7 +3074,7 @@ Managing, saving and filling logins.
         | `Sergey Galich (serg) <https://people.mozilla.org/s?query=serg>`__
     * - Peer(s)
       -
-        | `Jared Wein (jaws) <https://people.mozilla.org/s?query=jaws>`__
+        | `jaws <https://people.mozilla.org/s?query=jaws>`__
         | `Tim Giles (tgiles) <https://people.mozilla.org/s?query=tgiles>`__
         | `Dimi Lee (dimi) <https://people.mozilla.org/s?query=dimi>`__
         | `Sam Foster (sfoster) <https://people.mozilla.org/s?query=sfoster>`__
@@ -3075,7 +3103,7 @@ The front-end preferences system.
 
     * - Owner(s)
       -
-        | `Jared Wein (jaws) <https://people.mozilla.org/s?query=jaws>`__
+        | `jaws <https://people.mozilla.org/s?query=jaws>`__
     * - Peer(s)
       -
         | `Mark Striemer (mstriemer) <https://people.mozilla.org/s?query=mstriemer>`__
@@ -3124,7 +3152,7 @@ Code relating to Screenshots functionality
         | `Sam Foster (sfoster) <https://people.mozilla.org/s?query=sfoster>`__
     * - Peer(s)
       -
-        | `Jared Hirsch (jhirsch) <https://people.mozilla.org/s?query=jhirsch>`__
+        | `jhirsch <https://people.mozilla.org/s?query=jhirsch>`__
         | `Niklas Baumgardner (niklas) <https://people.mozilla.org/s?query=niklas>`__
     * - Owner(s) Emeritus
       - Emma Malysz, Ian Bicking
@@ -3237,7 +3265,7 @@ The UI component controlling browser tabs.
     * - Peer(s)
       -
         | `Dão Gottwald (dao) <https://people.mozilla.org/s?query=dao>`__
-        | `Jared Wein (jaws) <https://people.mozilla.org/s?query=jaws>`__
+        | `jaws <https://people.mozilla.org/s?query=jaws>`__
         | `Marco Bonardo (mak) <https://people.mozilla.org/s?query=mak>`__
         | `Matthew N (MattN) <https://people.mozilla.org/s?query=MattN>`__
     * - Includes
@@ -3547,7 +3575,7 @@ Components shared between desktop and mobile browsers.
         | `Gijs <https://people.mozilla.org/s?query=Gijs>`__
     * - Peer(s)
       -
-        | `Jared Wein (jaws) <https://people.mozilla.org/s?query=jaws>`__
+        | `jaws <https://people.mozilla.org/s?query=jaws>`__
         | `Marco Bonardo (mak) <https://people.mozilla.org/s?query=mak>`__
         | `Matthew N (MattN) <https://people.mozilla.org/s?query=MattN>`__
     * - Includes
@@ -3624,7 +3652,7 @@ The base widgets used throughout the UI.
         | `Neil Deakin (enndeakin) <https://people.mozilla.org/s?query=enndeakin>`__
     * - Peer(s)
       -
-        | `Jared Wein (jaws) <https://people.mozilla.org/s?query=jaws>`__
+        | `jaws <https://people.mozilla.org/s?query=jaws>`__
         | `Marco Bonardo (mak) <https://people.mozilla.org/s?query=mak>`__
         | `Matthew N (MattN) <https://people.mozilla.org/s?query=MattN>`__
     * - Peer(s) Emeritus

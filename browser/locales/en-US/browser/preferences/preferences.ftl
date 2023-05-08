@@ -229,25 +229,19 @@ preferences-web-appearance-header = Website appearance
 
 preferences-web-appearance-description = Some websites adapt their color scheme based on your preferences. Choose which color scheme you’d like to use for those sites.
 
-preferences-web-appearance-choice-browser = { -brand-short-name } theme
-preferences-web-appearance-choice-system = System theme
+preferences-web-appearance-choice-auto = Automatic
 preferences-web-appearance-choice-light = Light
 preferences-web-appearance-choice-dark = Dark
 
-preferences-web-appearance-choice-tooltip-browser =
-  .title = Match your { -brand-short-name } theme settings for website backgrounds and content.
-preferences-web-appearance-choice-tooltip-system =
-  .title = Match your system settings for website backgrounds and content.
+preferences-web-appearance-choice-tooltip-auto =
+  .title = Automatically change website backgrounds and content based on your system settings and { -brand-short-name } theme.
 preferences-web-appearance-choice-tooltip-light =
   .title = Use a light appearance for website backgrounds and content.
 preferences-web-appearance-choice-tooltip-dark =
   .title = Use a dark appearance for website backgrounds and content.
 
-preferences-web-appearance-choice-input-browser =
-  .aria-description = { preferences-web-appearance-choice-tooltip-browser.title }
-
-preferences-web-appearance-choice-input-system =
-  .aria-description = { preferences-web-appearance-choice-tooltip-system.title }
+preferences-web-appearance-choice-input-auto =
+  .aria-description = { preferences-web-appearance-choice-tooltip-auto.title }
 
 preferences-web-appearance-choice-input-light =
   .aria-description = { preferences-web-appearance-choice-tooltip-light.title }
@@ -633,10 +627,8 @@ home-restore-defaults =
     .label = Restore Defaults
     .accesskey = R
 
-# "Firefox" should be treated as a brand and kept in English,
-# while "Home" and "(Default)" can be localized.
-home-mode-choice-default =
-    .label = { -brand-short-name } Home (Default)
+home-mode-choice-default-fx =
+    .label = { -firefox-home-brand-name } (Default)
 
 home-mode-choice-custom =
     .label = Custom URLs…
@@ -665,8 +657,8 @@ choose-bookmark =
 
 ## Home Section - { -brand-short-name } Home Content Customization
 
-home-prefs-content-header = { -brand-short-name } Home Content
-home-prefs-content-description = Choose what content you want on your { -brand-short-name } Home screen.
+home-prefs-content-header2 = { -firefox-home-brand-name } Content
+home-prefs-content-description2 = Choose what content you want on your { -firefox-home-brand-name } screen.
 
 home-prefs-search-header =
     .label = Web Search
@@ -892,9 +884,9 @@ sync-change-options =
 
 ## The "Choose what to sync" dialog.
 
-sync-choose-what-to-sync-dialog =
+sync-choose-what-to-sync-dialog3 =
     .title = Choose What To Sync
-    .style = width: 36em; min-height: 35em;
+    .style = min-width: 36em;
     .buttonlabelaccept = Save Changes
     .buttonaccesskeyaccept = S
     .buttonlabelextra2 = Disconnect…
@@ -1157,8 +1149,13 @@ addressbar-locbar-topsites-option =
 addressbar-locbar-engines-option =
     .label = Search engines
     .accesskey = a
+addressbar-locbar-quickactions-option =
+    .label = Quick actions
+    .accesskey = Q
 
 addressbar-suggestions-settings = Change preferences for search engine suggestions
+
+addressbar-quickactions-learn-more = Learn more
 
 ## Privacy Section - Content Blocking
 
@@ -1348,6 +1345,16 @@ collection-health-report-disabled = Data reporting is disabled for this build co
 
 collection-backlogged-crash-reports-with-link = Allow { -brand-short-name } to send backlogged crash reports on your behalf <a data-l10n-name="crash-reports-link">Learn more</a>
     .accesskey = c
+
+privacy-segmentation-section-header = New features that enhance your browsing
+
+privacy-segmentation-section-description = When we offer features that use your data to give you a more personal experience:
+
+privacy-segmentation-radio-off =
+    .label = Use { -brand-product-name } recommendations
+
+privacy-segmentation-radio-on =
+    .label = Show detailed information
 
 ## Privacy Section - Security
 ##

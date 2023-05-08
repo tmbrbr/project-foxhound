@@ -95,7 +95,8 @@ class ParagraphBoundaryRule : public PivotRule {
     // Now, deal with the case that we encounter a new block level accessible.
     // This also means a new paragraph boundary start.
     nsIFrame* frame = acc->GetFrame();
-    if (frame && frame->IsBlockFrame()) {
+    if (frame && frame->IsBlockFrame() &&
+        acc->Role() != roles::LISTITEM_MARKER) {
       result |= nsIAccessibleTraversalRule::FILTER_MATCH;
       return result;
     }
@@ -187,7 +188,7 @@ role HyperTextAccessible::NativeRole() const {
 uint64_t HyperTextAccessible::NativeState() const {
   uint64_t states = AccessibleWrap::NativeState();
 
-  if (mContent->AsElement()->State().HasState(dom::ElementState::READWRITE)) {
+  if (IsEditable()) {
     states |= states::EDITABLE;
 
   } else if (mContent->IsHTMLElement(nsGkAtoms::article)) {
@@ -203,6 +204,13 @@ uint64_t HyperTextAccessible::NativeState() const {
   }
 
   return states;
+}
+
+bool HyperTextAccessible::IsEditable() const {
+  if (!mContent) {
+    return false;
+  }
+  return mContent->AsElement()->State().HasState(dom::ElementState::READWRITE);
 }
 
 LayoutDeviceIntRect HyperTextAccessible::GetBoundsInFrame(

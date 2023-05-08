@@ -583,34 +583,7 @@ class nsBlockFrame : public nsContainerFrame {
    * @returns true, if any of the floats at the beginning of our mFloats list
    *          have the NS_FRAME_IS_PUSHED_FLOAT bit set; false otherwise.
    */
-  bool HasPushedFloatsFromPrevContinuation() const {
-    if (!mFloats.IsEmpty()) {
-      // If we have pushed floats, then they should be at the beginning of our
-      // float list.
-      if (mFloats.FirstChild()->HasAnyStateBits(NS_FRAME_IS_PUSHED_FLOAT)) {
-        return true;
-      }
-    }
-
-#ifdef DEBUG
-    // Double-check the above assertion that pushed floats should be at the
-    // beginning of our floats list.
-    for (nsFrameList::Enumerator e(mFloats); !e.AtEnd(); e.Next()) {
-      nsIFrame* f = e.get();
-      NS_ASSERTION(!f->HasAnyStateBits(NS_FRAME_IS_PUSHED_FLOAT),
-                   "pushed floats must be at the beginning of the float list");
-    }
-#endif
-
-    // We may have a pending push of pushed floats too:
-    if (HasPushedFloats()) {
-      // XXX we can return 'true' here once we make HasPushedFloats
-      // not lie.  (see nsBlockFrame::RemoveFloat)
-      auto* pushedFloats = GetPushedFloats();
-      return pushedFloats && !pushedFloats->IsEmpty();
-    }
-    return false;
-  }
+  bool HasPushedFloatsFromPrevContinuation() const;
 
   // @see nsIFrame::AddSizeOfExcludingThisForTree
   void AddSizeOfExcludingThisForTree(nsWindowSizes&) const override;
@@ -620,6 +593,13 @@ class nsBlockFrame : public nsContainerFrame {
    * of its descendants.
    */
   void ClearLineClampEllipsis();
+
+  /**
+   * Returns whether this block is in a -webkit-line-clamp context. That is,
+   * whether this block is in a block formatting-context whose root block has
+   * -webkit-line-clamp: <n>.
+   */
+  bool IsInLineClampContext() const;
 
  protected:
   /** @see DoRemoveFrame */
@@ -673,7 +653,9 @@ class nsBlockFrame : public nsContainerFrame {
   void ReflowPushedFloats(BlockReflowState& aState,
                           mozilla::OverflowAreas& aOverflowAreas);
 
-  /** Find any trailing BR clear from the last line of the block (or its PIFs)
+  /**
+   * Find any trailing BR clear from the last line of this block (or from its
+   * prev-in-flows).
    */
   mozilla::StyleClear FindTrailingClear();
 
@@ -778,18 +760,10 @@ class nsBlockFrame : public nsContainerFrame {
                          LineIterator aLine, nsIFrame* aFrame,
                          LineReflowStatus* aLineReflowStatus);
 
-  // @param aAvailableSize the result of
-  //        BlockReflowState::ComputeAvailableSizeForFloat().
-  // @param aFloatPushedDown whether the block-direction position available to
-  //        place a float has been pushed down due to the presence of other
-  //        floats.
   // @param aReflowStatus an incomplete status indicates the float should be
   //        split but only if the available block-size is constrained.
-  void ReflowFloat(BlockReflowState& aState,
-                   const mozilla::LogicalSize& aAvailableSize, nsIFrame* aFloat,
-                   mozilla::LogicalMargin& aFloatMargin,
-                   mozilla::LogicalMargin& aFloatOffsets, bool aFloatPushedDown,
-                   nsReflowStatus& aReflowStatus);
+  void ReflowFloat(BlockReflowState& aState, ReflowInput& aFloatRI,
+                   nsIFrame* aFloat, nsReflowStatus& aReflowStatus);
 
   //----------------------------------------
   // Methods for pushing/pulling lines/frames

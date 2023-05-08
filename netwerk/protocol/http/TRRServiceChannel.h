@@ -52,6 +52,10 @@ class TRRServiceChannel : public HttpBaseChannel,
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_TRRSERVICECHANNEL_IID)
 
   // nsIRequest
+  NS_IMETHOD SetCanceledReason(const nsACString& aReason) override;
+  NS_IMETHOD GetCanceledReason(nsACString& aReason) override;
+  NS_IMETHOD CancelWithReason(nsresult status,
+                              const nsACString& reason) override;
   NS_IMETHOD Cancel(nsresult status) override;
   NS_IMETHOD Suspend() override;
   NS_IMETHOD Resume() override;
@@ -63,7 +67,7 @@ class TRRServiceChannel : public HttpBaseChannel,
   NS_IMETHOD GetLoadGroup(nsILoadGroup** aLoadGroup) override;
   NS_IMETHOD GetRequestMethod(nsACString& aMethod) override;
   // nsIChannel
-  NS_IMETHOD GetSecurityInfo(nsISupports** aSecurityInfo) override;
+  NS_IMETHOD GetSecurityInfo(nsITransportSecurityInfo** aSecurityInfo) override;
   NS_IMETHOD AsyncOpen(nsIStreamListener* aListener) override;
 
   NS_IMETHOD LogBlockedCORSRequest(const nsAString& aMessage,
@@ -137,7 +141,10 @@ class TRRServiceChannel : public HttpBaseChannel,
   [[nodiscard]] virtual nsresult SetupReplacementChannel(
       nsIURI* aNewURI, nsIChannel* aNewChannel, bool aPreserveMethod,
       uint32_t aRedirectFlags) override;
-
+  // Skip this check for TRRServiceChannel.
+  virtual bool ShouldTaintReplacementChannelOrigin(nsIURI* aNewURI) override {
+    return false;
+  }
   virtual bool SameOriginWithOriginalUri(nsIURI* aURI) override;
   bool DispatchRelease();
 

@@ -750,7 +750,7 @@ var PanelMultiView = class extends AssociatedToNode {
         viewNode.classList.add("PanelUI-subView");
       }
 
-      await this._transitionViews(prevPanelView.node, viewNode, false, anchor);
+      await this._transitionViews(prevPanelView.node, viewNode, false);
     } finally {
       if (anchor) {
         anchor.removeAttribute("open");
@@ -1598,7 +1598,11 @@ var PanelView = class extends AssociatedToNode {
       tag == "textarea" ||
       // Allow tab to reach embedded documents.
       tag == "browser" ||
-      tag == "iframe"
+      tag == "iframe" ||
+      // This is currently needed for the unified extensions panel to allow
+      // users to use up/down arrow to more quickly move between the extension
+      // items. See Bug 1784118
+      element.dataset?.navigableWithTabOnly === "true"
     );
   }
 
@@ -1617,12 +1621,20 @@ var PanelView = class extends AssociatedToNode {
       if (bounds.width == 0 || bounds.height == 0) {
         return NodeFilter.FILTER_REJECT;
       }
+      let isNavigableWithTabOnly = this._isNavigableWithTabOnly(node);
+      // Early return when the node is navigable with tab only and we are using
+      // arrow keys so that nodes like button, toolbarbutton, checkbox, etc.
+      // can also be marked as "navigable with tab only", otherwise the next
+      // condition will unconditionally make them focusable.
+      if (arrowKey && isNavigableWithTabOnly) {
+        return NodeFilter.FILTER_REJECT;
+      }
       if (
         node.tagName == "button" ||
         node.tagName == "toolbarbutton" ||
         node.tagName == "checkbox" ||
         node.classList.contains("text-link") ||
-        (!arrowKey && this._isNavigableWithTabOnly(node))
+        (!arrowKey && isNavigableWithTabOnly)
       ) {
         // Set the tabindex attribute to make sure the node is focusable.
         // Don't do this for browser and iframe elements because this breaks
@@ -1901,40 +1913,20 @@ var PanelView = class extends AssociatedToNode {
         stop();
 
         this._doingKeyboardActivation = true;
-        // Unfortunately, 'tabindex' doesn't execute the default action, so
-        // we explicitly do this here.
-        // We are sending a command event, a mousedown event and then a click
-        // event. This is done in order to mimic a "real" mouse click event.
-        // Normally, the command event executes the action, then the click event
-        // closes the menu. However, in some cases (e.g. the Library button),
-        // there is no command event handler and the mousedown event executes the
-        // action instead.
-        let commandEvent = event.target.ownerDocument.createEvent(
-          "xulcommandevent"
-        );
-        commandEvent.initCommandEvent(
-          "command",
-          true,
-          true,
-          event.target.ownerGlobal,
-          0,
-          event.ctrlKey,
-          event.altKey,
-          event.shiftKey,
-          event.metaKey,
-          0,
-          null,
-          0
-        );
-        button.dispatchEvent(commandEvent);
-
-        let dispEvent = new event.target.ownerGlobal.MouseEvent("mousedown", {
+        const details = {
           bubbles: true,
-        });
+          ctrlKey: event.ctrlKey,
+          altKey: event.altKey,
+          shiftKey: event.shiftKey,
+          metaKey: event.metaKey,
+        };
+        let dispEvent = new event.target.ownerGlobal.MouseEvent(
+          "mousedown",
+          details
+        );
         button.dispatchEvent(dispEvent);
-        dispEvent = new event.target.ownerGlobal.MouseEvent("click", {
-          bubbles: true,
-        });
+        // This event will trigger a command event too.
+        dispEvent = new event.target.ownerGlobal.MouseEvent("click", details);
         button.dispatchEvent(dispEvent);
         this._doingKeyboardActivation = false;
         break;

@@ -4,16 +4,17 @@
 
 "use strict";
 
-var Services = require("Services");
-var { XPCOMUtils } = require("resource://gre/modules/XPCOMUtils.sys.mjs");
-var EventEmitter = require("devtools/shared/event-emitter");
+var { XPCOMUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/XPCOMUtils.sys.mjs"
+);
+var EventEmitter = require("resource://devtools/shared/event-emitter.js");
 
-var {
-  StyleEditorUI,
-} = require("resource://devtools/client/styleeditor/StyleEditorUI.jsm");
-var {
-  getString,
-} = require("resource://devtools/client/styleeditor/StyleEditorUtil.jsm");
+var { StyleEditorUI } = ChromeUtils.import(
+  "resource://devtools/client/styleeditor/StyleEditorUI.jsm"
+);
+var { getString } = ChromeUtils.import(
+  "resource://devtools/client/styleeditor/StyleEditorUtil.jsm"
+);
 
 var StyleEditorPanel = function StyleEditorPanel(panelWin, toolbox, commands) {
   EventEmitter.decorate(this);
@@ -62,7 +63,7 @@ StyleEditorPanel.prototype = {
    * @param  {string} data
    *         The parameters to customize the error message
    */
-  _showError: function(data) {
+  _showError(data) {
     if (!this._toolbox) {
       // could get an async error after we've been destroyed
       return;
@@ -108,7 +109,7 @@ StyleEditorPanel.prototype = {
    *         Promise that will resolve when the editor is selected and ready
    *         to be used.
    */
-  selectStyleSheet: function(front, line, col) {
+  selectStyleSheet(front, line, col) {
     if (!this.UI) {
       return null;
     }
@@ -129,7 +130,7 @@ StyleEditorPanel.prototype = {
    *         Promise that will resolve when the editor is selected and ready
    *         to be used.
    */
-  selectOriginalSheet: function(originalId, line, col) {
+  selectOriginalSheet(originalId, line, col) {
     if (!this.UI) {
       return null;
     }
@@ -138,7 +139,7 @@ StyleEditorPanel.prototype = {
     return this.UI.selectStyleSheet(originalSheet, line - 1, col ? col - 1 : 0);
   },
 
-  getStylesheetFrontForGeneratedURL: function(url) {
+  getStylesheetFrontForGeneratedURL(url) {
     if (!this.UI) {
       return null;
     }
@@ -149,7 +150,7 @@ StyleEditorPanel.prototype = {
   /**
    * Destroy the style editor.
    */
-  destroy: function() {
+  destroy() {
     if (this._destroyed) {
       return;
     }

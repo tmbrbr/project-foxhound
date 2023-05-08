@@ -4,23 +4,21 @@
 
 "use strict";
 
-const { Cc, Ci, Cu } = require("chrome");
-
 loader.lazyRequireGetter(
   this,
   "isShadowRoot",
-  "devtools/shared/layout/utils",
+  "resource://devtools/shared/layout/utils.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "nodeFilterConstants",
-  "devtools/shared/dom-node-filter-constants"
+  "resource://devtools/shared/dom-node-filter-constants.js"
 );
 loader.lazyRequireGetter(
   this,
   "standardTreeWalkerFilter",
-  "devtools/server/actors/inspector/utils",
+  "resource://devtools/server/actors/inspector/utils.js",
   true
 );
 
@@ -90,7 +88,7 @@ DocumentWalker.prototype = {
     this.walker.currentNode = val;
   },
 
-  parentNode: function() {
+  parentNode() {
     if (isShadowRoot(this.currentNode)) {
       this.currentNode = this.currentNode.host;
       return this.currentNode;
@@ -105,7 +103,7 @@ DocumentWalker.prototype = {
     return this.walker.parentNode();
   },
 
-  nextNode: function() {
+  nextNode() {
     const node = this.walker.currentNode;
     if (!node) {
       return null;
@@ -119,7 +117,7 @@ DocumentWalker.prototype = {
     return nextNode;
   },
 
-  firstChild: function() {
+  firstChild() {
     const node = this.walker.currentNode;
     if (!node) {
       return null;
@@ -133,7 +131,7 @@ DocumentWalker.prototype = {
     return firstChild;
   },
 
-  lastChild: function() {
+  lastChild() {
     const node = this.walker.currentNode;
     if (!node) {
       return null;
@@ -147,7 +145,7 @@ DocumentWalker.prototype = {
     return lastChild;
   },
 
-  previousSibling: function() {
+  previousSibling() {
     let node = this.walker.previousSibling();
     while (node && this.isSkippedNode(node)) {
       node = this.walker.previousSibling();
@@ -155,7 +153,7 @@ DocumentWalker.prototype = {
     return node;
   },
 
-  nextSibling: function() {
+  nextSibling() {
     let node = this.walker.nextSibling();
     while (node && this.isSkippedNode(node)) {
       node = this.walker.nextSibling();
@@ -163,7 +161,7 @@ DocumentWalker.prototype = {
     return node;
   },
 
-  getStartingNode: function(node, skipTo) {
+  getStartingNode(node, skipTo) {
     // Keep a reference on the starting node in case we can't find a node compatible with
     // the filter.
     const startingNode = node;
@@ -183,7 +181,7 @@ DocumentWalker.prototype = {
    * Loop on all of the provided node siblings until finding one that is compliant with
    * the filter function.
    */
-  getClosestAcceptedSibling: function(node) {
+  getClosestAcceptedSibling(node) {
     if (this.filter(node) === nodeFilterConstants.FILTER_ACCEPT) {
       // node is already valid, return immediately.
       return node;
@@ -213,7 +211,7 @@ DocumentWalker.prototype = {
     return null;
   },
 
-  isSkippedNode: function(node) {
+  isSkippedNode(node) {
     return this.filter(node) === nodeFilterConstants.FILTER_SKIP;
   },
 };

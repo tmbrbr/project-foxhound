@@ -165,7 +165,7 @@ template <class T>
 class StaticRefPtr;
 
 namespace dom {
-class ShmemImage;
+class IPCImage;
 struct AutocompleteInfo;
 class BrowserChild;
 class BrowserParent;
@@ -185,6 +185,7 @@ class Event;
 class EventTarget;
 class HTMLInputElement;
 class IPCDataTransfer;
+class IPCDataTransferImageContainer;
 class IPCDataTransferItem;
 struct LifecycleCallbackArgs;
 class MessageBroadcaster;
@@ -197,9 +198,8 @@ enum class ReferrerPolicy : uint8_t;
 }  // namespace dom
 
 namespace ipc {
+class BigBuffer;
 class IProtocol;
-class IShmemAllocator;
-class Shmem;
 }  // namespace ipc
 
 namespace gfx {
@@ -1137,7 +1137,7 @@ class nsContentUtils {
    *   @param [aErrorFlags] See nsIScriptError.
    */
   static void LogSimpleConsoleError(
-      const nsAString& aErrorText, const char* aCategory,
+      const nsAString& aErrorText, const nsACString& aCategory,
       bool aFromPrivateWindow, bool aFromChromeContext,
       uint32_t aErrorFlags = nsIScriptError::errorFlag);
 
@@ -2491,16 +2491,6 @@ class nsContentUtils {
   static void GetModifierSeparatorText(nsAString& text);
 
   /**
-   * Returns if aContent has a tabbable subdocument.
-   * A sub document isn't tabbable when it's a zombie document.
-   *
-   * @param aElement element to test.
-   *
-   * @return Whether the subdocument is tabbable.
-   */
-  static bool IsSubDocumentTabbable(nsIContent* aContent);
-
-  /**
    * Returns if aContent has the 'scrollgrab' property.
    * aContent may be null (in this case false is returned).
    */
@@ -2775,7 +2765,8 @@ class nsContentUtils {
    * Returns whether a given header is forbidden for an XHR or fetch
    * request.
    */
-  static bool IsForbiddenRequestHeader(const nsACString& aHeader);
+  static bool IsForbiddenRequestHeader(const nsACString& aHeader,
+                                       const nsACString& aValue);
 
   /**
    * Returns whether a given header is forbidden for a system XHR
@@ -2783,6 +2774,14 @@ class nsContentUtils {
    */
   static bool IsForbiddenSystemRequestHeader(const nsACString& aHeader);
 
+  /**
+   * Checks whether the header overrides any http methods
+   */
+  static bool IsOverrideMethodHeader(const nsACString& headerName);
+  /**
+   * Checks whether the  header value contains any forbidden method
+   */
+  static bool ContainsForbiddenMethod(const nsACString& headerValue);
   /**
    * Returns whether a given header has characters that aren't permitted
    */
@@ -2877,13 +2876,11 @@ class nsContentUtils {
   static bool IsFileImage(nsIFile* aFile, nsACString& aType);
 
   /**
-   * Given an IPCDataTransferItem that has a flavor for which IsFlavorImage
-   * returns true and whose IPCDataTransferData is of type nsCString (raw image
-   * data), construct an imgIContainer for the image encoded by the transfer
-   * item.
+   * Given an IPCDataTransferImageContainer construct an imgIContainer for the
+   * image encoded by the transfer item.
    */
-  static nsresult DataTransferItemToImage(
-      const mozilla::dom::IPCDataTransferItem& aItem,
+  static nsresult DeserializeDataTransferImageContainer(
+      const mozilla::dom::IPCDataTransferImageContainer& aData,
       imgIContainer** aContainer);
 
   /**
@@ -2894,15 +2891,13 @@ class nsContentUtils {
 
   static nsresult IPCTransferableToTransferable(
       const mozilla::dom::IPCDataTransfer& aDataTransfer, bool aAddDataFlavor,
-      nsITransferable* aTransferable,
-      mozilla::ipc::IShmemAllocator* aAllocator);
+      nsITransferable* aTransferable);
 
   static nsresult IPCTransferableToTransferable(
       const mozilla::dom::IPCDataTransfer& aDataTransfer,
       const bool& aIsPrivateData, nsIPrincipal* aRequestingPrincipal,
       const nsContentPolicyType& aContentPolicyType, bool aAddDataFlavor,
-      nsITransferable* aTransferable,
-      mozilla::ipc::IShmemAllocator* aAllocator);
+      nsITransferable* aTransferable);
 
   static nsresult IPCTransferableItemToVariant(
       const mozilla::dom::IPCDataTransferItem& aDataTransferItem,
@@ -2919,24 +2914,16 @@ class nsContentUtils {
       mozilla::dom::ContentChild* aChild, mozilla::dom::ContentParent* aParent);
 
   /*
-   * Get the pixel data from the given source surface and return it as a buffer.
-   * The length and stride will be assigned from the surface.
+   * Get the pixel data from the given source surface and return it as a
+   * BigBuffer. The length and stride will be assigned from the surface.
    */
-  static mozilla::UniquePtr<char[]> GetSurfaceData(
+  static mozilla::Maybe<mozilla::ipc::BigBuffer> GetSurfaceData(
       mozilla::gfx::DataSourceSurface&, size_t* aLength, int32_t* aStride);
 
-  /*
-   * Get the pixel data from the given source surface and fill it in Shmem.
-   * The length and stride will be assigned from the surface.
-   */
-  static mozilla::Maybe<mozilla::ipc::Shmem> GetSurfaceData(
-      mozilla::gfx::DataSourceSurface& aSurface, size_t* aLength,
-      int32_t* aStride, mozilla::ipc::IShmemAllocator* aAlloc);
-
-  static mozilla::Maybe<mozilla::dom::ShmemImage> SurfaceToIPCImage(
-      mozilla::gfx::DataSourceSurface&, mozilla::ipc::IShmemAllocator*);
+  static mozilla::Maybe<mozilla::dom::IPCImage> SurfaceToIPCImage(
+      mozilla::gfx::DataSourceSurface&);
   static already_AddRefed<mozilla::gfx::DataSourceSurface> IPCImageToSurface(
-      mozilla::dom::ShmemImage&&, mozilla::ipc::IShmemAllocator*);
+      mozilla::dom::IPCImage&&);
 
   // Helpers shared by the implementations of nsContentUtils methods and
   // nsIDOMWindowUtils methods.
@@ -3361,6 +3348,19 @@ class nsContentUtils {
 
   static nsresult AnonymizeId(nsAString& aId, const nsACString& aOriginKey,
                               OriginFormat aFormat = OriginFormat::Base64);
+
+  /**
+   * Return true if we should hide the synthetic browsing context for <object>
+   * or <embed> images in synthetic documents.
+   */
+  static bool ShouldHideObjectOrEmbedImageDocument();
+
+  /**
+   * Returns the object type that the object loading content will actually use
+   * to load the resource. Used for ORB and loading images into synthetic
+   * documents.
+   */
+  static uint32_t ResolveObjectType(uint32_t aType);
 
  private:
   static bool InitializeEventTable();

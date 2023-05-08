@@ -4,19 +4,17 @@
 
 "use strict";
 
-const { Cu, Ci } = require("chrome");
-const Services = require("Services");
-const { DevToolsServer } = require("devtools/server/devtools-server");
-const DevToolsUtils = require("devtools/shared/DevToolsUtils");
+const { DevToolsServer } = require("resource://devtools/server/devtools-server.js");
+const DevToolsUtils = require("resource://devtools/shared/DevToolsUtils.js");
 loader.lazyRequireGetter(
   this,
   "ObjectUtils",
-  "devtools/server/actors/object/utils"
+  "resource://devtools/server/actors/object/utils.js"
 );
 loader.lazyRequireGetter(
   this,
   "PropertyIterators",
-  "devtools/server/actors/object/property-iterator"
+  "resource://devtools/server/actors/object/property-iterator.js"
 );
 
 // Number of items to preview in objects, arrays, maps, sets, lists,
@@ -367,6 +365,56 @@ const previewers = {
   URLSearchParams: [
     function(objectActor, grip) {
       const enumEntries = PropertyIterators.enumURLSearchParamsEntries(objectActor);
+
+      grip.preview = {
+        kind: "MapLike",
+        size: enumEntries.size,
+      };
+
+      if (objectActor.hooks.getGripDepth() > 1) {
+        return true;
+      }
+
+      const entries = (grip.preview.entries = []);
+      for (const entry of enumEntries) {
+        entries.push(entry);
+        if (entries.length == OBJECT_PREVIEW_MAX_ITEMS) {
+          break;
+        }
+      }
+
+      return true;
+    },
+  ],
+
+  FormData: [
+    function(objectActor, grip) {
+      const enumEntries = PropertyIterators.enumFormDataEntries(objectActor);
+
+      grip.preview = {
+        kind: "MapLike",
+        size: enumEntries.size,
+      };
+
+      if (objectActor.hooks.getGripDepth() > 1) {
+        return true;
+      }
+
+      const entries = (grip.preview.entries = []);
+      for (const entry of enumEntries) {
+        entries.push(entry);
+        if (entries.length == OBJECT_PREVIEW_MAX_ITEMS) {
+          break;
+        }
+      }
+
+      return true;
+    },
+  ],
+
+  Headers: [
+    function(objectActor, grip) {
+      const enumEntries = PropertyIterators.enumHeadersEntries(objectActor);
 
       grip.preview = {
         kind: "MapLike",

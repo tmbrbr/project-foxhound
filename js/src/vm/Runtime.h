@@ -16,76 +16,61 @@
 #include "mozilla/DoublyLinkedList.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/Maybe.h"
-#include "mozilla/MaybeOneOf.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/ThreadLocal.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Vector.h"
 #include "mozilla/XorShift128PlusRNG.h"
 
 #include <algorithm>
 
-#include "builtin/AtomicsObject.h"
 #ifdef JS_HAS_INTL_API
 #  include "builtin/intl/SharedIntlData.h"
 #endif
 #include "frontend/ScriptIndex.h"
 #include "gc/GCRuntime.h"
-#include "gc/Tracer.h"
 #include "js/AllocationRecording.h"
 #include "js/BuildId.h"  // JS::BuildIdOp
-#include "js/CompilationAndEvaluation.h"
 #include "js/Context.h"
-#include "js/Debug.h"
-#include "js/experimental/CTypes.h"      // JS::CTypesActivityCallback
-#include "js/experimental/JSStencil.h"   // mozilla::RefPtrTraits<JS::Stencil>
-#include "js/experimental/SourceHook.h"  // js::SourceHook
-#include "js/friend/StackLimits.h"       // js::ReportOverRecursed
-#include "js/friend/UsageStatistics.h"   // JSAccumulateTelemetryDataCallback
+#include "js/experimental/CTypes.h"     // JS::CTypesActivityCallback
+#include "js/friend/StackLimits.h"      // js::ReportOverRecursed
+#include "js/friend/UsageStatistics.h"  // JSAccumulateTelemetryDataCallback
 #include "js/GCVector.h"
 #include "js/HashTable.h"
 #include "js/Initialization.h"
 #include "js/MemoryCallbacks.h"
 #include "js/Modules.h"  // JS::Module{DynamicImport,Metadata,Resolve}Hook
-#ifdef DEBUG
-#  include "js/Proxy.h"  // For AutoEnterPolicy
-#endif
 #include "js/ScriptPrivate.h"
+#include "js/shadow/Zone.h"
 #include "js/ShadowRealmCallbacks.h"
 #include "js/Stack.h"
-#include "js/Stream.h"  // JS::AbortSignalIsAborted
 #include "js/StreamConsumer.h"
 #include "js/Symbol.h"
 #include "js/UniquePtr.h"
 #include "js/Utility.h"
-#include "js/Vector.h"
 #include "js/WaitCallbacks.h"
 #include "js/Warnings.h"  // JS::WarningReporter
-#include "js/WrapperCallbacks.h"
 #include "js/Zone.h"
-#include "threading/Thread.h"
 #include "vm/Caches.h"  // js::RuntimeCaches
 #include "vm/CodeCoverage.h"
-#include "vm/CommonPropertyNames.h"
 #include "vm/GeckoProfiler.h"
-#include "vm/JSAtom.h"
-#include "vm/JSAtomState.h"
 #include "vm/JSScript.h"
 #include "vm/OffThreadPromiseRuntimeState.h"  // js::OffThreadPromiseRuntimeState
-#include "vm/Scope.h"
 #include "vm/SharedImmutableStringsCache.h"
 #include "vm/SharedStencil.h"  // js::SharedImmutableScriptDataTable
 #include "vm/Stack.h"
-#include "vm/SymbolType.h"
 #include "wasm/WasmTypeDecls.h"
 
+struct JSAtomState;
 struct JSClass;
 struct JSErrorInterceptor;
+struct JSWrapObjectCallbacks;
 
 namespace js {
 
 class AutoAssertNoContentJS;
+class Debugger;
 class EnterDebuggeeNoExecute;
+class ErrorContext;
+class StaticStrings;
 
 }  // namespace js
 
@@ -102,11 +87,14 @@ namespace js {
 
 extern MOZ_COLD void ReportOutOfMemory(JSContext* cx);
 extern MOZ_COLD void ReportAllocationOverflow(JSContext* maybecx);
+extern MOZ_COLD void ReportAllocationOverflow(ErrorContext* ec);
 extern MOZ_COLD void ReportOversizedAllocation(JSContext* cx,
                                                const unsigned errorNumber);
 
 class Activation;
 class ActivationIterator;
+class Shape;
+class SourceHook;
 
 namespace jit {
 class JitRuntime;
@@ -122,7 +110,6 @@ class Simulator;
 }  // namespace jit
 
 namespace frontend {
-struct CompilationGCOutput;
 struct CompilationInput;
 struct CompilationStencil;
 class WellKnownParserAtoms;
@@ -776,7 +763,6 @@ struct JSRuntime {
   js::gc::GCRuntime gc;
 
   /* Garbage collector state has been successfully initialized. */
-  js::WriteOnceData<bool> gcInitialized;
 
   bool hasZealMode(js::gc::ZealMode mode) { return gc.hasZealMode(mode); }
 
@@ -858,18 +844,16 @@ struct JSRuntime {
     return *atoms_;
   }
 
-  const JS::Zone* atomsZone() const {
-    MOZ_ASSERT(js::CurrentThreadCanAccessRuntime(this));
-    return gc.atomsZone;
-  }
   JS::Zone* atomsZone() {
     MOZ_ASSERT(js::CurrentThreadCanAccessRuntime(this));
-    return gc.atomsZone;
+    return unsafeAtomsZone();
   }
-  JS::Zone* unsafeAtomsZone() { return gc.atomsZone; }
+  JS::Zone* unsafeAtomsZone() { return gc.atomsZone(); }
 
 #ifdef DEBUG
-  bool isAtomsZone(const JS::Zone* zone) const { return zone == gc.atomsZone; }
+  bool isAtomsZone(const JS::Zone* zone) const {
+    return JS::shadow::Zone::from(zone)->isAtomsZone();
+  }
 #endif
 
   bool activeGCInAtomsZone();
@@ -927,6 +911,7 @@ struct JSRuntime {
 
  public:
   static bool hasLiveRuntimes() { return liveRuntimesCount > 0; }
+  static bool hasSingleLiveRuntime() { return liveRuntimesCount == 1; }
 
   explicit JSRuntime(JSRuntime* parentRuntime);
   ~JSRuntime();
@@ -962,7 +947,9 @@ struct JSRuntime {
   js::MainThreadData<JS::AfterWaitCallback> afterWaitCallback;
 
  public:
-  void reportAllocationOverflow() { js::ReportAllocationOverflow(nullptr); }
+  void reportAllocationOverflow() {
+    js::ReportAllocationOverflow(static_cast<JSContext*>(nullptr));
+  }
 
   /*
    * This should be called after system malloc/calloc/realloc returns nullptr
@@ -1050,7 +1037,11 @@ struct JSRuntime {
   }
 
  private:
-  js::MainThreadOrParseData<js::RuntimeCaches> caches_;
+  // Warning: no data should be accessed in these caches from another thread,
+  // but Ion needs to be able to access addresses inside here, which should be
+  // safe, as the actual cache lookups will be performed on the main thread
+  // through jitted code.
+  js::MainThreadOrParseOrIonCompileData<js::RuntimeCaches> caches_;
 
  public:
   js::RuntimeCaches& caches() { return caches_.ref(); }
@@ -1061,7 +1052,7 @@ struct JSRuntime {
   js::ExclusiveData<js::wasm::InstanceVector> wasmInstances;
 
   // A counter used when recording the order in which modules had their
-  // AsyncEvaluating field set to true. This is used to order queued
+  // AsyncEvaluation field set to true. This is used to order queued
   // evaluations. This is reset when the last module that was async evaluating
   // is finished.
   //

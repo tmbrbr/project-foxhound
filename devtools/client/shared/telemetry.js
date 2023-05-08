@@ -10,13 +10,14 @@
 
 "use strict";
 
-const Services = require("Services");
 const TelemetryStopwatch = require("TelemetryStopwatch");
-const { getNthPathExcluding } = require("devtools/shared/platform/stack");
 const {
-  TelemetryEnvironment,
-} = require("resource://gre/modules/TelemetryEnvironment.jsm");
-const WeakMapMap = require("devtools/client/shared/WeakMapMap");
+  getNthPathExcluding,
+} = require("resource://devtools/shared/platform/stack.js");
+const { TelemetryEnvironment } = ChromeUtils.import(
+  "resource://gre/modules/TelemetryEnvironment.jsm"
+);
+const WeakMapMap = require("resource://devtools/client/shared/WeakMapMap.js");
 
 const CATEGORY = "devtools.main";
 
@@ -791,10 +792,10 @@ function getChartsFromToolId(id) {
   }
 
   return {
-    useTimedEvent: useTimedEvent,
-    timerHist: timerHist,
-    countHist: countHist,
-    countScalar: countScalar,
+    useTimedEvent,
+    timerHist,
+    countHist,
+    countScalar,
   };
 }
 

@@ -51,6 +51,7 @@
 #include "mozilla/ipc/UtilityProcessHost.h"
 #include "mozilla/net/UrlClassifierFeatureFactory.h"
 #include "IOActivityMonitor.h"
+#include "nsNativeTheme.h"
 #include "nsThreadUtils.h"
 #include "mozJSModuleLoader.h"
 #include "mozilla/ProfilerLabels.h"
@@ -571,12 +572,30 @@ void ChromeUtils::Import(const GlobalObject& aGlobal,
   aRetval.set(exports);
 }
 
+static mozJSModuleLoader* GetContextualESLoader(
+    const Optional<bool>& aLoadInDevToolsLoader, JSObject* aGlobal) {
+  RefPtr devToolsModuleloader = mozJSModuleLoader::GetDevToolsLoader();
+  // We should load the module in the DevTools loader if:
+  // - ChromeUtils.importESModule's `loadInDevToolsLoader` option is true, or,
+  // - if the callsite is from a module loaded in the DevTools loader and
+  // `loadInDevToolsLoader` isn't an explicit false.
+  bool shouldUseDevToolsLoader =
+      (aLoadInDevToolsLoader.WasPassed() && aLoadInDevToolsLoader.Value()) ||
+      (devToolsModuleloader && !aLoadInDevToolsLoader.WasPassed() &&
+       devToolsModuleloader->IsLoaderGlobal(aGlobal));
+  if (shouldUseDevToolsLoader) {
+    return mozJSModuleLoader::GetOrCreateDevToolsLoader();
+  }
+  return mozJSModuleLoader::Get();
+}
+
 /* static */
-void ChromeUtils::ImportESModule(const GlobalObject& aGlobal,
-                                 const nsAString& aResourceURI,
-                                 JS::MutableHandle<JSObject*> aRetval,
-                                 ErrorResult& aRv) {
-  RefPtr moduleloader = mozJSModuleLoader::Get();
+void ChromeUtils::ImportESModule(
+    const GlobalObject& aGlobal, const nsAString& aResourceURI,
+    const ImportESModuleOptionsDictionary& aOptions,
+    JS::MutableHandle<JSObject*> aRetval, ErrorResult& aRv) {
+  RefPtr moduleloader =
+      GetContextualESLoader(aOptions.mLoadInDevToolsLoader, aGlobal.Get());
   MOZ_ASSERT(moduleloader);
 
   NS_ConvertUTF16toUTF8 registryLocation(aResourceURI);
@@ -604,6 +623,7 @@ void ChromeUtils::ImportESModule(const GlobalObject& aGlobal,
 }
 
 namespace module_getter {
+
 static const size_t SLOT_ID = 0;
 static const size_t SLOT_URI = 1;
 
@@ -648,7 +668,12 @@ static bool ModuleGetterImpl(JSContext* aCx, unsigned aArgc, JS::Value* aVp,
   }
   nsDependentCString uri(bytes.get());
 
-  RefPtr moduleloader = mozJSModuleLoader::Get();
+  RefPtr moduleloader =
+      aType == ModuleType::JSM
+          ? mozJSModuleLoader::Get()
+          : GetContextualESLoader(
+                Optional<bool>(),
+                JS::GetNonCCWObjectGlobal(js::UncheckedUnwrap(thisObj)));
   MOZ_ASSERT(moduleloader);
 
   JS::Rooted<JS::Value> value(aCx);
@@ -1032,14 +1057,18 @@ static WebIDLUtilityActorName UtilityActorNameToWebIDL(
     mozilla::UtilityActorName aType) {
   // Max is the value of the last enum, not the length, so add one.
   static_assert(WebIDLUtilityActorNameValues::Count ==
-                    static_cast<size_t>(UtilityActorName::AudioDecoder) + 1,
+                    static_cast<size_t>(UtilityActorName::MfMediaEngineCDM) + 1,
                 "In order for this static cast to be okay, "
                 "UtilityActorName must match UtilityActorName exactly");
 
   // These must match the similar ones in ProcInfo.h and ChromeUtils.webidl
   switch (aType) {
     UTILITYACTORNAME_TO_WEBIDL_CASE(Unknown, Unknown);
-    UTILITYACTORNAME_TO_WEBIDL_CASE(AudioDecoder, AudioDecoder);
+    UTILITYACTORNAME_TO_WEBIDL_CASE(AudioDecoder_Generic, AudioDecoder_Generic);
+    UTILITYACTORNAME_TO_WEBIDL_CASE(AudioDecoder_AppleMedia,
+                                    AudioDecoder_AppleMedia);
+    UTILITYACTORNAME_TO_WEBIDL_CASE(AudioDecoder_WMF, AudioDecoder_WMF);
+    UTILITYACTORNAME_TO_WEBIDL_CASE(MfMediaEngineCDM, MfMediaEngineCDM);
   }
 
   MOZ_ASSERT(false, "Unhandled case in WebIDLUtilityActorName");
@@ -1707,4 +1736,15 @@ void ChromeUtils::GetFormAutofillConfidences(
   FormAutofillNative::GetFormAutofillConfidences(aGlobal, aElements, aResults,
                                                  aRv);
 }
+
+bool ChromeUtils::IsDarkBackground(GlobalObject&, Element& aElement) {
+  nsIFrame* f = aElement.GetPrimaryFrame(FlushType::Frames);
+  if (!f) {
+    return false;
+  }
+  return nsNativeTheme::IsDarkBackground(f);
+}
+
+double ChromeUtils::DateNow(GlobalObject&) { return JS_Now() / 1000.0; }
+
 }  // namespace mozilla::dom

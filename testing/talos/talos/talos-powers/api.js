@@ -205,7 +205,7 @@ TalosPowersService.prototype = {
    *
    */
   addInstantMarker(marker) {
-    ChromeUtils.addProfilerMarker("Talos", undefined, marker);
+    ChromeUtils.addProfilerMarker("Talos", { category: "Test" }, marker);
   },
 
   /**
@@ -219,7 +219,11 @@ TalosPowersService.prototype = {
    *        undefined, a single instance marker will be placed.
    */
   addIntervalMarker(marker, startTime) {
-    ChromeUtils.addProfilerMarker("Talos", startTime, marker);
+    ChromeUtils.addProfilerMarker(
+      "Talos",
+      { startTime, category: "Test" },
+      marker
+    );
   },
 
   receiveProfileCommand(message) {
@@ -402,8 +406,8 @@ TalosPowersService.prototype = {
     },
 
     dumpAboutSupport(arg, callback, win) {
-      const { Troubleshoot } = ChromeUtils.import(
-        "resource://gre/modules/Troubleshoot.jsm"
+      const { Troubleshoot } = ChromeUtils.importESModule(
+        "resource://gre/modules/Troubleshoot.sys.mjs"
       );
       Troubleshoot.snapshot(function(snapshot) {
         dump("about:support\t" + JSON.stringify(snapshot) + "\n");

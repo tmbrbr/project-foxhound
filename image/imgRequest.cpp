@@ -90,7 +90,7 @@ nsresult imgRequest::Init(
     nsIRequest* aRequest, nsIChannel* aChannel, imgCacheEntry* aCacheEntry,
     mozilla::dom::Document* aLoadingDocument,
     nsIPrincipal* aTriggeringPrincipal, mozilla::CORSMode aCORSMode,
-    nsIReferrerInfo* aReferrerInfo) NO_THREAD_SAFETY_ANALYSIS {
+    nsIReferrerInfo* aReferrerInfo) MOZ_NO_THREAD_SAFETY_ANALYSIS {
   MOZ_ASSERT(NS_IsMainThread(), "Cannot use nsIURI off main thread!");
   // Init() can only be called once, and that's before it can be used off
   // mainthread
@@ -175,6 +175,11 @@ bool imgRequest::CanReuseWithoutValidation(dom::Document* aDoc) const {
 }
 
 void imgRequest::ClearLoader() { mLoader = nullptr; }
+
+already_AddRefed<nsIPrincipal> imgRequest::GetTriggeringPrincipal() const {
+  nsCOMPtr<nsIPrincipal> principal = mTriggeringPrincipal;
+  return principal.forget();
+}
 
 already_AddRefed<ProgressTracker> imgRequest::GetProgressTracker() const {
   MutexAutoLock lock(mMutex);
@@ -345,7 +350,7 @@ void imgRequest::ContinueCancel(nsresult aStatus) {
   RemoveFromCache();
 
   if (mRequest && !(progressTracker->GetProgress() & FLAG_LAST_PART_COMPLETE)) {
-    mRequest->Cancel(aStatus);
+    mRequest->CancelWithReason(aStatus, "imgRequest::ContinueCancel"_ns);
   }
 }
 

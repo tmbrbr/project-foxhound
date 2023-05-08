@@ -90,6 +90,9 @@ def setup_talos(config, tasks):
             extra_options.append("--add-option")
             extra_options.append("--setpref,gfx.direct2d.disabled=true")
 
+        if config.params.get("project", None):
+            extra_options.append("--project=%s" % config.params["project"])
+
         yield task
 
 
@@ -317,12 +320,12 @@ def setup_browsertime(config, tasks):
 
         fs = {
             "by-test-platform": {
-                "android.*": ["linux64-ffmpeg-4.1.4"],
-                "linux.*": ["linux64-ffmpeg-4.1.4"],
-                "macosx.*": ["mac64-ffmpeg-4.1.1"],
-                "windows.*aarch64.*": ["win64-ffmpeg-4.1.1"],
-                "windows.*-32.*": ["win64-ffmpeg-4.1.1"],
-                "windows.*-64.*": ["win64-ffmpeg-4.1.1"],
+                "android.*": ["linux64-ffmpeg-4.4.1"],
+                "linux.*": ["linux64-ffmpeg-4.4.1"],
+                "macosx.*": ["mac64-ffmpeg-4.4.1"],
+                "windows.*aarch64.*": ["win64-ffmpeg-4.4.1"],
+                "windows.*-32.*": ["win64-ffmpeg-4.4.1"],
+                "windows.*-64.*": ["win64-ffmpeg-4.4.1"],
             },
         }
 
@@ -331,44 +334,39 @@ def setup_browsertime(config, tasks):
                 "linux64-chromedriver-87",
             ],
             "linux.*": [
-                "linux64-chromedriver-98",
-                "linux64-chromedriver-99",
-                "linux64-chromedriver-100",
-                "linux64-chromedriver-101",
                 "linux64-chromedriver-102",
                 "linux64-chromedriver-103",
+                "linux64-chromedriver-104",
+                "linux64-chromedriver-105",
+                "linux64-chromedriver-106",
             ],
             "macosx.*": [
-                "mac64-chromedriver-98",
-                "mac64-chromedriver-99",
-                "mac64-chromedriver-100",
-                "mac64-chromedriver-101",
                 "mac64-chromedriver-102",
                 "mac64-chromedriver-103",
+                "mac64-chromedriver-104",
+                "mac64-chromedriver-105",
+                "mac64-chromedriver-106",
             ],
             "windows.*aarch64.*": [
-                "win32-chromedriver-98",
-                "win32-chromedriver-99",
-                "win32-chromedriver-100",
-                "win32-chromedriver-101",
                 "win32-chromedriver-102",
                 "win32-chromedriver-103",
+                "win32-chromedriver-104",
+                "win32-chromedriver-105",
+                "win32-chromedriver-106",
             ],
             "windows.*-32.*": [
-                "win32-chromedriver-98",
-                "win32-chromedriver-99",
-                "win32-chromedriver-100",
-                "win32-chromedriver-101",
                 "win32-chromedriver-102",
                 "win32-chromedriver-103",
+                "win32-chromedriver-104",
+                "win32-chromedriver-105",
+                "win32-chromedriver-106",
             ],
             "windows.*-64.*": [
-                "win32-chromedriver-98",
-                "win32-chromedriver-99",
-                "win32-chromedriver-100",
-                "win32-chromedriver-101",
                 "win32-chromedriver-102",
                 "win32-chromedriver-103",
+                "win32-chromedriver-104",
+                "win32-chromedriver-105",
+                "win32-chromedriver-106",
             ],
         }
 
@@ -428,7 +426,7 @@ def setup_browsertime(config, tasks):
                     "--browsertime-chromedriver",
                     "$MOZ_FETCHES_DIR/" + cd_extracted_name["windows"],
                     "--browsertime-ffmpeg",
-                    "$MOZ_FETCHES_DIR/ffmpeg-4.1.1-win64-static/bin/ffmpeg.exe",
+                    "$MOZ_FETCHES_DIR/ffmpeg-4.4.1-full_build/bin/ffmpeg.exe",
                 ],
                 "macosx.*": [
                     "--browsertime-node",
@@ -438,7 +436,7 @@ def setup_browsertime(config, tasks):
                     "--browsertime-chromedriver",
                     "$MOZ_FETCHES_DIR/" + cd_extracted_name["mac"],
                     "--browsertime-ffmpeg",
-                    "$MOZ_FETCHES_DIR/ffmpeg-4.1.1-macos64-static/bin/ffmpeg",
+                    "$MOZ_FETCHES_DIR/ffmpeg-macos/ffmpeg",
                 ],
                 "default": [
                     "--browsertime-node",
@@ -448,7 +446,7 @@ def setup_browsertime(config, tasks):
                     "--browsertime-chromedriver",
                     "$MOZ_FETCHES_DIR/" + cd_extracted_name["default"],
                     "--browsertime-ffmpeg",
-                    "$MOZ_FETCHES_DIR/ffmpeg-4.1.4-i686-static/ffmpeg",
+                    "$MOZ_FETCHES_DIR/ffmpeg-4.4.1-i686-static/ffmpeg",
                 ],
             }
         }

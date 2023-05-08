@@ -23,6 +23,8 @@ class AccAttributes;
 class AccGroupInfo;
 class HyperTextAccessibleBase;
 class LocalAccessible;
+class Relation;
+enum class RelationType;
 class RemoteAccessible;
 class TableAccessibleBase;
 class TableCellAccessibleBase;
@@ -200,6 +202,11 @@ class Accessible {
                                    EWhichChildAtPoint aWhichChild) = 0;
 
   /**
+   * Return the focused child if any.
+   */
+  virtual Accessible* FocusedChild();
+
+  /**
    * Return ARIA role map if any.
    */
   const nsRoleMapEntry* ARIARoleMap() const;
@@ -327,6 +334,11 @@ class Accessible {
 
   virtual Maybe<int32_t> GetIntARIAAttr(nsAtom* aAttrName) const = 0;
 
+  /**
+   * Get the relation of the given type.
+   */
+  virtual Relation RelationByType(RelationType aType) const = 0;
+
   // Methods that interact with content.
 
   virtual void TakeFocus() const = 0;
@@ -435,20 +447,20 @@ class Accessible {
 
   bool IsDoc() const { return HasGenericType(eDocument); }
 
-  bool IsTableRow() const { return HasGenericType(eTableRow); }
-
   /**
    * Note: The eTable* types defined in the ARIA map are used in
    * nsAccessibilityService::CreateAccessible to determine which ARIAGrid*
    * classes to use for accessible object creation. However, an invalid table
    * structure might cause these classes not to be used after all.
    *
-   * To make sure we're really dealing with a table cell, only check the
+   * To make sure we're really dealing with a table/row/cell, only check the
    * generic type defined by the class, not the type defined in the ARIA map.
    */
+  bool IsTableRow() const { return mGenericTypes & eTableRow; }
+
   bool IsTableCell() const { return mGenericTypes & eTableCell; }
 
-  bool IsTable() const { return HasGenericType(eTable); }
+  bool IsTable() const { return mGenericTypes & eTable; }
 
   bool IsHyperText() const { return HasGenericType(eHyperText); }
 

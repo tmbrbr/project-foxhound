@@ -53,6 +53,11 @@ export function getPauseReason(state, thread) {
   return getThreadPauseState(state.pause, thread).why;
 }
 
+export function getShouldBreakpointsPaneOpenOnPause(state, thread) {
+  return getThreadPauseState(state.pause, thread)
+    .shouldBreakpointsPaneOpenOnPause;
+}
+
 export function getPauseCommand(state, thread) {
   return getThreadPauseState(state.pause, thread).command;
 }
@@ -151,7 +156,7 @@ export function getSelectedFrameBindings(state, thread) {
 
   const frameScope = scopes.generated[selectedFrameId];
   if (!frameScope || frameScope.pending) {
-    return;
+    return null;
   }
 
   let currentScope = frameScope.scope;

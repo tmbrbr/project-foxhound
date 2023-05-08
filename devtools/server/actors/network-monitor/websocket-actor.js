@@ -4,10 +4,16 @@
 
 "use strict";
 
-const { Cc, Ci } = require("chrome");
-const { Actor, ActorClassWithSpec } = require("devtools/shared/protocol");
-const { webSocketSpec } = require("devtools/shared/specs/websocket");
-const { LongStringActor } = require("devtools/server/actors/string");
+const {
+  Actor,
+  ActorClassWithSpec,
+} = require("resource://devtools/shared/protocol.js");
+const {
+  webSocketSpec,
+} = require("resource://devtools/shared/specs/websocket.js");
+const {
+  LongStringActor,
+} = require("resource://devtools/server/actors/string.js");
 
 const webSocketEventService = Cc[
   "@mozilla.org/websocketevent/service;1"
@@ -39,7 +45,7 @@ const WebSocketActor = ActorClassWithSpec(webSocketSpec, {
     }
   },
 
-  destroy: function() {
+  destroy() {
     this.targetActor.off("window-ready", this.onWindowReady);
 
     this.stopListening();
@@ -48,7 +54,7 @@ const WebSocketActor = ActorClassWithSpec(webSocketSpec, {
 
   // Actor API
 
-  startListening: function() {
+  startListening() {
     this.stopListening();
     this.innerWindowID = this.targetActor.window.windowGlobalChild.innerWindowId;
     webSocketEventService.addListener(this.innerWindowID, this);

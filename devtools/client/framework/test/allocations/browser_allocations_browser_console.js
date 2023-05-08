@@ -8,12 +8,12 @@
 const TEST_URL =
   "http://example.com/browser/devtools/client/framework/test/allocations/reloaded-page.html";
 
-const { require } = ChromeUtils.import(
-  "resource://devtools/shared/loader/Loader.jsm"
+const { require } = ChromeUtils.importESModule(
+  "resource://devtools/shared/loader/Loader.sys.mjs"
 );
 const {
   BrowserConsoleManager,
-} = require("devtools/client/webconsole/browser-console-manager");
+} = require("resource://devtools/client/webconsole/browser-console-manager.js");
 
 async function testScript() {
   // Open
@@ -47,6 +47,9 @@ add_task(async function() {
   // even on beta and release.
   await SpecialPowers.pushPrefEnv({
     set: [["devtools.browsertoolbox.fission", true]],
+  });
+  await SpecialPowers.pushPrefEnv({
+    set: [["devtools.browsertoolbox.scope", "everything"]],
   });
 
   const tab = await addTab(TEST_URL);

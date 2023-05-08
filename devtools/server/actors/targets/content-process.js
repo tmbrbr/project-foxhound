@@ -11,38 +11,37 @@
  * See devtools/docs/backend/actor-hierarchy.md for more details.
  */
 
-const { Cc, Ci, Cu } = require("chrome");
-const Services = require("Services");
-
-const { ThreadActor } = require("devtools/server/actors/thread");
-const { WebConsoleActor } = require("devtools/server/actors/webconsole");
-const makeDebugger = require("devtools/server/actors/utils/make-debugger");
-const { Pool } = require("devtools/shared/protocol");
-const { assert } = require("devtools/shared/DevToolsUtils");
+const { ThreadActor } = require("resource://devtools/server/actors/thread.js");
+const {
+  WebConsoleActor,
+} = require("resource://devtools/server/actors/webconsole.js");
+const makeDebugger = require("resource://devtools/server/actors/utils/make-debugger.js");
+const { Pool } = require("resource://devtools/shared/protocol.js");
+const { assert } = require("resource://devtools/shared/DevToolsUtils.js");
 const {
   SourcesManager,
-} = require("devtools/server/actors/utils/sources-manager");
-const { Actor } = require("devtools/shared/protocol");
+} = require("resource://devtools/server/actors/utils/sources-manager.js");
+const { Actor } = require("resource://devtools/shared/protocol.js");
 const {
   contentProcessTargetSpec,
-} = require("devtools/shared/specs/targets/content-process");
-const Targets = require("devtools/server/actors/targets/index");
-const Resources = require("devtools/server/actors/resources/index");
-const TargetActorMixin = require("devtools/server/actors/targets/target-actor-mixin");
-const {
-  TargetActorRegistry,
-} = require("resource://devtools/server/actors/targets/target-actor-registry.jsm");
+} = require("resource://devtools/shared/specs/targets/content-process.js");
+const Targets = require("resource://devtools/server/actors/targets/index.js");
+const Resources = require("resource://devtools/server/actors/resources/index.js");
+const TargetActorMixin = require("resource://devtools/server/actors/targets/target-actor-mixin.js");
+const { TargetActorRegistry } = ChromeUtils.importESModule(
+  "resource://devtools/server/actors/targets/target-actor-registry.sys.mjs"
+);
 
 loader.lazyRequireGetter(
   this,
   "WorkerDescriptorActorList",
-  "devtools/server/actors/worker/worker-descriptor-actor-list",
+  "resource://devtools/server/actors/worker/worker-descriptor-actor-list.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "MemoryActor",
-  "devtools/server/actors/memory",
+  "resource://devtools/server/actors/memory.js",
   true
 );
 
@@ -50,10 +49,7 @@ const ContentProcessTargetActor = TargetActorMixin(
   Targets.TYPES.PROCESS,
   contentProcessTargetSpec,
   {
-    initialize: function(
-      connection,
-      { isXpcShellTarget = false, sessionContext } = {}
-    ) {
+    initialize(connection, { isXpcShellTarget = false, sessionContext } = {}) {
       Actor.prototype.initialize.call(this, connection);
       this.conn = connection;
       this.threadActor = null;
@@ -138,7 +134,7 @@ const ContentProcessTargetActor = TargetActorMixin(
       return this._dbg;
     },
 
-    form: function() {
+    form() {
       if (!this._consoleActor) {
         this._consoleActor = new WebConsoleActor(this.conn, this);
         this.manage(this._consoleActor);
@@ -177,7 +173,7 @@ const ContentProcessTargetActor = TargetActorMixin(
       return this._workerList;
     },
 
-    listWorkers: function() {
+    listWorkers() {
       return this.ensureWorkerList()
         .getList()
         .then(actors => {
@@ -202,7 +198,7 @@ const ContentProcessTargetActor = TargetActorMixin(
         });
     },
 
-    _onWorkerListChanged: function() {
+    _onWorkerListChanged() {
       this.conn.send({ from: this.actorID, type: "workerListChanged" });
       this._workerList.onListChanged = null;
     },
@@ -213,7 +209,7 @@ const ContentProcessTargetActor = TargetActorMixin(
       );
     },
 
-    destroy: function() {
+    destroy() {
       // Avoid reentrancy. We will destroy the Transport when emitting "destroyed",
       // which will force destroying all actors.
       if (this.destroying) {

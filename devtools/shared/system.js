@@ -3,20 +3,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const { Cc, Ci } = require("chrome");
-
-loader.lazyRequireGetter(this, "Services");
 loader.lazyRequireGetter(
   this,
   "DevToolsServer",
-  "devtools/server/devtools-server",
+  "resource://devtools/server/devtools-server.js",
   true
 );
-loader.lazyRequireGetter(
-  this,
+const lazy = {};
+ChromeUtils.defineModuleGetter(
+  lazy,
   "AppConstants",
-  "resource://gre/modules/AppConstants.jsm",
-  true
+  "resource://gre/modules/AppConstants.jsm"
 );
 loader.lazyGetter(this, "hostname", () => {
   try {
@@ -125,10 +122,10 @@ function getSystemInfo() {
      */
 
     // Returns the endianness of the architecture: either "LE" or "BE"
-    endianness: endianness,
+    endianness,
 
     // Returns the hostname of the machine
-    hostname: hostname,
+    hostname,
 
     // Name of the OS type. Typically the same as `uname -s`. Possible values:
     // https://developer.mozilla.org/en/OS_TARGET
@@ -157,7 +154,7 @@ function getSystemInfo() {
     profile: getProfileLocation(),
 
     // Update channel
-    channel: AppConstants.MOZ_UPDATE_CHANNEL,
+    channel: lazy.AppConstants.MOZ_UPDATE_CHANNEL,
 
     dpi,
     useragent,

@@ -7,7 +7,7 @@
 # - intentionally invalid files
 # - build directories and other items that we need to ignore
 
-!.eslintrc.js
+!.eslintrc*.js
 
 # Always ignore node_modules.
 **/node_modules/
@@ -38,12 +38,13 @@ browser/components/sessionstore/test/unit/data/sessionstore_invalid.js
 # for documentation purposes (policies.json) but to be accessed by the
 # code as a .jsm (schema.jsm)
 browser/components/enterprisepolicies/schemas/schema.jsm
-# generated & special files in cld2
-browser/components/translation/cld2/
 # generated or library files in pocket
 browser/components/pocket/content/panels/js/tmpl.js
 browser/components/pocket/content/panels/js/vendor.bundle.js
 browser/components/pocket/content/panels/js/main.bundle.js
+# Include the Storybook config files.
+!browser/components/storybook/.storybook/
+!browser/components/storybook/.storybook/*.js
 
 # Ignore newtab files
 browser/components/newtab/aboutwelcome/content/aboutwelcome.bundle.js
@@ -135,14 +136,16 @@ dom/workers/test/threadErrors_worker1.js
 intl/l10n/
 
 # Exclude everything but self-hosted JS
-js/ductwork/
 js/examples/
 js/public/
-js/xpconnect/
 js/src/devtools/
 js/src/jit-test/
 js/src/tests/
 js/src/Y.js
+
+# Changes to XPConnect tests must be carefully audited.
+js/xpconnect/tests/mochitest/
+js/xpconnect/tests/unit/
 
 # Fuzzing code for testing only, targeting the JS shell
 js/src/fuzz-tests/
@@ -164,12 +167,12 @@ modules/libpref/test/unit/*data/
 python/
 
 # These are (mainly) imported code that we don't want to lint to make imports easier.
-remote/cdp/Protocol.jsm
+remote/cdp/Protocol.sys.mjs
 remote/cdp/test/browser/chrome-remote-interface.js
-remote/marionette/atom.js
+remote/marionette/atom.sys.mjs
 
 # This file explicitly has a syntax error and cannot be parsed by eslint.
-remote/shared/messagehandler/test/browser/resources/modules/root/invalid.jsm
+remote/shared/messagehandler/test/browser/resources/modules/root/invalid.sys.mjs
 
 # services/ exclusions
 
@@ -213,9 +216,15 @@ toolkit/components/reader/JSDOMParser.js
 # Uses preprocessing
 toolkit/components/reader/Readerable.jsm
 
+# Generated & special files in cld2
+toolkit/components/translation/cld2/
+
 # Uses preprocessing
 toolkit/mozapps/update/tests/data/xpcshellConstantsPP.js
 toolkit/modules/AppConstants.jsm
+
+# Tests of ESLint command.
+tools/lint/test/files
 
 # Uses special template formatting.
 tools/tryselect/selectors/chooser/templates/chooser.html
@@ -228,3 +237,6 @@ toolkit/components/backgroundtasks/defaults
 
 # Ignore pre-generated webpack and typescript transpiled files for translations
 browser/extensions/translations/extension/
+
+# "scaffolding" used by uniffi which isn't valid JS in its original form.
+toolkit/components/uniffi-bindgen-gecko-js/src/templates/js/

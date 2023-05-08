@@ -4,63 +4,63 @@
 
 "use strict";
 
-const protocol = require("devtools/shared/protocol");
-const { getCSSLexer } = require("devtools/shared/css/lexer");
+const protocol = require("resource://devtools/shared/protocol.js");
+const { getCSSLexer } = require("resource://devtools/shared/css/lexer.js");
 const InspectorUtils = require("InspectorUtils");
-const TrackChangeEmitter = require("devtools/server/actors/utils/track-change-emitter");
+const TrackChangeEmitter = require("resource://devtools/server/actors/utils/track-change-emitter.js");
 const {
   getRuleText,
   getTextAtLineColumn,
-} = require("devtools/server/actors/utils/style-utils");
+} = require("resource://devtools/server/actors/utils/style-utils.js");
 
-const { styleRuleSpec } = require("devtools/shared/specs/style-rule");
+const {
+  styleRuleSpec,
+} = require("resource://devtools/shared/specs/style-rule.js");
 const {
   style: { ELEMENT_STYLE },
-} = require("devtools/shared/constants");
+} = require("resource://devtools/shared/constants.js");
 
 loader.lazyRequireGetter(
   this,
   "CssLogic",
-  "devtools/server/actors/inspector/css-logic",
+  "resource://devtools/server/actors/inspector/css-logic.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "SharedCssLogic",
-  "devtools/shared/inspector/css-logic"
+  "resource://devtools/shared/inspector/css-logic.js"
 );
 loader.lazyRequireGetter(
   this,
   ["CSSRuleTypeName", "findCssSelector", "prettifyCSS"],
-  "devtools/shared/inspector/css-logic",
+  "resource://devtools/shared/inspector/css-logic.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "isCssPropertyKnown",
-  "devtools/server/actors/css-properties",
+  "resource://devtools/server/actors/css-properties.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "isPropertyUsed",
-  "devtools/server/actors/utils/inactive-property-helper",
+  "resource://devtools/server/actors/utils/inactive-property-helper.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "parseNamedDeclarations",
-  "devtools/shared/css/parsing-utils",
+  "resource://devtools/shared/css/parsing-utils.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   ["UPDATE_PRESERVING_RULES", "UPDATE_GENERAL"],
-  "devtools/server/actors/style-sheet",
+  "resource://devtools/server/actors/style-sheet.js",
   true
 );
-
-loader.lazyRequireGetter(this, "ChromeUtils");
 
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
 
@@ -81,7 +81,7 @@ const SUPPORTED_RULE_TYPES = [
  * with a special rule type (100).
  */
 const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
-  initialize: function(pageStyle, item) {
+  initialize(pageStyle, item) {
     protocol.Actor.prototype.initialize.call(this, null);
     this.pageStyle = pageStyle;
     this.rawStyle = item.style;
@@ -116,7 +116,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
       this.rawNode = item;
       this.rawRule = {
         style: item.style,
-        toString: function() {
+        toString() {
           return "[element rule " + this.style + "]";
         },
       };
@@ -127,7 +127,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
     return this.pageStyle.conn;
   },
 
-  destroy: function() {
+  destroy() {
     if (!this.rawStyle) {
       return;
     }
@@ -287,7 +287,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
     return data;
   },
 
-  getDocument: function(sheet) {
+  getDocument(sheet) {
     if (!sheet.associatedDocument) {
       throw new Error(
         "Failed trying to get the document of an invalid stylesheet"
@@ -296,12 +296,12 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
     return sheet.associatedDocument;
   },
 
-  toString: function() {
+  toString() {
     return "[StyleRuleActor for " + this.rawRule + "]";
   },
 
   // eslint-disable-next-line complexity
-  form: function() {
+  form() {
     const form = {
       actor: this.actorID,
       type: this.type,
@@ -318,20 +318,32 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
     // Go through all ancestor so we can build an array of all the media queries and
     // layers this rule is in.
     for (const ancestorRule of this.ancestorRules) {
+      const ruleClassName = ChromeUtils.getClassName(ancestorRule.rawRule);
       if (
-        ancestorRule.type === CSSRule.MEDIA_RULE &&
+        ruleClassName === "CSSMediaRule" &&
         ancestorRule.rawRule.media?.length
       ) {
         form.ancestorData.push({
           type: "media",
           value: Array.from(ancestorRule.rawRule.media).join(", "),
         });
-      } else if (
-        ChromeUtils.getClassName(ancestorRule.rawRule) === "CSSLayerBlockRule"
-      ) {
+      } else if (ruleClassName === "CSSLayerBlockRule") {
         form.ancestorData.push({
           type: "layer",
           value: ancestorRule.rawRule.name,
+        });
+      } else if (ruleClassName === "CSSContainerRule") {
+        form.ancestorData.push({
+          type: "container",
+          // Send containerName and containerQuery separately (instead of conditionText)
+          // so the client has more flexibility to display the information.
+          containerName: ancestorRule.rawRule.containerName,
+          containerQuery: ancestorRule.rawRule.containerQuery,
+        });
+      } else if (ruleClassName === "CSSSupportsRule") {
+        form.ancestorData.push({
+          type: "supports",
+          conditionText: ancestorRule.rawRule.conditionText,
         });
       }
     }
@@ -485,7 +497,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
    * @param {Number} line the new line number
    * @param {Number} column the new column number
    */
-  _notifyLocationChanged: function(line, column) {
+  _notifyLocationChanged(line, column) {
     this.emit("location-changed", line, column);
   },
 
@@ -495,7 +507,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
    * a given CSS rule in its parent.  A vector is used to support
    * nested rules.
    */
-  _computeRuleIndex: function() {
+  _computeRuleIndex() {
     let rule = this.rawRule;
     const result = [];
 
@@ -536,7 +548,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
    * @return {CSSStyleRule} the rule corresponding to
    * |this._ruleIndex|
    */
-  _getRuleFromIndex: function(parentSheet) {
+  _getRuleFromIndex(parentSheet) {
     let currentRule = null;
     for (const i of this._ruleIndex) {
       if (currentRule === null) {
@@ -552,7 +564,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
    * This is attached to the parent style sheet actor's
    * "style-applied" event.
    */
-  _onStyleApplied: function(kind) {
+  _onStyleApplied(kind) {
     if (kind === UPDATE_GENERAL) {
       // A general change means that the rule actors are invalidated,
       // so stop listening to events now.
@@ -594,7 +606,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
    *        ignore it and parse the stylehseet again. The authoredText
    *        may be outdated if a descendant of this rule has changed.
    */
-  getAuthoredCssText: async function(skipCache = false) {
+  async getAuthoredCssText(skipCache = false) {
     if (!this.canSetRuleText || !SUPPORTED_RULE_TYPES.includes(this.type)) {
       return Promise.resolve("");
     }
@@ -640,7 +652,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
    *
    * @return {String}
    */
-  getRuleText: async function() {
+  async getRuleText() {
     // Bail out if the rule is not supported or not an element inline style.
     if (![...SUPPORTED_RULE_TYPES, ELEMENT_STYLE].includes(this.type)) {
       return Promise.resolve("");
@@ -787,7 +799,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
    *
    * @returns the rule with updated properties
    */
-  modifyProperties: function(modifications) {
+  modifyProperties(modifications) {
     // Use a fresh element for each call to this function to prevent side
     // effects that pop up based on property values that were already set on the
     // element.
@@ -946,7 +958,8 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
       commentOffsets,
     } = oldDeclarations[index] || {};
 
-    const { value: currentValue } = newDeclarations[index] || {};
+    const { value: currentValue, name: currentName } =
+      newDeclarations[index] || {};
     // A declaration is disabled if it has a `commentOffsets` array.
     // Here we type coerce the value to a boolean with double-bang (!!)
     const prevDisabled = !!commentOffsets;
@@ -961,8 +974,10 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
         data.type = prevValue ? "declaration-add" : "declaration-update";
         // If `change.newName` is defined, use it because the property is being renamed.
         // Otherwise, a new declaration is being created or the value of an existing
-        // declaration is being updated. In that case, use the provided `change.name`.
-        const name = change.newName ? change.newName : change.name;
+        // declaration is being updated. In that case, use the currentName computed
+        // by the engine.
+        const changeName = currentName || change.name;
+        const name = change.newName ? change.newName : changeName;
         // Append the "!important" string if defined in the incoming priority flag.
 
         const changeValue = currentValue || change.value;
@@ -1059,7 +1074,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
    *        new rule and a boolean indicating whether or not the new selector
    *        matches the current selected element
    */
-  modifySelector: function(node, value, editAuthored = false) {
+  modifySelector(node, value, editAuthored = false) {
     if (this.type === ELEMENT_STYLE || this.rawRule.selectorText === value) {
       return { ruleProps: null, isMatching: true };
     }
@@ -1098,7 +1113,7 @@ const StyleRuleActor = protocol.ActorClassWithSpec(styleRuleSpec, {
         }
 
         isMatching = ruleProps.entries.some(
-          ruleProp => ruleProp.matchedSelectors.length > 0
+          ruleProp => !!ruleProp.matchedSelectors.length
         );
       }
 

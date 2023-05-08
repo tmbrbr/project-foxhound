@@ -67,6 +67,7 @@ dictionary InteractionData {
  */
 dictionary FormAutofillConfidences {
   double ccNumber = 0;
+  double ccName = 0;
 };
 
 /**
@@ -169,8 +170,8 @@ namespace ChromeUtils {
    *
    * Crash report will be augmented with the current JS stack information.
    */
-  void releaseAssert(boolean condition,
-                     optional DOMString message = "<no message>");
+  undefined releaseAssert(boolean condition,
+                          optional DOMString message = "<no message>");
 
 #ifdef NIGHTLY_BUILD
 
@@ -203,24 +204,24 @@ namespace ChromeUtils {
   /**
    * Reset `recentJSDevError` to `undefined` for the current JSRuntime.
    */
-  void clearRecentJSDevError();
+  undefined clearRecentJSDevError();
 #endif // NIGHTLY_BUILD
 
   /**
    * Clears the stylesheet cache by baseDomain. This includes associated
    * state-partitioned cache.
    */
-  void clearStyleSheetCacheByBaseDomain(UTF8String baseDomain);
+  undefined clearStyleSheetCacheByBaseDomain(UTF8String baseDomain);
 
   /**
    * Clears the stylesheet cache by principal.
    */
-  void clearStyleSheetCacheByPrincipal(Principal principal);
+  undefined clearStyleSheetCacheByPrincipal(Principal principal);
 
   /**
    * Clears the entire stylesheet cache.
    */
-  void clearStyleSheetCache();
+  undefined clearStyleSheetCache();
 
   /**
    * If the profiler is currently running and recording the current thread,
@@ -237,15 +238,21 @@ namespace ChromeUtils {
    *                          In JS modules, use `Cu.now()` to get a timestamp.
    * @param text              Text to associate with the marker.
    */
-  void addProfilerMarker(UTF8String name,
-                         optional (ProfilerMarkerOptions or DOMHighResTimeStamp) options = {},
-                         optional UTF8String text);
+  undefined addProfilerMarker(UTF8String name,
+                              optional (ProfilerMarkerOptions or DOMHighResTimeStamp) options = {},
+                              optional UTF8String text);
 
   /**
    * Return the symbolic name of any given XPCOM error code (nsresult):
    * "NS_OK", "NS_ERROR_FAILURE",...
    */
   UTF8String getXPCOMErrorName(unsigned long aErrorCode);
+
+  /**
+   * Return a fractional number representing the current time (in milliseconds from the Epoch).
+   * Should be JS_Now()/1000 so that it can be compared to Date.now in Javascript.
+   */
+  double dateNow();
 
   /**
    * IF YOU ADD NEW METHODS HERE, MAKE SURE THEY ARE THREAD-SAFE.
@@ -404,8 +411,8 @@ partial namespace ChromeUtils {
    * particular DOM windw.
    */
   [Throws]
-  void idleDispatch(IdleRequestCallback callback,
-                    optional IdleRequestOptions options = {});
+  undefined idleDispatch(IdleRequestCallback callback,
+                         optional IdleRequestOptions options = {});
 
   /**
    * Synchronously loads and evaluates the js file located at
@@ -440,7 +447,7 @@ partial namespace ChromeUtils {
    * the same file will not cause the module to be re-evaluated.
    */
   [Throws]
-  object importESModule(DOMString aResourceURI);
+  object importESModule(DOMString aResourceURI, optional ImportESModuleOptionsDictionary options = {});
 
   /**
    * Defines a property on the given target which lazily imports a JavaScript
@@ -473,7 +480,7 @@ partial namespace ChromeUtils {
    *                    ChromeUtils.import.
    */
   [Throws]
-  void defineModuleGetter(object target, DOMString id, DOMString resourceURI);
+  undefined defineModuleGetter(object target, DOMString id, DOMString resourceURI);
 
   /**
    * Defines propertys on the given target which lazily imports a ES module
@@ -485,7 +492,7 @@ partial namespace ChromeUtils {
    *                imported symbol and the value is the module URI.
    */
   [Throws]
-  void defineESModuleGetters(object target, object modules);
+  undefined defineESModuleGetters(object target, object modules);
 
   /**
    * Returns the scripted location of the first ancestor stack frame with a
@@ -517,7 +524,7 @@ partial namespace ChromeUtils {
    * @param aCollectionMask A bitmask where each bit corresponds to a metric
    *        to be collected as listed in PerfStats::Metric.
    */
-  void setPerfStatsCollectionMask(unsigned long long aCollectionMask);
+  undefined setPerfStatsCollectionMask(unsigned long long aCollectionMask);
 
   /**
    * Collect results of detailed performance timing information.
@@ -560,7 +567,7 @@ partial namespace ChromeUtils {
    * For testing purpose we need to reset this value.
    */
   [ChromeOnly]
-  void resetLastExternalProtocolIframeAllowed();
+  undefined resetLastExternalProtocolIframeAllowed();
 
   /**
    * Register a new toplevel window global actor. This method may only be
@@ -569,10 +576,10 @@ partial namespace ChromeUtils {
    * See JSWindowActor.webidl for WindowActorOptions fields documentation.
    */
   [ChromeOnly, Throws]
-  void registerWindowActor(UTF8String aName, optional WindowActorOptions aOptions = {});
+  undefined registerWindowActor(UTF8String aName, optional WindowActorOptions aOptions = {});
 
   [ChromeOnly]
-  void unregisterWindowActor(UTF8String aName);
+  undefined unregisterWindowActor(UTF8String aName);
 
   /**
    * Register a new toplevel content global actor. This method may only be
@@ -581,10 +588,10 @@ partial namespace ChromeUtils {
    * See JSProcessActor.webidl for ProcessActorOptions fields documentation.
    */
   [ChromeOnly, Throws]
-  void registerProcessActor(UTF8String aName, optional ProcessActorOptions aOptions = {});
+  undefined registerProcessActor(UTF8String aName, optional ProcessActorOptions aOptions = {});
 
   [ChromeOnly]
-  void unregisterProcessActor(UTF8String aName);
+  undefined unregisterProcessActor(UTF8String aName);
 
   [ChromeOnly]
   // aError should a nsresult.
@@ -596,7 +603,7 @@ partial namespace ChromeUtils {
    * processes for testing purpose.
    */
   [ChromeOnly, Throws]
-  void privateNoteIntentionalCrash();
+  undefined privateNoteIntentionalCrash();
 
   /**
    * nsIDOMProcessChild for the current process.
@@ -632,6 +639,11 @@ partial namespace ChromeUtils {
 
   [Throws]
   sequence<FormAutofillConfidences> getFormAutofillConfidences(sequence<Element> elements);
+
+  /**
+   * Returns whether the background of the element is dark.
+   */
+  boolean isDarkBackground(Element element);
 };
 
 /*
@@ -701,7 +713,10 @@ dictionary WindowInfoDictionary {
  */
 enum WebIDLUtilityActorName {
   "unknown",
-  "audioDecoder",
+  "audioDecoder_Generic",
+  "audioDecoder_AppleMedia",
+  "audioDecoder_WMF",
+  "mfMediaEngineCDM",
 };
 
 dictionary UtilityActorsDictionary {
@@ -902,6 +917,15 @@ dictionary CompileScriptOptionsDictionary {
    * should not be used when not absolutely necessary.
    */
   boolean hasReturnValue = false;
+};
+
+dictionary ImportESModuleOptionsDictionary {
+  /**
+   * If true, a distinct module loader will be used, in the system principal,
+   * but with a distinct global so that the DevTools can load a distinct set
+   * of modules and do not interfere with its debuggee.
+   */
+  boolean loadInDevToolsLoader;
 };
 
 /**

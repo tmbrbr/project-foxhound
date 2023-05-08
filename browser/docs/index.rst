@@ -10,6 +10,7 @@ This is the nascent documentation of the Firefox front-end code.
    urlbar/index
    BrowserUsageTelemetry
    CommandLineParameters
+   app/pbproxy/docs/index
    components/enterprisepolicies/docs/index
    extensions/formautofill/docs/index
    components/newtab/docs/index
@@ -24,3 +25,4 @@ This is the nascent documentation of the Firefox front-end code.
    base/tabbrowser/index
    touchbar/index
    components/uitour/docs/index
+   branding/docs/index

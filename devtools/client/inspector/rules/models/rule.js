@@ -6,33 +6,32 @@
 
 const {
   style: { ELEMENT_STYLE },
-} = require("devtools/shared/constants");
-const CssLogic = require("devtools/shared/inspector/css-logic");
-const TextProperty = require("devtools/client/inspector/rules/models/text-property");
-const Services = require("Services");
+} = require("resource://devtools/shared/constants.js");
+const CssLogic = require("resource://devtools/shared/inspector/css-logic.js");
+const TextProperty = require("resource://devtools/client/inspector/rules/models/text-property.js");
 
 loader.lazyRequireGetter(
   this,
   "getTargetBrowsers",
-  "devtools/client/inspector/shared/compatibility-user-settings",
+  "resource://devtools/client/inspector/shared/compatibility-user-settings.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "promiseWarn",
-  "devtools/client/inspector/shared/utils",
+  "resource://devtools/client/inspector/shared/utils.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "parseNamedDeclarations",
-  "devtools/shared/css/parsing-utils",
+  "resource://devtools/shared/css/parsing-utils.js",
   true
 );
 
 const STYLE_INSPECTOR_PROPERTIES =
   "devtools/shared/locales/styleinspector.properties";
-const { LocalizationHelper } = require("devtools/shared/l10n");
+const { LocalizationHelper } = require("resource://devtools/shared/l10n.js");
 const STYLE_INSPECTOR_L10N = new LocalizationHelper(STYLE_INSPECTOR_PROPERTIES);
 
 /**
@@ -343,7 +342,7 @@ class Rule {
 
     // Store disabled properties in the disabled store.
     const disabled = this.elementStyle.store.disabled;
-    if (disabledProps.length > 0) {
+    if (disabledProps.length) {
       disabled.set(this.domRule, disabledProps);
     } else {
       disabled.delete(this.domRule);

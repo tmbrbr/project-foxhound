@@ -283,10 +283,15 @@ RefPtr<SessionAccessibility> SessionAccessibility::GetInstanceFor(
       bp = static_cast<dom::BrowserParent*>(
           aAccessible->AsRemote()->Document()->Manager());
     }
-    nsPresContext* presContext =
-        bp->GetOwnerElement()->OwnerDoc()->GetPresContext();
-    if (presContext) {
-      return GetInstanceFor(presContext->PresShell());
+    if (auto element = bp->GetOwnerElement()) {
+      if (auto doc = element->OwnerDoc()) {
+        if (nsPresContext* presContext = doc->GetPresContext()) {
+          return GetInstanceFor(presContext->PresShell());
+        }
+      } else {
+        MOZ_ASSERT_UNREACHABLE(
+            "Browser parent's element does not have owner doc.");
+      }
     }
   }
 
@@ -434,7 +439,7 @@ void SessionAccessibility::SendTextSelectionChangedEvent(
 }
 
 void SessionAccessibility::SendTextChangedEvent(Accessible* aAccessible,
-                                                const nsString& aStr,
+                                                const nsAString& aStr,
                                                 int32_t aStart, uint32_t aLen,
                                                 bool aIsInsert,
                                                 bool aFromUser) {
@@ -538,7 +543,7 @@ void SessionAccessibility::SendSelectedEvent(Accessible* aAccessible,
 }
 
 void SessionAccessibility::SendAnnouncementEvent(Accessible* aAccessible,
-                                                 const nsString& aAnnouncement,
+                                                 const nsAString& aAnnouncement,
                                                  uint16_t aPriority) {
   MOZ_ASSERT(NS_IsMainThread());
   GECKOBUNDLE_START(eventInfo);
@@ -992,6 +997,17 @@ void SessionAccessibility::PopulateNodeInfo(
   }
 }
 
+Accessible* SessionAccessibility::GetAccessibleByID(int32_t aID) const {
+  Accessible* accessible = mIDToAccessibleMap.Get(aID);
+  if (accessible && accessible->IsLocal() &&
+      accessible->AsLocal()->IsDefunct()) {
+    MOZ_ASSERT_UNREACHABLE("Registered accessible is defunct!");
+    return nullptr;
+  }
+
+  return accessible;
+}
+
 void SessionAccessibility::RegisterAccessible(Accessible* aAccessible) {
   if (IPCAccessibilityActive()) {
     // Don't register accessible in content process.
@@ -1046,10 +1062,7 @@ void SessionAccessibility::UnregisterAccessible(Accessible* aAccessible) {
   }
 
   RefPtr<SessionAccessibility> sessionAcc = GetInstanceFor(aAccessible);
-  MOZ_ASSERT(sessionAcc, "Need SessionAccessibility to unregister Accessible!");
   if (sessionAcc) {
-    MOZ_ASSERT(sessionAcc->mIDToAccessibleMap.Contains(virtualViewID),
-               "Unregistering unregistered accessible");
     sessionAcc->mIDToAccessibleMap.Remove(virtualViewID);
   }
 
@@ -1068,21 +1081,7 @@ void SessionAccessibility::UnregisterAll(PresShell* aPresShell) {
 
   nsAccessibilityService::GetAndroidMonitor().AssertCurrentThreadOwns();
   RefPtr<SessionAccessibility> sessionAcc = GetInstanceFor(aPresShell);
-
-  if (!sessionAcc) {
-    return;
-  }
-
-  for (auto iter = sessionAcc->mIDToAccessibleMap.Iter(); !iter.Done();
-       iter.Next()) {
-    int32_t virtualViewID = iter.Key();
-    if (virtualViewID > kNoID) {
-      sIDSet.ReleaseID(virtualViewID);
-    }
-
-    Accessible* accessible = iter.Data();
-    AccessibleWrap::SetVirtualViewID(accessible, kUnsetID);
-
-    iter.Remove();
+  if (sessionAcc) {
+    sessionAcc->mIDToAccessibleMap.Clear();
   }
 }

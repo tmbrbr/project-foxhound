@@ -24,6 +24,7 @@
 #include "mozilla/dom/ScriptLoadContext.h"
 #include "mozilla/CycleCollectedJSContext.h"  // nsAutoMicroTask
 #include "mozilla/Preferences.h"
+#include "mozilla/StaticPrefs_dom.h"
 #include "nsContentUtils.h"
 #include "nsICacheInfoChannel.h"  // nsICacheInfoChannel
 #include "nsNetUtil.h"            // NS_NewURI
@@ -75,23 +76,7 @@ void ModuleLoaderBase::EnsureModuleHooksInitialized() {
   JS::SetScriptPrivateReferenceHooks(rt, HostAddRefTopLevelScript,
                                      HostReleaseTopLevelScript);
   JS::SetSupportedAssertionsHook(rt, HostGetSupportedImportAssertions);
-
-  Preferences::RegisterCallbackAndCall(DynamicImportPrefChangedCallback,
-                                       "javascript.options.dynamicImport",
-                                       (void*)nullptr);
-}
-
-// static
-void ModuleLoaderBase::DynamicImportPrefChangedCallback(const char* aPrefName,
-                                                        void* aClosure) {
-  bool enabled = Preferences::GetBool(aPrefName);
-  JS::ModuleDynamicImportHook hook =
-      enabled ? HostImportModuleDynamically : nullptr;
-
-  AutoJSAPI jsapi;
-  jsapi.Init();
-  JSRuntime* rt = JS_GetRuntime(jsapi.cx());
-  JS::SetModuleDynamicImportHook(rt, hook);
+  JS::SetModuleDynamicImportHook(rt, HostImportModuleDynamically);
 }
 
 // 8.1.3.8.1 HostResolveImportedModule(referencingModule, moduleRequest)
@@ -157,6 +142,84 @@ JSObject* ModuleLoaderBase::HostResolveImportedModule(
 }
 
 // static
+bool ModuleLoaderBase::ImportMetaResolve(JSContext* cx, unsigned argc,
+                                         Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  RootedValue modulePrivate(
+      cx, js::GetFunctionNativeReserved(&args.callee(), ModulePrivateSlot));
+
+  // https://html.spec.whatwg.org/#hostgetimportmetaproperties
+  // Step 4.1. Set specifier to ? ToString(specifier).
+  //
+  // https://tc39.es/ecma262/#sec-tostring
+  RootedValue v(cx, args.get(ImportMetaResolveSpecifierArg));
+  RootedString specifier(cx, JS::ToString(cx, v));
+  if (!specifier) {
+    return false;
+  }
+
+  // Step 4.2, 4.3 are implemented in ImportMetaResolveImpl.
+  RootedString url(cx, ImportMetaResolveImpl(cx, modulePrivate, specifier));
+  if (!url) {
+    return false;
+  }
+
+  // Step 4.4. Return the serialization of url.
+  args.rval().setString(url);
+  return true;
+}
+
+// static
+JSString* ModuleLoaderBase::ImportMetaResolveImpl(
+    JSContext* aCx, JS::Handle<JS::Value> aReferencingPrivate,
+    JS::Handle<JSString*> aSpecifier) {
+  RootedString urlString(aCx);
+
+  {
+    // ModuleScript should only live in this block, otherwise it will be a GC
+    // hazard
+    RefPtr<ModuleScript> script =
+        static_cast<ModuleScript*>(aReferencingPrivate.toPrivate());
+    MOZ_ASSERT(script->IsModuleScript());
+    MOZ_ASSERT(JS::GetModulePrivate(script->ModuleRecord()) ==
+               aReferencingPrivate);
+
+    RefPtr<ModuleLoaderBase> loader = GetCurrentModuleLoader(aCx);
+    if (!loader) {
+      return nullptr;
+    }
+
+    nsAutoJSString specifier;
+    if (!specifier.init(aCx, aSpecifier)) {
+      return nullptr;
+    }
+
+    auto result = loader->ResolveModuleSpecifier(script, specifier);
+    if (result.isErr()) {
+      JS::Rooted<JS::Value> error(aCx);
+      nsresult rv = HandleResolveFailure(aCx, script, specifier,
+                                         result.unwrapErr(), 0, 0, &error);
+      if (NS_FAILED(rv)) {
+        JS_ReportOutOfMemory(aCx);
+        return nullptr;
+      }
+
+      JS_SetPendingException(aCx, error);
+
+      return nullptr;
+    }
+
+    nsCOMPtr<nsIURI> uri = result.unwrap();
+    nsAutoCString url;
+    MOZ_ALWAYS_SUCCEEDS(uri->GetAsciiSpec(url));
+
+    urlString.set(JS_NewStringCopyZ(aCx, url.get()));
+  }
+
+  return urlString;
+}
+
+// static
 bool ModuleLoaderBase::HostPopulateImportMeta(
     JSContext* aCx, JS::Handle<JS::Value> aReferencingPrivate,
     JS::Handle<JSObject*> aMetaObject) {
@@ -176,8 +239,28 @@ bool ModuleLoaderBase::HostPopulateImportMeta(
     return false;
   }
 
-  return JS_DefineProperty(aCx, aMetaObject, "url", urlString,
-                           JSPROP_ENUMERATE);
+  // https://html.spec.whatwg.org/#import-meta-url
+  if (!JS_DefineProperty(aCx, aMetaObject, "url", urlString,
+                         JSPROP_ENUMERATE)) {
+    return false;
+  }
+
+  // https://html.spec.whatwg.org/#import-meta-resolve
+  // Define 'resolve' function on the import.meta object.
+  JSFunction* resolveFunc = js::DefineFunctionWithReserved(
+      aCx, aMetaObject, "resolve", ImportMetaResolve, ImportMetaResolveNumArgs,
+      JSPROP_ENUMERATE);
+  if (!resolveFunc) {
+    return false;
+  }
+
+  // Store the 'active script' of the meta object into the function slot.
+  // https://html.spec.whatwg.org/#active-script
+  RootedObject resolveFuncObj(aCx, JS_GetFunctionObject(resolveFunc));
+  js::SetFunctionNativeReserved(resolveFuncObj, ModulePrivateSlot,
+                                aReferencingPrivate);
+
+  return true;
 }
 
 // static
@@ -463,6 +546,12 @@ nsresult ModuleLoaderBase::OnFetchComplete(ModuleLoadRequest* aRequest,
   if (NS_SUCCEEDED(rv)) {
     rv = CreateModuleScript(aRequest);
 
+    // If a module script was created, it should either have a module record
+    // object or a parse error.
+    if (ModuleScript* ms = aRequest->mModuleScript) {
+      MOZ_DIAGNOSTIC_ASSERT(bool(ms->ModuleRecord()) != ms->HasParseError());
+    }
+
     aRequest->ClearScriptSource();
 
     if (NS_FAILED(rv)) {
@@ -507,7 +596,7 @@ nsresult ModuleLoaderBase::CreateModuleScript(ModuleLoadRequest* aRequest) {
       rv = CompileFetchedModule(cx, global, options, aRequest, &module);
     }
 
-    MOZ_ASSERT(NS_SUCCEEDED(rv) == (module != nullptr));
+    MOZ_DIAGNOSTIC_ASSERT(NS_SUCCEEDED(rv) == (module != nullptr));
 
     if (module) {
       JS::RootedValue privateValue(cx);
@@ -528,9 +617,9 @@ nsresult ModuleLoaderBase::CreateModuleScript(ModuleLoadRequest* aRequest) {
       LOG(("ScriptLoadRequest (%p):   compilation failed (%d)", aRequest,
            unsigned(rv)));
 
-      MOZ_ASSERT(jsapi.HasException());
       JS::Rooted<JS::Value> error(cx);
-      if (!jsapi.StealException(&error)) {
+      if (!jsapi.HasException() || !jsapi.StealException(&error) ||
+          error.isUndefined()) {
         aRequest->mModuleScript = nullptr;
         return NS_ERROR_FAILURE;
       }
@@ -597,16 +686,23 @@ nsresult ModuleLoaderBase::HandleResolveFailure(
   return NS_OK;
 }
 
+// Helper for getting import maps pref across main thread and workers
+bool ImportMapsEnabled() {
+  if (NS_IsMainThread()) {
+    return mozilla::StaticPrefs::dom_importMaps_enabled();
+  }
+  return false;
+}
+
 ResolveResult ModuleLoaderBase::ResolveModuleSpecifier(
     LoadedScript* aScript, const nsAString& aSpecifier) {
-  bool importMapsEnabled = Preferences::GetBool("dom.importMaps.enabled");
   // If import map is enabled, forward to the updated 'Resolve a module
   // specifier' algorithm defined in Import maps spec.
   //
   // Once import map is enabled by default,
   // ModuleLoaderBase::ResolveModuleSpecifier should be replaced by
   // ImportMap::ResolveModuleSpecifier.
-  if (importMapsEnabled) {
+  if (ImportMapsEnabled()) {
     return ImportMap::ResolveModuleSpecifier(mImportMap.get(), mLoader, aScript,
                                              aSpecifier);
   }
@@ -911,11 +1007,13 @@ void ModuleLoaderBase::CancelDynamicImport(ModuleLoadRequest* aRequest,
   MOZ_ASSERT(aRequest->mLoader == this);
 
   RefPtr<ScriptLoadRequest> req = mDynamicImportRequests.Steal(aRequest);
-  aRequest->Cancel();
-  // FinishDynamicImport must happen exactly once for each dynamic import
-  // request. If the load is aborted we do it when we remove the request
-  // from mDynamicImportRequests.
-  FinishDynamicImportAndReject(aRequest, aResult);
+  if (!aRequest->IsCanceled()) {
+    aRequest->Cancel();
+    // FinishDynamicImport must happen exactly once for each dynamic import
+    // request. If the load is aborted we do it when we remove the request
+    // from mDynamicImportRequests.
+    FinishDynamicImportAndReject(aRequest, aResult);
+  }
 }
 
 void ModuleLoaderBase::RemoveDynamicImport(ModuleLoadRequest* aRequest) {
@@ -1052,7 +1150,8 @@ nsresult ModuleLoaderBase::EvaluateModule(ModuleLoadRequest* aRequest) {
   MOZ_ASSERT(aRequest->mLoader == this);
 
   mozilla::nsAutoMicroTask mt;
-  mozilla::dom::AutoEntryScript aes(mGlobalObject, "EvaluateModule", true);
+  mozilla::dom::AutoEntryScript aes(mGlobalObject, "EvaluateModule",
+                                    NS_IsMainThread());
 
   return EvaluateModuleInContext(aes.cx(), aRequest,
                                  JS::ReportModuleErrorsAsync);
@@ -1154,15 +1253,10 @@ nsresult ModuleLoaderBase::EvaluateModuleInContext(
 }
 
 void ModuleLoaderBase::CancelAndClearDynamicImports() {
-  for (ScriptLoadRequest* req = mDynamicImportRequests.getFirst(); req;
-       req = req->getNext()) {
-    req->Cancel();
-    // FinishDynamicImport must happen exactly once for each dynamic import
-    // request. If the load is aborted we do it when we remove the request
-    // from mDynamicImportRequests.
-    FinishDynamicImportAndReject(req->AsModuleRequest(), NS_ERROR_ABORT);
+  while (ScriptLoadRequest* req = mDynamicImportRequests.getFirst()) {
+    // This also removes the request from the list.
+    CancelDynamicImport(req->AsModuleRequest(), NS_ERROR_ABORT);
   }
-  mDynamicImportRequests.CancelRequestsAndClear();
 }
 
 UniquePtr<ImportMap> ModuleLoaderBase::ParseImportMap(
@@ -1182,21 +1276,23 @@ UniquePtr<ImportMap> ModuleLoaderBase::ParseImportMap(
   JS::SourceText<char16_t>& text = maybeSource.ref<SourceText<char16_t>>();
   ReportWarningHelper warning{mLoader, aRequest};
 
-  // https://html.spec.whatwg.org/multipage/scripting.html#prepare-a-script
-  // https://wicg.github.io/import-maps/#integration-prepare-a-script
-  // Insert the following case to prepare a script step 25.2:
-  // (Impl Note: the latest html spec is step 27.2)
-  // Switch on the script's type:
-  // "importmap"
-  // Step 1. Let import map parse result be the result of create an import map
-  // parse result, given source text, base URL and settings object.
+  // https://html.spec.whatwg.org/multipage/webappapis.html#create-an-import-map-parse-result
+  // Step 2. Parse an import map string given input and baseURL, catching any
+  // exceptions. If this threw an exception, then set result's error to rethrow
+  // to that exception. Otherwise, set result's import map to the return value.
   //
-  // Impl note: According to the spec, ImportMap::ParseString will throw a
-  // TypeError if there's any invalid key/value in the text. After the parsing
-  // is done, we should report the error if there's any, this is done in
-  // ~AutoJSAPI.
+  // https://html.spec.whatwg.org/multipage/webappapis.html#register-an-import-map
+  // Step 1. If result's error to rethrow is not null, then report the exception
+  // given by result's error to rethrow and return.
   //
-  // See https://wicg.github.io/import-maps/#register-an-import-map, step 7.
+  // Impl note: We didn't implement 'Import map parse result' from the spec,
+  // https://html.spec.whatwg.org/multipage/webappapis.html#import-map-parse-result
+  // As the struct has another item called 'error to rethow' to store the
+  // exception thrown during parsing import-maps, and report that exception
+  // while registering an import map. Currently only inline import-maps are
+  // supported, therefore parsing and registering import-maps will be executed
+  // consecutively. To simplify the implementation, we didn't create the 'error
+  // to rethow' item and report the exception immediately(done in ~AutoJSAPI).
   return ImportMap::ParseString(jsapi.cx(), text, aRequest->mBaseURL, warning);
 }
 
@@ -1204,8 +1300,20 @@ void ModuleLoaderBase::RegisterImportMap(UniquePtr<ImportMap> aImportMap) {
   // Check for aImportMap is done in ScriptLoader.
   MOZ_ASSERT(aImportMap);
 
-  // Step 8. Set element’s node document's import map to import map parse
-  // result’s import map.
+  // https://html.spec.whatwg.org/multipage/webappapis.html#register-an-import-map
+  // The step 1(report the exception if there's an error) is done in
+  // ParseImportMap.
+  //
+  // Step 2. Assert: global's import map is an empty import map.
+  // Impl note: The default import map from the spec is an empty import map, but
+  // from the implementation it defaults to nullptr, so we check if the global's
+  // import map is null here.
+  //
+  // Also see
+  // https://html.spec.whatwg.org/multipage/webappapis.html#empty-import-map
+  MOZ_ASSERT(!mImportMap);
+
+  // Step 3. Set global's import map to result's import map.
   mImportMap = std::move(aImportMap);
 }
 

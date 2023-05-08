@@ -282,6 +282,15 @@ static int64_t ExpireTimeFromMaxAge(uint64_t maxAge) {
   return (PR_Now() / PR_USEC_PER_MSEC) + ((int64_t)maxAge * PR_MSEC_PER_SEC);
 }
 
+inline uint64_t AbsoluteDifference(int64_t a, int64_t b) {
+  if (a <= b) {
+    return b - a;
+  }
+  return a - b;
+}
+
+const uint64_t sOneDayInMilliseconds = 24 * 60 * 60 * 1000;
+
 nsresult nsSiteSecurityService::SetHSTSState(
     const char* aHost, int64_t maxage, bool includeSubdomains,
     SecurityPropertyState aHSTSState,
@@ -313,11 +322,19 @@ nsresult nsSiteSecurityService::SetHSTSState(
   nsCString value = mSiteStateStorage->Get(storageKey, storageType);
   RefPtr<SiteHSTSState> curSiteState =
       new SiteHSTSState(hostname, aOriginAttributes, value);
-  if (curSiteState->mHSTSState != SecurityPropertyUnset) {
-    siteState->ToString(stateString);
+  // Only update the backing storage if the currently-stored state is
+  // different. In the case of expiration time, "different" means "is different
+  // by more than a day".
+  if (curSiteState->mHSTSState != siteState->mHSTSState ||
+      curSiteState->mHSTSIncludeSubdomains !=
+          siteState->mHSTSIncludeSubdomains ||
+      AbsoluteDifference(curSiteState->mHSTSExpireTime,
+                         siteState->mHSTSExpireTime) > sOneDayInMilliseconds) {
+    nsresult rv = mSiteStateStorage->Put(storageKey, stateString, storageType);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
   }
-  nsresult rv = mSiteStateStorage->Put(storageKey, stateString, storageType);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }
@@ -454,21 +471,12 @@ nsresult nsSiteSecurityService::ProcessHeaderInternal(
   }
 
   if (aSecInfo) {
-    bool tlsIsBroken = false;
-    bool trustcheck;
-    nsresult rv;
-    rv = aSecInfo->GetIsDomainMismatch(&trustcheck);
+    nsITransportSecurityInfo::OverridableErrorCategory overridableErrorCategory;
+    nsresult rv =
+        aSecInfo->GetOverridableErrorCategory(&overridableErrorCategory);
     NS_ENSURE_SUCCESS(rv, rv);
-    tlsIsBroken = tlsIsBroken || trustcheck;
-
-    rv = aSecInfo->GetIsNotValidAtThisTime(&trustcheck);
-    NS_ENSURE_SUCCESS(rv, rv);
-    tlsIsBroken = tlsIsBroken || trustcheck;
-
-    rv = aSecInfo->GetIsUntrusted(&trustcheck);
-    NS_ENSURE_SUCCESS(rv, rv);
-    tlsIsBroken = tlsIsBroken || trustcheck;
-    if (tlsIsBroken) {
+    if (overridableErrorCategory !=
+        nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET) {
       SSSLOG(("SSS: discarding header from untrustworthy connection"));
       if (aFailureResult) {
         *aFailureResult =
@@ -527,9 +535,7 @@ static uint32_t ParseSSSHeaders(const nsCString& aHeader,
   for (nsSecurityHeaderDirective* directive = directives->getFirst();
        directive != nullptr; directive = directive->getNext()) {
     SSSLOG(("SSS: found directive %s\n", directive->mName.get()));
-    if (directive->mName.Length() == max_age_var.Length() &&
-        directive->mName.EqualsIgnoreCase(max_age_var.get(),
-                                          max_age_var.Length())) {
+    if (directive->mName.EqualsIgnoreCase(max_age_var)) {
       if (foundMaxAge) {
         SSSLOG(("SSS: found two max-age directives"));
         return nsISiteSecurityService::ERROR_MULTIPLE_MAX_AGES;
@@ -550,9 +556,7 @@ static uint32_t ParseSSSHeaders(const nsCString& aHeader,
       }
 
       SSSLOG(("SSS: parsed delta-seconds: %" PRIu64, maxAge));
-    } else if (directive->mName.Length() == include_subd_var.Length() &&
-               directive->mName.EqualsIgnoreCase(include_subd_var.get(),
-                                                 include_subd_var.Length())) {
+    } else if (directive->mName.EqualsIgnoreCase(include_subd_var)) {
       if (foundIncludeSubdomains) {
         SSSLOG(("SSS: found two includeSubdomains directives"));
         return nsISiteSecurityService::ERROR_MULTIPLE_INCLUDE_SUBDOMAINS;

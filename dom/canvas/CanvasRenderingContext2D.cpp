@@ -905,7 +905,7 @@ CanvasShutdownObserver::Observe(nsISupports* aSubject, const char* aTopic,
 NS_IMPL_CYCLE_COLLECTING_ADDREF(CanvasRenderingContext2D)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(CanvasRenderingContext2D)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(CanvasRenderingContext2D)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(CanvasRenderingContext2D)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(CanvasRenderingContext2D)
   // Make sure we remove ourselves from the list of demotable contexts (raw
@@ -953,8 +953,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(CanvasRenderingContext2D)
                                 "RAII SVG Filters Observer");
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(CanvasRenderingContext2D)
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(CanvasRenderingContext2D)
   if (nsCCUncollectableMarker::sGeneration && tmp->HasKnownLiveWrapper()) {
@@ -1045,8 +1043,8 @@ void CanvasRenderingContext2D::ContextState::SetGradientStyle(
  **/
 
 // Initialize our static variables.
-Atomic<uintptr_t> CanvasRenderingContext2D::sNumLivingContexts(0);
-DrawTarget* CanvasRenderingContext2D::sErrorTarget = nullptr;
+MOZ_THREAD_LOCAL(uintptr_t) CanvasRenderingContext2D::sNumLivingContexts;
+MOZ_THREAD_LOCAL(DrawTarget*) CanvasRenderingContext2D::sErrorTarget;
 
 CanvasRenderingContext2D::CanvasRenderingContext2D(
     layers::LayersBackend aCompositorBackend)
@@ -1067,17 +1065,20 @@ CanvasRenderingContext2D::CanvasRenderingContext2D(
       mPathTransformWillUpdate(false),
       mInvalidateCount(0),
       mWriteOnly(false) {
-  sNumLivingContexts++;
+  sNumLivingContexts.infallibleInit();
+  sErrorTarget.infallibleInit();
+  sNumLivingContexts.set(sNumLivingContexts.get() + 1);
 }
 
 CanvasRenderingContext2D::~CanvasRenderingContext2D() {
   RemovePostRefreshObserver();
   RemoveShutdownObserver();
-  Reset();
+  ResetBitmap();
 
-  sNumLivingContexts--;
-  if (!sNumLivingContexts) {
-    NS_IF_RELEASE(sErrorTarget);
+  sNumLivingContexts.set(sNumLivingContexts.get() - 1);
+  if (sNumLivingContexts.get() == 0 && sErrorTarget.get()) {
+    RefPtr<DrawTarget> target = dont_AddRef(sErrorTarget.get());
+    sErrorTarget.set(nullptr);
   }
 }
 
@@ -1116,7 +1117,7 @@ bool CanvasRenderingContext2D::ParseColor(const nsACString& aString,
   return true;
 }
 
-nsresult CanvasRenderingContext2D::Reset() {
+void CanvasRenderingContext2D::ResetBitmap() {
   if (mCanvasElement) {
     mCanvasElement->InvalidateCanvas();
   }
@@ -1137,8 +1138,6 @@ nsresult CanvasRenderingContext2D::Reset() {
   mIsEntireFrameInvalid = false;
   mPredictManyRedrawCalls = false;
   mFrameCaptureState = FrameCaptureState::CLEAN;
-
-  return NS_OK;
 }
 
 void CanvasRenderingContext2D::OnShutdown() {
@@ -1146,7 +1145,7 @@ void CanvasRenderingContext2D::OnShutdown() {
 
   RefPtr<PersistentBufferProvider> provider = mBufferProvider;
 
-  Reset();
+  ResetBitmap();
 
   if (provider) {
     provider->OnShutdown();
@@ -1351,7 +1350,7 @@ bool CanvasRenderingContext2D::EnsureTarget(const gfx::Rect* aCoveredRect,
   }
 
   if (mTarget) {
-    return mTarget != sErrorTarget;
+    return mTarget != sErrorTarget.get();
   }
 
   // Check that the dimensions are sane
@@ -1478,11 +1477,11 @@ void CanvasRenderingContext2D::SetInitialState() {
 void CanvasRenderingContext2D::SetErrorState() {
   EnsureErrorTarget();
 
-  if (mTarget && mTarget != sErrorTarget) {
+  if (mTarget && mTarget != sErrorTarget.get()) {
     gCanvasAzureMemoryUsed -= mWidth * mHeight * 4;
   }
 
-  mTarget = sErrorTarget;
+  mTarget = sErrorTarget.get();
   mBufferProvider = nullptr;
 
   // clear transforms, clips, etc.
@@ -1651,7 +1650,7 @@ void CanvasRenderingContext2D::RemoveAssociatedMemory() {
 }
 
 void CanvasRenderingContext2D::ClearTarget(int32_t aWidth, int32_t aHeight) {
-  Reset();
+  ResetBitmap();
 
   mResetLayer = true;
 
@@ -1694,7 +1693,7 @@ void CanvasRenderingContext2D::ClearTarget(int32_t aWidth, int32_t aHeight) {
 }
 
 void CanvasRenderingContext2D::ReturnTarget(bool aForceReset) {
-  if (mTarget && mBufferProvider && mTarget != sErrorTarget) {
+  if (mTarget && mBufferProvider && mTarget != sErrorTarget.get()) {
     CurrentState().transform = mTarget->GetTransform();
     if (aForceReset || !mBufferProvider->PreservesDrawingState()) {
       for (const auto& style : mStyleStack) {
@@ -1751,16 +1750,6 @@ void CanvasRenderingContext2D::SetOpaqueValueFromOpaqueAttr(
 void CanvasRenderingContext2D::UpdateIsOpaque() {
   mOpaque = !mContextAttributesHasAlpha || mOpaqueAttrValue;
   ClearTarget();
-}
-
-NS_IMETHODIMP
-CanvasRenderingContext2D::SetIsIPC(bool aIsIPC) {
-  if (aIsIPC != mIPC) {
-    mIPC = aIsIPC;
-    ClearTarget();
-  }
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1845,7 +1834,7 @@ CanvasRenderingContext2D::GetSurfaceSnapshot(gfxAlphaType* aOutAlphaType) {
   // already exists, otherwise we get performance issues. See bug 1567054.
   if (!EnsureTarget()) {
     MOZ_ASSERT(
-        mTarget == sErrorTarget,
+        mTarget == sErrorTarget.get(),
         "On EnsureTarget failure mTarget should be set to sErrorTarget.");
     // In rare circumstances we may have failed to create an error target.
     return mTarget ? mTarget->Snapshot() : nullptr;
@@ -2278,7 +2267,7 @@ already_AddRefed<CanvasPattern> CanvasRenderingContext2D::CreatePattern(
     element = img;
   } else if (aSource.IsHTMLVideoElement()) {
     auto& video = aSource.GetAsHTMLVideoElement();
-    video.MarkAsContentSource(
+    video.LogVisibility(
         mozilla::dom::HTMLVideoElement::CallerAPI::CREATE_PATTERN);
     element = &video;
   } else if (aSource.IsOffscreenCanvas()) {
@@ -2305,9 +2294,9 @@ already_AddRefed<CanvasPattern> CanvasRenderingContext2D::CreatePattern(
         return nullptr;
       }
 
-      RefPtr<CanvasPattern> pat =
-          new CanvasPattern(this, srcSurf, repeatMode, nullptr,
-                            offscreenCanvas->IsWriteOnly(), false);
+      RefPtr<CanvasPattern> pat = new CanvasPattern(
+          this, srcSurf, repeatMode, srcCanvas->PrincipalOrNull(),
+          offscreenCanvas->IsWriteOnly(), false);
 
       return pat.forget();
     }
@@ -3457,6 +3446,7 @@ static void SerializeFontForCanvas(const StyleFontFamilyList& aList,
   // font-weight is serialized as a number
   if (!aStyle.weight.IsNormal()) {
     aUsedFont.AppendFloat(aStyle.weight.ToFloat());
+    aUsedFont.Append(" ");
   }
 
   // font-stretch is serialized using CSS Fonts 3 keywords, not percentages.
@@ -3685,7 +3675,7 @@ void CanvasRenderingContext2D::GetFontKerning(nsAString& aFontKerning) {
  * @param str The string whose whitespace characters to replace.
  */
 static inline void TextReplaceWhitespaceCharacters(nsAutoString& aStr) {
-  aStr.ReplaceChar("\x09\x0A\x0B\x0C\x0D", char16_t(' '));
+  aStr.ReplaceChar(u"\x09\x0A\x0B\x0C\x0D", char16_t(' '));
 }
 
 void CanvasRenderingContext2D::FillText(const nsAString& aText, double aX,
@@ -4699,7 +4689,7 @@ SurfaceFromElementResult CanvasRenderingContext2D::CachedSurfaceFromElement(
     return res;
   }
 
-  res.mSourceSurface = CanvasImageCache::LookupAllCanvas(aElement);
+  res.mSourceSurface = CanvasImageCache::LookupAllCanvas(aElement, mTarget);
   if (!res.mSourceSurface) {
     return res;
   }
@@ -4840,13 +4830,13 @@ void CanvasRenderingContext2D::DrawImage(const CanvasImageSource& aImage,
       element = img;
     } else {
       HTMLVideoElement* video = &aImage.GetAsHTMLVideoElement();
-      video->MarkAsContentSource(
+      video->LogVisibility(
           mozilla::dom::HTMLVideoElement::CallerAPI::DRAW_IMAGE);
       element = video;
     }
 
-    srcSurf = CanvasImageCache::LookupCanvas(element, mCanvasElement, &imgSize,
-                                             &intrinsicImgSize);
+    srcSurf = CanvasImageCache::LookupCanvas(element, mCanvasElement, mTarget,
+                                             &imgSize, &intrinsicImgSize);
   }
 
   DirectDrawInfo drawInfo;
@@ -4891,7 +4881,7 @@ void CanvasRenderingContext2D::DrawImage(const CanvasImageSource& aImage,
 
     if (res.mSourceSurface) {
       if (res.mImageRequest) {
-        CanvasImageCache::NotifyDrawImage(element, mCanvasElement,
+        CanvasImageCache::NotifyDrawImage(element, mCanvasElement, mTarget,
                                           res.mSourceSurface, imgSize,
                                           intrinsicImgSize);
       }
@@ -5522,7 +5512,7 @@ nsresult CanvasRenderingContext2D::GetImageDataArray(
 }
 
 void CanvasRenderingContext2D::EnsureErrorTarget() {
-  if (sErrorTarget) {
+  if (sErrorTarget.get()) {
     return;
   }
 
@@ -5531,8 +5521,7 @@ void CanvasRenderingContext2D::EnsureErrorTarget() {
           IntSize(1, 1), SurfaceFormat::B8G8R8A8);
   MOZ_ASSERT(errorTarget, "Failed to allocate the error target!");
 
-  sErrorTarget = errorTarget;
-  NS_IF_ADDREF(sErrorTarget);
+  sErrorTarget.set(errorTarget.forget().take());
 }
 
 void CanvasRenderingContext2D::FillRuleChanged() {

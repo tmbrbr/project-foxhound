@@ -10,8 +10,8 @@ var { XPCOMUtils } = ChromeUtils.importESModule(
 var { ObjectUtils } = ChromeUtils.import(
   "resource://gre/modules/ObjectUtils.jsm"
 );
-var { FormLikeFactory } = ChromeUtils.import(
-  "resource://gre/modules/FormLikeFactory.jsm"
+var { FormLikeFactory } = ChromeUtils.importESModule(
+  "resource://gre/modules/FormLikeFactory.sys.mjs"
 );
 var { AddonTestUtils, MockAsyncShutdown } = ChromeUtils.import(
   "resource://testing-common/AddonTestUtils.jsm"
@@ -45,11 +45,9 @@ ChromeUtils.defineModuleGetter(
   "DownloadPaths",
   "resource://gre/modules/DownloadPaths.jsm"
 );
-ChromeUtils.defineModuleGetter(
-  this,
-  "FileUtils",
-  "resource://gre/modules/FileUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(this, {
+  FileUtils: "resource://gre/modules/FileUtils.sys.mjs",
+});
 
 ChromeUtils.defineModuleGetter(
   this,
@@ -92,6 +90,22 @@ const EXTENSION_ID = "formautofill@mozilla.org";
 
 AddonTestUtils.init(this);
 AddonTestUtils.overrideCertDB();
+
+function SetPref(name, value) {
+  switch (typeof value) {
+    case "string":
+      Services.prefs.setCharPref(name, value);
+      break;
+    case "number":
+      Services.prefs.setIntPref(name, value);
+      break;
+    case "boolean":
+      Services.prefs.setBoolPref(name, value);
+      break;
+    default:
+      throw new Error("Unknown type");
+  }
+}
 
 async function loadExtension() {
   AddonTestUtils.createAppInfo(
@@ -194,6 +208,7 @@ function verifySectionFieldDetails(sections, expectedResults) {
       let expectedField = expectedSectionInfo[fieldIndex];
       delete field._reason;
       delete field.elementWeakRef;
+      delete field.confidence;
       Assert.deepEqual(field, expectedField);
     });
   });
@@ -203,7 +218,7 @@ var FormAutofillHeuristics, LabelUtils;
 var AddressDataLoader, FormAutofillUtils;
 
 async function runHeuristicsTest(patterns, fixturePathPrefix) {
-  add_task(async function setup() {
+  add_setup(async () => {
     ({ FormAutofillHeuristics } = ChromeUtils.import(
       "resource://autofill/FormAutofillHeuristics.jsm"
     ));

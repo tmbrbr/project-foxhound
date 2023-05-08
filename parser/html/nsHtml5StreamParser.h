@@ -318,7 +318,7 @@ class nsHtml5StreamParser final : public nsISupports {
     mInterrupted = true;
   }
 
-  void Uninterrupt() NO_THREAD_SAFETY_ANALYSIS {
+  void Uninterrupt() MOZ_NO_THREAD_SAFETY_ANALYSIS {
     MOZ_ASSERT(IsParserThread(), "Wrong thread!");
     mTokenizerMutex.AssertCurrentThreadOwns();
     mInterrupted = false;
@@ -331,14 +331,14 @@ class nsHtml5StreamParser final : public nsISupports {
   void FlushTreeOpsAndDisarmTimer();
 
   void SwitchDecoderIfAsciiSoFar(NotNull<const Encoding*> aEncoding)
-      REQUIRES(mTokenizerMutex);
+      MOZ_REQUIRES(mTokenizerMutex);
   ;
 
   size_t CountGts();
 
   void DiscardMetaSpeculation();
 
-  bool ProcessLookingForMetaCharset(bool aEof) REQUIRES(mTokenizerMutex);
+  bool ProcessLookingForMetaCharset(bool aEof) MOZ_REQUIRES(mTokenizerMutex);
 
   void ParseAvailableData();
 
@@ -354,7 +354,7 @@ class nsHtml5StreamParser final : public nsISupports {
                                        void* aClosure, const char* aFromSegment,
                                        uint32_t aToOffset, uint32_t aCount,
                                        uint32_t* aWriteCount)
-      REQUIRES(mTokenizerMutex);
+      MOZ_REQUIRES(mTokenizerMutex);
 
     static nsresult CopySegmentsToParser(nsITaintawareInputStream *aInStream,
                                          void *aClosure,
@@ -432,7 +432,7 @@ class nsHtml5StreamParser final : public nsISupports {
    * When speculatively decoding from file: URL as UTF-8, redecode
    * using fallback and then continue normally with the fallback.
    */
-  [[nodiscard]] nsresult ReDecodeLocalFile() REQUIRES(mTokenizerMutex);
+  [[nodiscard]] nsresult ReDecodeLocalFile() MOZ_REQUIRES(mTokenizerMutex);
 
   /**
    * Potentially guess the encoding using mozilla::EncodingDetector.

@@ -4,32 +4,24 @@
 
 "use strict";
 
-const { components, Ci, Cr, Cu, CC } = require("chrome");
-const ChromeUtils = require("ChromeUtils");
-const Services = require("Services");
-
 loader.lazyRequireGetter(
   this,
   "NetworkHelper",
-  "devtools/shared/webconsole/network-helper"
+  "resource://devtools/shared/webconsole/network-helper.js"
 );
-loader.lazyGetter(this, "debugJsModules", function() {
-  const { AppConstants } = require("resource://gre/modules/AppConstants.jsm");
-  return !!AppConstants.DEBUG_JS_MODULES;
-});
 
 const {
   getTheme,
   addThemeObserver,
   removeThemeObserver,
-} = require("devtools/client/shared/theme");
+} = require("resource://devtools/client/shared/theme.js");
 
-const BinaryInput = CC(
+const BinaryInput = Components.Constructor(
   "@mozilla.org/binaryinputstream;1",
   "nsIBinaryInputStream",
   "setInputStream"
 );
-const BufferStream = CC(
+const BufferStream = Components.Constructor(
   "@mozilla.org/io/arraybuffer-input-stream;1",
   "nsIArrayBufferInputStream",
   "setData"
@@ -74,25 +66,25 @@ Converter.prototype = {
    * 5. convert does nothing, it's just the synchronous version
    *    of asyncConvertData
    */
-  convert: function(fromStream, fromType, toType, ctx) {
+  convert(fromStream, fromType, toType, ctx) {
     return fromStream;
   },
 
-  asyncConvertData: function(fromType, toType, listener, ctx) {
+  asyncConvertData(fromType, toType, listener, ctx) {
     this.listener = listener;
   },
-  getConvertedType: function(fromType, channel) {
+  getConvertedType(fromType, channel) {
     return "text/html";
   },
 
-  onDataAvailable: function(request, inputStream, offset, count) {
+  onDataAvailable(request, inputStream, offset, count) {
     // Decode and insert data.
     const buffer = new ArrayBuffer(count);
     new BinaryInput(inputStream).readArrayBuffer(count, buffer);
     this.decodeAndInsertBuffer(buffer);
   },
 
-  onStartRequest: function(request) {
+  onStartRequest(request) {
     // Set the content type to HTML in order to parse the doctype, styles
     // and scripts. The JSON will be manually inserted as text.
     request.QueryInterface(Ci.nsIChannel);
@@ -130,7 +122,7 @@ Converter.prototype = {
 
     // Initialize stuff.
     const win = NetworkHelper.getWindowForRequest(request);
-    if (!win || !components.isSuccessCode(request.status)) {
+    if (!win || !Components.isSuccessCode(request.status)) {
       return;
     }
 
@@ -154,9 +146,9 @@ Converter.prototype = {
     this.listener.onDataAvailable(request, stream, 0, stream.available());
   },
 
-  onStopRequest: function(request, statusCode) {
+  onStopRequest(request, statusCode) {
     // Flush data if we haven't been canceled.
-    if (components.isSuccessCode(statusCode)) {
+    if (Components.isSuccessCode(statusCode)) {
       this.decodeAndInsertBuffer(new ArrayBuffer(0), true);
     }
 
@@ -168,7 +160,7 @@ Converter.prototype = {
   },
 
   // Decodes an ArrayBuffer into a string and inserts it into the page.
-  decodeAndInsertBuffer: function(buffer, flush = false) {
+  decodeAndInsertBuffer(buffer, flush = false) {
     // Decode the buffer into a string.
     const data = this.decoder.decode(buffer, { stream: !flush });
 
@@ -213,13 +205,13 @@ function getHttpHeaders(request) {
   // (e.g. in case of data: URLs)
   if (request instanceof Ci.nsIHttpChannel) {
     request.visitResponseHeaders({
-      visitHeader: function(name, value) {
-        headers.response.push({ name: name, value: value });
+      visitHeader(name, value) {
+        headers.response.push({ name, value });
       },
     });
     request.visitRequestHeaders({
-      visitHeader: function(name, value) {
-        headers.request.push({ name: name, value: value });
+      visitHeader(name, value) {
+        headers.request.push({ name, value });
       },
     });
   }
@@ -242,7 +234,6 @@ function exportData(win, headers) {
   const json = new win.Text();
   const JSONView = Cu.cloneInto(
     {
-      debugJsModules,
       headers,
       json,
       readyState: "uninitialized",
@@ -384,5 +375,5 @@ function createInstance() {
 }
 
 exports.JsonViewService = {
-  createInstance: createInstance,
+  createInstance,
 };

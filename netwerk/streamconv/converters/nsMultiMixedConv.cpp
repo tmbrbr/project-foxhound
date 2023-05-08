@@ -118,6 +118,19 @@ nsPartChannel::GetStatus(nsresult* aResult) {
   return rv;
 }
 
+NS_IMETHODIMP nsPartChannel::SetCanceledReason(const nsACString& aReason) {
+  return SetCanceledReasonImpl(aReason);
+}
+
+NS_IMETHODIMP nsPartChannel::GetCanceledReason(nsACString& aReason) {
+  return GetCanceledReasonImpl(aReason);
+}
+
+NS_IMETHODIMP nsPartChannel::CancelWithReason(nsresult aStatus,
+                                              const nsACString& aReason) {
+  return CancelWithReasonImpl(aStatus, aReason);
+}
+
 NS_IMETHODIMP
 nsPartChannel::Cancel(nsresult aStatus) {
   // Cancelling an individual part must not cancel the underlying
@@ -260,7 +273,7 @@ nsPartChannel::SetNotificationCallbacks(nsIInterfaceRequestor* aCallbacks) {
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetSecurityInfo(nsISupports** aSecurityInfo) {
+nsPartChannel::GetSecurityInfo(nsITransportSecurityInfo** aSecurityInfo) {
   return mMultipartChannel->GetSecurityInfo(aSecurityInfo);
 }
 

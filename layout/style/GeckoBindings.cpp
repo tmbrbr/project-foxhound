@@ -11,6 +11,7 @@
 #include "ChildIterator.h"
 #include "ErrorReporter.h"
 #include "gfxFontFeatures.h"
+#include "gfxMathTable.h"
 #include "gfxTextRun.h"
 #include "imgLoader.h"
 #include "nsAnimationManager.h"
@@ -65,12 +66,14 @@
 #include "mozilla/RWLock.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ElementInlines.h"
+#include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLTableCellElement.h"
 #include "mozilla/dom/HTMLBodyElement.h"
 #include "mozilla/dom/HTMLSelectElement.h"
 #include "mozilla/dom/HTMLSlotElement.h"
 #include "mozilla/dom/MediaList.h"
 #include "mozilla/dom/SVGElement.h"
+#include "mozilla/dom/WorkerCommon.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/URLExtraData.h"
 #include "mozilla/dom/CSSMozDocumentRule.h"
@@ -368,14 +371,15 @@ Gecko_GetHTMLPresentationAttrDeclarationBlock(const Element* aElement) {
 
 const StyleStrong<RawServoDeclarationBlock>*
 Gecko_GetExtraContentStyleDeclarations(const Element* aElement) {
-  if (!aElement->IsAnyOfHTMLElements(nsGkAtoms::td, nsGkAtoms::th)) {
-    return nullptr;
-  }
-  const HTMLTableCellElement* cell =
-      static_cast<const HTMLTableCellElement*>(aElement);
-  if (nsMappedAttributes* attrs =
-          cell->GetMappedAttributesInheritedFromTable()) {
-    return AsRefRawStrong(attrs->GetServoStyle());
+  if (const auto* cell = HTMLTableCellElement::FromNode(aElement)) {
+    if (nsMappedAttributes* attrs =
+            cell->GetMappedAttributesInheritedFromTable()) {
+      return AsRefRawStrong(attrs->GetServoStyle());
+    }
+  } else if (const auto* img = HTMLImageElement::FromNode(aElement)) {
+    if (const auto* attrs = img->GetMappedAttributesFromSource()) {
+      return AsRefRawStrong(attrs->GetServoStyle());
+    }
   }
   return nullptr;
 }
@@ -640,8 +644,7 @@ double Gecko_GetProgressFromComputedTiming(const ComputedTiming* aTiming) {
 }
 
 double Gecko_GetPositionInSegment(const AnimationPropertySegment* aSegment,
-                                  double aProgress,
-                                  StyleEasingBeforeFlag aBeforeFlag) {
+                                  double aProgress, bool aBeforeFlag) {
   MOZ_ASSERT(aSegment->mFromKey < aSegment->mToKey,
              "The segment from key should be less than to key");
 
@@ -651,8 +654,8 @@ double Gecko_GetPositionInSegment(const AnimationPropertySegment* aSegment,
                              // denominator using double precision.
                              (double(aSegment->mToKey) - aSegment->mFromKey);
 
-  return ComputedTimingFunction::GetPortion(aSegment->mTimingFunction,
-                                            positionInSegment, aBeforeFlag);
+  return StyleComputedTimingFunction::GetPortion(
+      aSegment->mTimingFunction, positionInSegment, aBeforeFlag);
 }
 
 const RawServoAnimationValue* Gecko_AnimationGetBaseStyle(
@@ -984,6 +987,13 @@ StyleGenericFontFamily Gecko_nsStyleFont_ComputeFallbackFontTypeForLanguage(
   return ThreadSafeGetLangGroupFontPrefs(*aDoc, aLanguage)->GetDefaultGeneric();
 }
 
+Length Gecko_GetBaseSize(const Document* aDoc, nsAtom* aLang,
+                         StyleGenericFontFamily aGeneric) {
+  return ThreadSafeGetLangGroupFontPrefs(*aDoc, aLang)
+      ->GetDefaultFont(aGeneric)
+      ->size;
+}
+
 gfxFontFeatureValueSet* Gecko_ConstructFontFeatureValueSet() {
   return new gfxFontFeatureValueSet();
 }
@@ -994,6 +1004,32 @@ nsTArray<uint32_t>* Gecko_AppendFeatureValueHashEntry(
   MOZ_ASSERT(NS_IsMainThread());
   return aFontFeatureValues->AppendFeatureValueHashEntry(nsAtomCString(aFamily),
                                                          aName, aAlternate);
+}
+
+gfx::FontPaletteValueSet* Gecko_ConstructFontPaletteValueSet() {
+  return new gfx::FontPaletteValueSet();
+}
+
+gfx::FontPaletteValueSet::PaletteValues* Gecko_AppendPaletteValueHashEntry(
+    gfx::FontPaletteValueSet* aPaletteValueSet, nsAtom* aFamily,
+    nsAtom* aName) {
+  MOZ_ASSERT(NS_IsMainThread());
+  return aPaletteValueSet->Insert(aName, nsAtomCString(aFamily));
+}
+
+void Gecko_SetFontPaletteBase(gfx::FontPaletteValueSet::PaletteValues* aValues,
+                              int32_t aBasePaletteIndex) {
+  aValues->mBasePalette = aBasePaletteIndex;
+}
+
+void Gecko_SetFontPaletteOverride(
+    gfx::FontPaletteValueSet::PaletteValues* aValues, int32_t aIndex,
+    StyleRGBA aColor) {
+  if (aIndex < 0) {
+    return;
+  }
+  aValues->mOverrides.AppendElement(gfx::FontPaletteValueSet::OverrideColor{
+      uint32_t(aIndex), gfx::sRGBColor::FromABGR(aColor.ToColor())});
 }
 
 void Gecko_CounterStyle_ToPtr(const StyleCounterStyle* aStyle,
@@ -1096,7 +1132,7 @@ enum class KeyframeInsertPosition {
 
 static Keyframe* GetOrCreateKeyframe(
     nsTArray<Keyframe>* aKeyframes, float aOffset,
-    const nsTimingFunction* aTimingFunction,
+    const StyleComputedTimingFunction* aTimingFunction,
     const CompositeOperationOrAuto aComposition,
     KeyframeSearchDirection aSearchDirection,
     KeyframeInsertPosition aInsertPosition) {
@@ -1127,7 +1163,7 @@ static Keyframe* GetOrCreateKeyframe(
   Keyframe* keyframe = aKeyframes->InsertElementAt(
       aInsertPosition == KeyframeInsertPosition::Prepend ? 0 : keyframeIndex);
   keyframe->mOffset.emplace(aOffset);
-  if (!aTimingFunction->IsLinear()) {
+  if (!aTimingFunction->IsLinearKeyword()) {
     keyframe->mTimingFunction.emplace(*aTimingFunction);
   }
   keyframe->mComposite = aComposition;
@@ -1137,7 +1173,7 @@ static Keyframe* GetOrCreateKeyframe(
 
 Keyframe* Gecko_GetOrCreateKeyframeAtStart(
     nsTArray<Keyframe>* aKeyframes, float aOffset,
-    const nsTimingFunction* aTimingFunction,
+    const StyleComputedTimingFunction* aTimingFunction,
     const CompositeOperationOrAuto aComposition) {
   MOZ_ASSERT(aKeyframes->IsEmpty() ||
                  aKeyframes->ElementAt(0).mOffset.value() >= aOffset,
@@ -1150,7 +1186,8 @@ Keyframe* Gecko_GetOrCreateKeyframeAtStart(
 }
 
 Keyframe* Gecko_GetOrCreateInitialKeyframe(
-    nsTArray<Keyframe>* aKeyframes, const nsTimingFunction* aTimingFunction,
+    nsTArray<Keyframe>* aKeyframes,
+    const StyleComputedTimingFunction* aTimingFunction,
     const CompositeOperationOrAuto aComposition) {
   return GetOrCreateKeyframe(aKeyframes, 0., aTimingFunction, aComposition,
                              KeyframeSearchDirection::Forwards,
@@ -1158,7 +1195,8 @@ Keyframe* Gecko_GetOrCreateInitialKeyframe(
 }
 
 Keyframe* Gecko_GetOrCreateFinalKeyframe(
-    nsTArray<Keyframe>* aKeyframes, const nsTimingFunction* aTimingFunction,
+    nsTArray<Keyframe>* aKeyframes,
+    const StyleComputedTimingFunction* aTimingFunction,
     const CompositeOperationOrAuto aComposition) {
   return GetOrCreateKeyframe(aKeyframes, 1., aTimingFunction, aComposition,
                              KeyframeSearchDirection::Backwards,
@@ -1316,17 +1354,6 @@ Length Gecko_nsStyleFont_ComputeMinSize(const nsStyleFont* aFont,
   return minFontSize;
 }
 
-StyleDefaultFontSizes Gecko_GetBaseSize(nsAtom* aLanguage) {
-  LangGroupFontPrefs prefs;
-  nsStaticAtom* langGroupAtom =
-      StaticPresData::Get()->GetUncachedLangGroup(aLanguage);
-  prefs.Initialize(langGroupAtom);
-  return {prefs.mDefaultVariableFont.size,  prefs.mDefaultSerifFont.size,
-          prefs.mDefaultSansSerifFont.size, prefs.mDefaultMonospaceFont.size,
-          prefs.mDefaultCursiveFont.size,   prefs.mDefaultFantasyFont.size,
-          prefs.mDefaultSystemUiFont.size};
-}
-
 static StaticRefPtr<UACacheReporter> gUACacheReporter;
 
 namespace mozilla {
@@ -1365,7 +1392,8 @@ void AssertIsMainThreadOrServoFontMetricsLocked() {
 GeckoFontMetrics Gecko_GetFontMetrics(const nsPresContext* aPresContext,
                                       bool aIsVertical,
                                       const nsStyleFont* aFont,
-                                      Length aFontSize, bool aUseUserFontSet) {
+                                      Length aFontSize, bool aUseUserFontSet,
+                                      bool aRetrieveMathScales) {
   AutoWriteLock guard(*sServoFFILock);
 
   // Getting font metrics can require some main thread only work to be
@@ -1380,12 +1408,20 @@ GeckoFontMetrics Gecko_GetFontMetrics(const nsPresContext* aPresContext,
   // ArrayBuffer-backed FontFace objects are handled synchronously.
 
   nsPresContext* presContext = const_cast<nsPresContext*>(aPresContext);
-  presContext->SetUsesFontMetricDependentFontUnits(true);
-
   RefPtr<nsFontMetrics> fm = nsLayoutUtils::GetMetricsFor(
       presContext, aIsVertical, aFont, aFontSize, aUseUserFontSet);
   RefPtr<gfxFont> font = fm->GetThebesFontGroup()->GetFirstValidFont();
   const auto& metrics = font->GetMetrics(fm->Orientation());
+
+  float scriptPercentScaleDown = 0;
+  float scriptScriptPercentScaleDown = 0;
+  if (aRetrieveMathScales && font->TryGetMathTable()) {
+    scriptPercentScaleDown = static_cast<float>(
+        font->MathTable()->Constant(gfxMathTable::ScriptPercentScaleDown));
+    scriptScriptPercentScaleDown =
+        static_cast<float>(font->MathTable()->Constant(
+            gfxMathTable::ScriptScriptPercentScaleDown));
+  }
 
   int32_t d2a = aPresContext->AppUnitsPerDevPixel();
   auto ToLength = [](nscoord aLen) {
@@ -1395,7 +1431,9 @@ GeckoFontMetrics Gecko_GetFontMetrics(const nsPresContext* aPresContext,
           ToLength(NS_round(metrics.zeroWidth * d2a)),
           ToLength(NS_round(metrics.capHeight * d2a)),
           ToLength(NS_round(metrics.ideographicWidth * d2a)),
-          ToLength(NS_round(metrics.maxAscent * d2a))};
+          ToLength(NS_round(metrics.maxAscent * d2a)),
+          scriptPercentScaleDown,
+          scriptScriptPercentScaleDown};
 }
 
 NS_IMPL_THREADSAFE_FFI_REFCOUNTING(SheetLoadDataHolder, SheetLoadDataHolder);
@@ -1629,9 +1667,21 @@ bool Gecko_GetBoolPrefValue(const char* aPrefName) {
   return Preferences::GetBool(aPrefName);
 }
 
+bool Gecko_IsFontFormatSupported(StyleFontFaceSourceFormatKeyword aFormat) {
+  return gfxPlatform::GetPlatform()->IsFontFormatSupported(
+      aFormat, StyleFontFaceSourceTechFlags::Empty());
+}
+
+bool Gecko_IsFontTechSupported(StyleFontFaceSourceTechFlags aFlag) {
+  return gfxPlatform::GetPlatform()->IsFontFormatSupported(
+      StyleFontFaceSourceFormatKeyword::None, aFlag);
+}
+
 bool Gecko_IsInServoTraversal() { return ServoStyleSet::IsInServoTraversal(); }
 
 bool Gecko_IsMainThread() { return NS_IsMainThread(); }
+
+bool Gecko_IsDOMWorkerThread() { return !!GetCurrentThreadWorkerPrivate(); }
 
 const nsAttrValue* Gecko_GetSVGAnimatedClass(const Element* aElement) {
   MOZ_ASSERT(aElement->IsSVGElement());

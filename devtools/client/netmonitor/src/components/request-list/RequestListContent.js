@@ -7,50 +7,50 @@
 const {
   Component,
   createFactory,
-} = require("devtools/client/shared/vendor/react");
-const dom = require("devtools/client/shared/vendor/react-dom-factories");
-const PropTypes = require("devtools/client/shared/vendor/react-prop-types");
+} = require("resource://devtools/client/shared/vendor/react.js");
+const dom = require("resource://devtools/client/shared/vendor/react-dom-factories.js");
+const PropTypes = require("resource://devtools/client/shared/vendor/react-prop-types.js");
 const {
   connect,
-} = require("devtools/client/shared/redux/visibility-handler-connect");
+} = require("resource://devtools/client/shared/redux/visibility-handler-connect.js");
 const {
   HTMLTooltip,
-} = require("devtools/client/shared/widgets/tooltip/HTMLTooltip");
+} = require("resource://devtools/client/shared/widgets/tooltip/HTMLTooltip.js");
 
-const Actions = require("devtools/client/netmonitor/src/actions/index");
+const Actions = require("resource://devtools/client/netmonitor/src/actions/index.js");
 const {
   formDataURI,
-} = require("devtools/client/netmonitor/src/utils/request-utils");
+} = require("resource://devtools/client/netmonitor/src/utils/request-utils.js");
 const {
   getDisplayedRequests,
   getColumns,
   getSelectedRequest,
   getClickedRequest,
-} = require("devtools/client/netmonitor/src/selectors/index");
+} = require("resource://devtools/client/netmonitor/src/selectors/index.js");
 
 loader.lazyRequireGetter(
   this,
   "openRequestInTab",
-  "devtools/client/netmonitor/src/utils/firefox/open-request-in-tab",
+  "resource://devtools/client/netmonitor/src/utils/firefox/open-request-in-tab.js",
   true
 );
 loader.lazyGetter(this, "setImageTooltip", function() {
-  return require("devtools/client/shared/widgets/tooltip/ImageTooltipHelper")
+  return require("resource://devtools/client/shared/widgets/tooltip/ImageTooltipHelper.js")
     .setImageTooltip;
 });
 loader.lazyGetter(this, "getImageDimensions", function() {
-  return require("devtools/client/shared/widgets/tooltip/ImageTooltipHelper")
+  return require("resource://devtools/client/shared/widgets/tooltip/ImageTooltipHelper.js")
     .getImageDimensions;
 });
 
 // Components
 const RequestListHeader = createFactory(
-  require("devtools/client/netmonitor/src/components/request-list/RequestListHeader")
+  require("resource://devtools/client/netmonitor/src/components/request-list/RequestListHeader.js")
 );
 const RequestListItem = createFactory(
-  require("devtools/client/netmonitor/src/components/request-list/RequestListItem")
+  require("resource://devtools/client/netmonitor/src/components/request-list/RequestListItem.js")
 );
-const RequestListContextMenu = require("devtools/client/netmonitor/src/widgets/RequestListContextMenu");
+const RequestListContextMenu = require("resource://devtools/client/netmonitor/src/widgets/RequestListContextMenu.js");
 
 const { div } = dom;
 
@@ -82,6 +82,7 @@ class RequestListContent extends Component {
       openHTTPCustomRequestTab: PropTypes.func.isRequired,
       closeHTTPCustomRequestTab: PropTypes.func.isRequired,
       sendCustomRequest: PropTypes.func.isRequired,
+      sendHTTPCustomRequest: PropTypes.func.isRequired,
       displayedRequests: PropTypes.array.isRequired,
       firstRequestStartedMs: PropTypes.number.isRequired,
       fromCache: PropTypes.bool,
@@ -354,6 +355,7 @@ class RequestListContent extends Component {
         openHTTPCustomRequestTab,
         closeHTTPCustomRequestTab,
         sendCustomRequest,
+        sendHTTPCustomRequest,
         openStatistics,
         openRequestBlockingAndAddUrl,
         openRequestBlockingAndDisableUrls,
@@ -366,6 +368,7 @@ class RequestListContent extends Component {
         openHTTPCustomRequestTab,
         closeHTTPCustomRequestTab,
         sendCustomRequest,
+        sendHTTPCustomRequest,
         openStatistics,
         openRequestBlockingAndAddUrl,
         openRequestBlockingAndDisableUrls,
@@ -438,10 +441,10 @@ class RequestListContent extends Component {
                   onInitiatorBadgeMouseDown(item.cause),
                 onSecurityIconMouseDown: () =>
                   onSecurityIconMouseDown(item.securityState),
-                onWaterfallMouseDown: onWaterfallMouseDown,
+                onWaterfallMouseDown,
                 requestFilterTypes,
-                openRequestBlockingAndAddUrl: openRequestBlockingAndAddUrl,
-                openRequestBlockingAndDisableUrls: openRequestBlockingAndDisableUrls,
+                openRequestBlockingAndAddUrl,
+                openRequestBlockingAndDisableUrls,
               });
             })
           )
@@ -481,6 +484,8 @@ module.exports = connect(
       dispatch(Actions.openHTTPCustomRequest(false)),
     sendCustomRequest: () =>
       dispatch(Actions.sendCustomRequest(props.connector)),
+    sendHTTPCustomRequest: request =>
+      dispatch(Actions.sendHTTPCustomRequest(props.connector, request)),
     openStatistics: open =>
       dispatch(Actions.openStatistics(props.connector, open)),
     openRequestBlockingAndAddUrl: url =>

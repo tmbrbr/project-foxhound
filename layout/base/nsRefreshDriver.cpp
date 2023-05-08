@@ -1527,8 +1527,7 @@ void nsRefreshDriver::AddImageRequest(imgIRequest* aRequest) {
   EnsureTimerStarted();
 
   if (profiler_thread_is_being_profiled_for_markers()) {
-    nsCOMPtr<nsIURI> uri;
-    aRequest->GetURI(getter_AddRefs(uri));
+    nsCOMPtr<nsIURI> uri = aRequest->GetURI();
     nsAutoCString uristr;
     uri->GetAsciiSpec(uristr);
 
@@ -1552,8 +1551,7 @@ void nsRefreshDriver::RemoveImageRequest(imgIRequest* aRequest) {
   }
 
   if (removed && profiler_thread_is_being_profiled_for_markers()) {
-    nsCOMPtr<nsIURI> uri;
-    aRequest->GetURI(getter_AddRefs(uri));
+    nsCOMPtr<nsIURI> uri = aRequest->GetURI();
     nsAutoCString uristr;
     uri->GetAsciiSpec(uristr);
 
@@ -1991,6 +1989,8 @@ bool nsRefreshDriver::ShouldKeepTimerRunningAfterPageLoad() {
       !StaticPrefs::layout_keep_ticking_after_load_ms() || mThrottled ||
       mTestControllingRefreshes || !XRE_IsContentProcess() ||
       !mPresContext->Document()->IsTopLevelContentDocument() ||
+      TaskController::Get()->PendingMainthreadTaskCountIncludingSuspended() ==
+          0 ||
       gfxPlatform::IsInLayoutAsapMode()) {
     // Make the next check faster.
     mHasExceededAfterLoadTickPeriod = true;
@@ -2409,6 +2409,18 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime,
     return;
   }
 
+  if (StaticPrefs::layout_skip_ticks_while_page_suspended()) {
+    Document* doc = mPresContext->Document();
+    nsPIDOMWindowInner* win = doc ? doc->GetInnerWindow() : nullptr;
+    // Synchronous DOM operations mark the document being in such. Window's
+    // suspend can be used also by external code. So we check here them both
+    // in order to limit rAF skipping to only those synchronous DOM APIs which
+    // also suspend window.
+    if (win && win->IsSuspended() && doc->IsInSyncOperation()) {
+      return;
+    }
+  }
+
   // Potentially go back to throttled after the grace period is done.
   if (MOZ_UNLIKELY(mIsGrantingActivityGracePeriod) &&
       ShouldStopActivityGracePeriod()) {
@@ -2578,10 +2590,15 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime,
         RefPtr<PresShell> presShell = rawPresShell;
         presShell->mObservingLayoutFlushes = false;
         presShell->mWasLastReflowInterrupted = false;
-        FlushType flushType = HasPendingAnimations(presShell)
-                                  ? FlushType::Layout
-                                  : FlushType::InterruptibleLayout;
-        presShell->FlushPendingNotifications(ChangesToFlush(flushType, false));
+        const auto flushType = HasPendingAnimations(presShell)
+                                   ? FlushType::Layout
+                                   : FlushType::InterruptibleLayout;
+        const ChangesToFlush ctf(flushType, false);
+        presShell->FlushPendingNotifications(ctf);
+        if (presShell->FixUpFocus()) {
+          presShell->FlushPendingNotifications(ctf);
+        }
+
         // Inform the FontFaceSet that we ticked, so that it can resolve its
         // ready promise if it needs to.
         presShell->NotifyFontFaceSetOnRefresh();
@@ -2627,19 +2644,33 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime,
     const uint32_t& delay = entry.GetKey();
     ImageStartData* data = entry.GetWeak();
 
+    if (data->mEntries.IsEmpty()) {
+      continue;
+    }
+
     if (data->mStartTime) {
       TimeStamp& start = *data->mStartTime;
-      TimeDuration prev = previousRefresh - start;
-      TimeDuration curr = aNowTime - start;
-      uint32_t prevMultiple = uint32_t(prev.ToMilliseconds()) / delay;
 
-      // We want to trigger images' refresh if we've just crossed over a
-      // multiple of the first image's start time. If so, set the animation
-      // start time to the nearest multiple of the delay and move all the
-      // images in this table to the main requests table.
-      if (prevMultiple != uint32_t(curr.ToMilliseconds()) / delay) {
-        mozilla::TimeStamp desired =
-            start + TimeDuration::FromMilliseconds(prevMultiple * delay);
+      if (previousRefresh >= start && aNowTime >= start) {
+        TimeDuration prev = previousRefresh - start;
+        TimeDuration curr = aNowTime - start;
+        uint32_t prevMultiple = uint32_t(prev.ToMilliseconds()) / delay;
+
+        // We want to trigger images' refresh if we've just crossed over a
+        // multiple of the first image's start time. If so, set the animation
+        // start time to the nearest multiple of the delay and move all the
+        // images in this table to the main requests table.
+        if (prevMultiple != uint32_t(curr.ToMilliseconds()) / delay) {
+          mozilla::TimeStamp desired =
+              start + TimeDuration::FromMilliseconds(prevMultiple * delay);
+          BeginRefreshingImages(data->mEntries, desired);
+        }
+      } else {
+        // Sometimes the start time can be in the future if we spin a nested
+        // event loop and re-entrantly tick. In that case, setting the animation
+        // start time to the start time seems like the least bad thing we can
+        // do.
+        mozilla::TimeStamp desired = start;
         BeginRefreshingImages(data->mEntries, desired);
       }
     } else {

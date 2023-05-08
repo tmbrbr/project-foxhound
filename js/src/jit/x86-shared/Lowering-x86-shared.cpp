@@ -835,13 +835,13 @@ void LIRGenerator::visitWasmTernarySimd128(MWasmTernarySimd128* ins) {
       break;
     }
     case wasm::SimdOp::F32x4RelaxedFma:
-    case wasm::SimdOp::F32x4RelaxedFms:
+    case wasm::SimdOp::F32x4RelaxedFnma:
     case wasm::SimdOp::F64x2RelaxedFma:
-    case wasm::SimdOp::F64x2RelaxedFms: {
-      auto* lir = new (alloc())
-          LWasmTernarySimd128(ins->simdOp(), useRegisterAtStart(ins->v0()),
-                              useRegister(ins->v1()), useRegister(ins->v2()));
-      defineReuseInput(lir, ins, LWasmTernarySimd128::V0);
+    case wasm::SimdOp::F64x2RelaxedFnma: {
+      auto* lir = new (alloc()) LWasmTernarySimd128(
+          ins->simdOp(), useRegister(ins->v0()), useRegister(ins->v1()),
+          useRegisterAtStart(ins->v2()));
+      defineReuseInput(lir, ins, LWasmTernarySimd128::V2);
       break;
     }
     case wasm::SimdOp::I32x4DotI8x16I7x16AddS: {
@@ -866,6 +866,13 @@ void LIRGenerator::visitWasmTernarySimd128(MWasmTernarySimd128* ins) {
             useRegisterAtStart(ins->v1()), useFixed(ins->v2(), vmm0));
         defineReuseInput(lir, ins, LWasmTernarySimd128::V1);
       }
+      break;
+    }
+    case wasm::SimdOp::F32x4RelaxedDotBF16x8AddF32x4: {
+      auto* lir = new (alloc()) LWasmTernarySimd128(
+          ins->simdOp(), useRegister(ins->v0()), useRegister(ins->v1()),
+          useRegisterAtStart(ins->v2()), tempSimd128());
+      defineReuseInput(lir, ins, LWasmTernarySimd128::V2);
       break;
     }
     default:
@@ -1119,8 +1126,7 @@ void LIRGenerator::visitWasmBinarySimd128(MWasmBinarySimd128* ins) {
     case wasm::SimdOp::F64x2RelaxedMax:
     case wasm::SimdOp::I16x8RelaxedQ15MulrS:
     case wasm::SimdOp::I16x8DotI8x16I7x16S:
-    case wasm::SimdOp::MozWHPMADDUBSW:
-    case wasm::SimdOp::MozWHPMADDWD:
+    case wasm::SimdOp::MozPMADDUBSW:
       if (isThreeOpAllowed()) {
         auto* lir = new (alloc())
             LWasmBinarySimd128(op, useRegisterAtStart(lhs),
@@ -1231,6 +1237,11 @@ bool MWasmTernarySimd128::canRelaxBitselect() {
       break;
   }
   return false;
+}
+
+bool MWasmBinarySimd128::canPmaddubsw() {
+  MOZ_ASSERT(Assembler::HasSSE3());
+  return true;
 }
 #endif
 

@@ -4,17 +4,20 @@
 
 "use strict";
 
-const { Cu } = require("chrome");
-const Services = require("Services");
 const InspectorUtils = require("InspectorUtils");
-const protocol = require("devtools/shared/protocol");
-const { PSEUDO_CLASSES } = require("devtools/shared/css/constants");
-const { nodeSpec, nodeListSpec } = require("devtools/shared/specs/node");
+const protocol = require("resource://devtools/shared/protocol.js");
+const {
+  PSEUDO_CLASSES,
+} = require("resource://devtools/shared/css/constants.js");
+const {
+  nodeSpec,
+  nodeListSpec,
+} = require("resource://devtools/shared/specs/node.js");
 
 loader.lazyRequireGetter(
   this,
   ["getCssPath", "getXPath", "findCssSelector"],
-  "devtools/shared/inspector/css-logic",
+  "resource://devtools/shared/inspector/css-logic.js",
   true
 );
 
@@ -33,7 +36,7 @@ loader.lazyRequireGetter(
     "isShadowHost",
     "isShadowRoot",
   ],
-  "devtools/shared/layout/utils",
+  "resource://devtools/shared/layout/utils.js",
   true
 );
 
@@ -46,37 +49,37 @@ loader.lazyRequireGetter(
     "imageToImageData",
     "isNodeDead",
   ],
-  "devtools/server/actors/inspector/utils",
+  "resource://devtools/server/actors/inspector/utils.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "LongStringActor",
-  "devtools/server/actors/string",
+  "resource://devtools/server/actors/string.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "getFontPreviewData",
-  "devtools/server/actors/utils/style-utils",
+  "resource://devtools/server/actors/utils/style-utils.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "CssLogic",
-  "devtools/server/actors/inspector/css-logic",
+  "resource://devtools/server/actors/inspector/css-logic.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "EventCollector",
-  "devtools/server/actors/inspector/event-collector",
+  "resource://devtools/server/actors/inspector/event-collector.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "DOMHelpers",
-  "devtools/shared/dom-helpers",
+  "resource://devtools/shared/dom-helpers.js",
   true
 );
 
@@ -91,7 +94,7 @@ const FONT_FAMILY_PREVIEW_TEXT_SIZE = 20;
  * Server side of the node actor.
  */
 const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
-  initialize: function(walker, node) {
+  initialize(walker, node) {
     protocol.Actor.prototype.initialize.call(this, null);
     this.walker = walker;
     this.rawNode = node;
@@ -116,7 +119,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
     }
   },
 
-  toString: function() {
+  toString() {
     return (
       "[NodeActor " + this.actorID + " for " + this.rawNode.toString() + "]"
     );
@@ -130,14 +133,14 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
     return this.walker.conn;
   },
 
-  isDocumentElement: function() {
+  isDocumentElement() {
     return (
       this.rawNode.ownerDocument &&
       this.rawNode.ownerDocument.documentElement === this.rawNode
     );
   },
 
-  destroy: function() {
+  destroy() {
     protocol.Actor.prototype.destroy.call(this);
 
     if (this.mutationObserver) {
@@ -186,7 +189,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
   },
 
   // Returns the JSON representation of this object over the wire.
-  form: function() {
+  form() {
     const parentNode = this.walker.parentNode(this);
     const inlineTextChild = this.walker.inlineTextChild(this);
     const shadowRoot = isShadowRoot(this.rawNode);
@@ -263,7 +266,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    * Watch the given document node for mutations using the DOM observer
    * API.
    */
-  watchDocument: function(doc, callback) {
+  watchDocument(doc, callback) {
     if (!doc.defaultView) {
       return;
     }
@@ -287,7 +290,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
   /**
    * Watch for all "slotchange" events on the node.
    */
-  watchSlotchange: function(callback) {
+  watchSlotchange(callback) {
     this.slotchangeListener = callback;
     this.rawNode.addEventListener("slotchange", this.slotchangeListener);
   },
@@ -422,12 +425,12 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
     return this._eventCollector.hasEventListeners(this.rawNode, dbg);
   },
 
-  writeAttrs: function() {
+  writeAttrs() {
     // If the node has no attributes or this.rawNode is the document node and a
     // node with `name="attributes"` exists in the DOM we need to bail.
     if (
       !this.rawNode.attributes ||
-      !(this.rawNode.attributes instanceof NamedNodeMap)
+      !NamedNodeMap.isInstance(this.rawNode.attributes)
     ) {
       return undefined;
     }
@@ -437,7 +440,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
     });
   },
 
-  writePseudoClassLocks: function() {
+  writePseudoClassLocks() {
     if (this.rawNode.nodeType !== Node.ELEMENT_NODE) {
       return undefined;
     }
@@ -455,7 +458,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    * Retrieve the script location of the custom element definition for this node, when
    * relevant. To be linked to a custom element definition
    */
-  getCustomElementLocation: function() {
+  getCustomElementLocation() {
     // Get a reference to the custom element definition function.
     const name = this.rawNode.localName;
 
@@ -508,21 +511,21 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
   /**
    * Returns a LongStringActor with the node's value.
    */
-  getNodeValue: function() {
+  getNodeValue() {
     return new LongStringActor(this.conn, this.rawNode.nodeValue || "");
   },
 
   /**
    * Set the node's value to a given string.
    */
-  setNodeValue: function(value) {
+  setNodeValue(value) {
     this.rawNode.nodeValue = value;
   },
 
   /**
    * Get a unique selector string for this node.
    */
-  getUniqueSelector: function() {
+  getUniqueSelector() {
     if (Cu.isDeadWrapper(this.rawNode)) {
       return "";
     }
@@ -534,7 +537,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    *
    * @return {String} A CSS selector with a part for the node and each of its ancestors.
    */
-  getCssPath: function() {
+  getCssPath() {
     if (Cu.isDeadWrapper(this.rawNode)) {
       return "";
     }
@@ -546,7 +549,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    *
    * @return {String} The XPath for finding this node on the page.
    */
-  getXPath: function() {
+  getXPath() {
     if (Cu.isDeadWrapper(this.rawNode)) {
       return "";
     }
@@ -556,7 +559,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
   /**
    * Scroll the selected node into view.
    */
-  scrollIntoView: function() {
+  scrollIntoView() {
     this.rawNode.scrollIntoView(true);
   },
 
@@ -571,7 +574,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    * is important as the resizing occurs server-side so that image-data being
    * transfered in the longstring back to the client will be that much smaller
    */
-  getImageData: function(maxDim) {
+  getImageData(maxDim) {
     return imageToImageData(this.rawNode, maxDim).then(imageData => {
       return {
         data: LongStringActor(this.conn, imageData.data),
@@ -583,7 +586,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
   /**
    * Get all event listeners that are listening on this node.
    */
-  getEventListenerInfo: function() {
+  getEventListenerInfo() {
     this._nsIEventListenersInfo.clear();
 
     const eventListenersData = this._eventCollector.getEventListeners(
@@ -611,7 +614,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    *
    * @param {String} eventListenerInfoId
    */
-  disableEventListener: function(eventListenerInfoId) {
+  disableEventListener(eventListenerInfoId) {
     const nsEventListenerInfo = this._nsIEventListenersInfo.get(
       eventListenerInfoId
     );
@@ -626,7 +629,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    *
    * @param {String} eventListenerInfoId
    */
-  enableEventListener: function(eventListenerInfoId) {
+  enableEventListener(eventListenerInfoId) {
     const nsEventListenerInfo = this._nsIEventListenersInfo.get(
       eventListenerInfoId
     );
@@ -649,7 +652,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    * Returns when the modifications have been made.  Mutations will
    * be queued for any changes made.
    */
-  modifyAttributes: function(modifications) {
+  modifyAttributes(modifications) {
     const rawNode = this.rawNode;
     for (const change of modifications) {
       if (change.newValue == null) {
@@ -680,16 +683,16 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    * and the width of the text as a string.
    * The image data is transmitted as a base64 encoded png data-uri.
    */
-  getFontFamilyDataURL: function(font, fillStyle = "black") {
+  getFontFamilyDataURL(font, fillStyle = "black") {
     const doc = this.rawNode.ownerDocument;
     const options = {
       previewText: FONT_FAMILY_PREVIEW_TEXT,
       previewFontSize: FONT_FAMILY_PREVIEW_TEXT_SIZE,
-      fillStyle: fillStyle,
+      fillStyle,
     };
     const { dataURL, size } = getFontPreviewData(font, doc, options);
 
-    return { data: LongStringActor(this.conn, dataURL), size: size };
+    return { data: LongStringActor(this.conn, dataURL), size };
   },
 
   /**
@@ -700,7 +703,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    *         String with the background color of the form rgba(r, g, b, a). Defaults to
    *         rgba(255, 255, 255, 1) if no background color is found.
    */
-  getClosestBackgroundColor: function() {
+  getClosestBackgroundColor() {
     return getClosestBackgroundColor(this.rawNode);
   },
 
@@ -713,7 +716,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    * @return {Object}
    *         Object with one or more of the following properties: value, min, max
    */
-  getBackgroundColor: function() {
+  getBackgroundColor() {
     return getBackgroundColor(this);
   },
 
@@ -722,7 +725,7 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
    *
    * @return {Object}
    */
-  getOwnerGlobalDimensions: function() {
+  getOwnerGlobalDimensions() {
     const win = this.rawNode.ownerGlobal;
     return {
       innerWidth: win.innerWidth,
@@ -805,13 +808,13 @@ const NodeActor = protocol.ActorClassWithSpec(nodeSpec, {
  * Server side of a node list as returned by querySelectorAll()
  */
 const NodeListActor = protocol.ActorClassWithSpec(nodeListSpec, {
-  initialize: function(walker, nodeList) {
+  initialize(walker, nodeList) {
     protocol.Actor.prototype.initialize.call(this);
     this.walker = walker;
     this.nodeList = nodeList || [];
   },
 
-  destroy: function() {
+  destroy() {
     protocol.Actor.prototype.destroy.call(this);
   },
 
@@ -826,12 +829,12 @@ const NodeListActor = protocol.ActorClassWithSpec(nodeListSpec, {
   /**
    * Items returned by this actor should belong to the parent walker.
    */
-  marshallPool: function() {
+  marshallPool() {
     return this.walker;
   },
 
   // Returns the JSON representation of this object over the wire.
-  form: function() {
+  form() {
     return {
       actor: this.actorID,
       length: this.nodeList ? this.nodeList.length : 0,
@@ -841,21 +844,21 @@ const NodeListActor = protocol.ActorClassWithSpec(nodeListSpec, {
   /**
    * Get a single node from the node list.
    */
-  item: function(index) {
+  item(index) {
     return this.walker.attachElement(this.nodeList[index]);
   },
 
   /**
    * Get a range of the items from the node list.
    */
-  items: function(start = 0, end = this.nodeList.length) {
+  items(start = 0, end = this.nodeList.length) {
     const items = Array.prototype.slice
       .call(this.nodeList, start, end)
       .map(item => this.walker._getOrCreateNodeActor(item));
     return this.walker.attachElements(items);
   },
 
-  release: function() {},
+  release() {},
 });
 
 exports.NodeActor = NodeActor;

@@ -6,11 +6,7 @@
  * Various utilities for search related UI.
  */
 
-"use strict";
-
-const { XPCOMUtils } = ChromeUtils.importESModule(
-  "resource://gre/modules/XPCOMUtils.sys.mjs"
-);
+import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = {};
 
@@ -74,5 +70,14 @@ export var SearchUIUtils = {
       return false;
     }
     return true;
+  },
+
+  /**
+   * Returns the URL to use for where to get more search engines.
+   */
+  get searchEnginesURL() {
+    return Services.urlFormatter.formatURLPref(
+      "browser.search.searchEnginesURL"
+    );
   },
 };

@@ -16,7 +16,9 @@ var EXPORTED_SYMBOLS = [
 const CRYPTO_COLLECTION = "crypto";
 const KEYS_WBO = "keys";
 
-const { Log } = ChromeUtils.import("resource://gre/modules/Log.jsm");
+const { Log } = ChromeUtils.importESModule(
+  "resource://gre/modules/Log.sys.mjs"
+);
 const {
   DEFAULT_DOWNLOAD_BATCH_SIZE,
   DEFAULT_KEYBUNDLE_NAME,
@@ -491,7 +493,7 @@ CollectionKeyManager.prototype = {
     changed.sort();
     let last;
     changed = changed.filter(x => x != last && (last = x));
-    return { same: changed.length == 0, changed };
+    return { same: !changed.length, changed };
   },
 
   get isClear() {
@@ -815,7 +817,7 @@ Collection.prototype = {
 
     this.uri = this.uri
       .mutate()
-      .setQuery(args.length > 0 ? "?" + args.join("&") : "")
+      .setQuery(args.length ? "?" + args.join("&") : "")
       .finalize();
   },
 

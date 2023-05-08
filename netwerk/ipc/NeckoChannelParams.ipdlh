@@ -83,6 +83,14 @@ struct RedirectHistoryEntryInfo
   nsCString           remoteAddress;
 };
 
+struct InterceptionInfoArg
+{
+  PrincipalInfo?              triggeringPrincipalInfo;
+  nsContentPolicyType         contentPolicyType;
+  RedirectHistoryEntryInfo[]  redirectChain;
+  bool                        fromThirdParty;
+};
+
 struct LoadInfoArgs
 {
   PrincipalInfo?              requestingPrincipalInfo;
@@ -168,6 +176,7 @@ struct LoadInfoArgs
   CrossOriginEmbedderPolicy   loadingEmbedderPolicy;
   bool                        originTrialCoepCredentiallessEnabledForTopLevel;
   nsIURI                      unstrippedURI;
+  InterceptionInfoArg?        interceptionInfo;
 };
 
 /**
@@ -277,15 +286,15 @@ struct CorsPreflightArgs
 
 struct HttpChannelOpenArgs
 {
-  URIParams                   uri;
+  nsIURI                      uri;
   // - TODO: bug 571161: unclear if any HTTP channel clients ever
   // set originalURI != uri (about:credits?); also not clear if
   // chrome channel would ever need to know.  Get rid of next arg?
-  URIParams?                  original;
-  URIParams?                  doc;
+  nsIURI                      original;
+  nsIURI                      doc;
   nsIReferrerInfo             referrerInfo;
-  URIParams?                  apiRedirectTo;
-  URIParams?                  topWindowURI;
+  nsIURI                      apiRedirectTo;
+  nsIURI                      topWindowURI;
   uint32_t                    loadFlags;
   RequestHeaderTuples         requestHeaders;
   nsCString                   requestMethod;
@@ -504,6 +513,8 @@ struct ResourceTimingStructArgs {
   // the rest of the timings so the timing information in the child is complete.
   TimeStamp cacheReadStart;
   TimeStamp cacheReadEnd;
+
+  TimeStamp transactionPending;
 };
 
 struct HttpActivity

@@ -3,13 +3,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const protocol = require("devtools/shared/protocol");
+const protocol = require("resource://devtools/shared/protocol.js");
 const { ActorClassWithSpec, Actor } = protocol;
-const { actorBridgeWithSpec } = require("devtools/server/actors/common");
-const { perfSpec } = require("devtools/shared/specs/perf");
+const {
+  actorBridgeWithSpec,
+} = require("resource://devtools/server/actors/common.js");
+const { perfSpec } = require("resource://devtools/shared/specs/perf.js");
 const {
   ActorReadyGeckoProfilerInterface,
-} = require("devtools/shared/performance-new/gecko-profiler-interface");
+} = require("resource://devtools/shared/performance-new/gecko-profiler-interface.js");
 
 /**
  * Pass on the events from the bridge to the actor.
@@ -26,7 +28,7 @@ function _bridgeEvents(actor, names) {
  * The PerfActor wraps the Gecko Profiler interface
  */
 exports.PerfActor = ActorClassWithSpec(perfSpec, {
-  initialize: function(conn, targetActor) {
+  initialize(conn, targetActor) {
     Actor.prototype.initialize.call(this, conn);
     // The "bridge" is the actual implementation of the actor. It is separated
     // for historical reasons, and could be merged into this class.
@@ -35,7 +37,7 @@ exports.PerfActor = ActorClassWithSpec(perfSpec, {
     _bridgeEvents(this, ["profiler-started", "profiler-stopped"]);
   },
 
-  destroy: function(conn) {
+  destroy(conn) {
     Actor.prototype.destroy.call(this, conn);
     this.bridge.destroy();
   },

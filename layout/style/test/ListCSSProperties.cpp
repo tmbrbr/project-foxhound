@@ -102,7 +102,9 @@ const char* gInaccessibleProperties[] = {
     "-moz-math-display",                     // parsed by UA sheets only
     "-moz-top-layer",                        // parsed by UA sheets only
     "-moz-min-font-size-ratio",              // parsed by UA sheets only
+    "-moz-box-layout",                       // chrome-only internal properties
     "-moz-font-smoothing-background-color",  // chrome-only internal properties
+    "-moz-subtree-hidden-only-visually",     // chrome-only internal properties
     "-moz-window-input-region-margin",       // chrome-only internal properties
     "-moz-window-opacity",                   // chrome-only internal properties
     "-moz-window-transform",                 // chrome-only internal properties

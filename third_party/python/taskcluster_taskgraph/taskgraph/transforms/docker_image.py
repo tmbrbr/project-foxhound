@@ -41,7 +41,7 @@ docker_image_schema = Schema(
         Optional("symbol"): str,
         # relative path (from config.path) to the file the docker image was defined
         # in.
-        Optional("job-from"): str,
+        Optional("task-from"): str,
         # Arguments to use for the Dockerfile.
         Optional("args"): {str: str},
         # Name of the docker image definition under taskcluster/docker, when
@@ -67,7 +67,7 @@ transforms.add_validate(docker_image_schema)
 @transforms.add
 def fill_template(config, tasks):
     available_packages = set()
-    for task in config.kind_dependencies_tasks:
+    for task in config.kind_dependencies_tasks.values():
         if task.kind != "packages":
             continue
         name = task.label.replace("packages-", "")

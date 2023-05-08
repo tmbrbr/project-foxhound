@@ -102,7 +102,6 @@ gfxPlatformGtk::gfxPlatformGtk() {
     gtk_init(nullptr, nullptr);
   }
 
-  mMaxGenericSubstitutions = UNINITIALIZED_VALUE;
   mIsX11Display = gfxPlatform::IsHeadless() ? false : GdkIsX11Display();
   if (XRE_IsParentProcess()) {
     InitX11EGLConfig();
@@ -474,22 +473,9 @@ void gfxPlatformGtk::FontsPrefsChanged(const char* aPref) {
     return;
   }
 
-  mMaxGenericSubstitutions = UNINITIALIZED_VALUE;
   gfxFcPlatformFontList* pfl = gfxFcPlatformFontList::PlatformFontList();
   pfl->ClearGenericMappings();
   FlushFontAndWordCaches();
-}
-
-uint32_t gfxPlatformGtk::MaxGenericSubstitions() {
-  if (mMaxGenericSubstitutions == UNINITIALIZED_VALUE) {
-    mMaxGenericSubstitutions =
-        Preferences::GetInt(GFX_PREF_MAX_GENERIC_SUBSTITUTIONS, 3);
-    if (mMaxGenericSubstitutions < 0) {
-      mMaxGenericSubstitutions = 3;
-    }
-  }
-
-  return uint32_t(mMaxGenericSubstitutions);
 }
 
 bool gfxPlatformGtk::AccelerateLayersByDefault() { return true; }
@@ -883,32 +869,38 @@ class XrandrSoftwareVsyncSource final
       Window root = gdk_x11_get_default_root_xwindow();
       XRRScreenResources* res = XRRGetScreenResourcesCurrent(dpy, root);
 
-      // We can't use refresh rates far below the default one (60Hz) because
-      // otherwise random CI tests start to fail. However, many users have
-      // screens just below the default rate, e.g. 59.95Hz. So slightly
-      // decrease the lower bound.
-      highestRefreshRate -= 1.0;
+      if (res) {
+        // We can't use refresh rates far below the default one (60Hz) because
+        // otherwise random CI tests start to fail. However, many users have
+        // screens just below the default rate, e.g. 59.95Hz. So slightly
+        // decrease the lower bound.
+        highestRefreshRate -= 1.0;
 
-      for (int i = 0; i < res->noutput; i++) {
-        XRROutputInfo* outputInfo = XRRGetOutputInfo(dpy, res, res->outputs[i]);
-        if (!outputInfo->crtc) {
-          XRRFreeOutputInfo(outputInfo);
-          continue;
-        }
+        for (int i = 0; i < res->noutput; i++) {
+          XRROutputInfo* outputInfo =
+              XRRGetOutputInfo(dpy, res, res->outputs[i]);
+          if (outputInfo) {
+            if (outputInfo->crtc) {
+              XRRCrtcInfo* crtcInfo =
+                  XRRGetCrtcInfo(dpy, res, outputInfo->crtc);
+              if (crtcInfo) {
+                for (int j = 0; j < res->nmode; j++) {
+                  if (res->modes[j].id == crtcInfo->mode) {
+                    double refreshRate = mode_refresh(&res->modes[j]);
+                    if (refreshRate > highestRefreshRate) {
+                      highestRefreshRate = refreshRate;
+                    }
+                    break;
+                  }
+                }
 
-        XRRCrtcInfo* crtcInfo = XRRGetCrtcInfo(dpy, res, outputInfo->crtc);
-        for (int j = 0; j < res->nmode; j++) {
-          if (res->modes[j].id == crtcInfo->mode) {
-            double refreshRate = mode_refresh(&res->modes[j]);
-            if (refreshRate > highestRefreshRate) {
-              highestRefreshRate = refreshRate;
+                XRRFreeCrtcInfo(crtcInfo);
+              }
             }
-            break;
+
+            XRRFreeOutputInfo(outputInfo);
           }
         }
-
-        XRRFreeCrtcInfo(crtcInfo);
-        XRRFreeOutputInfo(outputInfo);
       }
       XRRFreeScreenResources(res);
     }
@@ -962,10 +954,10 @@ gfxPlatformGtk::CreateGlobalHardwareVsyncSource() {
   nsCOMPtr<nsIGfxInfo> gfxInfo = components::GfxInfo::Service();
   nsString windowProtocol;
   gfxInfo->GetWindowProtocol(windowProtocol);
-  bool isXwayland = windowProtocol.Find("xwayland") != -1;
+  bool isXwayland = windowProtocol.Find(u"xwayland") != -1;
   nsString adapterDriverVendor;
   gfxInfo->GetAdapterDriverVendor(adapterDriverVendor);
-  bool isMesa = adapterDriverVendor.Find("mesa") != -1;
+  bool isMesa = adapterDriverVendor.Find(u"mesa") != -1;
 
   // Only use GLX vsync when the OpenGL compositor / WebRender is being used.
   // The extra cost of initializing a GLX context while blocking the main thread

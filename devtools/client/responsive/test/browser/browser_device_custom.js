@@ -5,7 +5,7 @@ http://creativecommons.org/publicdomain/zero/1.0/ */
 
 // Test adding and removing custom devices via the modal.
 
-const { LocalizationHelper } = require("devtools/shared/l10n");
+const { LocalizationHelper } = require("resource://devtools/shared/l10n.js");
 const L10N = new LocalizationHelper(
   "devtools/client/locales/device.properties",
   true
@@ -119,7 +119,7 @@ addRDMTask(
 
     const deviceRemoveButton = document.querySelector(".device-remove-button");
     const removed = Promise.all([
-      waitUntilState(store, state => state.devices.custom.length == 0),
+      waitUntilState(store, state => !state.devices.custom.length),
       once(ui, "device-association-removed"),
     ]);
     deviceRemoveButton.click();

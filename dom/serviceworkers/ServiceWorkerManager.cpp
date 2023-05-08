@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ServiceWorkerManager.h"
-#include "ServiceWorkerPrivateImpl.h"
 
 #include <algorithm>
 
@@ -702,7 +701,7 @@ void ServiceWorkerManager::MaybeFinishShutdown() {
   mActor = nullptr;
 
   // This also submits final telemetry
-  ServiceWorkerPrivateImpl::RunningShutdown();
+  ServiceWorkerPrivate::RunningShutdown();
 }
 
 class ServiceWorkerResolveWindowPromiseOnRegisterCallback final
@@ -3135,7 +3134,7 @@ ServiceWorkerManager::PropagateUnregister(
     return NS_ERROR_FAILURE;
   }
 
-  mActor->SendPropagateUnregister(principalInfo, nsString(aScope));
+  mActor->SendPropagateUnregister(principalInfo, aScope);
 
   nsresult rv = Unregister(aPrincipal, aCallback, aScope);
   if (NS_WARN_IF(NS_FAILED(rv))) {

@@ -5,19 +5,22 @@
 
 /* exported DevToolsClient, initTestDevToolsServer */
 
-const { loader, require } = ChromeUtils.import(
-  "resource://devtools/shared/loader/Loader.jsm"
+const { loader, require } = ChromeUtils.importESModule(
+  "resource://devtools/shared/loader/Loader.sys.mjs"
 );
-const Services = require("Services");
 const xpcInspector = require("xpcInspector");
-const { DevToolsServer } = require("devtools/server/devtools-server");
-const { DevToolsClient } = require("devtools/client/devtools-client");
+const {
+  DevToolsServer,
+} = require("resource://devtools/server/devtools-server.js");
+const {
+  DevToolsClient,
+} = require("resource://devtools/client/devtools-client.js");
 // We need to require lazily since will be crashed if we load SocketListener too early
 // in xpc shell test due to SocketListener loads PSM module.
 loader.lazyRequireGetter(
   this,
   "SocketListener",
-  "devtools/shared/security/socket",
+  "resource://devtools/shared/security/socket.js",
   true
 );
 
@@ -46,7 +49,7 @@ function scriptErrorLogLevel(message) {
 // Register a console listener, so console messages don't just disappear
 // into the ether.
 var listener = {
-  observe: function(message) {
+  observe(message) {
     let string;
     try {
       message.QueryInterface(Ci.nsIScriptError);

@@ -1541,6 +1541,21 @@ bool CacheIRCompiler::emitGuardIsUndefined(ValOperandId inputId) {
   return true;
 }
 
+bool CacheIRCompiler::emitGuardIsNotUninitializedLexical(ValOperandId valId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  ValueOperand val = allocator.useValueRegister(masm, valId);
+
+  FailurePath* failure;
+  if (!addFailurePath(&failure)) {
+    return false;
+  }
+
+  masm.branchTestMagicValue(Assembler::Equal, val, JS_UNINITIALIZED_LEXICAL,
+                            failure->label());
+  return true;
+}
+
 bool CacheIRCompiler::emitGuardBooleanToInt32(ValOperandId inputId,
                                               Int32OperandId resultId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
@@ -1943,6 +1958,9 @@ bool CacheIRCompiler::emitGuardClass(ObjOperandId objId, GuardClassKind kind) {
     case GuardClassKind::Array:
       clasp = &ArrayObject::class_;
       break;
+    case GuardClassKind::PlainObject:
+      clasp = &PlainObject::class_;
+      break;
     case GuardClassKind::ArrayBuffer:
       clasp = &ArrayBufferObject::class_;
       break;
@@ -1967,8 +1985,8 @@ bool CacheIRCompiler::emitGuardClass(ObjOperandId objId, GuardClassKind kind) {
     case GuardClassKind::Map:
       clasp = &MapObject::class_;
       break;
-    default:
-      MOZ_ASSERT_UNREACHABLE();
+    case GuardClassKind::JSFunction:
+      MOZ_CRASH("JSFunction handled before switch");
   }
   MOZ_ASSERT(clasp);
 
@@ -2325,7 +2343,7 @@ bool CacheIRCompiler::emitGuardStringToNumber(StringOperandId strId,
     masm.passABIArg(str);
     masm.passABIArg(output.payloadOrValueReg());
     masm.callWithABI<Fn, js::StringToNumberPure>();
-    masm.mov(ReturnReg, scratch);
+    masm.storeCallPointerResult(scratch);
 
     LiveRegisterSet ignore;
     ignore.add(scratch);
@@ -3442,7 +3460,8 @@ bool CacheIRCompiler::emitLoadStringCharCodeResult(StringOperandId strId,
   Register str = allocator.useRegister(masm, strId);
   Register index = allocator.useRegister(masm, indexId);
   AutoScratchRegisterMaybeOutput scratch1(allocator, masm, output);
-  AutoScratchRegister scratch2(allocator, masm);
+  AutoScratchRegisterMaybeOutputType scratch2(allocator, masm, output);
+  AutoScratchRegister scratch3(allocator, masm);
 
   FailurePath* failure;
   if (!addFailurePath(&failure)) {
@@ -3460,7 +3479,8 @@ bool CacheIRCompiler::emitLoadStringCharCodeResult(StringOperandId strId,
   // Bounds check, load string char.
   masm.spectreBoundsCheck32(index, Address(str, JSString::offsetOfLength()),
                             scratch1, failure->label());
-  masm.loadStringChar(str, index, scratch1, scratch2, failure->label());
+  masm.loadStringChar(str, index, scratch1, scratch2, scratch3,
+                      failure->label());
 
   masm.tagValue(JSVAL_TYPE_INT32, scratch1, output.valueReg());
   return true;
@@ -3479,6 +3499,60 @@ bool CacheIRCompiler::emitNewStringObjectResult(uint32_t templateObjectOffset,
 
   using Fn = JSObject* (*)(JSContext*, HandleString);
   callvm.call<Fn, NewStringObject>();
+  return true;
+}
+
+bool CacheIRCompiler::emitStringIndexOfResult(StringOperandId strId,
+                                              StringOperandId searchStrId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register str = allocator.useRegister(masm, strId);
+  Register searchStr = allocator.useRegister(masm, searchStrId);
+
+  callvm.prepare();
+  masm.Push(searchStr);
+  masm.Push(str);
+
+  using Fn = bool (*)(JSContext*, HandleString, HandleString, int32_t*);
+  callvm.call<Fn, js::StringIndexOf>();
+  return true;
+}
+
+bool CacheIRCompiler::emitStringStartsWithResult(StringOperandId strId,
+                                                 StringOperandId searchStrId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register str = allocator.useRegister(masm, strId);
+  Register searchStr = allocator.useRegister(masm, searchStrId);
+
+  callvm.prepare();
+  masm.Push(searchStr);
+  masm.Push(str);
+
+  using Fn = bool (*)(JSContext*, HandleString, HandleString, bool*);
+  callvm.call<Fn, js::StringStartsWith>();
+  return true;
+}
+
+bool CacheIRCompiler::emitStringEndsWithResult(StringOperandId strId,
+                                               StringOperandId searchStrId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register str = allocator.useRegister(masm, strId);
+  Register searchStr = allocator.useRegister(masm, searchStrId);
+
+  callvm.prepare();
+  masm.Push(searchStr);
+  masm.Push(str);
+
+  using Fn = bool (*)(JSContext*, HandleString, HandleString, bool*);
+  callvm.call<Fn, js::StringEndsWith>();
   return true;
 }
 
@@ -3609,8 +3683,8 @@ bool CacheIRCompiler::emitGuardInt32IsNonNegative(Int32OperandId indexId) {
   return true;
 }
 
-bool CacheIRCompiler::emitGuardIndexGreaterThanDenseInitLength(
-    ObjOperandId objId, Int32OperandId indexId) {
+bool CacheIRCompiler::emitGuardIndexIsNotDenseElement(ObjOperandId objId,
+                                                      Int32OperandId indexId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
   Register obj = allocator.useRegister(masm, objId);
   Register index = allocator.useRegister(masm, indexId);
@@ -3625,13 +3699,17 @@ bool CacheIRCompiler::emitGuardIndexGreaterThanDenseInitLength(
   // Load obj->elements.
   masm.loadPtr(Address(obj, NativeObject::offsetOfElements()), scratch);
 
-  // Ensure index >= initLength.
-  Label outOfBounds;
+  // Ensure index >= initLength or the element is a hole.
+  Label notDense;
   Address capacity(scratch, ObjectElements::offsetOfInitializedLength());
-  masm.spectreBoundsCheck32(index, capacity, spectreScratch, &outOfBounds);
-  masm.jump(failure->label());
-  masm.bind(&outOfBounds);
+  masm.spectreBoundsCheck32(index, capacity, spectreScratch, &notDense);
 
+  BaseValueIndex element(scratch, index);
+  masm.branchTestMagic(Assembler::Equal, element, &notDense);
+
+  masm.jump(failure->label());
+
+  masm.bind(&notDense);
   return true;
 }
 
@@ -5203,7 +5281,7 @@ bool CacheIRCompiler::emitStoreDenseElementHole(ObjOperandId objId,
     masm.passABIArg(scratch);
     masm.passABIArg(obj);
     masm.callWithABI<Fn, NativeObject::addDenseElementPure>();
-    masm.mov(ReturnReg, scratch);
+    masm.storeCallPointerResult(scratch);
 
     masm.PopRegsInMask(save);
     masm.branchIfFalseBool(scratch, failure->label());
@@ -5291,7 +5369,7 @@ bool CacheIRCompiler::emitArrayPush(ObjOperandId objId, ValOperandId rhsId) {
   masm.passABIArg(scratch);
   masm.passABIArg(obj);
   masm.callWithABI<Fn, NativeObject::addDenseElementPure>();
-  masm.mov(ReturnReg, scratch);
+  masm.storeCallPointerResult(scratch);
 
   masm.PopRegsInMask(save);
   masm.branchIfFalseBool(scratch, failure->label());
@@ -6053,7 +6131,7 @@ bool CacheIRCompiler::emitLoadTypeOfObjectResult(ObjOperandId objId) {
     masm.movePtr(ImmPtr(cx_->runtime()), scratch);
     masm.passABIArg(scratch);
     masm.callWithABI<Fn, TypeOfNameObject>();
-    masm.mov(ReturnReg, scratch);
+    masm.storeCallPointerResult(scratch);
 
     LiveRegisterSet ignore;
     ignore.add(scratch);
@@ -6150,7 +6228,7 @@ bool CacheIRCompiler::emitLoadObjectTruthyResult(ObjOperandId objId) {
     masm.setupUnalignedABICall(scratch);
     masm.passABIArg(obj);
     masm.callWithABI<Fn, js::EmulatesUndefined>();
-    masm.convertBoolToInt32(ReturnReg, scratch);
+    masm.storeCallBoolResult(scratch);
     masm.xor32(Imm32(1), scratch);
 
     masm.PopRegsInMask(volatileRegs);
@@ -6241,11 +6319,11 @@ bool CacheIRCompiler::emitLoadValueTruthyResult(ValOperandId inputId) {
         masm.setupUnalignedABICall(scratch2);
         masm.passABIArg(obj);
         masm.callWithABI<Fn, js::EmulatesUndefined>();
-        masm.storeCallBoolResult(scratch2);
+        masm.storeCallPointerResult(scratch2);
 
         masm.PopRegsInMask(volatileRegs);
 
-        masm.branchTest32(Assembler::NonZero, scratch2, scratch2, &ifFalse);
+        masm.branchIfTrueBool(scratch2, &ifFalse);
         masm.jump(&ifTrue);
       }
     }
@@ -6802,7 +6880,7 @@ bool CacheIRCompiler::emitWrapResult() {
   masm.passABIArg(scratch);
   masm.passABIArg(obj);
   masm.callWithABI<Fn, WrapObjectPure>();
-  masm.mov(ReturnReg, obj);
+  masm.storeCallPointerResult(obj);
 
   LiveRegisterSet ignore;
   ignore.add(obj);
@@ -6833,9 +6911,6 @@ bool CacheIRCompiler::emitMegamorphicLoadSlotByValueResult(ObjOperandId objId,
     return false;
   }
 
-  // The object must be Native.
-  masm.branchIfNonNativeObj(obj, scratch, failure->label());
-
   // idVal will be in vp[0], result will be stored in vp[1].
   masm.reserveStack(sizeof(Value));
   masm.Push(idVal);
@@ -6855,7 +6930,7 @@ bool CacheIRCompiler::emitMegamorphicLoadSlotByValueResult(ObjOperandId objId,
   masm.passABIArg(idVal.scratchReg());
   masm.callWithABI<Fn, GetNativeDataPropertyByValuePure>();
 
-  masm.mov(ReturnReg, scratch);
+  masm.storeCallPointerResult(scratch);
   masm.PopRegsInMask(volatileRegs);
 
   masm.Pop(idVal);
@@ -6911,7 +6986,7 @@ bool CacheIRCompiler::emitMegamorphicHasPropResult(ObjOperandId objId,
   } else {
     masm.callWithABI<Fn, HasNativeDataPropertyPure<false>>();
   }
-  masm.mov(ReturnReg, scratch);
+  masm.storeCallPointerResult(scratch);
   masm.PopRegsInMask(volatileRegs);
 
   masm.Pop(idVal);
@@ -6963,7 +7038,7 @@ bool CacheIRCompiler::emitCallObjectHasSparseElementResult(
   masm.passABIArg(index);
   masm.passABIArg(scratch2);
   masm.callWithABI<Fn, HasNativeElementPure>();
-  masm.mov(ReturnReg, scratch1);
+  masm.storeCallPointerResult(scratch1);
   masm.PopRegsInMask(volatileRegs);
 
   Label ok;
@@ -7139,9 +7214,6 @@ bool CacheIRCompiler::emitMegamorphicLoadSlotResult(ObjOperandId objId,
     return false;
   }
 
-  // The object must be Native.
-  masm.branchIfNonNativeObj(obj, scratch3, failure->label());
-
   masm.Push(UndefinedValue());
   masm.moveStackPtrTo(scratch3.get());
 
@@ -7163,7 +7235,7 @@ bool CacheIRCompiler::emitMegamorphicLoadSlotResult(ObjOperandId objId,
   masm.passABIArg(scratch3);
   masm.callWithABI<Fn, GetNativeDataPropertyPure>();
 
-  masm.mov(ReturnReg, scratch2);
+  masm.storeCallPointerResult(scratch2);
   masm.PopRegsInMask(volatileRegs);
 
   masm.loadTypedOrValue(Address(masm.getStackPointer(), 0), output);
@@ -7211,7 +7283,7 @@ bool CacheIRCompiler::emitMegamorphicStoreSlot(ObjOperandId objId,
   masm.passABIArg(val.scratchReg());
   masm.callWithABI<Fn, SetNativeDataPropertyPure>();
 
-  masm.mov(ReturnReg, scratch1);
+  masm.storeCallPointerResult(scratch1);
   masm.PopRegsInMask(volatileRegs);
 
   masm.loadValue(Address(masm.getStackPointer(), 0), val);
@@ -7258,7 +7330,7 @@ bool CacheIRCompiler::emitGuardHasGetterSetter(ObjOperandId objId,
   emitLoadStubField(getterSetter, scratch3);
   masm.passABIArg(scratch3);
   masm.callWithABI<Fn, ObjectHasGetterSetterPure>();
-  masm.mov(ReturnReg, scratch1);
+  masm.storeCallPointerResult(scratch1);
   masm.PopRegsInMask(volatileRegs);
 
   masm.branchIfFalseBool(scratch1, failure->label());
@@ -7389,7 +7461,7 @@ bool CacheIRCompiler::emitCallInt32ToString(Int32OperandId inputId,
   masm.passABIArg(input);
   masm.callWithABI<Fn, js::Int32ToStringPure>();
 
-  masm.mov(ReturnReg, result);
+  masm.storeCallPointerResult(result);
   masm.PopRegsInMask(volatileRegs);
 
   masm.branchPtr(Assembler::Equal, result, ImmPtr(0), failure->label());
@@ -7426,7 +7498,7 @@ bool CacheIRCompiler::emitCallNumberToString(NumberOperandId inputId,
   masm.passABIArg(floatScratch0, MoveOp::DOUBLE);
   masm.callWithABI<Fn, js::NumberToStringPure>();
 
-  masm.mov(ReturnReg, result);
+  masm.storeCallPointerResult(result);
   masm.PopRegsInMask(volatileRegs);
 
   masm.branchPtr(Assembler::Equal, result, ImmPtr(0), failure->label());
@@ -7568,6 +7640,28 @@ bool CacheIRCompiler::emitCallNativeGetElementResult(ObjOperandId objId,
   return true;
 }
 
+bool CacheIRCompiler::emitCallNativeGetElementSuperResult(
+    ObjOperandId objId, Int32OperandId indexId, ValOperandId receiverId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register obj = allocator.useRegister(masm, objId);
+  Register index = allocator.useRegister(masm, indexId);
+  ValueOperand receiver = allocator.useValueRegister(masm, receiverId);
+
+  callvm.prepare();
+
+  masm.Push(index);
+  masm.Push(receiver);
+  masm.Push(obj);
+
+  using Fn = bool (*)(JSContext*, Handle<NativeObject*>, HandleValue, int32_t,
+                      MutableHandleValue);
+  callvm.call<Fn, NativeGetElement>();
+
+  return true;
+}
+
 bool CacheIRCompiler::emitProxyHasPropResult(ObjOperandId objId,
                                              ValOperandId idId, bool hasOwn) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
@@ -7621,7 +7715,7 @@ bool CacheIRCompiler::emitCallGetSparseElementResult(ObjOperandId objId,
   masm.Push(id);
   masm.Push(obj);
 
-  using Fn = bool (*)(JSContext * cx, Handle<ArrayObject*> obj, int32_t int_id,
+  using Fn = bool (*)(JSContext * cx, Handle<NativeObject*> obj, int32_t int_id,
                       MutableHandleValue result);
   callvm.call<Fn, GetSparseElementHelper>();
   return true;
@@ -8839,10 +8933,7 @@ void AutoCallVM::storeResult(JSValueType returnType) {
     if (output_->hasValue()) {
       masm_.tagValue(returnType, ReturnReg, output_->valueReg());
     } else {
-      Register out = output_->typedReg().gpr();
-      if (out != ReturnReg) {
-        masm_.mov(ReturnReg, out);
-      }
+      masm_.storeCallPointerResult(output_->typedReg().gpr());
     }
   }
 }

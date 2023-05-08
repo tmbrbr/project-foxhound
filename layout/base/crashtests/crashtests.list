@@ -46,7 +46,7 @@ load 265999-1.html
 load 266222-1.html
 asserts(1-7) load 266360-1.html # bug 576358
 load 266445-1.html
-asserts(2) load 266445-2.html
+load 266445-2.html
 load 268157-1.html
 load 269566-1.html
 load 272647-1.html
@@ -105,7 +105,6 @@ load 343540-1.html
 load 344057-1.xhtml
 load 344064-1.html
 load 344300-1.html
-load 344300-2.html
 load chrome://reftest/content/crashtests/layout/base/crashtests/344340-1.xhtml
 load 347898-1.html
 load 348126-1.html
@@ -316,7 +315,6 @@ load 543648-1.html
 load 560447-1.html
 load 564063-1.html
 load 569018-1.html
-pref(layout.css.xul-display-values.content.enabled,true) load 570038-1.html
 load chrome://reftest/content/crashtests/layout/base/crashtests/572003.xhtml
 load 572582-1.xhtml
 load 576649-1.html
@@ -565,7 +563,10 @@ load 1729581.html
 load 1734007.html
 load 1745860.html
 pref(layout.accessiblecaret.enabled,true) load 1746989.html
+skip-if(Android) load 1747277-1.html
 load 1752649.html
 load 1753779.html
 pref(layout.css.backdrop-filter.enabled,true) load 1755790.html
 load 1771503.html
+load 1789934.html
+load 1791883.html

@@ -49,6 +49,27 @@ class ModuleLoaderBase;
 class ModuleLoadRequest;
 class ModuleScript;
 
+/*
+ * [DOMDOC] Shared Classic/Module Script Methods
+ *
+ * The ScriptLoaderInterface defines the shared methods needed by both
+ * ScriptLoaders (loading classic scripts) and ModuleLoaders (loading module
+ * scripts). These include:
+ *
+ *     * Error Logging
+ *     * Generating the compile options
+ *     * Optional: Bytecode Encoding
+ *
+ * ScriptLoaderInterface does not provide any implementations.
+ * It enables the ModuleLoaderBase to reference back to the behavior implemented
+ * by a given ScriptLoader.
+ *
+ * Not all methods will be used by all ModuleLoaders. For example, Bytecode
+ * Encoding does not apply to workers, as we only work with source text there.
+ * Fully virtual methods are implemented by all.
+ *
+ */
+
 class ScriptLoaderInterface : public nsISupports {
  public:
   // alias common classes
@@ -160,10 +181,10 @@ class ModuleLoaderBase : public nsISupports {
   // for fetches to finish and for imports to become avilable.
   nsCOMPtr<nsISerialEventTarget> mEventTarget;
 
-  // https://wicg.github.io/import-maps/#document-acquiring-import-maps
+  // https://html.spec.whatwg.org/multipage/webappapis.html#import-maps-allowed
   //
-  // Each Document has an acquiring import maps boolean. It is initially true.
-  bool mAcquiringImportMaps = true;
+  // Each Window has an import maps allowed boolean, initially true.
+  bool mImportMapsAllowed = true;
 
  protected:
   RefPtr<ScriptLoaderInterface> mLoader;
@@ -263,16 +284,14 @@ class ModuleLoaderBase : public nsISupports {
   // Process <script type="importmap">
   mozilla::UniquePtr<ImportMap> ParseImportMap(ScriptLoadRequest* aRequest);
 
-  // Implements https://wicg.github.io/import-maps/#register-an-import-map
+  // Implements
+  // https://html.spec.whatwg.org/multipage/webappapis.html#register-an-import-map
   void RegisterImportMap(mozilla::UniquePtr<ImportMap> aImportMap);
 
-  /**
-   * Getter and Setter for mAcquiringImportMaps.
-   */
-  bool GetAcquiringImportMaps() const { return mAcquiringImportMaps; }
-  void SetAcquiringImportMaps(bool acquiring) {
-    mAcquiringImportMaps = acquiring;
-  }
+  // Getter for mImportMapsAllowed.
+  bool IsImportMapAllowed() const { return mImportMapsAllowed; }
+  // https://html.spec.whatwg.org/multipage/webappapis.html#disallow-further-import-maps
+  void DisallowImportMaps() { mImportMapsAllowed = false; }
 
   // Returns true if the module for given URL is already fetched.
   bool IsModuleFetched(nsIURI* aURL) const;
@@ -290,15 +309,16 @@ class ModuleLoaderBase : public nsISupports {
 
   static void EnsureModuleHooksInitialized();
 
-  static void DynamicImportPrefChangedCallback(const char* aPrefName,
-                                               void* aClosure);
-
   static JSObject* HostResolveImportedModule(
       JSContext* aCx, JS::Handle<JS::Value> aReferencingPrivate,
       JS::Handle<JSObject*> aModuleRequest);
   static bool HostPopulateImportMeta(JSContext* aCx,
                                      JS::Handle<JS::Value> aReferencingPrivate,
                                      JS::Handle<JSObject*> aMetaObject);
+  static bool ImportMetaResolve(JSContext* cx, unsigned argc, Value* vp);
+  static JSString* ImportMetaResolveImpl(
+      JSContext* aCx, JS::Handle<JS::Value> aReferencingPrivate,
+      JS::Handle<JSString*> aSpecifier);
   static bool HostImportModuleDynamically(
       JSContext* aCx, JS::Handle<JS::Value> aReferencingPrivate,
       JS::Handle<JSObject*> aModuleRequest, JS::Handle<JSObject*> aPromise);
@@ -380,6 +400,14 @@ class ModuleLoaderBase : public nsISupports {
   void RemoveDynamicImport(ModuleLoadRequest* aRequest);
 
   nsresult CreateModuleScript(ModuleLoadRequest* aRequest);
+
+  // The slot stored in ImportMetaResolve function.
+  enum { ModulePrivateSlot = 0, SlotCount };
+
+  // The number of args in ImportMetaResolve.
+  static const uint32_t ImportMetaResolveNumArgs = 1;
+  // The index of the 'specifier' argument in ImportMetaResolve.
+  static const uint32_t ImportMetaResolveSpecifierArg = 0;
 
  public:
   static mozilla::LazyLogModule gCspPRLog;

@@ -58,7 +58,7 @@ task_description_schema = Schema(
         # attributes for this task
         Optional("attributes"): {str: object},
         # relative path (from config.path) to the file task was defined in
-        Optional("job-from"): str,
+        Optional("task-from"): str,
         # dependencies of this task, keyed by name; these are passed through
         # verbatim and subject to the interpretation of the Task's get_dependencies
         # method.
@@ -975,7 +975,7 @@ def build_task(config, tasks):
             if groupSymbol != "?":
                 treeherder["groupSymbol"] = groupSymbol
                 if groupSymbol not in group_names:
-                    path = os.path.join(config.path, task.get("job-from", ""))
+                    path = os.path.join(config.path, task.get("task-from", ""))
                     raise Exception(UNKNOWN_GROUP_NAME.format(groupSymbol, path))
                 treeherder["groupName"] = group_names[groupSymbol]
             treeherder["symbol"] = symbol
@@ -998,6 +998,8 @@ def build_task(config, tasks):
                 # (and causes scope issues) if it doesn't match the name of the
                 # base repo
                 base_project = config.params["base_repository"].split("/")[-1]
+                if base_project.endswith(".git"):
+                    base_project = base_project[:-4]
                 th_project_suffix = "-pr"
             else:
                 base_project = config.params["project"]

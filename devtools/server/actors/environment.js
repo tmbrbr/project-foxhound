@@ -3,9 +3,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const { ActorClassWithSpec, Actor } = require("devtools/shared/protocol");
-const { createValueGrip } = require("devtools/server/actors/object/utils");
-const { environmentSpec } = require("devtools/shared/specs/environment");
+const {
+  ActorClassWithSpec,
+  Actor,
+} = require("resource://devtools/shared/protocol.js");
+const {
+  createValueGrip,
+} = require("resource://devtools/server/actors/object/utils.js");
+const {
+  environmentSpec,
+} = require("resource://devtools/shared/specs/environment.js");
 
 /**
  * Creates an EnvironmentActor. EnvironmentActors are responsible for listing
@@ -18,7 +25,7 @@ const { environmentSpec } = require("devtools/shared/specs/environment");
  *        The parent thread actor that contains this environment.
  */
 const EnvironmentActor = ActorClassWithSpec(environmentSpec, {
-  initialize: function(environment, threadActor) {
+  initialize(environment, threadActor) {
     Actor.prototype.initialize.call(this, threadActor.conn);
 
     this.obj = environment;
@@ -30,7 +37,7 @@ const EnvironmentActor = ActorClassWithSpec(environmentSpec, {
    * Debugger.Environment.actor field so that environment does not
    * reference a destroyed actor.
    */
-  destroy: function() {
+  destroy() {
     this.obj.actor = null;
     Actor.prototype.destroy.call(this);
   },
@@ -38,7 +45,7 @@ const EnvironmentActor = ActorClassWithSpec(environmentSpec, {
   /**
    * Return an environment form for use in a protocol message.
    */
-  form: function() {
+  form() {
     const form = { actor: this.actorID };
 
     // What is this environment's type?
@@ -87,7 +94,7 @@ const EnvironmentActor = ActorClassWithSpec(environmentSpec, {
    * Handle a protocol request to fully enumerate the bindings introduced by the
    * lexical environment.
    */
-  bindings: function() {
+  bindings() {
     const bindings = { arguments: [], variables: {} };
 
     // TODO: this part should be removed in favor of the commented-out part
@@ -110,7 +117,7 @@ const EnvironmentActor = ActorClassWithSpec(environmentSpec, {
       // TODO: this part should be removed in favor of the commented-out part
       // below when getVariableDescriptor lands (bug 725815).
       const desc = {
-        value: value,
+        value,
         configurable: false,
         writable: !value?.optimizedOut,
         enumerable: true,
@@ -158,7 +165,7 @@ const EnvironmentActor = ActorClassWithSpec(environmentSpec, {
       // TODO: this part should be removed in favor of the commented-out part
       // below when getVariableDescriptor lands.
       const desc = {
-        value: value,
+        value,
         configurable: false,
         writable: !(
           value &&

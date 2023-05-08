@@ -1829,6 +1829,43 @@ var BrowserTestUtils = {
   },
 
   /**
+   * Create enough tabs to cause a tab overflow in the given window.
+   * @param registerCleanupFunction {Function}
+   *    The test framework doesn't keep its cleanup stuff anywhere accessible,
+   *    so the first argument is a reference to your cleanup registration
+   *    function, allowing us to clean up after you if necessary.
+   * @param win {Window}
+   *    The window where the tabs need to be overflowed.
+   * @param overflowAtStart {boolean}
+   *    Determines whether the new tabs are added at the beginning of the
+   *    URL bar or at the end of it.
+   */
+  async overflowTabs(registerCleanupFunction, win, overflowAtStart = true) {
+    let index = overflowAtStart ? 0 : undefined;
+    let { gBrowser } = win;
+    let arrowScrollbox = gBrowser.tabContainer.arrowScrollbox;
+    const originalSmoothScroll = arrowScrollbox.smoothScroll;
+    arrowScrollbox.smoothScroll = false;
+    registerCleanupFunction(() => {
+      arrowScrollbox.smoothScroll = originalSmoothScroll;
+    });
+
+    let width = ele => ele.getBoundingClientRect().width;
+    let tabMinWidth = parseInt(
+      win.getComputedStyle(gBrowser.selectedTab).minWidth
+    );
+    let tabCountForOverflow = Math.ceil(
+      (width(arrowScrollbox) / tabMinWidth) * 1.1
+    );
+    while (gBrowser.tabs.length < tabCountForOverflow) {
+      BrowserTestUtils.addTab(gBrowser, "about:blank", {
+        skipAnimation: true,
+        index,
+      });
+    }
+  },
+
+  /**
    * Crashes a remote frame tab and cleans up the generated minidumps.
    * Resolves with the data from the .extra file (the crash annotations).
    *
@@ -2435,6 +2472,25 @@ var BrowserTestUtils = {
   },
 
   /**
+   * Wait for the containing dialog with the id `window-modal-dialog` to become
+   * empty and close.
+   *
+   * @param  {HTMLDialogElement} dialog
+   *           The dialog to wait on.
+   * @return {Promise}
+   *           Resolves once the the dialog has closed
+   */
+  async waitForDialogClose(dialog) {
+    return this.waitForEvent(dialog, "close").then(() => {
+      return this.waitForMutationCondition(
+        dialog,
+        { childList: true, attributes: true },
+        () => !dialog.hasChildNodes() && !dialog.open
+      );
+    });
+  },
+
+  /**
    * Waits for the dialog to open, and clicks the specified button, and waits
    * for the dialog to close.
    *
@@ -2461,14 +2517,8 @@ var BrowserTestUtils = {
     if (!win.docShell.browsingContext.embedderElement) {
       return this.windowClosed(win);
     }
-    let container = win.top.document.getElementById("window-modal-dialog");
-    return this.waitForEvent(container, "close").then(() => {
-      return this.waitForMutationCondition(
-        container,
-        { childList: true, attributes: true },
-        () => !container.hasChildNodes() && !container.open
-      );
-    });
+    const dialog = win.top.document.getElementById("window-modal-dialog");
+    return this.waitForDialogClose(dialog);
   },
 
   /**

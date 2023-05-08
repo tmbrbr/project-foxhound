@@ -285,6 +285,7 @@
 #include "nsDeviceContext.h"
 #include "nsDocShell.h"
 #include "nsDocShellLoadTypes.h"
+#include "nsEffectiveTLDService.h"
 #include "nsError.h"
 #include "nsEscape.h"
 #include "nsFocusManager.h"
@@ -364,7 +365,6 @@
 #include "nsISecurityConsoleMessage.h"
 #include "nsISelectionController.h"
 #include "nsISerialEventTarget.h"
-#include "nsISerializable.h"
 #include "nsISimpleEnumerator.h"
 #include "nsISiteSecurityService.h"
 #include "nsISocketProvider.h"
@@ -774,6 +774,18 @@ OnloadBlocker::GetStatus(nsresult* status) {
   return NS_OK;
 }
 
+NS_IMETHODIMP OnloadBlocker::SetCanceledReason(const nsACString& aReason) {
+  return SetCanceledReasonImpl(aReason);
+}
+
+NS_IMETHODIMP OnloadBlocker::GetCanceledReason(nsACString& aReason) {
+  return GetCanceledReasonImpl(aReason);
+}
+
+NS_IMETHODIMP OnloadBlocker::CancelWithReason(nsresult aStatus,
+                                              const nsACString& aReason) {
+  return CancelWithReasonImpl(aStatus, aReason);
+}
 NS_IMETHODIMP
 OnloadBlocker::Cancel(nsresult status) { return NS_OK; }
 NS_IMETHODIMP
@@ -1406,10 +1418,6 @@ Document::Document(const char* aContentType)
       mXMLDeclarationBits(0),
       mOnloadBlockCount(0),
       mWriteLevel(0),
-      mLazyLoadImageCount(0),
-      mLazyLoadImageStarted(0),
-      mLazyLoadImageReachViewportLoading(0),
-      mLazyLoadImageReachViewportLoaded(0),
       mContentEditableCount(0),
       mEditingState(EditingState::eOff),
       mCompatMode(eCompatibility_FullStandards),
@@ -1537,19 +1545,12 @@ already_AddRefed<mozilla::dom::Promise> Document::AddCertException(
     return nullptr;
   }
 
-  nsCOMPtr<nsISupports> info;
-  nsCOMPtr<nsITransportSecurityInfo> tsi;
   nsresult rv = NS_OK;
   if (NS_WARN_IF(!mFailedChannel)) {
     promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
     return promise.forget();
   }
 
-  rv = mFailedChannel->GetSecurityInfo(getter_AddRefs(info));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    promise->MaybeReject(rv);
-    return promise.forget();
-  }
   nsCOMPtr<nsIURI> failedChannelURI;
   NS_GetFinalChannelURI(mFailedChannel, getter_AddRefs(failedChannelURI));
   if (!failedChannelURI) {
@@ -1568,30 +1569,14 @@ already_AddRefed<mozilla::dom::Promise> Document::AddCertException(
   int32_t port;
   innerURI->GetPort(&port);
 
-  tsi = do_QueryInterface(info);
+  nsCOMPtr<nsITransportSecurityInfo> tsi;
+  rv = mFailedChannel->GetSecurityInfo(getter_AddRefs(tsi));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    promise->MaybeReject(rv);
+    return promise.forget();
+  }
   if (NS_WARN_IF(!tsi)) {
     promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return promise.forget();
-  }
-
-  bool isUntrusted = true;
-  rv = tsi->GetIsUntrusted(&isUntrusted);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    promise->MaybeReject(rv);
-    return promise.forget();
-  }
-
-  bool isDomainMismatch = true;
-  rv = tsi->GetIsDomainMismatch(&isDomainMismatch);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    promise->MaybeReject(rv);
-    return promise.forget();
-  }
-
-  bool isNotValidAtThisTime = true;
-  rv = tsi->GetIsNotValidAtThisTime(&isNotValidAtThisTime);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    promise->MaybeReject(rv);
     return promise.forget();
   }
 
@@ -1606,27 +1591,11 @@ already_AddRefed<mozilla::dom::Promise> Document::AddCertException(
     return promise.forget();
   }
 
-  uint32_t flags = 0;
-  if (isUntrusted) {
-    flags |= nsICertOverrideService::ERROR_UNTRUSTED;
-  }
-  if (isDomainMismatch) {
-    flags |= nsICertOverrideService::ERROR_MISMATCH;
-  }
-  if (isNotValidAtThisTime) {
-    flags |= nsICertOverrideService::ERROR_TIME;
-  }
-
   if (XRE_IsContentProcess()) {
-    nsCOMPtr<nsISerializable> certSer = do_QueryInterface(cert);
-    nsCString certSerialized;
-    NS_SerializeToString(certSer, certSerialized);
-
     ContentChild* cc = ContentChild::GetSingleton();
     MOZ_ASSERT(cc);
     OriginAttributes const& attrs = NodePrincipal()->OriginAttributesRef();
-    cc->SendAddCertException(certSerialized, flags, host, port, attrs,
-                             aIsTemporary)
+    cc->SendAddCertException(cert, host, port, attrs, aIsTemporary)
         ->Then(GetCurrentSerialEventTarget(), __func__,
                [promise](const mozilla::MozPromise<
                          nsresult, mozilla::ipc::ResponseRejectReason,
@@ -1650,7 +1619,7 @@ already_AddRefed<mozilla::dom::Promise> Document::AddCertException(
 
     OriginAttributes const& attrs = NodePrincipal()->OriginAttributesRef();
     rv = overrideService->RememberValidityOverride(host, port, attrs, cert,
-                                                   flags, aIsTemporary);
+                                                   aIsTemporary);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       promise->MaybeReject(rv);
       return promise.forget();
@@ -1671,20 +1640,18 @@ void Document::ReloadWithHttpsOnlyException() {
 }
 
 void Document::GetNetErrorInfo(NetErrorInfo& aInfo, ErrorResult& aRv) {
-  nsCOMPtr<nsISupports> info;
-  nsCOMPtr<nsITransportSecurityInfo> tsi;
   nsresult rv = NS_OK;
   if (NS_WARN_IF(!mFailedChannel)) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
-  rv = mFailedChannel->GetSecurityInfo(getter_AddRefs(info));
+  nsCOMPtr<nsITransportSecurityInfo> tsi;
+  rv = mFailedChannel->GetSecurityInfo(getter_AddRefs(tsi));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     aRv.Throw(rv);
     return;
   }
-  tsi = do_QueryInterface(info);
   if (NS_WARN_IF(!tsi)) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
@@ -1743,20 +1710,18 @@ bool Document::IsErrorPage() const {
 
 void Document::GetFailedCertSecurityInfo(FailedCertSecurityInfo& aInfo,
                                          ErrorResult& aRv) {
-  nsCOMPtr<nsISupports> info;
-  nsCOMPtr<nsITransportSecurityInfo> tsi;
   nsresult rv = NS_OK;
   if (NS_WARN_IF(!mFailedChannel)) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
-  rv = mFailedChannel->GetSecurityInfo(getter_AddRefs(info));
+  nsCOMPtr<nsITransportSecurityInfo> tsi;
+  rv = mFailedChannel->GetSecurityInfo(getter_AddRefs(tsi));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     aRv.Throw(rv);
     return;
   }
-  tsi = do_QueryInterface(info);
   if (NS_WARN_IF(!tsi)) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
@@ -1770,22 +1735,28 @@ void Document::GetFailedCertSecurityInfo(FailedCertSecurityInfo& aInfo,
   }
   aInfo.mErrorCodeString.Assign(errorCodeString);
 
-  rv = tsi->GetIsUntrusted(&aInfo.mIsUntrusted);
+  nsITransportSecurityInfo::OverridableErrorCategory errorCategory;
+  rv = tsi->GetOverridableErrorCategory(&errorCategory);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     aRv.Throw(rv);
     return;
   }
-
-  rv = tsi->GetIsDomainMismatch(&aInfo.mIsDomainMismatch);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  rv = tsi->GetIsNotValidAtThisTime(&aInfo.mIsNotValidAtThisTime);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    aRv.Throw(rv);
-    return;
+  switch (errorCategory) {
+    case nsITransportSecurityInfo::OverridableErrorCategory::ERROR_TRUST:
+      aInfo.mOverridableErrorCategory =
+          dom::OverridableErrorCategory::Trust_error;
+      break;
+    case nsITransportSecurityInfo::OverridableErrorCategory::ERROR_DOMAIN:
+      aInfo.mOverridableErrorCategory =
+          dom::OverridableErrorCategory::Domain_mismatch;
+      break;
+    case nsITransportSecurityInfo::OverridableErrorCategory::ERROR_TIME:
+      aInfo.mOverridableErrorCategory =
+          dom::OverridableErrorCategory::Expired_or_not_yet_valid;
+      break;
+    default:
+      aInfo.mOverridableErrorCategory = dom::OverridableErrorCategory::Unset;
+      break;
   }
 
   nsCOMPtr<nsIX509Cert> cert;
@@ -2524,6 +2495,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(Document)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOnloadBlocker)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLazyLoadImageObserver)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLazyLoadImageObserverViewport)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLastRememberedSizeObserver)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDOMImplementation)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mImageMaps)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOrientationPendingPromise)
@@ -2643,6 +2615,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Document)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDisplayDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mLazyLoadImageObserver)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mLazyLoadImageObserverViewport)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mLastRememberedSizeObserver)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFontFaceSet)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mReadyForIdle)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocumentL10n)
@@ -3895,8 +3868,8 @@ already_AddRefed<dom::FeaturePolicy> Document::GetParentFeaturePolicy() {
   return do_AddRef(child->GetContainerFeaturePolicy());
 }
 
-nsresult Document::InitFeaturePolicy(nsIChannel* aChannel) {
-  MOZ_ASSERT(mFeaturePolicy, "we should only call init once");
+void Document::InitFeaturePolicy() {
+  MOZ_ASSERT(mFeaturePolicy, "we should have FeaturePolicy created");
 
   mFeaturePolicy->ResetDeclaredPolicy();
 
@@ -3908,6 +3881,10 @@ nsresult Document::InitFeaturePolicy(nsIChannel* aChannel) {
     mFeaturePolicy->InheritPolicy(parentPolicy);
     mFeaturePolicy->SetSrcOrigin(parentPolicy->GetSrcOrigin());
   }
+}
+
+nsresult Document::InitFeaturePolicy(nsIChannel* aChannel) {
+  InitFeaturePolicy();
 
   // We don't want to parse the http Feature-Policy header if this pref is off.
   if (!StaticPrefs::dom_security_featurePolicy_header_enabled()) {
@@ -4220,11 +4197,15 @@ void Document::AssertDocGroupMatchesKey() const {
   }
 
   if (mDocGroup) {
-    nsAutoCString docGroupKey;
+    MOZ_ASSERT(mDocGroup->GetBrowsingContextGroup() ==
+               GetBrowsingContext()->Group());
 
     // GetKey() can fail, e.g. after the TLD service has shut down.
+    nsAutoCString docGroupKey;
     nsresult rv = mozilla::dom::DocGroup::GetKey(
-        NodePrincipal(), CrossOriginIsolated(), docGroupKey);
+        NodePrincipal(),
+        GetBrowsingContext()->Group()->IsPotentiallyCrossOriginIsolated(),
+        docGroupKey);
     if (NS_SUCCEEDED(rv)) {
       MOZ_ASSERT(mDocGroup->MatchesKey(docGroupKey));
     }
@@ -4760,22 +4741,6 @@ void Document::EnsureInitializeInternalCommandDataHashtable() {
           FontSizeStateCommand::GetInstance,
           CommandOnTextEditor::Disabled));
   sInternalCommandDataHashtable->InsertOrUpdate(
-      u"increasefontsize"_ns,
-      InternalCommandData(
-          "cmd_increaseFont",
-          Command::FormatIncreaseFontSize,
-          ExecCommandParam::Ignore,
-          IncreaseFontSizeCommand::GetInstance,
-          CommandOnTextEditor::Disabled));
-  sInternalCommandDataHashtable->InsertOrUpdate(
-      u"decreasefontsize"_ns,
-      InternalCommandData(
-          "cmd_decreaseFont",
-          Command::FormatDecreaseFontSize,
-          ExecCommandParam::Ignore,
-          DecreaseFontSizeCommand::GetInstance,
-          CommandOnTextEditor::Disabled));
-  sInternalCommandDataHashtable->InsertOrUpdate(
       u"inserthorizontalrule"_ns,
       InternalCommandData(
           "cmd_insertHR",
@@ -4817,17 +4782,6 @@ void Document::EnsureInitializeInternalCommandDataHashtable() {
           Command::InsertText,
           ExecCommandParam::String,
           InsertPlaintextCommand::GetInstance,
-          CommandOnTextEditor::Enabled));
-  sInternalCommandDataHashtable->InsertOrUpdate(
-      u"gethtml"_ns,
-      InternalCommandData(
-          "cmd_getContents",
-          Command::GetHTML,
-          ExecCommandParam::Ignore,
-          nullptr,  // Not defined in EditorCommands.h
-          // getHTML command is not supported by Chromium, and we return HTML
-          // source code at selected range.  So, let's return selected text
-          // when `<input>` or `<textarea>` has focus.
           CommandOnTextEditor::Enabled));
   sInternalCommandDataHashtable->InsertOrUpdate(
       u"justifyleft"_ns,
@@ -4918,14 +4872,6 @@ void Document::EnsureInitializeInternalCommandDataHashtable() {
           ParagraphStateCommand::GetInstance,
           CommandOnTextEditor::Disabled));
   sInternalCommandDataHashtable->InsertOrUpdate(
-      u"heading"_ns,
-      InternalCommandData(
-          "cmd_paragraphState",
-          Command::FormatBlock,
-          ExecCommandParam::String,
-          ParagraphStateCommand::GetInstance,
-          CommandOnTextEditor::Disabled));
-  sInternalCommandDataHashtable->InsertOrUpdate(
       u"styleWithCSS"_ns,
       InternalCommandData(
           "cmd_setDocumentUseCSS",
@@ -4947,14 +4893,6 @@ void Document::EnsureInitializeInternalCommandDataHashtable() {
           "cmd_setDocumentReadOnly",
           Command::SetDocumentReadOnly,
           ExecCommandParam::Boolean,
-          SetDocumentStateCommand::GetInstance,
-          CommandOnTextEditor::Enabled));
-  sInternalCommandDataHashtable->InsertOrUpdate(
-      u"readonly"_ns,  // Legacy command
-      InternalCommandData(
-          "cmd_setDocumentReadOnly",
-          Command::SetDocumentReadOnly,
-          ExecCommandParam::InvertedBoolean,
           SetDocumentStateCommand::GetInstance,
           CommandOnTextEditor::Enabled));
   sInternalCommandDataHashtable->InsertOrUpdate(
@@ -5041,39 +4979,9 @@ Document::InternalCommandData Document::ConvertToInternalCommand(
   // Ignore if the command is disabled by a corresponding pref due to Gecko
   // specific.
   switch (commandData.mCommand) {
-    case Command::FormatIncreaseFontSize:
-      MOZ_DIAGNOSTIC_ASSERT(
-          aHTMLCommandName.LowerCaseEqualsLiteral("increasefontsize"));
-      if (!StaticPrefs::dom_document_edit_command_increasefontsize_enabled()) {
-        return InternalCommandData();
-      }
-      break;
-    case Command::FormatDecreaseFontSize:
-      MOZ_DIAGNOSTIC_ASSERT(
-          aHTMLCommandName.LowerCaseEqualsLiteral("decreasefontsize"));
-      if (!StaticPrefs::dom_document_edit_command_decreasefontsize_enabled()) {
-        return InternalCommandData();
-      }
-      break;
-    case Command::GetHTML:
-      MOZ_DIAGNOSTIC_ASSERT(aHTMLCommandName.LowerCaseEqualsLiteral("gethtml"));
-      if (!StaticPrefs::dom_document_edit_command_gethtml_enabled()) {
-        return InternalCommandData();
-      }
-      break;
-    case Command::FormatBlock:
-      if (!StaticPrefs::dom_document_edit_command_heading_enabled() &&
-          aHTMLCommandName.LowerCaseEqualsLiteral("heading")) {
-        return InternalCommandData();
-      }
-      break;
     case Command::SetDocumentReadOnly:
       if (!StaticPrefs::dom_document_edit_command_contentReadOnly_enabled() &&
           aHTMLCommandName.LowerCaseEqualsLiteral("contentreadonly")) {
-        return InternalCommandData();
-      }
-      if (!StaticPrefs::dom_document_edit_command_readonly_enabled() &&
-          aHTMLCommandName.LowerCaseEqualsLiteral("readonly")) {
         return InternalCommandData();
       }
       break;
@@ -5412,26 +5320,9 @@ bool Document::ExecCommand(const nsAString& aHTMLCommandName, bool aShowUI,
       ConvertToInternalCommand(aHTMLCommandName, aValue, &adjustedValue);
   switch (commandData.mCommand) {
     case Command::DoNothing:
-    // "gethtml" command is a command to retrieve a string value, not executing
-    // anything and not enough the `bool` value of `execCommand`.  So, at here,
-    // we do nothing for "gethtml" command.
-    case Command::GetHTML:
       return false;
-    case Command::FormatIncreaseFontSize:
-      SetUseCounter(eUseCounter_custom_DocumentExecCommandIncreaseFontSize);
-      break;
-    case Command::FormatDecreaseFontSize:
-      SetUseCounter(eUseCounter_custom_DocumentExecCommandDecreaseFontSize);
-      break;
-    case Command::FormatBlock:
-      if (aHTMLCommandName.LowerCaseEqualsLiteral("heading")) {
-        SetUseCounter(eUseCounter_custom_DocumentExecCommandHeading);
-      }
-      break;
     case Command::SetDocumentReadOnly:
-      SetUseCounter(aHTMLCommandName.LowerCaseEqualsLiteral("contentreadonly")
-                        ? eUseCounter_custom_DocumentExecCommandContentReadOnly
-                        : eUseCounter_custom_DocumentExecCommandReadOnly);
+      SetUseCounter(eUseCounter_custom_DocumentExecCommandContentReadOnly);
       break;
     default:
       break;
@@ -5595,29 +5486,9 @@ bool Document::QueryCommandEnabled(const nsAString& aHTMLCommandName,
   switch (commandData.mCommand) {
     case Command::DoNothing:
       return false;
-    case Command::FormatIncreaseFontSize:
-      SetUseCounter(
-          eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledIncreaseFontSize);
-      break;
-    case Command::FormatDecreaseFontSize:
-      SetUseCounter(
-          eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledDecreaseFontSize);
-      break;
-    case Command::GetHTML:
-      SetUseCounter(
-          eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledGetHTML);
-      break;
-    case Command::FormatBlock:
-      if (aHTMLCommandName.LowerCaseEqualsLiteral("heading")) {
-        SetUseCounter(
-            eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledHeading);
-      }
-      break;
     case Command::SetDocumentReadOnly:
       SetUseCounter(
-          aHTMLCommandName.LowerCaseEqualsLiteral("contentreadonly")
-              ? eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledContentReadOnly
-              : eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledReadOnly);
+          eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledContentReadOnly);
       break;
     case Command::SetDocumentInsertBROnEnterKeyPress:
       SetUseCounter(
@@ -5725,20 +5596,9 @@ bool Document::QueryCommandState(const nsAString& aHTMLCommandName,
   switch (commandData.mCommand) {
     case Command::DoNothing:
       return false;
-    case Command::GetHTML:
-      SetUseCounter(eUseCounter_custom_DocumentQueryCommandStateOrValueGetHTML);
-      break;
-    case Command::FormatBlock:
-      if (aHTMLCommandName.LowerCaseEqualsLiteral("heading")) {
-        SetUseCounter(
-            eUseCounter_custom_DocumentQueryCommandStateOrValueHeading);
-      }
-      break;
     case Command::SetDocumentReadOnly:
       SetUseCounter(
-          aHTMLCommandName.LowerCaseEqualsLiteral("contentreadonly")
-              ? eUseCounter_custom_DocumentQueryCommandStateOrValueContentReadOnly
-              : eUseCounter_custom_DocumentQueryCommandStateOrValueReadOnly);
+          eUseCounter_custom_DocumentQueryCommandStateOrValueContentReadOnly);
       break;
     case Command::SetDocumentInsertBROnEnterKeyPress:
       SetUseCounter(
@@ -5845,29 +5705,9 @@ bool Document::QueryCommandSupported(const nsAString& aHTMLCommandName,
   switch (commandData.mCommand) {
     case Command::DoNothing:
       return false;
-    case Command::FormatIncreaseFontSize:
-      SetUseCounter(
-          eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledIncreaseFontSize);
-      break;
-    case Command::FormatDecreaseFontSize:
-      SetUseCounter(
-          eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledDecreaseFontSize);
-      break;
-    case Command::GetHTML:
-      SetUseCounter(
-          eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledGetHTML);
-      break;
-    case Command::FormatBlock:
-      if (aHTMLCommandName.LowerCaseEqualsLiteral("heading")) {
-        SetUseCounter(
-            eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledHeading);
-      }
-      break;
     case Command::SetDocumentReadOnly:
       SetUseCounter(
-          aHTMLCommandName.LowerCaseEqualsLiteral("contentreadonly")
-              ? eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledContentReadOnly
-              : eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledReadOnly);
+          eUseCounter_custom_DocumentQueryCommandSupportedOrEnabledContentReadOnly);
       break;
     case Command::SetDocumentInsertBROnEnterKeyPress:
       SetUseCounter(
@@ -5917,20 +5757,9 @@ void Document::QueryCommandValue(const nsAString& aHTMLCommandName,
     case Command::DoNothing:
       // Return empty string
       return;
-    case Command::GetHTML:
-      SetUseCounter(eUseCounter_custom_DocumentQueryCommandStateOrValueGetHTML);
-      break;
-    case Command::FormatBlock:
-      if (aHTMLCommandName.LowerCaseEqualsLiteral("heading")) {
-        SetUseCounter(
-            eUseCounter_custom_DocumentQueryCommandStateOrValueHeading);
-      }
-      break;
     case Command::SetDocumentReadOnly:
       SetUseCounter(
-          aHTMLCommandName.LowerCaseEqualsLiteral("contentreadonly")
-              ? eUseCounter_custom_DocumentQueryCommandStateOrValueContentReadOnly
-              : eUseCounter_custom_DocumentQueryCommandStateOrValueReadOnly);
+          eUseCounter_custom_DocumentQueryCommandStateOrValueContentReadOnly);
       break;
     case Command::SetDocumentInsertBROnEnterKeyPress:
       SetUseCounter(
@@ -5946,10 +5775,7 @@ void Document::QueryCommandValue(const nsAString& aHTMLCommandName,
     return;
   }
   RefPtr<nsCommandParams> params = new nsCommandParams();
-  // FYI: Only GetHTML command is not implemented by editor.  Use window's
-  //      command table instead.
   if (editCommandTarget.IsEditor()) {
-    MOZ_ASSERT(commandData.mCommand != Command::GetHTML);
     if (NS_FAILED(params->SetCString("state_attribute", ""_ns))) {
       return;
     }
@@ -5966,23 +5792,6 @@ void Document::QueryCommandValue(const nsAString& aHTMLCommandName,
 
     nsCOMPtr<nsPIDOMWindowOuter> window = GetWindow();
     if (!window) {
-      return;
-    }
-
-    // this is a special command since we are calling DoCommand rather than
-    // GetCommandState like the other commands
-    if (commandData.mCommand == Command::GetHTML) {
-      if (NS_FAILED(params->SetBool("selection_only", true))) {
-        return;
-      }
-      if (NS_FAILED(params->SetCString("format", "text/html"_ns))) {
-        return;
-      }
-      if (NS_FAILED(commandManager->DoCommand(commandData.mXULCommandName,
-                                              params, window))) {
-        return;
-      }
-      params->GetString("result", aValue);
       return;
     }
 
@@ -6694,7 +6503,8 @@ Nullable<WindowProxyHolder> Document::GetDefaultView() const {
   return WindowProxyHolder(win->GetBrowsingContext());
 }
 
-nsIContent* Document::GetUnretargetedFocusedContent() const {
+nsIContent* Document::GetUnretargetedFocusedContent(
+    IncludeChromeOnly aIncludeChromeOnly) const {
   nsCOMPtr<nsPIDOMWindowOuter> window = GetWindow();
   if (!window) {
     return nullptr;
@@ -6710,8 +6520,8 @@ nsIContent* Document::GetUnretargetedFocusedContent() const {
   if (focusedContent->OwnerDoc() != this) {
     return nullptr;
   }
-
-  if (focusedContent->ChromeOnlyAccess()) {
+  if (focusedContent->ChromeOnlyAccess() &&
+      aIncludeChromeOnly == IncludeChromeOnly::No) {
     return focusedContent->FindFirstNonChromeOnlyAccessContent();
   }
   return focusedContent;
@@ -6890,10 +6700,12 @@ void Document::SetHeaderData(nsAtom* aHeaderField, const nsAString& aData) {
     if (mTrials.IsEnabled(OriginTrial::CoepCredentialless)) {
       InitCOEP(mChannel);
 
-      WindowContext* ctx = GetWindowContext();
-      MOZ_ASSERT(ctx);
-      if (mEmbedderPolicy) {
-        Unused << ctx->SetEmbedderPolicy(mEmbedderPolicy.value());
+      // If we still don't have a WindowContext, WindowContext::OnNewDocument
+      // will take care of this.
+      if (WindowContext* ctx = GetWindowContext()) {
+        if (mEmbedderPolicy) {
+          Unused << ctx->SetEmbedderPolicy(mEmbedderPolicy.value());
+        }
       }
     }
   }
@@ -7384,6 +7196,7 @@ void Document::ApplicableStylesChanged() {
 
   pc->MarkCounterStylesDirty();
   pc->MarkFontFeatureValuesDirty();
+  pc->MarkFontPaletteValuesDirty();
   pc->RestyleManager()->NextRestyleIsForCSSRuleChanges();
 }
 
@@ -7559,32 +7372,17 @@ nsIGlobalObject* Document::GetScopeObject() const {
   return scope;
 }
 
-bool Document::CrossOriginIsolated() const {
-  if (auto* bc = GetBrowsingContext()) {
-    return bc->CrossOriginIsolated();
-  }
-
-  // For a data document without a browsing context we check the
-  // cross-origin-isolated state from its creator's inner window.
-  if (mLoadedAsData) {
-    nsCOMPtr<nsPIDOMWindowInner> window = do_QueryInterface(GetScopeObject());
-    return window && window->GetBrowsingContext() &&
-           window->GetBrowsingContext()->CrossOriginIsolated();
-  }
-
-  return false;
-}
-
 DocGroup* Document::GetDocGroupOrCreate() {
-  if (!mDocGroup) {
+  if (!mDocGroup && GetBrowsingContext()) {
+    BrowsingContextGroup* group = GetBrowsingContext()->Group();
+    MOZ_ASSERT(group);
+
     nsAutoCString docGroupKey;
     nsresult rv = mozilla::dom::DocGroup::GetKey(
-        NodePrincipal(), CrossOriginIsolated(), docGroupKey);
-    if (NS_SUCCEEDED(rv) && mDocumentContainer) {
-      BrowsingContextGroup* group = GetBrowsingContext()->Group();
-      if (group) {
-        mDocGroup = group->AddDocument(docGroupKey, this);
-      }
+        NodePrincipal(), group->IsPotentiallyCrossOriginIsolated(),
+        docGroupKey);
+    if (NS_SUCCEEDED(rv)) {
+      mDocGroup = group->AddDocument(docGroupKey, this);
     }
   }
   return mDocGroup;
@@ -7606,7 +7404,8 @@ void Document::SetScopeObject(nsIGlobalObject* aGlobal) {
     // to a window, we should be able to join a DocGroup!
     nsAutoCString docGroupKey;
     nsresult rv = mozilla::dom::DocGroup::GetKey(
-        NodePrincipal(), CrossOriginIsolated(), docGroupKey);
+        NodePrincipal(),
+        browsingContextGroup->IsPotentiallyCrossOriginIsolated(), docGroupKey);
     if (mDocGroup) {
       if (NS_SUCCEEDED(rv)) {
         MOZ_RELEASE_ASSERT(mDocGroup->MatchesKey(docGroupKey));
@@ -7708,6 +7507,8 @@ void Document::SetContainer(nsDocShell* aContainer) {
   }
 
   BrowsingContext* context = aContainer->GetBrowsingContext();
+  MOZ_ASSERT_IF(context && mDocGroup,
+                context->Group() == mDocGroup->GetBrowsingContextGroup());
   if (context && context->IsContent()) {
     SetIsTopLevelContentDocument(context->IsTopContent());
     SetIsContentDocument(true);
@@ -8068,7 +7869,7 @@ void Document::DispatchContentLoadedEvents() {
     MaybeResolveReadyForIdle();
   }
 
-  nsIDocShell* docShell = this->GetDocShell();
+  nsIDocShell* docShell = GetDocShell();
 
   if (TimelineConsumers::HasConsumer(docShell)) {
     TimelineConsumers::AddMarkerForDocShell(
@@ -8955,7 +8756,7 @@ void Document::SetDomain(const nsAString& aDomain, ErrorResult& rv) {
     return;
   }
 
-  if (CrossOriginIsolated()) {
+  if (GetBrowsingContext()->Group()->IsPotentiallyCrossOriginIsolated()) {
     WarnOnceAbout(Document::eDocumentSetDomainNotAllowed);
     return;
   }
@@ -10313,7 +10114,7 @@ static Maybe<LayoutDeviceToScreenScale> ParseScaleString(
   } else if (aScaleString.EqualsLiteral("yes")) {
     return Some(LayoutDeviceToScreenScale(1.0f));
   } else if (aScaleString.EqualsLiteral("no")) {
-    return Some(LayoutDeviceToScreenScale(kViewportMinScale));
+    return Some(LayoutDeviceToScreenScale(ViewportMinScale()));
   } else if (aScaleString.IsEmpty()) {
     return Nothing();
   }
@@ -10321,14 +10122,14 @@ static Maybe<LayoutDeviceToScreenScale> ParseScaleString(
   nsresult scaleErrorCode;
   float scale = aScaleString.ToFloatAllowTrailingChars(&scaleErrorCode);
   if (NS_FAILED(scaleErrorCode)) {
-    return Some(LayoutDeviceToScreenScale(kViewportMinScale));
+    return Some(LayoutDeviceToScreenScale(ViewportMinScale()));
   }
 
   if (scale < 0) {
     return Nothing();
   }
-  return Some(clamped(LayoutDeviceToScreenScale(scale), kViewportMinScale,
-                      kViewportMaxScale));
+  return Some(clamped(LayoutDeviceToScreenScale(scale), ViewportMinScale(),
+                      ViewportMaxScale()));
 }
 
 void Document::ParseScalesInViewportMetaData(
@@ -10343,11 +10144,11 @@ void Document::ParseScalesInViewportMetaData(
   // Chrome uses '5' for the fallback value of maximum-scale, we might
   // consider matching it in future.
   // https://cs.chromium.org/chromium/src/third_party/blink/renderer/core/html/html_meta_element.cc?l=452&rcl=65ca4278b42d269ca738fc93ef7ae04a032afeb0
-  mScaleMaxFloat = scale.valueOr(kViewportMaxScale);
+  mScaleMaxFloat = scale.valueOr(ViewportMaxScale());
   mValidMaxScale = scale.isSome();
 
   scale = ParseScaleString(aViewportMetaData.mMinimumScale);
-  mScaleMinFloat = scale.valueOr(kViewportMinScale);
+  mScaleMinFloat = scale.valueOr(ViewportMinScale());
   mValidMinScale = scale.isSome();
 
   // Resolve min-zoom and max-zoom values.
@@ -10428,7 +10229,7 @@ nsViewportInfo Document::GetViewportInfo(const ScreenIntSize& aDisplaySize) {
   nsPresContext* context = mPresShell->GetPresContext();
   // When querying the full zoom, get it from the device context rather than
   // directly from the pres context, because the device context's value can
-  // include an adjustment necessay to keep the number of app units per device
+  // include an adjustment necessary to keep the number of app units per device
   // pixel an integer, and we want the adjusted value.
   float fullZoom = context ? context->DeviceContext()->GetFullZoom() : 1.0;
   fullZoom = (fullZoom == 0.0) ? 1.0 : fullZoom;
@@ -10441,8 +10242,8 @@ nsViewportInfo Document::GetViewportInfo(const ScreenIntSize& aDisplaySize) {
   // Special behaviour for desktop mode, provided we are not on an about: page,
   // or fullscreen.
   const bool fullscreen = Fullscreen();
-  nsPIDOMWindowOuter* win = GetWindow();
-  if (win && win->IsDesktopModeViewport() && !IsAboutPage() && !fullscreen) {
+  auto* bc = GetBrowsingContext();
+  if (bc && bc->ForceDesktopViewport() && !IsAboutPage() && !fullscreen) {
     CSSCoord viewportWidth =
         StaticPrefs::browser_viewport_desktopWidth() / fullZoom;
     CSSToScreenScale scaleToFit(aDisplaySize.width / viewportWidth);
@@ -10485,8 +10286,8 @@ nsViewportInfo Document::GetViewportInfo(const ScreenIntSize& aDisplaySize) {
         if (RefPtr<DocumentType> docType = GetDoctype()) {
           nsAutoString docId;
           docType->GetPublicId(docId);
-          if ((docId.Find("WAP") != -1) || (docId.Find("Mobile") != -1) ||
-              (docId.Find("WML") != -1)) {
+          if ((docId.Find(u"WAP") != -1) || (docId.Find(u"Mobile") != -1) ||
+              (docId.Find(u"WML") != -1)) {
             // We're making an assumption that the docType can't change here
             mViewportType = DisplayWidthHeight;
             return nsViewportInfo(aDisplaySize, defaultScale,
@@ -10556,8 +10357,8 @@ nsViewportInfo Document::GetViewportInfo(const ScreenIntSize& aDisplaySize) {
         // browser_ui_zoom_force_user_scalable pref. Other codepaths that
         // return nsViewportInfo instances are all consistent with
         // browser_ui_zoom_force_user_scalable() already.
-        effectiveMinScale = kViewportMinScale;
-        effectiveMaxScale = kViewportMaxScale;
+        effectiveMinScale = ViewportMinScale();
+        effectiveMaxScale = ViewportMaxScale();
         effectiveValidMaxScale = true;
         effectiveZoomFlag = nsViewportInfo::ZoomFlag::AllowZoom;
       }
@@ -10599,11 +10400,10 @@ nsViewportInfo Document::GetViewportInfo(const ScreenIntSize& aDisplaySize) {
       // default size has a complicated calculation, we fixup the maxWidth
       // value after setting it, above.
       if (maxWidth == nsViewportInfo::Auto && !mValidScaleFloat) {
-        BrowsingContext* bc = GetBrowsingContext();
         if (bc && bc->TouchEventsOverride() == TouchEventsOverride::Enabled &&
             bc->InRDMPane()) {
           // If RDM and touch simulation are active, then use the simulated
-          // screen width to accomodate for cases where the screen width is
+          // screen width to accommodate for cases where the screen width is
           // larger than the desktop viewport default.
           maxWidth = nsViewportInfo::Max(
               displaySize.width, StaticPrefs::browser_viewport_desktopWidth());
@@ -13274,7 +13074,7 @@ already_AddRefed<Document> Document::CreateStaticClone(
   RefPtr<nsDocShell> originalShell = mDocumentContainer.get();
   SetContainer(nsDocShell::Cast(aCloneContainer));
   IgnoredErrorResult rv;
-  nsCOMPtr<nsINode> clonedNode = this->CloneNode(true, rv);
+  nsCOMPtr<nsINode> clonedNode = CloneNode(true, rv);
   SetContainer(originalShell);
   if (rv.Failed()) {
     return nullptr;
@@ -15839,25 +15639,6 @@ void Document::ReportDocumentUseCounters() {
             (" > %s\n", Telemetry::GetHistogramName(id)));
     Telemetry::Accumulate(id, 1);
   }
-
-  ReportDocumentLazyLoadCounters();
-}
-
-void Document::ReportDocumentLazyLoadCounters() {
-  if (!mLazyLoadImageCount) {
-    return;
-  }
-  Telemetry::Accumulate(Telemetry::LAZYLOAD_IMAGE_TOTAL, mLazyLoadImageCount);
-  Telemetry::Accumulate(Telemetry::LAZYLOAD_IMAGE_STARTED,
-                        mLazyLoadImageStarted);
-  Telemetry::Accumulate(Telemetry::LAZYLOAD_IMAGE_NOT_VIEWPORT,
-                        mLazyLoadImageStarted -
-                            mLazyLoadImageReachViewportLoading -
-                            mLazyLoadImageReachViewportLoaded);
-  Telemetry::Accumulate(Telemetry::LAZYLOAD_IMAGE_VIEWPORT_LOADING,
-                        mLazyLoadImageReachViewportLoading);
-  Telemetry::Accumulate(Telemetry::LAZYLOAD_IMAGE_VIEWPORT_LOADED,
-                        mLazyLoadImageReachViewportLoaded);
 }
 
 void Document::SendPageUseCounters() {
@@ -15974,19 +15755,24 @@ DOMIntersectionObserver& Document::EnsureLazyLoadImageObserver() {
   return *mLazyLoadImageObserver;
 }
 
-DOMIntersectionObserver& Document::EnsureLazyLoadImageObserverViewport() {
-  if (!mLazyLoadImageObserverViewport) {
-    mLazyLoadImageObserverViewport =
-        DOMIntersectionObserver::CreateLazyLoadObserverViewport(*this);
+ResizeObserver& Document::EnsureLastRememberedSizeObserver() {
+  if (!mLastRememberedSizeObserver) {
+    mLastRememberedSizeObserver =
+        ResizeObserver::CreateLastRememberedSizeObserver(*this);
   }
-  return *mLazyLoadImageObserverViewport;
+  return *mLastRememberedSizeObserver;
 }
 
-void Document::IncLazyLoadImageReachViewport(bool aLoading) {
-  if (aLoading) {
-    ++mLazyLoadImageReachViewportLoading;
-  } else {
-    ++mLazyLoadImageReachViewportLoaded;
+void Document::ObserveForLastRememberedSize(Element& aElement) {
+  // Options are initialized with ResizeObserverBoxOptions::Content_box by
+  // default, which is what we want.
+  static ResizeObserverOptions options;
+  EnsureLastRememberedSizeObserver().Observe(aElement, options);
+}
+
+void Document::UnobserveForLastRememberedSize(Element& aElement) {
+  if (mLastRememberedSizeObserver) {
+    mLastRememberedSizeObserver->Unobserve(aElement);
   }
 }
 
@@ -16249,7 +16035,7 @@ void Document::SetUserHasInteracted() {
   // Thus, whenever we create a new SH entry for this document,
   // this flag is reset.
   if (!GetSHEntryHasUserInteraction()) {
-    nsIDocShell* docShell = this->GetDocShell();
+    nsIDocShell* docShell = GetDocShell();
     if (docShell) {
       nsCOMPtr<nsISHEntry> currentEntry;
       bool oshe;
@@ -16357,17 +16143,6 @@ bool Document::HasValidTransientUserGestureActivation() const {
 bool Document::ConsumeTransientUserGestureActivation() {
   RefPtr<WindowContext> wc = GetWindowContext();
   return wc && wc->ConsumeTransientUserGestureActivation();
-}
-
-void Document::IncLazyLoadImageCount() {
-  if (!mLazyLoadImageCount) {
-    if (WindowContext* wc = GetTopLevelWindowContext()) {
-      if (!wc->HadLazyLoadImage()) {
-        Unused << wc->SetHadLazyLoadImage(true);
-      }
-    }
-  }
-  ++mLazyLoadImageCount;
 }
 
 void Document::SetDocTreeHadMedia() {
@@ -16697,10 +16472,20 @@ Selection* Document::GetSelection(ErrorResult& aRv) {
   return nsGlobalWindowInner::Cast(window)->GetSelection(aRv);
 }
 
+void Document::MakeBrowsingContextNonSynthetic() {
+  if (nsContentUtils::ShouldHideObjectOrEmbedImageDocument()) {
+    if (BrowsingContext* bc = GetBrowsingContext()) {
+      if (bc->GetSyntheticDocumentContainer()) {
+        Unused << bc->SetSyntheticDocumentContainer(false);
+      }
+    }
+  }
+}
+
 nsresult Document::HasStorageAccessSync(bool& aHasStorageAccess) {
   // Step 1: check if cookie permissions are available or denied to this
   // document's principal
-  nsCOMPtr<nsPIDOMWindowInner> inner = this->GetInnerWindow();
+  nsCOMPtr<nsPIDOMWindowInner> inner = GetInnerWindow();
   if (!inner) {
     aHasStorageAccess = false;
     return NS_OK;
@@ -16829,31 +16614,24 @@ Document::GetContentBlockingEvents() {
       });
 }
 
-RefPtr<MozPromise<int, bool, true>> Document::RequestStorageAccessAsyncHelper(
-    nsPIDOMWindowInner* aInnerWindow, BrowsingContext* aBrowsingContext,
-    nsIPrincipal* aPrincipal, bool aHasUserInteraction,
-    ContentBlockingNotifier::StorageAccessPermissionGrantedReason aNotifier,
-    bool requireFinalChecks) {
-  if (!requireFinalChecks) {
-    // Try to allow access for the given principal.
-    return StorageAccessAPIHelper::AllowAccessFor(aPrincipal, aBrowsingContext,
-                                                  aNotifier);
-  }
-
+StorageAccessAPIHelper::PerformPermissionGrant
+Document::CreatePermissionGrantPromise(
+    nsPIDOMWindowInner* aInnerWindow, nsIPrincipal* aPrincipal,
+    bool aHasUserInteraction, const Maybe<nsCString>& aTopLevelBaseDomain) {
+  MOZ_ASSERT(aInnerWindow);
+  MOZ_ASSERT(aPrincipal);
   RefPtr<Document> self(this);
   RefPtr<nsPIDOMWindowInner> inner(aInnerWindow);
   RefPtr<nsIPrincipal> principal(aPrincipal);
 
-  // This is a lambda function that has some variables bound to it. It will be
-  // called later in CompleteAllowAccessFor inside of AllowAccessFor.
-  auto performFinalChecks = [inner, self, principal, aHasUserInteraction]() {
+  return [inner, self, principal, aHasUserInteraction, aTopLevelBaseDomain]() {
     // Create the user prompt
-    RefPtr<StorageAccessAPIHelper::StorageAccessFinalCheckPromise::Private> p =
-        new StorageAccessAPIHelper::StorageAccessFinalCheckPromise::Private(
-            __func__);
+    RefPtr<StorageAccessAPIHelper::StorageAccessPermissionGrantPromise::Private>
+        p = new StorageAccessAPIHelper::StorageAccessPermissionGrantPromise::
+            Private(__func__);
     RefPtr<StorageAccessPermissionRequest> sapr =
         StorageAccessPermissionRequest::Create(
-            inner, principal,
+            inner, principal, aTopLevelBaseDomain,
             // Allow
             [p] {
               Telemetry::AccumulateCategorical(
@@ -16936,10 +16714,6 @@ RefPtr<MozPromise<int, bool, true>> Document::RequestStorageAccessAsyncHelper(
 
     return p;
   };
-
-  // Try to allow access for the given principal.
-  return StorageAccessAPIHelper::AllowAccessFor(principal, aBrowsingContext,
-                                                aNotifier, performFinalChecks);
 }
 
 already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccess(
@@ -16963,16 +16737,18 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccess(
                                     nsLiteralCString("requestStorageAccess"),
                                     this, nsContentUtils::eDOM_PROPERTIES,
                                     "RequestStorageAccessUserGesture");
-    this->ConsumeTransientUserGestureActivation();
-    promise->MaybeRejectWithUndefined();
+    ConsumeTransientUserGestureActivation();
+    promise->MaybeRejectWithNotAllowedError(
+        "requestStorageAccess not allowed"_ns);
     return promise.forget();
   }
 
   // Get a pointer to the inner window- We need this for convenience sake
-  RefPtr<nsPIDOMWindowInner> inner = this->GetInnerWindow();
+  RefPtr<nsPIDOMWindowInner> inner = GetInnerWindow();
   if (!inner) {
-    this->ConsumeTransientUserGestureActivation();
-    promise->MaybeRejectWithUndefined();
+    ConsumeTransientUserGestureActivation();
+    promise->MaybeRejectWithNotAllowedError(
+        "requestStorageAccess not allowed"_ns);
     return promise.forget();
   }
 
@@ -16988,8 +16764,9 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccess(
       promise->MaybeResolveWithUndefined();
       return promise.forget();
     } else {
-      this->ConsumeTransientUserGestureActivation();
-      promise->MaybeRejectWithUndefined();
+      ConsumeTransientUserGestureActivation();
+      promise->MaybeRejectWithNotAllowedError(
+          "requestStorageAccess not allowed"_ns);
       return promise.forget();
     }
   }
@@ -17017,8 +16794,9 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccess(
       promise->MaybeResolveWithUndefined();
       return promise.forget();
     } else {
-      this->ConsumeTransientUserGestureActivation();
-      promise->MaybeRejectWithUndefined();
+      ConsumeTransientUserGestureActivation();
+      promise->MaybeRejectWithNotAllowedError(
+          "requestStorageAccess not allowed"_ns);
       return promise.forget();
     }
   }
@@ -17033,8 +16811,9 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccess(
       promise->MaybeResolveWithUndefined();
       return promise.forget();
     } else {
-      this->ConsumeTransientUserGestureActivation();
-      promise->MaybeRejectWithUndefined();
+      ConsumeTransientUserGestureActivation();
+      promise->MaybeRejectWithNotAllowedError(
+          "requestStorageAccess not allowed"_ns);
       return promise.forget();
     }
   }
@@ -17049,34 +16828,36 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccess(
       promise->MaybeResolveWithUndefined();
       return promise.forget();
     } else {
-      this->ConsumeTransientUserGestureActivation();
-      promise->MaybeRejectWithUndefined();
+      ConsumeTransientUserGestureActivation();
+      promise->MaybeRejectWithNotAllowedError(
+          "requestStorageAccess not allowed"_ns);
       return promise.forget();
     }
   }
 
   // Get pointers to some objects that will be used in the async portion
-  RefPtr<BrowsingContext> bc = this->GetBrowsingContext();
+  RefPtr<BrowsingContext> bc = GetBrowsingContext();
   RefPtr<nsGlobalWindowOuter> outer =
       nsGlobalWindowOuter::Cast(inner->GetOuterWindow());
   if (!outer) {
-    this->ConsumeTransientUserGestureActivation();
-    promise->MaybeRejectWithUndefined();
+    ConsumeTransientUserGestureActivation();
+    promise->MaybeRejectWithNotAllowedError(
+        "requestStorageAccess not allowed"_ns);
     return promise.forget();
   }
   RefPtr<Document> self(this);
 
   // Consume user activation before entering the async part of this method.
   // This prevents usage of other transient activation-gated APIs.
-  this->ConsumeTransientUserGestureActivation();
+  ConsumeTransientUserGestureActivation();
 
   // Step 5. Start an async call to request storage access. This will either
   // perform an automatic decision or notify the user, then perform some follow
   // on work changing state to reflect the result of the API. If it resolves,
   // the request was granted. If it rejects it was denied.
-  RequestStorageAccessAsyncHelper(inner, bc, NodePrincipal(), true,
-                                  ContentBlockingNotifier::eStorageAccessAPI,
-                                  true)
+  StorageAccessAPIHelper::RequestStorageAccessAsyncHelper(
+      this, inner, bc, NodePrincipal(), true,
+      ContentBlockingNotifier::eStorageAccessAPI, true)
       ->Then(
           GetCurrentSerialEventTarget(), __func__,
           [self, inner, promise] {
@@ -17084,7 +16865,10 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccess(
             self->NotifyUserGestureActivation();
             promise->MaybeResolveWithUndefined();
           },
-          [promise] { promise->MaybeRejectWithUndefined(); });
+          [promise] {
+            promise->MaybeRejectWithNotAllowedError(
+                "requestStorageAccess not allowed"_ns);
+          });
 
   return promise.forget();
 }
@@ -17110,8 +16894,9 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccessForOrigin(
                                     nsLiteralCString("requestStorageAccess"),
                                     this, nsContentUtils::eDOM_PROPERTIES,
                                     "RequestStorageAccessUserGesture");
-    this->ConsumeTransientUserGestureActivation();
-    promise->MaybeRejectWithUndefined();
+    ConsumeTransientUserGestureActivation();
+    promise->MaybeRejectWithNotAllowedError(
+        "requestStorageAccess not allowed"_ns);
     return promise.forget();
   }
 
@@ -17139,8 +16924,9 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccessForOrigin(
       promise->MaybeResolveWithUndefined();
       return promise.forget();
     }
-    this->ConsumeTransientUserGestureActivation();
-    promise->MaybeRejectWithUndefined();
+    ConsumeTransientUserGestureActivation();
+    promise->MaybeRejectWithNotAllowedError(
+        "requestStorageAccess not allowed"_ns);
     return promise.forget();
   }
 
@@ -17154,32 +16940,36 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccessForOrigin(
       promise->MaybeResolveWithUndefined();
       return promise.forget();
     }
-    this->ConsumeTransientUserGestureActivation();
-    promise->MaybeRejectWithUndefined();
+    ConsumeTransientUserGestureActivation();
+    promise->MaybeRejectWithNotAllowedError(
+        "requestStorageAccess not allowed"_ns);
     return promise.forget();
   }
 
   // Step 3: Get some useful variables that can be captured by the lambda for
   // the asynchronous portion
-  RefPtr<BrowsingContext> bc = this->GetBrowsingContext();
-  nsCOMPtr<nsPIDOMWindowInner> inner = this->GetInnerWindow();
+  RefPtr<BrowsingContext> bc = GetBrowsingContext();
+  nsCOMPtr<nsPIDOMWindowInner> inner = GetInnerWindow();
   if (!inner) {
-    this->ConsumeTransientUserGestureActivation();
-    promise->MaybeRejectWithUndefined();
+    ConsumeTransientUserGestureActivation();
+    promise->MaybeRejectWithNotAllowedError(
+        "requestStorageAccess not allowed"_ns);
     return promise.forget();
   }
   RefPtr<nsGlobalWindowOuter> outer =
       nsGlobalWindowOuter::Cast(inner->GetOuterWindow());
   if (!outer) {
-    this->ConsumeTransientUserGestureActivation();
-    promise->MaybeRejectWithUndefined();
+    ConsumeTransientUserGestureActivation();
+    promise->MaybeRejectWithNotAllowedError(
+        "requestStorageAccess not allowed"_ns);
     return promise.forget();
   }
   nsCOMPtr<nsIPrincipal> principal = BasePrincipal::CreateContentPrincipal(
       thirdPartyURI, NodePrincipal()->OriginAttributesRef());
   if (!principal) {
-    this->ConsumeTransientUserGestureActivation();
-    promise->MaybeRejectWithUndefined();
+    ConsumeTransientUserGestureActivation();
+    promise->MaybeRejectWithNotAllowedError(
+        "requestStorageAccess not allowed"_ns);
     return promise.forget();
   }
 
@@ -17188,7 +16978,7 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccessForOrigin(
 
   // Consume user activation before entering the async part of this method.
   // This prevents usage of other transient activation-gated APIs.
-  this->ConsumeTransientUserGestureActivation();
+  ConsumeTransientUserGestureActivation();
 
   // Step 4a: Start the async part of this function. Check the cookie
   // permission, but this can't be done in this process. We needs the cookie
@@ -17229,8 +17019,8 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccessForOrigin(
             // Step 4c: Try to request storage access, either automatically or
             // with a user-prompt. This is the part that is async in the
             // typical requestStorageAccess function.
-            return self->RequestStorageAccessAsyncHelper(
-                inner, bc, principal, hasUserActivation,
+            return StorageAccessAPIHelper::RequestStorageAccessAsyncHelper(
+                self, inner, bc, principal, hasUserActivation,
                 ContentBlockingNotifier::ePrivilegeStorageAccessForOriginAPI,
                 true);
           },
@@ -17251,7 +17041,10 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccessForOrigin(
           },
           // If the previous handler rejected, we should reject the promise
           // returned by this function.
-          [promise] { promise->MaybeRejectWithUndefined(); });
+          [promise] {
+            promise->MaybeRejectWithNotAllowedError(
+                "requestStorageAccess not allowed"_ns);
+          });
 
   // Step 5: While the async stuff is happening, we should return the promise so
   // our caller can continue executing.
@@ -17339,27 +17132,90 @@ already_AddRefed<Promise> Document::RequestStorageAccessUnderSite(
     return promise.forget();
   }
 
-  // Set a permission in the parent process that this document wants storage
-  // access under the argument's site, resolving our returned promise on success
-  ContentChild* cc = ContentChild::GetSingleton();
-  if (!cc) {
-    // TODO(bug 1778561): Make this work in non-content processes.
+  nsCOMPtr<nsIPrincipal> principal(NodePrincipal());
+
+  // Test if the permission this is requesting is already set
+  nsCOMPtr<nsIPrincipal> argumentPrincipal =
+      BasePrincipal::CreateContentPrincipal(
+          siteURI, NodePrincipal()->OriginAttributesRef());
+  if (!argumentPrincipal) {
+    ConsumeTransientUserGestureActivation();
     promise->MaybeRejectWithUndefined();
     return promise.forget();
   }
-  cc->SendSetAllowStorageAccessRequestFlag(NodePrincipal(), siteURI)
+  nsCString originNoSuffix;
+  rv = NodePrincipal()->GetOriginNoSuffix(originNoSuffix);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    promise->MaybeRejectWithUndefined();
+    return promise.forget();
+  }
+
+  ContentChild* cc = ContentChild::GetSingleton();
+  MOZ_ASSERT(cc);
+  RefPtr<Document> self(this);
+  cc->SendTestStorageAccessPermission(argumentPrincipal, originNoSuffix)
       ->Then(
           GetCurrentSerialEventTarget(), __func__,
-          [promise](bool success) {
-            if (success) {
-              promise->MaybeResolveWithUndefined();
-            } else {
-              promise->MaybeRejectWithUndefined();
+          [promise, siteURI,
+           self](const ContentChild::TestStorageAccessPermissionPromise::
+                     ResolveValueType& aResult) {
+            if (aResult) {
+              return StorageAccessAPIHelper::
+                  StorageAccessPermissionGrantPromise::CreateAndResolve(
+                      StorageAccessAPIHelper::eAllow, __func__);
             }
+            // Get a grant for the storage access permission that will be set
+            // when this is completed in the embedding context
+            nsCString serializedSite;
+            RefPtr<nsEffectiveTLDService> etld =
+                nsEffectiveTLDService::GetInstance();
+            if (!etld) {
+              return StorageAccessAPIHelper::
+                  StorageAccessPermissionGrantPromise::CreateAndReject(
+                      false, __func__);
+            }
+            nsresult rv = etld->GetSite(siteURI, serializedSite);
+            if (NS_FAILED(rv)) {
+              return StorageAccessAPIHelper::
+                  StorageAccessPermissionGrantPromise::CreateAndReject(
+                      false, __func__);
+            }
+            return self->CreatePermissionGrantPromise(
+                self->GetInnerWindow(), self->NodePrincipal(), true,
+                Some(serializedSite))();
           },
-          [promise](mozilla::ipc::ResponseRejectReason reason) {
-            promise->MaybeRejectWithUndefined();
-          });
+          [](const ContentChild::TestStorageAccessPermissionPromise::
+                 RejectValueType& aResult) {
+            return StorageAccessAPIHelper::StorageAccessPermissionGrantPromise::
+                CreateAndReject(false, __func__);
+          })
+      ->Then(
+          GetCurrentSerialEventTarget(), __func__,
+          [promise, principal, siteURI](int result) {
+            ContentChild* cc = ContentChild::GetSingleton();
+            if (!cc) {
+              // TODO(bug 1778561): Make this work in non-content processes.
+              promise->MaybeRejectWithUndefined();
+              return;
+            }
+            // Set a permission in the parent process that this document wants
+            // storage access under the argument's site, resolving our returned
+            // promise on success
+            cc->SendSetAllowStorageAccessRequestFlag(principal, siteURI)
+                ->Then(
+                    GetCurrentSerialEventTarget(), __func__,
+                    [promise](bool success) {
+                      if (success) {
+                        promise->MaybeResolveWithUndefined();
+                      } else {
+                        promise->MaybeRejectWithUndefined();
+                      }
+                    },
+                    [promise](mozilla::ipc::ResponseRejectReason reason) {
+                      promise->MaybeRejectWithUndefined();
+                    });
+          },
+          [promise](bool result) { promise->MaybeRejectWithUndefined(); });
 
   // Return the promise that is resolved in the async handler above
   return promise.forget();
@@ -17498,8 +17354,8 @@ already_AddRefed<Promise> Document::CompleteStorageAccessRequestFromSite(
             // We ignore the final checks because this is where the "grant"
             // either by prompt doorhanger or autogrant takes place. We already
             // gathered an equivalent grant in requestStorageAccessUnderSite.
-            return self->RequestStorageAccessAsyncHelper(
-                inner, bc, principal, true,
+            return StorageAccessAPIHelper::RequestStorageAccessAsyncHelper(
+                self, inner, bc, principal, true,
                 ContentBlockingNotifier::eStorageAccessAPI, false);
           },
           // If the IPC rejects, we should reject our promise here which will
@@ -17539,9 +17395,7 @@ Document::AutomaticStorageAccessPermissionCanBeGranted(bool hasUserActivation) {
     ContentChild* cc = ContentChild::GetSingleton();
     MOZ_ASSERT(cc);
 
-    return cc
-        ->SendAutomaticStorageAccessPermissionCanBeGranted(
-            IPC::Principal(NodePrincipal()))
+    return cc->SendAutomaticStorageAccessPermissionCanBeGranted(NodePrincipal())
         ->Then(GetCurrentSerialEventTarget(), __func__,
                [](const ContentChild::
                       AutomaticStorageAccessPermissionCanBeGrantedPromise::

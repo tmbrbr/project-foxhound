@@ -61,7 +61,7 @@ class HttpBackgroundChannelChild final : public PHttpBackgroundChannelChild {
                                    const nsresult& aTransportStatus,
                                    const uint64_t& aOffset,
                                    const uint32_t& aCount,
-                                   const nsDependentCSubstring& aData,
+                                   const nsACString& aData,
                                    const bool& aDataFromSocketProcess);
 
   IPCResult RecvOnStopRequest(
@@ -90,6 +90,8 @@ class HttpBackgroundChannelChild final : public PHttpBackgroundChannelChild {
 
   IPCResult RecvAttachStreamFilter(
       Endpoint<extensions::PStreamFilterParent>&& aEndpoint);
+
+  IPCResult RecvDetachStreamFilters();
 
   void ActorDestroy(ActorDestroyReason aWhy) override;
 

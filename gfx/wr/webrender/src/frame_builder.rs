@@ -5,7 +5,7 @@
 use api::{ColorF, DebugFlags, FontRenderMode, PremultipliedColorF};
 use api::units::*;
 use crate::batch::{BatchBuilder, AlphaBatchBuilder, AlphaBatchContainer, CommandBufferList};
-use crate::clip::{ClipStore, ClipChainStack};
+use crate::clip::{ClipStore, ClipTree};
 use crate::spatial_tree::{SpatialTree, SpatialNodeIndex};
 use crate::composite::{CompositorKind, CompositeState, CompositeStatePreallocator};
 use crate::debug_item::DebugItem;
@@ -21,6 +21,7 @@ use crate::prim_store::{PictureIndex};
 use crate::prim_store::{DeferredResolve, PrimitiveInstance};
 use crate::profiler::{self, TransactionProfile};
 use crate::render_backend::{DataStores, ScratchBuffer};
+use crate::renderer::{GpuBuffer, GpuBufferBuilder};
 use crate::render_target::{RenderTarget, PictureCacheTarget, TextureCacheRenderTarget, PictureCacheTargetKind};
 use crate::render_target::{RenderTargetContext, RenderTargetKind, AlphaRenderTarget, ColorRenderTarget};
 use crate::render_task_graph::{RenderTaskGraph, Pass, SubPassSurface};
@@ -42,7 +43,6 @@ use plane_split::Splitter;
 pub struct FrameBuilderConfig {
     pub default_font_render_mode: FontRenderMode,
     pub dual_source_blending_is_supported: bool,
-    pub dual_source_blending_is_enabled: bool,
     /// True if we're running tests (i.e. via wrench).
     pub testing: bool,
     pub gpu_supports_fast_clears: bool,
@@ -111,7 +111,6 @@ impl FrameGlobalResources {
 pub struct FrameScratchBuffer {
     dirty_region_stack: Vec<DirtyRegion>,
     surface_stack: Vec<(PictureIndex, SurfaceIndex)>,
-    clip_chain_stack: ClipChainStack,
 }
 
 impl Default for FrameScratchBuffer {
@@ -119,7 +118,6 @@ impl Default for FrameScratchBuffer {
         FrameScratchBuffer {
             dirty_region_stack: Vec::new(),
             surface_stack: Vec::new(),
-            clip_chain_stack: ClipChainStack::new(),
         }
     }
 }
@@ -128,7 +126,6 @@ impl FrameScratchBuffer {
     pub fn begin_frame(&mut self) {
         self.dirty_region_stack.clear();
         self.surface_stack.clear();
-        self.clip_chain_stack.clear();
     }
 }
 
@@ -167,6 +164,8 @@ pub struct FrameBuildingState<'a> {
     pub plane_splitters: &'a mut [PlaneSplitter],
     pub surface_builder: SurfaceBuilder,
     pub cmd_buffers: &'a mut CommandBufferList,
+    pub clip_tree: &'a ClipTree,
+    pub frame_gpu_data: &'a mut GpuBufferBuilder,
 }
 
 impl<'a> FrameBuildingState<'a> {
@@ -190,7 +189,6 @@ impl<'a> FrameBuildingState<'a> {
 #[derive(Debug)]
 pub struct PictureContext {
     pub pic_index: PictureIndex,
-    pub apply_local_clip_rect: bool,
     pub surface_spatial_node_index: SpatialNodeIndex,
     pub raster_spatial_node_index: SpatialNodeIndex,
     /// The surface that this picture will render on.
@@ -234,6 +232,7 @@ impl FrameBuilder {
         tile_caches: &mut FastHashMap<SliceId, Box<TileCacheInstance>>,
         spatial_tree: &SpatialTree,
         cmd_buffers: &mut CommandBufferList,
+        frame_gpu_data: &mut GpuBufferBuilder,
         profile: &mut TransactionProfile,
     ) {
         profile_scope!("build_layer_screen_rects_and_cull_layers");
@@ -305,7 +304,6 @@ impl FrameBuilder {
                             .expect("bug: non-existent tile cache");
 
                         let mut visibility_state = FrameVisibilityState {
-                            clip_chain_stack: scratch.frame.clip_chain_stack.take(),
                             surface_stack: scratch.frame.surface_stack.take(),
                             resource_cache,
                             gpu_cache,
@@ -313,6 +311,7 @@ impl FrameBuilder {
                             scratch,
                             data_stores,
                             composite_state,
+                            clip_tree: &mut scene.clip_tree,
                         };
 
                         // If we have a tile cache for this picture, see if any of the
@@ -331,9 +330,8 @@ impl FrameBuilder {
                         visibility_state.push_surface(
                             *pic_index,
                             surface_index,
-                            &tile_cache.shared_clips,
-                            frame_context.spatial_tree,
                         );
+                        visibility_state.clip_tree.push_clip_root_node(tile_cache.shared_clip_node_id);
 
                         update_prim_visibility(
                             *pic_index,
@@ -354,8 +352,8 @@ impl FrameBuilder {
                             &mut visibility_state,
                         );
 
+                        visibility_state.clip_tree.pop_clip_root();
                         visibility_state.pop_surface();
-                        visibility_state.scratch.frame.clip_chain_stack = visibility_state.clip_chain_stack.take();
                         visibility_state.scratch.frame.surface_stack = visibility_state.surface_stack.take();
                     }
                     _ => {
@@ -383,6 +381,8 @@ impl FrameBuilder {
             plane_splitters: &mut scene.plane_splitters,
             surface_builder: SurfaceBuilder::new(),
             cmd_buffers,
+            clip_tree: &mut scene.clip_tree,
+            frame_gpu_data,
         };
 
         // Push a default dirty region which culls primitives
@@ -510,6 +510,9 @@ impl FrameBuilder {
 
         let mut cmd_buffers = CommandBufferList::new();
 
+        // TODO(gw): Recycle backing vec buffers for gpu buffer builder between frames
+        let mut gpu_buffer_builder = GpuBufferBuilder::new();
+
         self.build_layer_screen_rects_and_cull_layers(
             scene,
             screen_world_rect,
@@ -526,6 +529,7 @@ impl FrameBuilder {
             tile_caches,
             spatial_tree,
             &mut cmd_buffers,
+            &mut gpu_buffer_builder,
             profile,
         );
 
@@ -551,8 +555,7 @@ impl FrameBuilder {
 
             // Used to generated a unique z-buffer value per primitive.
             let mut z_generator = ZBufferIdGenerator::new(scene.config.max_depth_ids);
-            let use_dual_source_blending = scene.config.dual_source_blending_is_enabled &&
-                                           scene.config.dual_source_blending_is_supported;
+            let use_dual_source_blending = scene.config.dual_source_blending_is_supported;
 
             for pass in render_tasks.passes.iter().rev() {
                 let mut ctx = RenderTargetContext {
@@ -634,6 +637,8 @@ impl FrameBuilder {
         scene.clip_store.end_frame(&mut scratch.clip_store);
         scratch.end_frame();
 
+        let gpu_buffer = gpu_buffer_builder.finalize(&render_tasks);
+
         Frame {
             device_rect: DeviceIntRect::from_origin_and_size(
                 device_origin,
@@ -649,6 +654,7 @@ impl FrameBuilder {
             prim_headers,
             debug_items: mem::replace(&mut scratch.primitive.debug_items, Vec::new()),
             composite_state,
+            gpu_buffer,
         }
     }
 
@@ -776,6 +782,7 @@ pub fn build_render_pass(
                 let task_id = sub_pass.task_ids[0];
                 let task = &render_tasks[task_id];
                 let target_rect = task.get_target_rect();
+                let mut gpu_buffer_builder = GpuBufferBuilder::new();
 
                 match task.kind {
                     RenderTaskKind::Picture(ref pic_task) => {
@@ -793,12 +800,9 @@ pub fn build_render_pass(
 
                         let mut batch_builder = BatchBuilder::new(batcher);
 
-                        cmd_buffer.iter_prims(&mut |prim_instance_index, spatial_node_index, gpu_address| {
-                            let prim_instance = &prim_instances[prim_instance_index.0 as usize];
-
+                        cmd_buffer.iter_prims(&mut |cmd, spatial_node_index| {
                             batch_builder.add_prim_to_batch(
-                                prim_instance,
-                                gpu_address,
+                                cmd,
                                 spatial_node_index,
                                 ctx,
                                 gpu_cache,
@@ -808,6 +812,8 @@ pub fn build_render_pass(
                                 pic_task.raster_spatial_node_index,
                                 pic_task.surface_spatial_node_index,
                                 z_generator,
+                                prim_instances,
+                                &mut gpu_buffer_builder,
                             );
                         });
 
@@ -932,6 +938,10 @@ pub struct Frame {
     /// Used by the renderer to composite tiles into the framebuffer,
     /// or hand them off to an OS compositor.
     pub composite_state: CompositeState,
+
+    /// Main GPU data buffer constructed (primarily) during the prepare
+    /// pass for primitives that were visible and dirty.
+    pub gpu_buffer: GpuBuffer,
 }
 
 impl Frame {

@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const { FileUtils } = ChromeUtils.import(
-  "resource://gre/modules/FileUtils.jsm"
+const { FileUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/FileUtils.sys.mjs"
 );
 
 /**
@@ -105,14 +105,7 @@ async function runProfilerWithFileIO(features, filename) {
   info("Remove the file");
   file.remove(false);
 
-  // Pause the profiler as we don't need to collect more samples as we retrieve
-  // and serialize the profile.
-  // Don't await the pause, because each process will handle it before it
-  // receives the following `getProfileDataAsync()`.
-  Services.profiler.Pause();
-
-  const profile = await Services.profiler.getProfileDataAsync();
-  await Services.profiler.StopProfiler();
+  const profile = await stopNowAndGetProfile();
   const mainThread = profile.threads.find(({ name }) => name === "GeckoMain");
 
   const schema = getSchema(profile, "FileIO");

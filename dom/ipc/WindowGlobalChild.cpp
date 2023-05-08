@@ -182,9 +182,7 @@ void WindowGlobalChild::OnNewDocument(Document* aDocument) {
 
   nsCOMPtr<nsITransportSecurityInfo> securityInfo;
   if (nsCOMPtr<nsIChannel> channel = aDocument->GetChannel()) {
-    nsCOMPtr<nsISupports> securityInfoSupports;
-    channel->GetSecurityInfo(getter_AddRefs(securityInfoSupports));
-    securityInfo = do_QueryInterface(securityInfoSupports);
+    channel->GetSecurityInfo(getter_AddRefs(securityInfo));
   }
   SendUpdateDocumentSecurityInfo(securityInfo);
 
@@ -439,36 +437,6 @@ mozilla::ipc::IPCResult WindowGlobalChild::RecvDrawSnapshot(
   aResolve(gfx::PaintFragment::Record(BrowsingContext(), aRect, aScale,
                                       aBackgroundColor,
                                       (gfx::CrossProcessPaintFlags)aFlags));
-  return IPC_OK();
-}
-
-mozilla::ipc::IPCResult WindowGlobalChild::RecvGetSecurityInfo(
-    GetSecurityInfoResolver&& aResolve) {
-  Maybe<nsCString> result;
-
-  if (nsCOMPtr<Document> doc = mWindowGlobal->GetDoc()) {
-    nsCOMPtr<nsISupports> secInfo;
-    nsresult rv = NS_OK;
-
-    // First check if there's a failed channel, in case of a certificate
-    // error.
-    if (nsIChannel* failedChannel = doc->GetFailedChannel()) {
-      rv = failedChannel->GetSecurityInfo(getter_AddRefs(secInfo));
-    } else {
-      // When there's no failed channel we should have a regular
-      // security info on the document. In some cases there's no
-      // security info at all, i.e. on HTTP sites.
-      secInfo = doc->GetSecurityInfo();
-    }
-
-    if (NS_SUCCEEDED(rv) && secInfo) {
-      nsCOMPtr<nsISerializable> secInfoSer = do_QueryInterface(secInfo);
-      result.emplace();
-      NS_SerializeToString(secInfoSer, result.ref());
-    }
-  }
-
-  aResolve(result);
   return IPC_OK();
 }
 

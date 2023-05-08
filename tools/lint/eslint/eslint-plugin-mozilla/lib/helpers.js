@@ -20,7 +20,6 @@ var directoryManifests = new Map();
 
 const callExpressionDefinitions = [
   /^loader\.lazyGetter\((?:globalThis|this), "(\w+)"/,
-  /^loader\.lazyImporter\((?:globalThis|this), "(\w+)"/,
   /^loader\.lazyServiceGetter\((?:globalThis|this), "(\w+)"/,
   /^loader\.lazyRequireGetter\((?:globalThis|this), "(\w+)"/,
   /^XPCOMUtils\.defineLazyGetter\((?:globalThis|this), "(\w+)"/,
@@ -53,6 +52,8 @@ const callExpressionMultiDefinitions = [
 
 const workerImportFilenameMatch = /(.*\/)*((.*?)\.jsm?)/;
 
+let xpidlData;
+
 module.exports = {
   get iniParser() {
     if (!this._iniParser) {
@@ -63,6 +64,46 @@ module.exports = {
 
   get servicesData() {
     return require("./services.json");
+  },
+
+  /**
+   * Obtains xpidl data from the object directory specified in the
+   * environment.
+   *
+   * @returns {Map<string, object>}
+   *   A map of interface names to the interface details.
+   */
+  get xpidlData() {
+    let objdir;
+    if (process.env.MOZ_OBJDIR) {
+      objdir = `${process.env.MOZ_OBJDIR}/config/makefiles/xpidl/`;
+    } else if (process.env.TEST_XPIDLDIR) {
+      objdir = process.env.TEST_XPIDLDIR;
+    }
+    if (!objdir) {
+      throw new Error(
+        "This rule needs MOZ_OBJDIR defining in the environment. It must be a full build."
+      );
+    }
+    if (xpidlData) {
+      return xpidlData;
+    }
+    let files = fs.readdirSync(`${objdir}`);
+    // `Makefile` is an expected file in the directory.
+    if (files.length <= 1) {
+      throw new Error("Missing xpidl files, this rule needs a full build.");
+    }
+    xpidlData = new Map();
+    for (let file of files) {
+      if (!file.endsWith(".xpt")) {
+        continue;
+      }
+      let data = JSON.parse(fs.readFileSync(path.join(`${objdir}`, file)));
+      for (let details of data) {
+        xpidlData.set(details.name, details);
+      }
+    }
+    return xpidlData;
   },
 
   /**
@@ -188,7 +229,7 @@ module.exports = {
       },
 
       leave(node, parent) {
-        if (parents.length == 0) {
+        if (!parents.length) {
           throw new Error("Left more nodes than entered.");
         }
         parents.pop();
@@ -920,8 +961,7 @@ module.exports = {
     } else if (
       node.callee.type == "MemberExpression" &&
       node.callee.property.type == "Identifier" &&
-      (node.callee.property.name == "lazyRequireGetter" ||
-        node.callee.property.name == "lazyImporter") &&
+      node.callee.property.name == "lazyRequireGetter" &&
       node.arguments.length >= 3 &&
       node.arguments[2].type == "Literal"
     ) {

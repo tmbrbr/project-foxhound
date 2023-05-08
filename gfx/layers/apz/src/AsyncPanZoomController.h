@@ -415,6 +415,7 @@ class AsyncPanZoomController {
    * Clear any overscroll on this APZC.
    */
   void ClearOverscroll();
+  void ClearPhysicalOverscroll();
 
   /**
    * Returns whether this APZC is for an element marked with the 'scrollgrab'
@@ -575,6 +576,9 @@ class AsyncPanZoomController {
   SampleTime GetFrameTime() const;
 
   bool IsZero(const ParentLayerPoint& aPoint) const;
+  bool IsZero(ParentLayerCoord aCoord) const;
+
+  bool FuzzyGreater(ParentLayerCoord aCoord1, ParentLayerCoord aCoord2) const;
 
  private:
   // Get whether the horizontal content of the honoured target of auto-dir
@@ -942,9 +946,12 @@ class AsyncPanZoomController {
     FREE,     /* No locking at all */
     STANDARD, /* Default axis locking mode that remains locked until pan ends */
     STICKY,   /* Allow lock to be broken, with hysteresis */
+    DOMINANT_AXIS, /* Only allow movement on one axis */
   };
 
   static AxisLockMode GetAxisLockMode();
+
+  bool UsingStatefulAxisLock() const;
 
   enum PinchLockMode {
     PINCH_FREE,     /* No locking at all */
@@ -1708,6 +1715,10 @@ class AsyncPanZoomController {
 
   bool IsOverscrolled() const;
 
+  // IsPhysicallyOverscrolled() checks whether the APZC is overscrolled
+  // by an overscroll effect which applies a transform to the APZC's contents.
+  bool IsPhysicallyOverscrolled() const;
+
  private:
   bool IsInInvalidOverscroll() const;
 
@@ -1753,6 +1764,16 @@ class AsyncPanZoomController {
  private:
   // The timestamp of the latest touch start event.
   TimeStamp mTouchStartTime;
+  // Used for interpolating touch events that cross the touch-start
+  // tolerance threshold.
+  struct TouchSample {
+    ExternalPoint mPosition;
+    TimeStamp mTimeStamp;
+  };
+  // Information about the latest touch event.
+  // This is only populated when we're in the TOUCHING state
+  // (and thus the last touch event has only one touch point).
+  TouchSample mLastTouch;
   // The time duration between mTouchStartTime and the touchmove event that
   // started the pan (the touchmove event that transitioned this APZC from the
   // TOUCHING state to one of the PANNING* states). Only valid while this APZC
@@ -1833,6 +1854,23 @@ class AsyncPanZoomController {
   Maybe<CSSSnapTarget> FindSnapPointNear(const CSSPoint& aDestination,
                                          ScrollUnit aUnit,
                                          ScrollSnapFlags aSnapFlags);
+
+  // If |aOriginalEvent| crosses the touch-start tolerance threshold, split it
+  // into two events: one that just reaches the threshold, and the remainder.
+  //
+  // |aPanThreshold| is the touch-start tolerance, and |aVectorLength| is
+  // the length of the vector from the touch-start position to |aOriginalEvent|.
+  // These values could be computed from |aOriginalEvent| but they are
+  // passed in for convenience since the caller also needs to compute them.
+  //
+  // |aExtPoint| is the position of |aOriginalEvent| in External coordinates,
+  // and in case of a split is modified by the function to reflect the position
+  // of of the first event. This is a workaround for the fact that recomputing
+  // the External position from the returned event would require a round-trip
+  // through |mScreenPoint| which is an integer.
+  Maybe<std::pair<MultiTouchInput, MultiTouchInput>> MaybeSplitTouchMoveEvent(
+      const MultiTouchInput& aOriginalEvent, ScreenCoord aPanThreshold,
+      float aVectorLength, ExternalPoint& aExtPoint);
 
   friend std::ostream& operator<<(
       std::ostream& aOut, const AsyncPanZoomController::PanZoomState& aState);

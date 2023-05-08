@@ -202,6 +202,7 @@ class ChromeUtils {
 
   static void ImportESModule(const GlobalObject& aGlobal,
                              const nsAString& aResourceURI,
+                             const ImportESModuleOptionsDictionary& aOptions,
                              JS::MutableHandle<JSObject*> aRetval,
                              ErrorResult& aRv);
 
@@ -276,6 +277,10 @@ class ChromeUtils {
   static void GetFormAutofillConfidences(
       GlobalObject& aGlobal, const Sequence<OwningNonNull<Element>>& aElements,
       nsTArray<FormAutofillConfidences>& aResults, ErrorResult& aRv);
+
+  static bool IsDarkBackground(GlobalObject&, Element&);
+
+  static double DateNow(GlobalObject&);
 };
 
 }  // namespace dom

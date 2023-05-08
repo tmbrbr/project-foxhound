@@ -38,7 +38,6 @@
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsIStringEnumerator.h"
-#include "nsMemory.h"
 #include "nsIStreamListener.h"
 #include "nsIMIMEService.h"
 #include "nsILoadGroup.h"
@@ -256,7 +255,7 @@ static nsresult GetDownloadDirectory(nsIFile** _directory,
               "chrome://mozapps/locale/downloads/downloads.properties",
               getter_AddRefs(downloadBundle));
           if (NS_SUCCEEDED(rv)) {
-            rv = downloadBundle->GetStringFromName("DownloadsFolder",
+            rv = downloadBundle->GetStringFromName("downloadsFolder",
                                                    downloadLocalized);
           }
           if (NS_FAILED(rv)) {
@@ -314,7 +313,7 @@ static nsresult GetDownloadDirectory(nsIFile** _directory,
       nsAutoString userDir;
       userDir.AssignLiteral("mozilla_");
       userDir.AppendASCII(userName);
-      userDir.ReplaceChar(FILE_PATH_SEPARATOR FILE_ILLEGAL_CHARACTERS, '_');
+      userDir.ReplaceChar(u"" FILE_PATH_SEPARATOR FILE_ILLEGAL_CHARACTERS, '_');
 
       int counter = 0;
       bool pathExists;
@@ -545,16 +544,15 @@ static const nsExtraMimeTypeEntry extraMimeEntries[] = {
     {TEXT_CSS, "css", "Style Sheet"},
     {TEXT_VCARD, "vcf,vcard", "Contact Information"},
     {TEXT_CALENDAR, "ics,ical,ifb,icalendar", "iCalendar"},
-    {VIDEO_OGG, "ogv", "Ogg Video"},
-    {VIDEO_OGG, "ogg", "Ogg Video"},
+    {VIDEO_OGG, "ogv,ogg", "Ogg Video"},
     {APPLICATION_OGG, "ogg", "Ogg Video"},
     {AUDIO_OGG, "oga", "Ogg Audio"},
     {AUDIO_OGG, "opus", "Opus Audio"},
     {VIDEO_WEBM, "webm", "Web Media Video"},
     {AUDIO_WEBM, "webm", "Web Media Audio"},
-    {AUDIO_MP3, "mp3", "MPEG Audio"},
+    {AUDIO_MP3, "mp3,mpega,mp2", "MPEG Audio"},
     {VIDEO_MP4, "mp4", "MPEG-4 Video"},
-    {AUDIO_MP4, "m4a", "MPEG-4 Audio"},
+    {AUDIO_MP4, "m4a,m4b", "MPEG-4 Audio"},
     {VIDEO_RAW, "yuv", "Raw YUV Video"},
     {AUDIO_WAV, "wav", "Waveform Audio"},
     {VIDEO_3GPP, "3gpp,3gp", "3GPP Video"},
@@ -773,7 +771,7 @@ NS_IMETHODIMP nsExternalHelperAppService::CreateListener(
   }
 
   nsAutoString extension;
-  int32_t dotidx = fileName.RFind(".");
+  int32_t dotidx = fileName.RFind(u".");
   if (dotidx != -1) {
     extension = Substring(fileName, dotidx + 1);
   }
@@ -1956,11 +1954,13 @@ bool nsExternalAppHandler::IsDownloadSpam(nsIChannel* aChannel) {
     if (capability == nsIPermissionManager::PROMPT_ACTION) {
       nsCOMPtr<nsIObserverService> observerService =
           mozilla::services::GetObserverService();
+      RefPtr<BrowsingContext> browsingContext;
+      loadInfo->GetBrowsingContext(getter_AddRefs(browsingContext));
 
       nsAutoCString cStringURI;
       loadInfo->TriggeringPrincipal()->GetPrePath(cStringURI);
       observerService->NotifyObservers(
-          nullptr, "blocked-automatic-download",
+          browsingContext, "blocked-automatic-download",
           NS_ConvertASCIItoUTF16(cStringURI.get()).get());
       // FIXME: In order to escape memory leaks, currently we cancel blocked
       // downloads. This is temporary solution, because download data should be
@@ -3332,7 +3332,7 @@ nsExternalHelperAppService::ValidateFileNameForSaving(
       }
     } else {
       // Determine the current extension for the filename.
-      int32_t dotidx = fileName.RFind(".");
+      int32_t dotidx = fileName.RFind(u".");
       if (dotidx != -1) {
         CopyUTF16toUTF8(Substring(fileName, dotidx + 1), extension);
       }
@@ -3435,10 +3435,11 @@ nsExternalHelperAppService::ValidateFileNameForSaving(
         // If an suitable extension was found, we will append to or replace the
         // existing extension.
         if (!extension.IsEmpty()) {
-          ModifyExtensionType modify =
-              ShouldModifyExtension(mimeInfo, originalExtension);
+          ModifyExtensionType modify = ShouldModifyExtension(
+              mimeInfo, aFlags & VALIDATE_FORCE_APPEND_EXTENSION,
+              originalExtension);
           if (modify == ModifyExtension_Replace) {
-            int32_t dotidx = fileName.RFind(".");
+            int32_t dotidx = fileName.RFind(u".");
             if (dotidx != -1) {
               // Remove the existing extension and replace it.
               fileName.Truncate(dotidx);
@@ -3471,7 +3472,7 @@ nsExternalHelperAppService::ValidateFileNameForSaving(
 
   // If no filename is present, use a default filename.
   if (!(aFlags & VALIDATE_NO_DEFAULT_FILENAME) &&
-      (fileName.Length() == 0 || fileName.RFind(".") == 0)) {
+      (fileName.Length() == 0 || fileName.RFind(u".") == 0)) {
     nsCOMPtr<nsIStringBundleService> stringService =
         mozilla::components::StringBundle::Service();
     if (stringService) {
@@ -3504,8 +3505,8 @@ void nsExternalHelperAppService::SanitizeFileName(nsAString& aFileName,
   nsAutoString fileName(aFileName);
 
   // Replace known invalid characters.
-  fileName.ReplaceChar(u"" KNOWN_PATH_SEPARATORS, '_');
-  fileName.ReplaceChar(u"" FILE_ILLEGAL_CHARACTERS, ' ');
+  fileName.ReplaceChar(u"" KNOWN_PATH_SEPARATORS, u'_');
+  fileName.ReplaceChar(u"" FILE_ILLEGAL_CHARACTERS, u' ');
   fileName.StripChar(char16_t(0));
 
   const char16_t *startStr, *endStr;
@@ -3542,8 +3543,8 @@ void nsExternalHelperAppService::SanitizeFileName(nsAString& aFileName,
   // The number of bytes that the string would occupy if encoded in UTF-8.
   uint32_t bytesLength = 0;
 
-  // The length of the extension.
-  int32_t extensionBytesLength = 0;
+  // The length of the extension in bytes.
+  uint32_t extensionBytesLength = 0;
 
   // This algorithm iterates over each character in the string and appends it
   // or a replacement character if needed to outFileName.
@@ -3555,9 +3556,8 @@ void nsExternalHelperAppService::SanitizeFileName(nsAString& aFileName,
       break;
     }
 
-    if (nextChar == char16_t(0)) {
-      continue;
-    }
+    // nulls are already stripped out above.
+    MOZ_ASSERT(nextChar != char16_t(0));
 
     auto unicodeCategory = unicode::GetGeneralCategory(nextChar);
     if (unicodeCategory == HB_UNICODE_GENERAL_CATEGORY_CONTROL ||
@@ -3600,17 +3600,21 @@ void nsExternalHelperAppService::SanitizeFileName(nsAString& aFileName,
           nextChar = '_';
         }
 
-        lastNonTrimmable = int32_t(outFileName.Length()) + 1;
+        // Don't truncate surrogate pairs in the middle.
+        lastNonTrimmable =
+            int32_t(outFileName.Length()) +
+            (NS_IS_HIGH_SURROGATE(H_SURROGATE(nextChar)) ? 2 : 1);
       }
     }
 
     if (maxBytes) {
       // UTF16CharEnumerator already converts surrogate pairs, so we can use
       // a simple computation of byte length here.
-      bytesLength += nextChar < 0x80      ? 1
-                     : nextChar < 0x800   ? 2
-                     : nextChar < 0x10000 ? 3
-                                          : 4;
+      uint32_t charBytesLength = nextChar < 0x80      ? 1
+                                 : nextChar < 0x800   ? 2
+                                 : nextChar < 0x10000 ? 3
+                                                      : 4;
+      bytesLength += charBytesLength;
       if (bytesLength > maxBytes) {
         if (longFileNameEnd == -1) {
           longFileNameEnd = int32_t(outFileName.Length());
@@ -3618,11 +3622,12 @@ void nsExternalHelperAppService::SanitizeFileName(nsAString& aFileName,
       }
 
       // If we encounter a period, it could be the start of an extension, so
-      // start counting the number of bytes in the extension.
+      // start counting the number of bytes in the extension. If another period
+      // is found, start again since we want to use the last extension found.
       if (nextChar == u'.') {
         extensionBytesLength = 1;  // 1 byte for the period.
       } else if (extensionBytesLength) {
-        extensionBytesLength++;
+        extensionBytesLength += charBytesLength;
       }
     }
 
@@ -3634,10 +3639,10 @@ void nsExternalHelperAppService::SanitizeFileName(nsAString& aFileName,
   // on the filename.
   if (bytesLength > maxBytes && !outFileName.IsEmpty()) {
     // Get the sanitized extension from the filename without the dot.
-    nsAutoCString extension;
-    int32_t dotidx = outFileName.RFind(".");
+    nsAutoString extension;
+    int32_t dotidx = outFileName.RFind(u".");
     if (dotidx != -1) {
-      extension = NS_ConvertUTF16toUTF8(Substring(outFileName, dotidx + 1));
+      extension = Substring(outFileName, dotidx + 1);
     }
 
     // There are two ways in which the filename should be truncated:
@@ -3657,20 +3662,24 @@ void nsExternalHelperAppService::SanitizeFileName(nsAString& aFileName,
       longFileNameEnd -= extensionBytesLength;
       if (longFileNameEnd <= 0) {
         // This is extremely unlikely, but if the extension is larger than the
-        // maximum size, just get rid of it.
-        outFileName.Truncate(maxBytes);
+        // maximum size, just get rid of it. In this case, the extension
+        // wouldn't have been an ordinary one we would want to preserve (such
+        // as .html or .png) so just truncate off the file wherever the first
+        // period appears.
+        int32_t dotidx = outFileName.Find(u".");
+        outFileName.Truncate(dotidx > 0 ? dotidx : 1);
       } else {
         outFileName.Truncate(std::min(longFileNameEnd, lastNonTrimmable));
-      }
 
-      // Now that the filename has been truncated, re-append the extension
-      // again.
-      if (!extension.IsEmpty()) {
-        if (outFileName.Last() != '.') {
-          outFileName.AppendLiteral(".");
+        // Now that the filename has been truncated, re-append the extension
+        // again.
+        if (!extension.IsEmpty()) {
+          if (outFileName.Last() != '.') {
+            outFileName.AppendLiteral(".");
+          }
+
+          outFileName.Append(extension);
         }
-
-        outFileName.Append(NS_ConvertUTF8toUTF16(extension));
       }
     }
   } else if (lastNonTrimmable >= 0) {
@@ -3684,6 +3693,7 @@ void nsExternalHelperAppService::SanitizeFileName(nsAString& aFileName,
 
 nsExternalHelperAppService::ModifyExtensionType
 nsExternalHelperAppService::ShouldModifyExtension(nsIMIMEInfo* aMimeInfo,
+                                                  bool aForceAppend,
                                                   const nsCString& aFileExt) {
   nsAutoCString MIMEType;
   if (!aMimeInfo || NS_FAILED(aMimeInfo->GetMIMEType(MIMEType))) {
@@ -3708,7 +3718,7 @@ nsExternalHelperAppService::ShouldModifyExtension(nsIMIMEInfo* aMimeInfo,
     }
 
     if (!canForce) {
-      return ModifyExtension_Ignore;
+      return aForceAppend ? ModifyExtension_Append : ModifyExtension_Ignore;
     }
   }
 

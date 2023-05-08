@@ -364,6 +364,14 @@ class CallFlags {
   friend class CacheIRWriter;
 };
 
+// In baseline, we have to copy args onto the stack. Below this threshold, we
+// will unroll the arg copy loop. We need to clamp this before providing it as
+// an arg to a CacheIR op so that everything 5 or greater can share an IC.
+const uint32_t MaxUnrolledArgCopy = 5;
+inline uint32_t ClampFixedArgc(uint32_t argc) {
+  return std::min(argc, MaxUnrolledArgCopy);
+}
+
 enum class AttachDecision {
   // We cannot attach a stub.
   NoAction,
@@ -494,6 +502,7 @@ inline int32_t GetIndexOfArgument(ArgumentKind kind, CallFlags flags,
 // in the IR, to keep the IR compact and the same size on all platforms.
 enum class GuardClassKind : uint8_t {
   Array,
+  PlainObject,
   ArrayBuffer,
   SharedArrayBuffer,
   DataView,

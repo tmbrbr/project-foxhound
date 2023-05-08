@@ -596,6 +596,15 @@ def image_digest(args):
 )
 @argument("--base-repository", required=True, help='URL for "base" repository to clone')
 @argument(
+    "--base-ref", default="", help='Reference of the revision in the "base" repository'
+)
+@argument(
+    "--base-rev",
+    default="",
+    help="Taskgraph decides what to do based on the revision range between "
+    "`--base-rev` and `--head-rev`. Value is determined automatically if not provided",
+)
+@argument(
     "--head-repository",
     required=True,
     help='URL for "head" repository to fetch revision from',
@@ -675,8 +684,8 @@ def action_callback(options):
 def test_action_callback(options):
     import taskgraph.parameters
     import gecko_taskgraph.actions
+    from taskgraph.config import load_graph_config
     from taskgraph.util import yaml
-    from gecko_taskgraph.config import load_graph_config
 
     def load_data(filename):
         with open(filename) as f:

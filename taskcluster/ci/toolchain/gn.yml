@@ -6,7 +6,7 @@ job-defaults:
     description: "gn toolchain build"
     attributes:
         local-toolchain: true
-    worker-type: b-linux
+    worker-type: b-linux-gcp
     worker:
         max-run-time: 1800
     run:
@@ -33,7 +33,7 @@ macosx64-gn:
         toolchain:
             - linux64-cctools-port
             - linux64-clang-toolchain
-            - macosx64-sdk-11.0
+            - macosx64-sdk
 
 win64-gn:
     treeherder:

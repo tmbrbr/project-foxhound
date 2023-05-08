@@ -4,12 +4,12 @@
 
 "use strict";
 
-var DevToolsUtils = require("devtools/shared/DevToolsUtils");
+var DevToolsUtils = require("resource://devtools/shared/DevToolsUtils.js");
 
 loader.lazyRequireGetter(
   this,
   "MainThreadWorkerDebuggerTransport",
-  "devtools/shared/transport/worker-transport",
+  "resource://devtools/shared/transport/worker-transport.js",
   true
 );
 
@@ -114,6 +114,11 @@ function connectToWorker(connection, dbg, forwardingPrefix, options) {
           id: dbg.id,
           type: dbg.type,
           url: absoluteURL,
+          // We don't have access to Services.prefs in Worker thread, so pass its value
+          // from here.
+          workerConsoleApiMessagesDispatchedToMainThread: Services.prefs.getBoolPref(
+            "dom.worker.console.dispatch_events_to_main_thread"
+          ),
         },
       })
     );
@@ -191,7 +196,7 @@ function connectToWorker(connection, dbg, forwardingPrefix, options) {
 
         resolve({
           workerTargetForm: message.workerTargetForm,
-          transport: transport,
+          transport,
         });
       },
     };

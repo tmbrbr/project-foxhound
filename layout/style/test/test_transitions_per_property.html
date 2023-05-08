@@ -61,6 +61,7 @@ var FUNC_NEGATIVE = "cubic-bezier(0.25, -2, 0.75, 1)";
 var FUNC_OVERONE = "cubic-bezier(0.25, 0, 0.75, 3)";
 
 var supported_properties = {
+    "aspect-ratio" : [ test_aspect_ratio_transition ],
     "border-bottom-left-radius": [ test_radius_transition ],
     "border-bottom-right-radius": [ test_radius_transition ],
     "border-top-left-radius": [ test_radius_transition ],
@@ -424,38 +425,9 @@ if (IsCSSPropertyPrefEnabled("layout.css.individual-transform.enabled")) {
   supported_properties["translate"] = [ test_translate_transition ];
 }
 
-if (IsCSSPropertyPrefEnabled("layout.css.aspect-ratio.enabled")) {
-  function test_aspect_ratio_transition(prop) {
-    [
-      // No transition between auto and <ratio>.
-      { start: "auto", end: "1 / 1",
-        expected: "1 / 1" },
-      // No transition between auto && <ratio> and <ratio>.
-      { start: "auto 1 / 1", end: "1 / 1",
-        expected: "1 / 1" },
-      // No transition between auto && <ratio> and auto.
-      { start: "auto 1 / 1", end: "auto",
-        expected: "auto" },
-      { start: "1 / 2", end: "8 / 1",
-        expected: "1 / 1" },
-      { start: "auto 1 / 2", end: "auto 8 / 1",
-        expected: "auto 1 / 1" },
-    ].forEach(test => {
-      div.style.transitionProperty = 'none';
-      div.style[prop] = test.start;
-      is(cs[prop], test.start,
-         `aspect-ratio: computed value before transition`);
-      div.style.transitionProperty = prop;
-      div.style[prop] = test.end;
-      is(cs[prop], test.expected,
-         `aspect-ratio: interpolation of aspect-ratio`);
-      // We check distance only if there is a transition.
-      if (test.end != test.expected) {
-        check_distance(prop, test.start, test.expected, test.end);
-      }
-    });
-  }
-  supported_properties["aspect-ratio"] = [ test_aspect_ratio_transition ];
+if (IsCSSPropertyPrefEnabled("layout.css.contain-intrinsic-size.enabled")) {
+  supported_properties["contain-intrinsic-width"] = [ test_length_transition, test_auto_with_length_transition ];
+  supported_properties["contain-intrinsic-height"] = supported_properties["contain-intrinsic-width"];
 }
 
 supported_properties["scrollbar-color"] = [
@@ -487,6 +459,9 @@ for (const logical_size of ["inline", "block"]) {
   supported_properties[logical_size + "-size"] = supported_properties["width"];
   supported_properties["min-" + logical_size + "-size"] = supported_properties["min-width"];
   supported_properties["max-" + logical_size + "-size"] = supported_properties["max-width"];
+  if (IsCSSPropertyPrefEnabled("layout.css.contain-intrinsic-size.enabled")) {
+    supported_properties["contain-intrinsic-" + logical_size + "-size"] = supported_properties["contain-intrinsic-width"];
+  }
 }
 
 var div = document.getElementById("display");
@@ -3097,6 +3072,49 @@ function test_font_variations_transition(prop) {
   is(cs.getPropertyValue(prop), "\"wght\" 1.5, \"wdth\" 0.75",
      "font-variation-settings property " + prop + ": interpolation of font-variation-settings");
   check_distance(prop, "\"wght\" 2, \"wdth\" 0.5", "\"wght\" 1.5, \"wdth\" 0.75", "\"wght\" 0, \"wdth\" 1.5");
+}
+
+function test_aspect_ratio_transition(prop) {
+  [
+    // No transition between auto and <ratio>.
+    { start: "auto", end: "1 / 1",
+      expected: "1 / 1" },
+    // No transition between auto && <ratio> and <ratio>.
+    { start: "auto 1 / 1", end: "1 / 1",
+      expected: "1 / 1" },
+    // No transition between auto && <ratio> and auto.
+    { start: "auto 1 / 1", end: "auto",
+      expected: "auto" },
+    { start: "1 / 2", end: "8 / 1",
+      expected: "1 / 1" },
+    { start: "auto 1 / 2", end: "auto 8 / 1",
+      expected: "auto 1 / 1" },
+  ].forEach(test => {
+    div.style.transitionProperty = 'none';
+    div.style[prop] = test.start;
+    is(cs[prop], test.start,
+       `aspect-ratio: computed value before transition`);
+    div.style.transitionProperty = prop;
+    div.style[prop] = test.end;
+    is(cs[prop], test.expected,
+       `aspect-ratio: interpolation of aspect-ratio`);
+    // We check distance only if there is a transition.
+    if (test.end != test.expected) {
+      check_distance(prop, test.start, test.expected, test.end);
+    }
+  });
+}
+
+function test_auto_with_length_transition(prop) {
+  div.style.setProperty("transition-property", "none", "");
+  div.style.setProperty(prop, "auto 4px", "");
+  is(cs.getPropertyValue(prop), "auto 4px",
+     "auto+length-valued property " + prop + ": computed value before transition");
+  div.style.setProperty("transition-property", prop, "");
+  div.style.setProperty(prop, "auto 12px", "");
+  is(cs.getPropertyValue(prop), "auto 6px",
+     "auto+length-valued property " + prop + ": interpolation of lengths");
+  check_distance(prop, "auto 4px", "auto 6px", "auto 12px");
 }
 
 var OMTAdiv;

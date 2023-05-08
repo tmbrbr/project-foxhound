@@ -10,7 +10,7 @@ use euclid::default::Transform3D;
 use crate::glyph_rasterizer::GlyphFormat;
 use crate::renderer::{
     desc,
-    BlendMode, DebugFlags, RendererError, RendererOptions,
+    BlendMode, DebugFlags, RendererError, WebRenderOptions,
     TextureSampler, VertexArrayKind, ShaderPrecacheFlags,
 };
 use crate::profiler::{self, TransactionProfile, ns_to_ms};
@@ -277,6 +277,7 @@ impl LazilyCompiledShader {
                             ("sGpuCache", TextureSampler::GpuCache),
                             ("sPrimitiveHeadersF", TextureSampler::PrimitiveHeadersF),
                             ("sPrimitiveHeadersI", TextureSampler::PrimitiveHeadersI),
+                            ("sGpuBuffer", TextureSampler::GpuBuffer),
                         ],
                     );
                 }
@@ -294,6 +295,7 @@ impl LazilyCompiledShader {
                             ("sPrimitiveHeadersF", TextureSampler::PrimitiveHeadersF),
                             ("sPrimitiveHeadersI", TextureSampler::PrimitiveHeadersI),
                             ("sClipMask", TextureSampler::ClipMask),
+                            ("sGpuBuffer", TextureSampler::GpuBuffer),
                         ],
                     );
                 }
@@ -435,7 +437,6 @@ impl BrushShader {
             BlendMode::Alpha |
             BlendMode::PremultipliedAlpha |
             BlendMode::PremultipliedDestOut |
-            BlendMode::SubpixelConstantTextColor(..) |
             BlendMode::SubpixelWithBgColor |
             BlendMode::Screen |
             BlendMode::PlusLighter |
@@ -650,7 +651,7 @@ impl Shaders {
     pub fn new(
         device: &mut Device,
         gl_type: GlType,
-        options: &RendererOptions,
+        options: &WebRenderOptions,
     ) -> Result<Self, ShaderError> {
         // We have to pass a profile around a bunch but we aren't recording the initialization
         // so use a dummy one.

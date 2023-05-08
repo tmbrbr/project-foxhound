@@ -13,7 +13,6 @@ var principal;
 
 const REPORT_SERVER_PORT = httpServer.identity.primaryPort;
 const REPORT_SERVER_URI = "http://localhost";
-const REPORT_SERVER_PATH = "/report";
 
 /**
  * Construct a callback that listens to a report submission and either passes
@@ -121,7 +120,7 @@ function run_test() {
   makeTest(0, { "blocked-uri": "inline" }, false, function(csp) {
     let inlineOK = true;
     inlineOK = csp.getAllowsInline(
-      Ci.nsIContentSecurityPolicy.SCRIPT_SRC_DIRECTIVE,
+      Ci.nsIContentSecurityPolicy.SCRIPT_SRC_ELEM_DIRECTIVE,
       "", // aNonce
       false, // aParserCreated
       null, // aTriggeringElement
@@ -193,7 +192,7 @@ function run_test() {
   makeTest(3, { "blocked-uri": "inline" }, true, function(csp) {
     let inlineOK = true;
     inlineOK = csp.getAllowsInline(
-      Ci.nsIContentSecurityPolicy.SCRIPT_SRC_DIRECTIVE,
+      Ci.nsIContentSecurityPolicy.SCRIPT_SRC_ELEM_DIRECTIVE,
       "", // aNonce
       false, // aParserCreated
       null, // aTriggeringElement

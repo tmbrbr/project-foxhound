@@ -55,7 +55,7 @@
       });
 
       // for things that we need to initialize after onload fires
-      window.addEventListener("load", event => this.postLoadInit(event));
+      window.addEventListener("load", () => this._postLoadInit());
     }
 
     static get observedAttributes() {
@@ -97,7 +97,6 @@
         ? `
       <hbox class="dialog-button-box">
         <button dlgtype="disclosure" hidden="true"/>
-        <button dlgtype="help" hidden="true"/>
         <button dlgtype="extra2" hidden="true"/>
         <button dlgtype="extra1" hidden="true"/>
         <spacer class="button-spacer" part="button-spacer" flex="1"/>
@@ -111,18 +110,8 @@
         <button dlgtype="accept"/>
         <button dlgtype="extra1" hidden="true"/>
         <button dlgtype="cancel"/>
-        <button dlgtype="help" hidden="true"/>
         <button dlgtype="disclosure" hidden="true"/>
       </hbox>`;
-
-      let key =
-        AppConstants.platform == "macosx"
-          ? `<key phase="capturing"
-            oncommand="document.querySelector('dialog').openHelp(event)"
-            key="&openHelpMac.commandkey;" modifiers="accel"/>`
-          : `<key phase="capturing"
-            oncommand="document.querySelector('dialog').openHelp(event)"
-            keycode="&openHelp.commandkey;"/>`;
 
       return `
       <html:link rel="stylesheet" href="chrome://global/skin/button.css"/>
@@ -131,8 +120,7 @@
       <vbox class="box-inherit dialog-content-box" part="content-box" flex="1">
         <html:slot></html:slot>
       </vbox>
-      ${buttons}
-      <keyset>${key}</keyset>`;
+      ${buttons}`;
     }
 
     connectedCallback() {
@@ -144,9 +132,7 @@
 
       this.shadowRoot.textContent = "";
       this.shadowRoot.appendChild(
-        MozXULElement.parseXULToFragment(this._markup, [
-          "chrome://global/locale/globalKeys.dtd",
-        ])
+        MozXULElement.parseXULToFragment(this._markup)
       );
       this.initializeAttributeInheritance();
 
@@ -254,85 +240,97 @@
       window.moveTo(xOffset, yOffset);
     }
 
-    postLoadInit(aEvent) {
-      let focusInit = () => {
-        const defaultButton = this.getButton(this.defaultButton);
+    // Give focus to the first focusable element in the dialog
+    _setInitialFocusIfNeeded() {
+      let focusedElt = document.commandDispatcher.focusedElement;
+      if (focusedElt) {
+        return;
+      }
 
-        // give focus to the first focusable element in the dialog
-        let focusedElt = document.commandDispatcher.focusedElement;
-        if (!focusedElt) {
-          Services.focus.moveFocus(
-            window,
-            null,
-            Services.focus.MOVEFOCUS_FORWARD,
-            Services.focus.FLAG_NOPARENTFRAME
-          );
+      const defaultButton = this.getButton(this.defaultButton);
+      Services.focus.moveFocus(
+        window,
+        null,
+        Services.focus.MOVEFOCUS_FORWARD,
+        Services.focus.FLAG_NOPARENTFRAME
+      );
 
-          focusedElt = document.commandDispatcher.focusedElement;
-          if (focusedElt) {
-            var initialFocusedElt = focusedElt;
-            while (
-              focusedElt.localName == "tab" ||
-              focusedElt.getAttribute("noinitialfocus") == "true"
-            ) {
-              Services.focus.moveFocus(
-                window,
-                focusedElt,
-                Services.focus.MOVEFOCUS_FORWARD,
-                Services.focus.FLAG_NOPARENTFRAME
-              );
-              focusedElt = document.commandDispatcher.focusedElement;
-              if (focusedElt) {
-                if (focusedElt == initialFocusedElt) {
-                  if (focusedElt.getAttribute("noinitialfocus") == "true") {
-                    focusedElt.blur();
-                  }
-                  break;
-                }
-              }
-            }
+      focusedElt = document.commandDispatcher.focusedElement;
+      if (!focusedElt) {
+        return; // No focusable element?
+      }
 
-            if (initialFocusedElt.localName == "tab") {
-              if (focusedElt.hasAttribute("dlgtype")) {
-                // We don't want to focus on anonymous OK, Cancel, etc. buttons,
-                // so return focus to the tab itself
-                initialFocusedElt.focus();
-              }
-            } else if (
-              AppConstants.platform != "macosx" &&
-              focusedElt.hasAttribute("dlgtype") &&
-              focusedElt != defaultButton
-            ) {
-              defaultButton.focus();
-            }
+      let firstFocusedElt = focusedElt;
+      while (
+        focusedElt.localName == "tab" ||
+        focusedElt.getAttribute("noinitialfocus") == "true"
+      ) {
+        Services.focus.moveFocus(
+          window,
+          focusedElt,
+          Services.focus.MOVEFOCUS_FORWARD,
+          Services.focus.FLAG_NOPARENTFRAME
+        );
+        focusedElt = document.commandDispatcher.focusedElement;
+        if (focusedElt == firstFocusedElt) {
+          if (focusedElt.getAttribute("noinitialfocus") == "true") {
+            focusedElt.blur();
+          }
+          // Didn't find anything else to focus, we're done.
+          return;
+        }
+      }
+
+      if (firstFocusedElt.localName == "tab") {
+        if (focusedElt.hasAttribute("dlgtype")) {
+          // We don't want to focus on anonymous OK, Cancel, etc. buttons,
+          // so return focus to the tab itself
+          firstFocusedElt.focus();
+        }
+      } else if (
+        AppConstants.platform != "macosx" &&
+        focusedElt.hasAttribute("dlgtype") &&
+        focusedElt != defaultButton
+      ) {
+        defaultButton.focus();
+        if (document.commandDispatcher.focusedElement != defaultButton) {
+          // If the default button is not focusable, then return focus to the
+          // initial element if possible, or blur otherwise.
+          if (firstFocusedElt.getAttribute("noinitialfocus") == "true") {
+            focusedElt.blur();
+          } else {
+            firstFocusedElt.focus();
           }
         }
-
-        try {
-          if (defaultButton) {
-            window.notifyDefaultButtonLoaded(defaultButton);
-          }
-        } catch (e) {}
-      };
-
-      // Give focus after onload completes, see bug 103197.
-      setTimeout(focusInit, 0);
-
-      if (this._l10nButtons.length) {
-        document.l10n.translateElements(this._l10nButtons).then(() => {
-          window.sizeToContent();
-        });
       }
     }
 
-    openHelp(event) {
-      var helpButton = this.getButton("help");
-      if (helpButton.disabled || helpButton.hidden) {
+    async _postLoadInit() {
+      this._setInitialFocusIfNeeded();
+      if (this._l10nButtons.length) {
+        await document.l10n.translateElements(this._l10nButtons);
+        // FIXME(emilio): Should this be outside the if condition?
+        window.sizeToContent();
+      }
+      await this._snapCursorToDefaultButtonIfNeeded();
+    }
+
+    // This snaps the cursor to the default button rect on windows, when
+    // SPI_GETSNAPTODEFBUTTON is set.
+    async _snapCursorToDefaultButtonIfNeeded() {
+      const defaultButton = this.getButton(this.defaultButton);
+      if (!defaultButton) {
         return;
       }
-      this._fireButtonEvent("help");
-      event.stopPropagation();
-      event.preventDefault();
+      try {
+        // FIXME(emilio, bug 1797624): This setTimeout() ensures enough time
+        // has passed so that the dialog vertical margin has been set by the
+        // front-end. For subdialogs, cursor positioning should probably be
+        // done by the opener instead, once the dialog is positioned.
+        await new Promise(r => setTimeout(r, 0));
+        await window.promiseDocumentFlushed(() => {});
+        window.notifyDefaultButtonLoaded(defaultButton);
+      } catch (e) {}
     }
 
     _configureButtons(aButtons) {
@@ -340,14 +338,7 @@
       var buttons = {};
       this._buttons = buttons;
 
-      for (let type of [
-        "accept",
-        "cancel",
-        "extra1",
-        "extra2",
-        "help",
-        "disclosure",
-      ]) {
+      for (let type of ["accept", "cancel", "extra1", "extra2", "disclosure"]) {
         buttons[type] = this.shadowRoot.querySelector(`[dlgtype="${type}"]`);
       }
 
@@ -417,7 +408,6 @@
         var shown = {
           accept: false,
           cancel: false,
-          help: false,
           disclosure: false,
           extra1: false,
           extra2: false,

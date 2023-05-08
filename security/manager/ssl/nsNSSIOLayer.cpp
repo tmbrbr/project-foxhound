@@ -429,6 +429,7 @@ void nsNSSSocketInfo::SetCertVerificationWaiting() {
 // attempt to acquire locks that are already held by libssl when it calls
 // callbacks.
 void nsNSSSocketInfo::SetCertVerificationResult(PRErrorCode errorCode) {
+  SetUsedPrivateDNS(GetProviderFlags() & nsISocketProvider::USED_PRIVATE_DNS);
   MOZ_ASSERT(mCertVerificationState == waiting_for_cert_verification,
              "Invalid state transition to cert_verification_finished");
 
@@ -773,9 +774,7 @@ PRStatus nsNSSSocketInfo::CloseSocketAndDestroy() {
 
   // We need to clear the callback to make sure the ssl layer cannot call the
   // callback after mFD is nulled.
-  if (StaticPrefs::network_ssl_tokens_cache_enabled()) {
-    SSL_SetResumptionTokenCallback(mFd, nullptr, nullptr);
-  }
+  SSL_SetResumptionTokenCallback(mFd, nullptr, nullptr);
 
   PRStatus status = mFd->methods->close(mFd);
 
@@ -900,10 +899,6 @@ nsNSSSocketInfo::GetPeerId(nsACString& aResult) {
 }
 
 nsresult nsNSSSocketInfo::SetResumptionTokenFromExternalCache() {
-  if (!StaticPrefs::network_ssl_tokens_cache_enabled()) {
-    return NS_OK;
-  }
-
   if (!mFd) {
     return NS_ERROR_FAILURE;
   }
@@ -925,7 +920,9 @@ nsresult nsNSSSocketInfo::SetResumptionTokenFromExternalCache() {
     return rv;
   }
 
-  rv = mozilla::net::SSLTokensCache::Get(peerId, token);
+  uint64_t tokenId = 0;
+  mozilla::net::SessionCacheInfo info;
+  rv = mozilla::net::SSLTokensCache::Get(peerId, token, info, &tokenId);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_NOT_AVAILABLE) {
       // It's ok if we can't find the token.
@@ -938,7 +935,7 @@ nsresult nsNSSSocketInfo::SetResumptionTokenFromExternalCache() {
   SECStatus srv = SSL_SetResumptionToken(mFd, token.Elements(), token.Length());
   if (srv == SECFailure) {
     PRErrorCode error = PR_GetError();
-    mozilla::net::SSLTokensCache::Remove(peerId);
+    mozilla::net::SSLTokensCache::Remove(peerId, tokenId);
     MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
             ("Setting token failed with NSS error %d [id=%s]", error,
              PromiseFlatCString(peerId).get()));
@@ -951,6 +948,8 @@ nsresult nsNSSSocketInfo::SetResumptionTokenFromExternalCache() {
 
     return NS_ERROR_FAILURE;
   }
+
+  SetSessionCacheInfo(std::move(info));
 
   return NS_OK;
 }
@@ -1200,6 +1199,37 @@ static void reportHandshakeResult(int32_t bytesTransferred, bool wasReading,
       break;
   }
   Telemetry::Accumulate(Telemetry::SSL_HANDSHAKE_RESULT, bucket);
+
+  if (bucket == 0) {
+    // Web Privacy Telemetry for successful connections.
+    bool success = true;
+
+    bool usedPrivateDNS = false;
+    success &= socketInfo->GetUsedPrivateDNS(&usedPrivateDNS) == NS_OK;
+
+    bool madeOCSPRequest = false;
+    success &= socketInfo->GetMadeOCSPRequests(&madeOCSPRequest) == NS_OK;
+
+    uint16_t protocolVersion = 0;
+    success &= socketInfo->GetProtocolVersion(&protocolVersion) == NS_OK;
+    bool usedTLS13 = protocolVersion == 4;
+
+    bool usedECH = false;
+    success &= socketInfo->GetIsAcceptedEch(&usedECH) == NS_OK;
+
+    // As bucket is 0 we are reporting the results of a sucessful connection
+    // and so TransportSecurityInfo should be populated. However, this isn't
+    // happening in all cases, see Bug 1789458.
+    if (success) {
+      uint8_t TLSPrivacyResult = 0;
+      TLSPrivacyResult |= usedTLS13 << 0;
+      TLSPrivacyResult |= !madeOCSPRequest << 1;
+      TLSPrivacyResult |= usedPrivateDNS << 2;
+      TLSPrivacyResult |= usedECH << 3;
+
+      Telemetry::Accumulate(Telemetry::SSL_HANDSHAKE_PRIVACY, TLSPrivacyResult);
+    }
+  }
 }
 
 int32_t checkHandshake(int32_t bytesTransfered, bool wasReading,
@@ -1819,7 +1849,8 @@ bool nsSSLIOLayerHelpers::treatUnsafeNegotiationAsBroken() {
 nsresult nsSSLIOLayerNewSocket(int32_t family, const char* host, int32_t port,
                                nsIProxyInfo* proxy,
                                const OriginAttributes& originAttributes,
-                               PRFileDesc** fd, nsISupports** info,
+                               PRFileDesc** fd,
+                               nsISSLSocketControl** tlsSocketControl,
                                bool forSTARTTLS, uint32_t flags,
                                uint32_t tlsFlags) {
   PRFileDesc* sock = PR_OpenTCPSocket(family);
@@ -1827,7 +1858,7 @@ nsresult nsSSLIOLayerNewSocket(int32_t family, const char* host, int32_t port,
 
   nsresult rv =
       nsSSLIOLayerAddToSocket(family, host, port, proxy, originAttributes, sock,
-                              info, forSTARTTLS, flags, tlsFlags);
+                              tlsSocketControl, forSTARTTLS, flags, tlsFlags);
   if (NS_FAILED(rv)) {
     PR_Close(sock);
     return rv;
@@ -2123,7 +2154,8 @@ SECStatus StoreResumptionToken(PRFileDesc* fd, const PRUint8* resumptionToken,
 nsresult nsSSLIOLayerAddToSocket(int32_t family, const char* host, int32_t port,
                                  nsIProxyInfo* proxy,
                                  const OriginAttributes& originAttributes,
-                                 PRFileDesc* fd, nsISupports** info,
+                                 PRFileDesc* fd,
+                                 nsISSLSocketControl** tlsSocketControl,
                                  bool forSTARTTLS, uint32_t providerFlags,
                                  uint32_t providerTlsFlags) {
   PRFileDesc* layer = nullptr;
@@ -2207,9 +2239,8 @@ nsresult nsSSLIOLayerAddToSocket(int32_t family, const char* host, int32_t port,
     goto loser;
   }
 
-  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
-          ("[%p] Socket set up\n", (void*)sslSock));
-  infoObject->QueryInterface(NS_GET_IID(nsISupports), (void**)(info));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("[%p] Socket set up", (void*)sslSock));
+  *tlsSocketControl = do_AddRef(infoObject).take();
 
   // We are going use a clear connection first //
   if (forSTARTTLS || haveProxy) {
@@ -2218,13 +2249,11 @@ nsresult nsSSLIOLayerAddToSocket(int32_t family, const char* host, int32_t port,
 
   infoObject->SharedState().NoteSocketCreated();
 
-  if (StaticPrefs::network_ssl_tokens_cache_enabled()) {
-    rv = infoObject->SetResumptionTokenFromExternalCache();
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    SSL_SetResumptionTokenCallback(sslSock, &StoreResumptionToken, infoObject);
+  rv = infoObject->SetResumptionTokenFromExternalCache();
+  if (NS_FAILED(rv)) {
+    return rv;
   }
+  SSL_SetResumptionTokenCallback(sslSock, &StoreResumptionToken, infoObject);
 
   return NS_OK;
 loser:

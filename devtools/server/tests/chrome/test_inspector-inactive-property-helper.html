@@ -10,8 +10,7 @@
 SimpleTest.waitForExplicitFinish();
 
 (async function() {
-  const { require } = ChromeUtils.import("resource://devtools/shared/loader/Loader.jsm");
-  const Services = require("Services");
+  const { require } = ChromeUtils.importESModule("resource://devtools/shared/loader/Loader.sys.mjs");
   const { isPropertyUsed } = require("devtools/server/actors/utils/inactive-property-helper");
 
   const INACTIVE_CSS_PREF = "devtools.inspector.inactive.css.enabled";
@@ -55,6 +54,7 @@ SimpleTest.waitForExplicitFinish();
     "vertical-align.js",
     "table.js",
     "text-overflow.js",
+    "width-height-ruby.js",
   ].map(file => `${FOLDER}/${file}`);
 
   // Import all the test cases

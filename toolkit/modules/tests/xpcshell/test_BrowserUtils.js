@@ -5,15 +5,17 @@ const { AppConstants } = ChromeUtils.import(
   "resource://gre/modules/AppConstants.jsm"
 );
 
-const { BrowserUtils } = ChromeUtils.import(
-  "resource://gre/modules/BrowserUtils.jsm"
+const { BrowserUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/BrowserUtils.sys.mjs"
 );
 
-const { EnterprisePolicyTesting } = ChromeUtils.import(
-  "resource://testing-common/EnterprisePolicyTesting.jsm"
+const { EnterprisePolicyTesting } = ChromeUtils.importESModule(
+  "resource://testing-common/EnterprisePolicyTesting.sys.mjs"
 );
 
-const { Region } = ChromeUtils.import("resource://gre/modules/Region.jsm");
+const { Region } = ChromeUtils.importESModule(
+  "resource://gre/modules/Region.sys.mjs"
+);
 
 const { updateAppInfo } = ChromeUtils.import(
   "resource://testing-common/AppInfo.jsm"
@@ -188,6 +190,7 @@ add_task(async function test_shouldShowFocusPromo() {
 });
 
 add_task(async function test_shouldShowPinPromo() {
+  Preferences.set("browser.promo.pin.enabled", true);
   // Show pin promo type by default when promo is enabled
   Assert.ok(BrowserUtils.shouldShowPromo(BrowserUtils.PromoType.PIN));
 

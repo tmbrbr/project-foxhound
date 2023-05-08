@@ -9,7 +9,9 @@ var EXPORTED_SYMBOLS = ["AddonUtils"];
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { Log } = ChromeUtils.import("resource://gre/modules/Log.jsm");
+const { Log } = ChromeUtils.importESModule(
+  "resource://gre/modules/Log.sys.mjs"
+);
 const { Svc } = ChromeUtils.import("resource://services-sync/util.js");
 
 const lazy = {};
@@ -311,7 +313,7 @@ AddonUtilsInternal.prototype = {
 
     await Promise.all(installPromises);
 
-    if (ourResult.errors.length > 0) {
+    if (ourResult.errors.length) {
       throw new Error("1 or more add-ons failed to install");
     }
     return ourResult;

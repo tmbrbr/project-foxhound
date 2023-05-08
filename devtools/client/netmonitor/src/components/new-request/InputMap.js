@@ -4,10 +4,15 @@
 
 "use strict";
 
-const { Component, createRef } = require("devtools/client/shared/vendor/react");
-const { L10N } = require("devtools/client/netmonitor/src/utils/l10n");
-const PropTypes = require("devtools/client/shared/vendor/react-prop-types");
-const dom = require("devtools/client/shared/vendor/react-dom-factories");
+const {
+  Component,
+  createRef,
+} = require("resource://devtools/client/shared/vendor/react.js");
+const {
+  L10N,
+} = require("resource://devtools/client/netmonitor/src/utils/l10n.js");
+const PropTypes = require("resource://devtools/client/shared/vendor/react-prop-types.js");
+const dom = require("resource://devtools/client/shared/vendor/react-dom-factories.js");
 const { div, input, textarea, button } = dom;
 
 const CUSTOM_NEW_REQUEST_INPUT_NAME = L10N.getStr(
@@ -80,6 +85,7 @@ class InputMap extends Component {
         return div(
           {
             className: "tabpanel-summary-container http-custom-input",
+            id: `http-custom-${item.name.toLowerCase()}`,
             key: index,
           },
           input({
@@ -188,7 +194,7 @@ class InputMap extends Component {
                 className: "http-custom-input-value",
                 type: "text",
                 ref: "addInputValue",
-                value: value,
+                value,
                 onChange: e => this.setState({ value: e.target.value }),
                 rows: 1,
                 placeholder: CUSTOM_NEW_REQUEST_INPUT_VALUE,

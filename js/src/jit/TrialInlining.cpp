@@ -233,6 +233,8 @@ Maybe<InlinableCallData> FindInlinableCallData(ICCacheIRStub* stub) {
         ObjOperandId calleeOperand = reader.objOperandId();
         mozilla::DebugOnly<Int32OperandId> argcId = reader.int32OperandId();
         flags = reader.callFlags();
+        mozilla::DebugOnly<uint32_t> argcFixed = reader.uint32Immediate();
+        MOZ_ASSERT(argcFixed <= MaxUnrolledArgCopy);
 
         if (calleeOperand == calleeGuardOperand) {
           MOZ_ASSERT(static_cast<OperandId&>(argcId).id() == 0);
@@ -247,6 +249,8 @@ Maybe<InlinableCallData> FindInlinableCallData(ICCacheIRStub* stub) {
         mozilla::DebugOnly<Int32OperandId> argcId = reader.int32OperandId();
         uint32_t icScriptOffset = reader.stubOffset();
         flags = reader.callFlags();
+        mozilla::DebugOnly<uint32_t> argcFixed = reader.uint32Immediate();
+        MOZ_ASSERT(argcFixed <= MaxUnrolledArgCopy);
 
         if (calleeOperand == calleeGuardOperand) {
           MOZ_ASSERT(static_cast<OperandId&>(argcId).id() == 0);
@@ -434,9 +438,12 @@ static uint32_t GetMaxCalleeNumActuals(BytecodeLocation loc) {
       return 1;
 
     case JSOp::Call:
+    case JSOp::CallContent:
     case JSOp::CallIgnoresRv:
     case JSOp::CallIter:
+    case JSOp::CallContentIter:
     case JSOp::New:
+    case JSOp::NewContent:
     case JSOp::SuperCall:
       return loc.getCallArgc();
 
@@ -656,7 +663,8 @@ bool TrialInliner::maybeInlineCall(ICEntry& entry, ICFallbackStub* fallback,
   cloneSharedPrefix(stub, data->endOfSharedPrefix, writer);
 
   writer.callInlinedFunction(data->calleeOperand, argcId, newICScript,
-                             data->callFlags);
+                             data->callFlags,
+                             ClampFixedArgc(loc.getCallArgc()));
   writer.returnFromIC();
 
   return replaceICStub(entry, fallback, writer, CacheKind::Call);
@@ -753,9 +761,12 @@ bool TrialInliner::tryInlining() {
     JSOp op = loc.getOp();
     switch (op) {
       case JSOp::Call:
+      case JSOp::CallContent:
       case JSOp::CallIgnoresRv:
       case JSOp::CallIter:
+      case JSOp::CallContentIter:
       case JSOp::New:
+      case JSOp::NewContent:
       case JSOp::SuperCall:
         if (!maybeInlineCall(entry, fallback, loc)) {
           return false;

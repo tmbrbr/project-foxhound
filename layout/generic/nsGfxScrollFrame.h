@@ -37,6 +37,7 @@ class AutoContainsBlendModeCapturer;
 namespace mozilla {
 class PresShell;
 struct ScrollReflowInput;
+struct StyleScrollSnapAlign;
 namespace layers {
 class Layer;
 class WebRenderLayerManager;
@@ -105,7 +106,7 @@ class ScrollFrameHelper : public nsIReflowCallback {
 
   MOZ_CAN_RUN_SCRIPT nsresult FireScrollPortEvent();
   void PostScrollEndEvent();
-  void FireScrollEndEvent();
+  MOZ_CAN_RUN_SCRIPT void FireScrollEndEvent();
   void PostOverflowEvent();
   using PostDestroyData = nsIFrame::PostDestroyData;
   void Destroy(PostDestroyData& aPostDestroyData);
@@ -412,10 +413,14 @@ class ScrollFrameHelper : public nsIReflowCallback {
   nsIFrame* GetFrameForStyle() const;
 
   // Compute all scroll snap related information and store eash snap target
-  // element in |aSnapTargets| if it's provided.
-  ScrollSnapInfo ComputeScrollSnapInfo(SnapTargetSet* aSnapTargets = nullptr);
+  // element in |mSnapTargets|.
+  ScrollSnapInfo ComputeScrollSnapInfo();
 
   bool NeedsScrollSnap() const;
+
+  // Returns the snapport size of this scroll container.
+  // https://drafts.csswg.org/css-scroll-snap/#scroll-snapport
+  nsSize GetSnapportSize() const;
 
   // Schedule the scroll-linked animations.
   void ScheduleScrollAnimations();
@@ -464,18 +469,7 @@ class ScrollFrameHelper : public nsIReflowCallback {
   void MarkNotRecentlyScrolled();
   nsExpirationState* GetExpirationState() { return &mActivityExpirationState; }
 
-  void SetTransformingByAPZ(bool aTransforming) {
-    if (mTransformingByAPZ && !aTransforming) {
-      PostScrollEndEvent();
-    }
-    mTransformingByAPZ = aTransforming;
-    if (!mozilla::css::TextOverflow::HasClippedTextOverflow(mOuter) ||
-        mozilla::css::TextOverflow::HasBlockEllipsis(mScrolledFrame)) {
-      // If the block has some overflow marker stuff we should kick off a paint
-      // because we have special behaviour for it when APZ scrolling is active.
-      mOuter->SchedulePaint();
-    }
-  }
+  void SetTransformingByAPZ(bool aTransforming);
   bool IsTransformingByAPZ() const { return mTransformingByAPZ; }
   void SetScrollableByAPZ(bool aScrollable);
   void SetZoomableByAPZ(bool aZoomable);
@@ -489,6 +483,9 @@ class ScrollFrameHelper : public nsIReflowCallback {
   void TryResnap();
   void PostPendingResnapIfNeeded(const nsIFrame* aFrame);
   void PostPendingResnap();
+
+  using PhysicalScrollSnapAlign = nsIScrollableFrame::PhysicalScrollSnapAlign;
+  PhysicalScrollSnapAlign GetScrollSnapAlignFor(const nsIFrame* aFrame) const;
 
   static bool ShouldActivateAllScrollFrames();
   nsRect RestrictToRootDisplayPort(const nsRect& aDisplayportBase);
@@ -525,6 +522,7 @@ class ScrollFrameHelper : public nsIReflowCallback {
   bool HasScrollUpdates() const { return !mScrollUpdates.IsEmpty(); }
 
   bool IsLastScrollUpdateAnimating() const;
+  bool IsLastScrollUpdateTriggeredByScriptAnimating() const;
   mozilla::EnumSet<AnimationState> ScrollAnimationState() const;
 
   void ResetScrollInfoIfNeeded(const MainThreadScrollGeneration& aGeneration,
@@ -790,6 +788,10 @@ class ScrollFrameHelper : public nsIReflowCallback {
   // the most recent scroll request is a smooth scroll, and it is cleared when
   // mApzAnimationInProgress is updated.
   bool mApzAnimationRequested : 1;
+
+  // Similar to above mApzAnimationRequested but the request came from script,
+  // e.g., scrollBy().
+  bool mApzAnimationTriggeredByScriptRequested : 1;
 
   // Whether we need to reclamp the visual viewport offset in ReflowFinished.
   bool mReclampVVOffsetInReflowFinished : 1;
@@ -1102,7 +1104,7 @@ class nsHTMLScrollFrame : public nsContainerFrame,
       mozilla::ScrollTriggeredByScript aTriggeredByScript =
           mozilla::ScrollTriggeredByScript::No) final {
     mHelper.ScrollTo(aScrollPosition, aMode, ScrollOrigin::Other, aRange,
-                     aSnapFlags);
+                     aSnapFlags, aTriggeredByScript);
   }
   /**
    * @note This method might destroy the frame, pres shell and other objects.
@@ -1315,6 +1317,11 @@ class nsHTMLScrollFrame : public nsContainerFrame,
     mHelper.PostPendingResnapIfNeeded(aFrame);
   }
   void PostPendingResnap() final { mHelper.PostPendingResnap(); }
+  using PhysicalScrollSnapAlign = nsIScrollableFrame::PhysicalScrollSnapAlign;
+  PhysicalScrollSnapAlign GetScrollSnapAlignFor(
+      const nsIFrame* aFrame) const final {
+    return mHelper.GetScrollSnapAlignFor(aFrame);
+  }
 
   bool DragScroll(mozilla::WidgetEvent* aEvent) final {
     return mHelper.DragScroll(aEvent);
@@ -1586,7 +1593,7 @@ class nsXULScrollFrame final : public nsBoxFrame,
       mozilla::ScrollTriggeredByScript aTriggeredByScript =
           mozilla::ScrollTriggeredByScript::No) final {
     mHelper.ScrollTo(aScrollPosition, aMode, ScrollOrigin::Other, aRange,
-                     aSnapFlags);
+                     aSnapFlags, aTriggeredByScript);
   }
   /**
    * @note This method might destroy the frame, pres shell and other objects.
@@ -1802,6 +1809,11 @@ class nsXULScrollFrame final : public nsBoxFrame,
     mHelper.PostPendingResnapIfNeeded(aFrame);
   }
   void PostPendingResnap() final { mHelper.PostPendingResnap(); }
+  using PhysicalScrollSnapAlign = nsIScrollableFrame::PhysicalScrollSnapAlign;
+  PhysicalScrollSnapAlign GetScrollSnapAlignFor(
+      const nsIFrame* aFrame) const final {
+    return mHelper.GetScrollSnapAlignFor(aFrame);
+  }
 
   bool DragScroll(mozilla::WidgetEvent* aEvent) final {
     return mHelper.DragScroll(aEvent);

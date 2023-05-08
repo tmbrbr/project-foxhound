@@ -80,8 +80,7 @@ ${helpers.predefined_type(
     "computed::Clear::None",
     engines="gecko servo-2013",
     animation_value_type="discrete",
-    gecko_ffi_name="mBreakType",
-    spec="https://drafts.csswg.org/css-box/#propdef-clear",
+    spec="https://drafts.csswg.org/css2/#propdef-clear",
     servo_restyle_damage="rebuild_and_reflow",
 )}
 
@@ -446,7 +445,7 @@ ${helpers.predefined_type(
 ${helpers.predefined_type(
     "container-type",
     "ContainerType",
-    "computed::ContainerType::NONE",
+    "computed::ContainerType::NORMAL",
     engines="gecko",
     animation_value_type="none",
     gecko_pref="layout.css.container-queries.enabled",
@@ -543,16 +542,12 @@ ${helpers.predefined_type(
     spec="https://compat.spec.whatwg.org/#touch-action",
 )}
 
-// Note that we only implement -webkit-line-clamp as a single, longhand
-// property for now, but the spec defines line-clamp as a shorthand for separate
-// max-lines, block-ellipsis, and continue properties.
 ${helpers.predefined_type(
     "-webkit-line-clamp",
-    "PositiveIntegerOrNone",
-    "Either::Second(None_)",
+    "LineClamp",
+    "computed::LineClamp::none()",
     engines="gecko",
-    gecko_pref="layout.css.webkit-line-clamp.enabled",
-    animation_value_type="Integer",
+    animation_value_type="ComputedValue",
     spec="https://drafts.csswg.org/css-overflow-3/#line-clamp",
 )}
 

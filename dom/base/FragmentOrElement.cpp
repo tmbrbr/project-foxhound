@@ -1030,6 +1030,68 @@ bool nsIContent::IsFocusable(int32_t* aTabIndex, bool aWithMouse) {
   return false;
 }
 
+Element* nsIContent::GetFocusDelegate(bool aWithMouse) const {
+  const nsIContent* whereToLook = this;
+  if (ShadowRoot* root = GetShadowRoot()) {
+    if (!root->DelegatesFocus()) {
+      // 1. If focusTarget is a shadow host and its shadow root 's delegates
+      // focus is false, then return null.
+      return nullptr;
+    }
+    whereToLook = root;
+  }
+
+  auto IsFocusable = [&](Element* aElement) {
+    nsIFrame* frame = aElement->GetPrimaryFrame();
+    return frame && frame->IsFocusable(aWithMouse);
+  };
+
+  Element* potentialFocus = nullptr;
+  for (nsINode* node = whereToLook->GetFirstChild(); node;
+       node = node->GetNextNode(whereToLook)) {
+    auto* el = Element::FromNode(*node);
+    if (!el) {
+      continue;
+    }
+
+    const bool autofocus = el->GetBoolAttr(nsGkAtoms::autofocus);
+
+    if (autofocus) {
+      if (IsFocusable(el)) {
+        // Found an autofocus candidate.
+        return el;
+      }
+    } else if (!potentialFocus && IsFocusable(el)) {
+      // This element could be the one if we can't find an
+      // autofocus candidate which has the precedence.
+      potentialFocus = el;
+    }
+
+    if (!autofocus && potentialFocus) {
+      // Nothing else to do, we are not looking for more focusable elements
+      // here.
+      continue;
+    }
+
+    if (auto* shadow = el->GetShadowRoot()) {
+      if (shadow->DelegatesFocus()) {
+        if (Element* delegatedFocus = shadow->GetFocusDelegate(aWithMouse)) {
+          if (autofocus) {
+            // This element has autofocus and we found an focus delegates
+            // in its descendants, so use the focus delegates
+            return delegatedFocus;
+          }
+          if (!potentialFocus) {
+            potentialFocus = delegatedFocus;
+          }
+        }
+      }
+    }
+  }
+
+  return potentialFocus;
+}
+
 bool nsIContent::IsFocusableInternal(int32_t* aTabIndex, bool aWithMouse) {
   if (aTabIndex) {
     *aTabIndex = -1;  // Default, not tabbable
@@ -1254,7 +1316,9 @@ ContentUnbinder* ContentUnbinder::sContentUnbinder = nullptr;
 
 void FragmentOrElement::ClearContentUnbinder() { ContentUnbinder::UnbindAll(); }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(FragmentOrElement)
+// Note, _INHERITED macro isn't used here since nsINode implementations are
+// rather special.
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(FragmentOrElement)
 
 // We purposefully don't UNLINK_BEGIN_INHERITED here.
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
@@ -1311,8 +1375,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
   }
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(FragmentOrElement)
 
 void FragmentOrElement::MarkNodeChildren(nsINode* aNode) {
   JSObject* o = GetJSObjectChild(aNode);

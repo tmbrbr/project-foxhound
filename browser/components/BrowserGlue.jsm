@@ -19,35 +19,43 @@ const { AppConstants } = ChromeUtils.import(
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  AppMenuNotifications: "resource://gre/modules/AppMenuNotifications.sys.mjs",
   BookmarkHTMLUtils: "resource://gre/modules/BookmarkHTMLUtils.sys.mjs",
   BookmarkJSONUtils: "resource://gre/modules/BookmarkJSONUtils.sys.mjs",
   BrowserSearchTelemetry: "resource:///modules/BrowserSearchTelemetry.sys.mjs",
+  Integration: "resource://gre/modules/Integration.sys.mjs",
+  BuiltInThemes: "resource:///modules/BuiltInThemes.sys.mjs",
   Interactions: "resource:///modules/Interactions.sys.mjs",
+  Log: "resource://gre/modules/Log.sys.mjs",
+  NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
+  OsEnvironment: "resource://gre/modules/OsEnvironment.sys.mjs",
   PageDataService: "resource:///modules/pagedata/PageDataService.sys.mjs",
   PlacesBackups: "resource://gre/modules/PlacesBackups.sys.mjs",
   PlacesDBUtils: "resource://gre/modules/PlacesDBUtils.sys.mjs",
   PlacesUIUtils: "resource:///modules/PlacesUIUtils.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
+  ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.sys.mjs",
   SearchSERPTelemetry: "resource:///modules/SearchSERPTelemetry.sys.mjs",
+  ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
   SnapshotMonitor: "resource:///modules/SnapshotMonitor.sys.mjs",
+  UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
+  UrlbarQuickSuggest: "resource:///modules/UrlbarQuickSuggest.sys.mjs",
+  WindowsRegistry: "resource://gre/modules/WindowsRegistry.sys.mjs",
 });
 
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   AboutNewTab: "resource:///modules/AboutNewTab.jsm",
   ActorManagerParent: "resource://gre/modules/ActorManagerParent.jsm",
   AddonManager: "resource://gre/modules/AddonManager.jsm",
-  AppMenuNotifications: "resource://gre/modules/AppMenuNotifications.jsm",
   ASRouterDefaultConfig:
     "resource://activity-stream/lib/ASRouterDefaultConfig.jsm",
   ASRouterNewTabHook: "resource://activity-stream/lib/ASRouterNewTabHook.jsm",
   ASRouter: "resource://activity-stream/lib/ASRouter.jsm",
   AsyncShutdown: "resource://gre/modules/AsyncShutdown.jsm",
-  BackgroundUpdate: "resource://gre/modules/BackgroundUpdate.jsm",
   Blocklist: "resource://gre/modules/Blocklist.jsm",
   BrowserUsageTelemetry: "resource:///modules/BrowserUsageTelemetry.jsm",
   BrowserUIUtils: "resource:///modules/BrowserUIUtils.jsm",
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.jsm",
-  BuiltInThemes: "resource:///modules/BuiltInThemes.jsm",
   ContextualIdentityService:
     "resource://gre/modules/ContextualIdentityService.jsm",
   Corroborate: "resource://gre/modules/Corroborate.jsm",
@@ -61,16 +69,12 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
   FeatureGate: "resource://featuregates/FeatureGate.jsm",
   FxAccounts: "resource://gre/modules/FxAccounts.jsm",
   HomePage: "resource:///modules/HomePage.jsm",
-  Integration: "resource://gre/modules/Integration.jsm",
-  Log: "resource://gre/modules/Log.jsm",
   LoginBreaches: "resource:///modules/LoginBreaches.jsm",
   NetUtil: "resource://gre/modules/NetUtil.jsm",
-  NewTabUtils: "resource://gre/modules/NewTabUtils.jsm",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.jsm",
   Normandy: "resource://normandy/Normandy.jsm",
   OnboardingMessageProvider:
     "resource://activity-stream/lib/OnboardingMessageProvider.jsm",
-  OsEnvironment: "resource://gre/modules/OsEnvironment.jsm",
   PageActions: "resource:///modules/PageActions.jsm",
   PageThumbs: "resource://gre/modules/PageThumbs.jsm",
   PdfJs: "resource://pdf.js/PdfJs.jsm",
@@ -86,11 +90,9 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
   SafeBrowsing: "resource://gre/modules/SafeBrowsing.jsm",
   Sanitizer: "resource:///modules/Sanitizer.jsm",
   SaveToPocket: "chrome://pocket/content/SaveToPocket.jsm",
-  ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.jsm",
   SessionStartup: "resource:///modules/sessionstore/SessionStartup.jsm",
   SessionStore: "resource:///modules/sessionstore/SessionStore.jsm",
   ShellService: "resource:///modules/ShellService.jsm",
-  ShortcutUtils: "resource://gre/modules/ShortcutUtils.jsm",
   SpecialMessageActions:
     "resource://messaging-system/lib/SpecialMessageActions.jsm",
   TabCrashHandler: "resource:///modules/ContentCrashHandlers.jsm",
@@ -98,12 +100,19 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
   TelemetryUtils: "resource://gre/modules/TelemetryUtils.jsm",
   TRRRacer: "resource:///modules/TRRPerformance.jsm",
   UIState: "resource://services-sync/UIState.jsm",
-  UpdateListener: "resource://gre/modules/UpdateListener.jsm",
-  UrlbarQuickSuggest: "resource:///modules/UrlbarQuickSuggest.jsm",
-  UrlbarPrefs: "resource:///modules/UrlbarPrefs.jsm",
   WebChannel: "resource://gre/modules/WebChannel.jsm",
-  WindowsRegistry: "resource://gre/modules/WindowsRegistry.jsm",
 });
+
+if (AppConstants.MOZ_UPDATER) {
+  XPCOMUtils.defineLazyModuleGetters(lazy, {
+    UpdateListener: "resource://gre/modules/UpdateListener.jsm",
+  });
+}
+if (AppConstants.MOZ_UPDATE_AGENT) {
+  XPCOMUtils.defineLazyModuleGetters(lazy, {
+    BackgroundUpdate: "resource://gre/modules/BackgroundUpdate.jsm",
+  });
+}
 
 // PluginManager is used in the listeners object below.
 // eslint-disable-next-line mozilla/valid-lazy
@@ -139,11 +148,10 @@ const PREF_PDFJS_ISDEFAULT_CACHE_STATE = "pdfjs.enabledCache.state";
 const PREF_DFPI_ENABLED_BY_DEFAULT =
   "privacy.restrict3rdpartystorage.rollout.enabledByDefault";
 
-// Index of Private Browsing icon in firefox.exe
-// Must line up with the one in nsNativeAppSupportWin.h.
-const PRIVATE_BROWSING_ICON_INDEX = 5;
-const PREF_PRIVATE_WINDOW_SEPARATION =
-  "browser.privacySegmentation.windowSeparation.enabled";
+const PRIVATE_BROWSING_BINARY = "private_browsing.exe";
+// Index of Private Browsing icon in private_browsing.exe
+// Must line up with IDI_PBICON_PB_PB_EXE in nsNativeAppSupportWin.h.
+const PRIVATE_BROWSING_EXE_ICON_INDEX = 1;
 const PREF_PRIVATE_BROWSING_SHORTCUT_CREATED =
   "browser.privacySegmentation.createdShortcut";
 
@@ -157,7 +165,7 @@ let JSPROCESSACTORS = {
   // Miscellaneous stuff that needs to be initialized per process.
   BrowserProcess: {
     child: {
-      moduleURI: "resource:///actors/BrowserProcessChild.jsm",
+      esModuleURI: "resource:///actors/BrowserProcessChild.sys.mjs",
       observers: [
         // WebRTC related notifications. They are here to avoid loading WebRTC
         // components when not needed.
@@ -240,10 +248,10 @@ let JSWINDOWACTORS = {
 
   AboutNewTab: {
     parent: {
-      moduleURI: "resource:///actors/AboutNewTabParent.jsm",
+      esModuleURI: "resource:///actors/AboutNewTabParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/AboutNewTabChild.jsm",
+      esModuleURI: "resource:///actors/AboutNewTabChild.sys.mjs",
       events: {
         DOMContentLoaded: {},
         pageshow: {},
@@ -262,10 +270,10 @@ let JSWINDOWACTORS = {
 
   AboutPlugins: {
     parent: {
-      moduleURI: "resource:///actors/AboutPluginsParent.jsm",
+      esModuleURI: "resource:///actors/AboutPluginsParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/AboutPluginsChild.jsm",
+      esModuleURI: "resource:///actors/AboutPluginsChild.sys.mjs",
 
       events: {
         DOMDocElementInserted: { capture: true },
@@ -327,10 +335,10 @@ let JSWINDOWACTORS = {
 
   AboutReader: {
     parent: {
-      moduleURI: "resource:///actors/AboutReaderParent.jsm",
+      esModuleURI: "resource:///actors/AboutReaderParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/AboutReaderChild.jsm",
+      esModuleURI: "resource:///actors/AboutReaderChild.sys.mjs",
       events: {
         DOMContentLoaded: {},
         pageshow: { mozSystemGroup: true },
@@ -344,11 +352,10 @@ let JSWINDOWACTORS = {
 
   AboutTabCrashed: {
     parent: {
-      moduleURI: "resource:///actors/AboutTabCrashedParent.jsm",
+      esModuleURI: "resource:///actors/AboutTabCrashedParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/AboutTabCrashedChild.jsm",
-
+      esModuleURI: "resource:///actors/AboutTabCrashedChild.sys.mjs",
       events: {
         DOMDocElementInserted: { capture: true },
       },
@@ -394,10 +401,10 @@ let JSWINDOWACTORS = {
 
   BrowserTab: {
     parent: {
-      moduleURI: "resource:///actors/BrowserTabParent.jsm",
+      esModuleURI: "resource:///actors/BrowserTabParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/BrowserTabChild.jsm",
+      esModuleURI: "resource:///actors/BrowserTabChild.sys.mjs",
 
       events: {
         DOMDocElementInserted: {},
@@ -410,10 +417,10 @@ let JSWINDOWACTORS = {
 
   ClickHandler: {
     parent: {
-      moduleURI: "resource:///actors/ClickHandlerParent.jsm",
+      esModuleURI: "resource:///actors/ClickHandlerParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/ClickHandlerChild.jsm",
+      esModuleURI: "resource:///actors/ClickHandlerChild.sys.mjs",
       events: {
         chromelinkclick: { capture: true, mozSystemGroup: true },
       },
@@ -430,10 +437,10 @@ let JSWINDOWACTORS = {
    */
   MiddleMousePasteHandler: {
     parent: {
-      moduleURI: "resource:///actors/ClickHandlerParent.jsm",
+      esModuleURI: "resource:///actors/ClickHandlerParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/ClickHandlerChild.jsm",
+      esModuleURI: "resource:///actors/ClickHandlerChild.sys.mjs",
       events: {
         auxclick: { capture: true, mozSystemGroup: true },
       },
@@ -445,10 +452,10 @@ let JSWINDOWACTORS = {
 
   ContentSearch: {
     parent: {
-      moduleURI: "resource:///actors/ContentSearchParent.jsm",
+      esModuleURI: "resource:///actors/ContentSearchParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/ContentSearchChild.jsm",
+      esModuleURI: "resource:///actors/ContentSearchChild.sys.mjs",
       events: {
         ContentSearchClient: { capture: true, wantUntrusted: true },
       },
@@ -514,11 +521,11 @@ let JSWINDOWACTORS = {
 
   EncryptedMedia: {
     parent: {
-      moduleURI: "resource:///actors/EncryptedMediaParent.jsm",
+      esModuleURI: "resource:///actors/EncryptedMediaParent.sys.mjs",
     },
 
     child: {
-      moduleURI: "resource:///actors/EncryptedMediaChild.jsm",
+      esModuleURI: "resource:///actors/EncryptedMediaChild.sys.mjs",
       observers: ["mediakeys-request"],
     },
 
@@ -528,11 +535,11 @@ let JSWINDOWACTORS = {
 
   FormValidation: {
     parent: {
-      moduleURI: "resource:///actors/FormValidationParent.jsm",
+      esModuleURI: "resource:///actors/FormValidationParent.sys.mjs",
     },
 
     child: {
-      moduleURI: "resource:///actors/FormValidationChild.jsm",
+      esModuleURI: "resource:///actors/FormValidationChild.sys.mjs",
       events: {
         MozInvalidForm: {},
         // Listening to ‘pageshow’ event is only relevant if an invalid form
@@ -561,6 +568,7 @@ let JSWINDOWACTORS = {
       "chrome://browser/content/syncedtabs/sidebar.xhtml",
       "chrome://browser/content/places/historySidebar.xhtml",
       "chrome://browser/content/places/bookmarksSidebar.xhtml",
+      "about:firefoxview",
     ],
   },
 
@@ -584,25 +592,9 @@ let JSWINDOWACTORS = {
     messageManagerGroups: ["browsers"],
   },
 
-  NetError: {
-    parent: {
-      moduleURI: "resource:///actors/NetErrorParent.jsm",
-    },
-    child: {
-      moduleURI: "resource:///actors/NetErrorChild.jsm",
-      events: {
-        DOMDocElementInserted: {},
-        click: {},
-      },
-    },
-
-    matches: ["about:certerror?*", "about:neterror?*"],
-    allFrames: true,
-  },
-
   PageInfo: {
     child: {
-      moduleURI: "resource:///actors/PageInfoChild.jsm",
+      esModuleURI: "resource:///actors/PageInfoChild.sys.mjs",
     },
 
     allFrames: true,
@@ -689,10 +681,10 @@ let JSWINDOWACTORS = {
 
   ScreenshotsComponent: {
     parent: {
-      moduleURI: "resource:///modules/ScreenshotsUtils.jsm",
+      esModuleURI: "resource:///modules/ScreenshotsUtils.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/ScreenshotsComponentChild.jsm",
+      esModuleURI: "resource:///actors/ScreenshotsComponentChild.sys.mjs",
     },
     enablePreference: "screenshots.browser.component.enabled",
   },
@@ -830,12 +822,6 @@ XPCOMUtils.defineLazyGetter(lazy, "gTabbrowserBundle", function() {
 
 const listeners = {
   observers: {
-    "update-downloading": ["UpdateListener"],
-    "update-staged": ["UpdateListener"],
-    "update-downloaded": ["UpdateListener"],
-    "update-available": ["UpdateListener"],
-    "update-error": ["UpdateListener"],
-    "update-swap": ["UpdateListener"],
     "gmp-plugin-crash": ["PluginManager"],
     "plugin-crashed": ["PluginManager"],
   },
@@ -856,6 +842,14 @@ const listeners = {
     }
   },
 };
+if (AppConstants.MOZ_UPDATER) {
+  listeners.observers["update-downloading"] = ["UpdateListener"];
+  listeners.observers["update-staged"] = ["UpdateListener"];
+  listeners.observers["update-downloaded"] = ["UpdateListener"];
+  listeners.observers["update-available"] = ["UpdateListener"];
+  listeners.observers["update-error"] = ["UpdateListener"];
+  listeners.observers["update-swap"] = ["UpdateListener"];
+}
 
 // Seconds of idle before trying to create a bookmarks backup.
 const BOOKMARKS_BACKUP_IDLE_TIME_SEC = 8 * 60;
@@ -1378,8 +1372,8 @@ BrowserGlue.prototype = {
       return;
     }
 
-    const { ResetProfile } = ChromeUtils.import(
-      "resource://gre/modules/ResetProfile.jsm"
+    const { ResetProfile } = ChromeUtils.importESModule(
+      "resource://gre/modules/ResetProfile.sys.mjs"
     );
     if (!ResetProfile.resetSupported()) {
       return;
@@ -1615,8 +1609,8 @@ BrowserGlue.prototype = {
     );
     channel.listen((id, data, target) => {
       if (data.command == "request") {
-        let { Troubleshoot } = ChromeUtils.import(
-          "resource://gre/modules/Troubleshoot.jsm"
+        let { Troubleshoot } = ChromeUtils.importESModule(
+          "resource://gre/modules/Troubleshoot.sys.mjs"
         );
         Troubleshoot.snapshot(snapshotData => {
           // for privacy we remove crash IDs and all preferences (but bug 1091944
@@ -1647,8 +1641,8 @@ BrowserGlue.prototype = {
       // Check if we were just re-installed and offer Firefox Reset
       let updateChannel;
       try {
-        updateChannel = ChromeUtils.import(
-          "resource://gre/modules/UpdateUtils.jsm"
+        updateChannel = ChromeUtils.importESModule(
+          "resource://gre/modules/UpdateUtils.sys.mjs"
         ).UpdateUtils.UpdateChannel;
       } catch (ex) {}
       if (updateChannel) {
@@ -1793,11 +1787,6 @@ BrowserGlue.prototype = {
       lazy.NimbusFeatures.tcpByDefault.getVariable("enabled") &&
       !hasCookieBehaviorPolicy()
     ) {
-      Services.telemetry.scalarSet(
-        "privacy.dfpi_rollout_tcpByDefault_feature",
-        true
-      );
-
       // Enable TCP by updating the default pref state for cookie behaviour. This
       // means we won't override user choice.
       defaultPrefs.setIntPref(
@@ -1807,15 +1796,10 @@ BrowserGlue.prototype = {
 
       return;
     }
-    Services.telemetry.scalarSet(
-      "privacy.dfpi_rollout_tcpByDefault_feature",
-      false
-    );
 
     // For the initial rollout of dFPI, set the default cookieBehavior based on the pref
     // set during onboarding when the user chooses to enable protections or not.
     if (!Services.prefs.prefHasUserValue(PREF_DFPI_ENABLED_BY_DEFAULT)) {
-      Services.telemetry.scalarSet("privacy.dfpi_rollout_enabledByDefault", 2);
       return;
     }
     let dFPIEnabled = Services.prefs.getBoolPref(PREF_DFPI_ENABLED_BY_DEFAULT);
@@ -1825,11 +1809,6 @@ BrowserGlue.prototype = {
       dFPIEnabled
         ? Ci.nsICookieService.BEHAVIOR_REJECT_TRACKER_AND_PARTITION_FOREIGN
         : BrowserGlue._defaultCookieBehaviorAtStartup
-    );
-
-    Services.telemetry.scalarSet(
-      "privacy.dfpi_rollout_enabledByDefault",
-      dFPIEnabled ? 1 : 0
     );
   },
 
@@ -2010,7 +1989,11 @@ BrowserGlue.prototype = {
       () => lazy.Normandy.uninit(),
       () => lazy.RFPHelper.uninit(),
       () => lazy.ASRouterNewTabHook.destroy(),
-      () => lazy.UpdateListener.reset(),
+      () => {
+        if (AppConstants.MOZ_UPDATER) {
+          lazy.UpdateListener.reset();
+        }
+      },
     ];
 
     for (let task of tasks) {
@@ -2260,7 +2243,7 @@ BrowserGlue.prototype = {
   },
 
   _monitorPrivacySegmentationPref() {
-    const PREF_ENABLED = "browser.privacySegmentation.enabled";
+    const PREF_ENABLED = "browser.dataFeatureRecommendations.enabled";
     const EVENT_CATEGORY = "privacy_segmentation";
 
     let checkPrivacySegmentationPref = () => {
@@ -2321,8 +2304,8 @@ BrowserGlue.prototype = {
     }
 
     if (AppConstants.ASAN_REPORTER) {
-      var { AsanReporter } = ChromeUtils.import(
-        "resource://gre/modules/AsanReporter.jsm"
+      var { AsanReporter } = ChromeUtils.importESModule(
+        "resource://gre/modules/AsanReporter.sys.mjs"
       );
       AsanReporter.init();
     }
@@ -2540,7 +2523,9 @@ BrowserGlue.prototype = {
           // Pref'ed off until Private Browsing window separation is enabled by default
           // to avoid a situation where a user pins the Private Browsing shortcut to
           // the Taskbar, which will end up launching into a different Taskbar icon.
-          Services.prefs.getBoolPref(PREF_PRIVATE_WINDOW_SEPARATION, false) &&
+          lazy.NimbusFeatures.majorRelease2022.getVariable(
+            "feltPrivacyWindowSeparation"
+          ) &&
           // Private Browsing shortcuts for packaged builds come with the package,
           // if they exist at all. We shouldn't try to create our own.
           !Services.sysinfo.getProperty("hasWinPackageId") &&
@@ -2560,36 +2545,43 @@ BrowserGlue.prototype = {
           );
 
           if (
-            !shellService.hasMatchingShortcut(
+            !(await shellService.hasMatchingShortcut(
               winTaskbar.defaultPrivateGroupId,
               true
-            )
+            ))
           ) {
-            let exe = Services.dirsvc.get("XREExeF", Ci.nsIFile);
+            let appdir = Services.dirsvc.get("GreD", Ci.nsIFile);
+            let exe = appdir.clone();
+            exe.append(PRIVATE_BROWSING_BINARY);
             let strings = new Localization(
               ["branding/brand.ftl", "browser/browser.ftl"],
               true
             );
             let [desc] = await strings.formatValues([
-              "private-browsing-shortcut-text",
+              "private-browsing-shortcut-text-2",
             ]);
-            shellService.createShortcut(
+            await shellService.createShortcut(
               exe,
-              ["-private-window"],
+              [],
               desc,
               exe,
               // The code we're calling indexes from 0 instead of 1
-              PRIVATE_BROWSING_ICON_INDEX - 1,
+              PRIVATE_BROWSING_EXE_ICON_INDEX - 1,
               winTaskbar.defaultPrivateGroupId,
               "Programs",
               desc + ".lnk",
-              Services.dirsvc.get("GreD", Ci.nsIFile)
-            );
-            Services.prefs.setBoolPref(
-              PREF_PRIVATE_BROWSING_SHORTCUT_CREATED,
-              true
+              appdir
             );
           }
+          // We always set this as long as no exception has been thrown. This
+          // ensure that it is `true` both if we created one because it didn't
+          // exist, or if it already existed (most likely because it was created
+          // by the installer). This avoids the need to call `hasMatchingShortcut`
+          // again, which necessarily does pointless I/O.
+          Services.prefs.setBoolPref(
+            PREF_PRIVATE_BROWSING_SHORTCUT_CREATED,
+            true
+          );
         },
       },
 
@@ -2855,6 +2847,7 @@ BrowserGlue.prototype = {
       },
 
       {
+        condition: AppConstants.MOZ_UPDATER,
         task: () => {
           lazy.UpdateListener.maybeShowUnsupportedNotification();
         },
@@ -2935,8 +2928,8 @@ BrowserGlue.prototype = {
       },
 
       () => {
-        let { GMPInstallManager } = ChromeUtils.import(
-          "resource://gre/modules/GMPInstallManager.jsm"
+        let { GMPInstallManager } = ChromeUtils.importESModule(
+          "resource://gre/modules/GMPInstallManager.sys.mjs"
         );
         this._gmpInstallManager = new GMPInstallManager();
         // We don't really care about the results, if someone is interested they
@@ -3506,7 +3499,7 @@ BrowserGlue.prototype = {
   _migrateUI: function BG__migrateUI() {
     // Use an increasing number to keep track of the current migration state.
     // Completely unrelated to the current Firefox release number.
-    const UI_VERSION = 128;
+    const UI_VERSION = 132;
     const BROWSER_DOCURL = AppConstants.BROWSER_CHROME_URL;
 
     const PROFILE_DIR = Services.dirsvc.get("ProfD", Ci.nsIFile).path;
@@ -4132,50 +4125,6 @@ BrowserGlue.prototype = {
       lazy.UrlbarPrefs.migrateResultGroups();
     }
 
-    if (currentUIVersion < 119 && AppConstants.NIGHTLY_BUILD) {
-      // Uninstall outdated monochromatic themes for the following UI versions:
-      // 118: Uninstall prototype monochromatic purple theme.
-      // 119 (bug 1732957): Uninstall themes with old IDs.
-      const themeIdsToMigrate = [
-        "firefox-monochromatic-purple@mozilla.org",
-        "firefox-lush-soft@mozilla.org",
-        "firefox-lush-balanced@mozilla.org",
-        "firefox-lush-bold@mozilla.org",
-        "firefox-abstract-soft@mozilla.org",
-        "firefox-abstract-balanced@mozilla.org",
-        "firefox-abstract-bold@mozilla.org",
-        "firefox-elemental-soft@mozilla.org",
-        "firefox-elemental-balanced@mozilla.org",
-        "firefox-elemental-bold@mozilla.org",
-        "firefox-cheers-soft@mozilla.org",
-        "firefox-cheers-balanced@mozilla.org",
-        "firefox-cheers-bold@mozilla.org",
-        "firefox-graffiti-soft@mozilla.org",
-        "firefox-graffiti-balanced@mozilla.org",
-        "firefox-graffiti-bold@mozilla.org",
-        "firefox-foto-soft@mozilla.org",
-        "firefox-foto-balanced@mozilla.org",
-        "firefox-foto-bold@mozilla.org",
-      ];
-      try {
-        for (let id of themeIdsToMigrate) {
-          lazy.AddonManager.getAddonByID(id).then(addon => {
-            if (!addon) {
-              // Either the addon wasn't installed, or the call to getAddonByID failed.
-              return;
-            }
-            addon.uninstall().catch(Cu.reportError);
-          }, Cu.reportError);
-        }
-      } catch (error) {
-        Cu.reportError(
-          "Could not access the AddonManager to upgrade the profile. This is most " +
-            "likely because the upgrader is being run from an xpcshell test where " +
-            "the AddonManager is not initialized."
-        );
-      }
-    }
-
     if (currentUIVersion < 120) {
       // Migrate old titlebar bool pref to new int-based one.
       const oldPref = "browser.tabs.drawInTitlebar";
@@ -4326,25 +4275,95 @@ BrowserGlue.prototype = {
       }
     }
 
+    function migrateXULAttributeToStyle(id, attr) {
+      try {
+        let value = Services.xulStore.getValue(BROWSER_DOCURL, id, attr);
+        if (value) {
+          Services.xulStore.setValue(
+            BROWSER_DOCURL,
+            id,
+            "style",
+            `width: ${value}px;`
+          );
+        }
+      } catch (ex) {
+        Cu.reportError(`Error migrating ${id}'s ${attr} value: ` + ex);
+      }
+    }
+
+    // Bug 1792748 used version 129 with a buggy variant of the sidebar width
+    // migration. This version is already in use in the nightly channel, so it
+    // shouldn't be used.
+
+    // Bug 1793366: migrate sidebar persisted attribute from width to style.
+    if (currentUIVersion < 130) {
+      migrateXULAttributeToStyle("sidebar-box", "width");
+    }
+
+    // Migration 131 was moved to 133 to allow for an uplift.
+
+    if (currentUIVersion < 132) {
+      // These attributes are no longer persisted, thus remove them from xulstore.
+      for (let url of [
+        "chrome://browser/content/places/bookmarkProperties.xhtml",
+        "chrome://browser/content/places/bookmarkProperties2.xhtml",
+      ]) {
+        for (let attr of ["width", "screenX", "screenY"]) {
+          xulStore.removeValue(url, "bookmarkproperties", attr);
+        }
+      }
+    }
+
     // Update the migration version.
     Services.prefs.setIntPref("browser.migration.version", UI_VERSION);
   },
 
   async _showUpgradeDialog() {
     const data = await lazy.OnboardingMessageProvider.getUpgradeMessage();
-    const win = lazy.BrowserWindowTracker.getTopWindow();
-    const browser = win.gBrowser.selectedBrowser;
-    const config = {
-      type: "SHOW_SPOTLIGHT",
-      data,
+    const { gBrowser } = lazy.BrowserWindowTracker.getTopWindow();
+
+    // We'll be adding a new tab open the tab-modal dialog in.
+    let tab;
+
+    const upgradeTabsProgressListener = {
+      onLocationChange(
+        aBrowser,
+        aWebProgress,
+        aRequest,
+        aLocationURI,
+        aFlags,
+        aIsSimulated
+      ) {
+        if (aBrowser === tab.linkedBrowser) {
+          // We're now far enough along in the load that we no longer have to
+          // worry about a call to onLocationChange triggering SubDialog.abort,
+          // so display the dialog
+          const config = {
+            type: "SHOW_SPOTLIGHT",
+            data,
+          };
+          lazy.SpecialMessageActions.handleAction(config, tab.linkedBrowser);
+
+          gBrowser.removeTabsProgressListener(upgradeTabsProgressListener);
+        }
+      },
     };
-    lazy.SpecialMessageActions.handleAction(config, browser);
+
+    // Make sure we're ready to show the dialog once onLocationChange gets
+    // called.
+    gBrowser.addTabsProgressListener(upgradeTabsProgressListener);
+
+    tab = gBrowser.addTrustedTab("about:home", {
+      relatedToCurrent: true,
+    });
+
+    gBrowser.selectedTab = tab;
   },
 
   async _maybeShowDefaultBrowserPrompt() {
     // Highest priority is the upgrade dialog, which can include a "primary
     // browser" request and is limited in various ways, e.g., major upgrades.
-    const dialogVersion = 100;
+    const dialogVersion = 106;
     const dialogVersionPref = "browser.startup.upgradeDialog.version";
     const dialogReason = await (async () => {
       if (!lazy.BrowserHandler.majorUpgrade) {
@@ -4375,9 +4394,14 @@ BrowserGlue.prototype = {
         return "disallow-postUpdate";
       }
 
-      return lazy.NimbusFeatures.upgradeDialog.getVariable("enabled")
-        ? ""
-        : "disabled";
+      const useMROnboarding = lazy.NimbusFeatures.majorRelease2022.getVariable(
+        "onboarding"
+      );
+      const showUpgradeDialog =
+        useMROnboarding ??
+        lazy.NimbusFeatures.upgradeDialog.getVariable("enabled");
+
+      return showUpgradeDialog ? "" : "disabled";
     })();
 
     // Record why the dialog is showing or not.

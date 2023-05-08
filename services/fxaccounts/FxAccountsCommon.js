@@ -8,7 +8,9 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 const { Preferences } = ChromeUtils.import(
   "resource://gre/modules/Preferences.jsm"
 );
-const { Log } = ChromeUtils.import("resource://gre/modules/Log.jsm");
+const { Log } = ChromeUtils.importESModule(
+  "resource://gre/modules/Log.sys.mjs"
+);
 const { LogManager } = ChromeUtils.import(
   "resource://services-common/logmanager.js"
 );
@@ -88,6 +90,7 @@ exports.FXA_PUSH_SCOPE_ACCOUNT_UPDATE = "chrome://fxa-device-update";
 exports.ON_PROFILE_CHANGE_NOTIFICATION = "fxaccounts:profilechange"; // WebChannel
 exports.ON_ACCOUNT_STATE_CHANGE_NOTIFICATION = "fxaccounts:statechange";
 exports.ON_NEW_DEVICE_ID = "fxaccounts:new_device_id";
+exports.ON_DEVICELIST_UPDATED = "fxaccounts:devicelist_updated";
 
 // The common prefix for all commands.
 exports.COMMAND_PREFIX = "https://identity.mozilla.com/cmd/";

@@ -1,7 +1,7 @@
 "use strict";
 
-const { OSKeyStore } = ChromeUtils.import(
-  "resource://gre/modules/OSKeyStore.jsm"
+const { OSKeyStore } = ChromeUtils.importESModule(
+  "resource://gre/modules/OSKeyStore.sys.mjs"
 );
 const { OSKeyStoreTestUtils } = ChromeUtils.import(
   "resource://testing-common/OSKeyStoreTestUtils.jsm"
@@ -36,6 +36,11 @@ const CREDITCARD_FORM_COMBINED_EXPIRY_URL =
   "https://example.org" +
   HTTP_TEST_PATH +
   "creditCard/autocomplete_creditcard_cc_exp_field.html";
+const CREDITCARD_FORM_WITHOUT_AUTOCOMPLETE_URL =
+  "https://example.org" +
+  HTTP_TEST_PATH +
+  "creditCard/without_autocomplete_creditcard_basic.html";
+const EMPTY_URL = "https://example.org" + HTTP_TEST_PATH + "empty.html";
 
 const FTU_PREF = "extensions.formautofill.firstTimeUse";
 const CREDITCARDS_USED_STATUS_PREF = "extensions.formautofill.creditCards.used";
@@ -405,8 +410,8 @@ async function focusAndWaitForFieldsIdentified(browserOrContext, selector) {
     browserOrContext,
     [selector],
     async function(selector) {
-      const { FormLikeFactory } = ChromeUtils.import(
-        "resource://gre/modules/FormLikeFactory.jsm"
+      const { FormLikeFactory } = ChromeUtils.importESModule(
+        "resource://gre/modules/FormLikeFactory.sys.mjs"
       );
       const input = content.document.querySelector(selector);
       const rootElement = FormLikeFactory.findRootForField(input);
@@ -456,8 +461,8 @@ async function focusAndWaitForFieldsIdentified(browserOrContext, selector) {
 
   await sleep();
   await SpecialPowers.spawn(browserOrContext, [], async function() {
-    const { FormLikeFactory } = ChromeUtils.import(
-      "resource://gre/modules/FormLikeFactory.jsm"
+    const { FormLikeFactory } = ChromeUtils.importESModule(
+      "resource://gre/modules/FormLikeFactory.sys.mjs"
     );
     FormLikeFactory.findRootForField(
       content.document.activeElement

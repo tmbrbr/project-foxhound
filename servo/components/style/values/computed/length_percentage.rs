@@ -30,7 +30,7 @@ use crate::values::distance::{ComputeSquaredDistance, SquaredDistance};
 use crate::values::generics::{calc, NonNegative};
 use crate::values::specified::length::FontBaseSize;
 use crate::values::{specified, CSSFloat};
-use crate::Zero;
+use crate::{Zero, ZeroNoPercent};
 use app_units::Au;
 use malloc_size_of::{MallocSizeOf, MallocSizeOfOps};
 use serde::{Deserialize, Serialize};
@@ -556,6 +556,13 @@ impl Zero for LengthPercentage {
     }
 }
 
+impl ZeroNoPercent for LengthPercentage {
+    #[inline]
+    fn is_zero_no_percent(&self) -> bool {
+        self.is_definitely_zero() && !self.has_percentage()
+    }
+}
+
 impl Serialize for LengthPercentage {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -755,11 +762,7 @@ impl specified::CalcLengthPercentage {
         context: &Context,
         base_size: FontBaseSize,
     ) -> LengthPercentage {
-        self.to_computed_value_with_zoom(
-            context,
-            |abs| context.maybe_zoom_text(abs),
-            base_size,
-        )
+        self.to_computed_value_with_zoom(context, |abs| context.maybe_zoom_text(abs), base_size)
     }
 
     /// Compute the value into pixel length as CSSFloat without context,

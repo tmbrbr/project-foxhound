@@ -11,6 +11,7 @@
 #include "mozilla/Attributes.h"
 
 #include <stdint.h>
+#include <utility>
 
 #include "jstypes.h"
 #include "NamespaceImports.h"
@@ -63,9 +64,7 @@ class MOZ_RAII IRGenerator {
   CacheKind cacheKind_;
   ICState::Mode mode_;
   bool isFirstStub_;
-#ifdef JS_ION_PERF
   UniqueChars stubName_;
-#endif
 
   IRGenerator(const IRGenerator&) = delete;
   IRGenerator& operator=(const IRGenerator&) = delete;
@@ -97,13 +96,7 @@ class MOZ_RAII IRGenerator {
 
   const CacheIRWriter& writerRef() const { return writer; }
   CacheKind cacheKind() const { return cacheKind_; }
-  const char* stubName() const {
-#ifdef JS_ION_PERF
-    return stubName_.get();
-#else
-    return nullptr;
-#endif
-  }
+  const char* stubName() const { return stubName_.get(); }
 
   static constexpr char* NotAttached = nullptr;
 };
@@ -183,8 +176,8 @@ class MOZ_RAII GetPropIRGenerator : public IRGenerator {
                                             ObjOperandId objId);
 
   AttachDecision tryAttachGenericElement(HandleObject obj, ObjOperandId objId,
-                                         uint32_t index,
-                                         Int32OperandId indexId);
+                                         uint32_t index, Int32OperandId indexId,
+                                         ValOperandId receiverId);
 
   AttachDecision tryAttachProxyElement(HandleObject obj, ObjOperandId objId);
 
@@ -492,6 +485,8 @@ class MOZ_RAII CallIRGenerator : public IRGenerator {
                                              MutableHandle<Shape*> result);
 
   ObjOperandId emitFunCallGuard(Int32OperandId argcId);
+  std::pair<ObjOperandId, ObjOperandId> emitFunApplyGuard(
+      Int32OperandId argcId, CallFlags::ArgFormat format);
 
   AttachDecision tryAttachFunCall(HandleFunction calleeFunc);
   AttachDecision tryAttachFunApply(HandleFunction calleeFunc);
@@ -531,9 +526,12 @@ class MOZ_RAII InlinableNativeIRGenerator {
 
   void emitNativeCalleeGuard();
 
+  ObjOperandId emitNativeCalleeGuardAndLoadArgsArray();
+
   void initializeInputOperand() {
-    // The input operand is already initialized for FunCall.
-    if (flags_.getArgFormat() == CallFlags::FunCall) {
+    // The input operand is already initialized for FunCall and FunApplyArray.
+    if (flags_.getArgFormat() == CallFlags::FunCall ||
+        flags_.getArgFormat() == CallFlags::FunApplyArray) {
       return;
     }
     (void)writer.setInputOperandId(0);
@@ -597,6 +595,9 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachStringCharAt();
   AttachDecision tryAttachStringFromCharCode();
   AttachDecision tryAttachStringFromCodePoint();
+  AttachDecision tryAttachStringIndexOf();
+  AttachDecision tryAttachStringStartsWith();
+  AttachDecision tryAttachStringEndsWith();
   AttachDecision tryAttachStringToLowerCase();
   AttachDecision tryAttachStringToUpperCase();
   AttachDecision tryAttachStringReplaceString();

@@ -582,6 +582,18 @@ class TestInfoReport(TestInfo):
                             # "skip-if(Android&&webrender) skip-if(OSX)", would be
                             # encoded as t['skip-if'] = "Android&&webrender;OSX".
                             annotation_conditions = t[key].split(";")
+
+                            # if key has \n in it, we need to strip it. for manifestparser format
+                            #  1) from the beginning of the line
+                            #  2) different conditions if in the middle of the line
+                            annotation_conditions = [
+                                x.strip("\n") for x in annotation_conditions
+                            ]
+                            temp = []
+                            for condition in annotation_conditions:
+                                temp.extend(condition.split("\n"))
+                            annotation_conditions = temp
+
                             for condition in annotation_conditions:
                                 condition_count += 1
                                 # Trim reftest fuzzy-if ranges: everything after the first comma
@@ -619,6 +631,12 @@ class TestInfoReport(TestInfo):
                             if_data = ifd.get(relpath)
                             test_info["failure_count"] = if_data["count"]
 
+                        if "manifest_relpath" in t and "manifest" in t:
+                            if "web-platform" in t["manifest_relpath"]:
+                                test_info["manifest"] = [t["manifest"]]
+                            else:
+                                test_info["manifest"] = [t["manifest_relpath"]]
+
                         if show_tests:
                             rkey = key if show_components else "all"
                             if rkey in by_component["tests"]:
@@ -631,6 +649,16 @@ class TestInfoReport(TestInfo):
                                         break
                                 if not found:
                                     by_component["tests"][rkey].append(test_info)
+                                else:
+                                    for ti in by_component["tests"][rkey]:
+                                        if ti["test"] == test_info["test"]:
+                                            if (
+                                                test_info["manifest"][0]
+                                                not in ti["manifest"]
+                                            ):
+                                                ti["manifest"].extend(
+                                                    test_info["manifest"]
+                                                )
                             else:
                                 by_component["tests"][rkey] = [test_info]
             if show_tests:

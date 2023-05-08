@@ -44,7 +44,7 @@ button:dir(rtl) {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--blue-50);
+  background-color: var(--in-content-accent-color);
   position: absolute;
   top: 4px;
   inset-inline-start: 28px;
@@ -57,10 +57,11 @@ button:enabled:hover {
 
 button:enabled:hover:active {
   background-color: var(--in-content-button-background-active);
+  color: var(--in-content-button-text-color-active);
 }
 
 button:focus-visible {
-  outline-offset: -2px;
+  outline-offset: var(--in-content-focus-outline-inset);
 }
 
 button:disabled {

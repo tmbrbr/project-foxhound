@@ -12,12 +12,15 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  IgnoreLists: "resource://gre/modules/IgnoreLists.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   CustomizableUI: "resource:///modules/CustomizableUI.jsm",
   ExtensionParent: "resource://gre/modules/ExtensionParent.jsm",
   ExtensionPreferencesManager:
     "resource://gre/modules/ExtensionPreferencesManager.jsm",
-  IgnoreLists: "resource://gre/modules/IgnoreLists.jsm",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
 });
 
@@ -58,7 +61,7 @@ function getHomepagePref(useDefault) {
 }
 
 /**
- * HomePage provides tools to keep try of the current homepage, and the
+ * HomePage provides tools to keep track of the current homepage, and the
  * applications's default homepage. It includes tools to insure that certain
  * urls are ignored. As a result, all set/get requests for the homepage
  * preferences should be routed through here.

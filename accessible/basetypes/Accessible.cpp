@@ -74,6 +74,16 @@ bool Accessible::IsBefore(const Accessible* aAcc) const {
   return otherPos > 0;
 }
 
+Accessible* Accessible::FocusedChild() {
+  Accessible* doc = nsAccUtils::DocumentFor(this);
+  Accessible* child = doc->FocusedChild();
+  if (child && (child == this || child->Parent() == this)) {
+    return child;
+  }
+
+  return nullptr;
+}
+
 const nsRoleMapEntry* Accessible::ARIARoleMap() const {
   return aria::GetRoleMapFromIndex(mRoleMapEntryIndex);
 }
@@ -283,9 +293,8 @@ int32_t Accessible::GetLevel(bool aFast) const {
           return 1;
         }
 
-        for (Accessible* child = parent->FirstChild(); child;
-             child = child->NextSibling()) {
-          if (child->IsHTMLOptGroup()) {
+        for (uint32_t i = 0, count = parent->ChildCount(); i < count; ++i) {
+          if (parent->ChildAt(i)->IsHTMLOptGroup()) {
             return 1;
           }
         }

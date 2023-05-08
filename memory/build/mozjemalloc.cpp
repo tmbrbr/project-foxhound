@@ -55,51 +55,48 @@
 // categories according to size class.  Assuming runtime defaults, the size
 // classes in each category are as follows (for x86, x86_64 and Apple Silicon):
 //
-//   |======================================================================|
-//   | Category | Subcategory    |     x86 |  x86_64 | Mac x86_64 | Mac ARM |
-//   |---------------------------+---------+---------+------------+---------|
-//   | Word size                 |  32 bit |  64 bit |     64 bit |  64 bit |
-//   | Page size                 |    4 Kb |    4 Kb |       4 Kb |   16 Kb |
-//   |======================================================================|
-//   | Small    | Tiny           |    4/-w |      -w |          - |       - |
-//   |          |                |       8 |    8/-w |          8 |       8 |
-//   |          |----------------+---------|---------|------------|---------|
-//   |          | Quantum-spaced |      16 |      16 |         16 |      16 |
-//   |          |                |      32 |      32 |         32 |      32 |
-//   |          |                |      48 |      48 |         48 |      48 |
-//   |          |                |     ... |     ... |        ... |     ... |
-//   |          |                |     480 |     480 |        480 |     480 |
-//   |          |                |     496 |     496 |        496 |     496 |
-//   |          |----------------+---------|---------|------------|---------|
-//   |          | Quantum-wide-  |     512 |     512 |          - |       - |
-//   |          | spaced         |     768 |     768 |          - |       - |
-//   |          |                |     ... |     ... |          - |       - |
-//   |          |                |    3584 |    3584 |          - |       - |
-//   |          |                |    3840 |    3840 |          - |       - |
-//   |          |----------------+---------|---------|------------|---------|
-//   |          | Sub-page       |       - |       - |        512 |     512 |
-//   |          |                |       - |       - |       1024 |    1024 |
-//   |          |                |       - |       - |       2048 |    2048 |
-//   |          |                |       - |       - |            |    4096 |
-//   |          |                |       - |       - |            |    8 kB |
-//   |============================================================|=========|
-//   | Large                     |    4 kB |    4 kB |       4 kB |       - |
-//   |                           |    8 kB |    8 kB |       8 kB |       - |
-//   |                           |   12 kB |   12 kB |      12 kB |       - |
-//   |                           |   16 kB |   16 kB |      16 kB |   16 kB |
-//   |                           |     ... |     ... |        ... |       - |
-//   |                           |   32 kB |   32 kB |      32 kB |   32 kB |
-//   |                           |     ... |     ... |        ... |     ... |
-//   |                           | 1008 kB | 1008 kB |    1008 kB | 1008 kB |
-//   |                           | 1012 kB | 1012 kB |    1012 kB |       - |
-//   |                           | 1016 kB | 1016 kB |    1016 kB |       - |
-//   |                           | 1020 kB | 1020 kB |    1020 kB |       - |
-//   |======================================================================|
-//   | Huge                      |    1 MB |    1 MB |       1 MB |    1 MB |
-//   |                           |    2 MB |    2 MB |       2 MB |    2 MB |
-//   |                           |    3 MB |    3 MB |       3 MB |    3 MB |
-//   |                           |     ... |     ... |        ... |     ... |
-//   |======================================================================|
+//   |=========================================================|
+//   | Category | Subcategory    |     x86 |  x86_64 | Mac ARM |
+//   |---------------------------+---------+---------+---------|
+//   | Word size                 |  32 bit |  64 bit |  64 bit |
+//   | Page size                 |    4 Kb |    4 Kb |   16 Kb |
+//   |=========================================================|
+//   | Small    | Tiny           |    4/-w |      -w |       - |
+//   |          |                |       8 |    8/-w |       8 |
+//   |          |----------------+---------|---------|---------|
+//   |          | Quantum-spaced |      16 |      16 |      16 |
+//   |          |                |      32 |      32 |      32 |
+//   |          |                |      48 |      48 |      48 |
+//   |          |                |     ... |     ... |     ... |
+//   |          |                |     480 |     480 |     480 |
+//   |          |                |     496 |     496 |     496 |
+//   |          |----------------+---------|---------|---------|
+//   |          | Quantum-wide-  |     512 |     512 |     512 |
+//   |          | spaced         |     768 |     768 |     768 |
+//   |          |                |     ... |     ... |     ... |
+//   |          |                |    3584 |    3584 |    3584 |
+//   |          |                |    3840 |    3840 |    3840 |
+//   |          |----------------+---------|---------|---------|
+//   |          | Sub-page       |       - |       - |    4096 |
+//   |          |                |       - |       - |    8 kB |
+//   |=========================================================|
+//   | Large                     |    4 kB |    4 kB |       - |
+//   |                           |    8 kB |    8 kB |       - |
+//   |                           |   12 kB |   12 kB |       - |
+//   |                           |   16 kB |   16 kB |   16 kB |
+//   |                           |     ... |     ... |       - |
+//   |                           |   32 kB |   32 kB |   32 kB |
+//   |                           |     ... |     ... |     ... |
+//   |                           | 1008 kB | 1008 kB | 1008 kB |
+//   |                           | 1012 kB | 1012 kB |       - |
+//   |                           | 1016 kB | 1016 kB |       - |
+//   |                           | 1020 kB | 1020 kB |       - |
+//   |=========================================================|
+//   | Huge                      |    1 MB |    1 MB |    1 MB |
+//   |                           |    2 MB |    2 MB |    2 MB |
+//   |                           |    3 MB |    3 MB |    3 MB |
+//   |                           |     ... |     ... |     ... |
+//   |=========================================================|
 //
 // Legend:
 //   n:    Size class exists for this platform.
@@ -165,6 +162,11 @@
 #include "rb.h"
 #include "Mutex.h"
 #include "Utils.h"
+
+// For GetGeckoProcessType(), when it's used.
+#if defined(XP_WIN) && !defined(JS_STANDALONE)
+#  include "mozilla/ProcessType.h"
+#endif
 
 using namespace mozilla;
 
@@ -420,11 +422,7 @@ static const size_t kMaxTinyClass = 8;
 // them.
 static const size_t kMinQuantumClass = kMaxTinyClass * 2;
 static const size_t kMinQuantumWideClass = 512;
-#ifdef XP_MACOSX
-static const size_t kMinSubPageClass = 512;
-#else
 static const size_t kMinSubPageClass = 4_KiB;
-#endif
 
 // Amount (quantum) separating quantum-spaced size classes.
 static const size_t kQuantum = 16;
@@ -1159,7 +1157,7 @@ class ArenaCollection {
     // The main arena allows more dirty pages than the default for other arenas.
     params.mMaxDirty = opt_dirty_max;
     mDefaultArena =
-        mLock.Init() ? CreateArena(/* IsPrivate = */ false, &params) : nullptr;
+        mLock.Init() ? CreateArena(/* aIsPrivate = */ false, &params) : nullptr;
     return bool(mDefaultArena);
   }
 
@@ -1222,39 +1220,43 @@ static ArenaCollection gArenas;
 static AddressRadixTree<(sizeof(void*) << 3) - LOG2(kChunkSize)> gChunkRTree;
 
 // Protects chunk-related data structures.
-static Mutex chunks_mtx MOZ_UNANNOTATED;
+static Mutex chunks_mtx;
 
 // Trees of chunks that were previously allocated (trees differ only in node
 // ordering).  These are used when allocating chunks, in an attempt to re-use
 // address space.  Depending on function, different tree orderings are needed,
 // which is why there are two trees with the same contents.
-static RedBlackTree<extent_node_t, ExtentTreeSzTrait> gChunksBySize;
-static RedBlackTree<extent_node_t, ExtentTreeTrait> gChunksByAddress;
+static RedBlackTree<extent_node_t, ExtentTreeSzTrait> gChunksBySize
+    MOZ_GUARDED_BY(chunks_mtx);
+static RedBlackTree<extent_node_t, ExtentTreeTrait> gChunksByAddress
+    MOZ_GUARDED_BY(chunks_mtx);
 
 // Protects huge allocation-related data structures.
-static Mutex huge_mtx MOZ_UNANNOTATED;
+static Mutex huge_mtx;
 
 // Tree of chunks that are stand-alone huge allocations.
-static RedBlackTree<extent_node_t, ExtentTreeTrait> huge;
+static RedBlackTree<extent_node_t, ExtentTreeTrait> huge
+    MOZ_GUARDED_BY(huge_mtx);
 
 // Huge allocation statistics.
-static size_t huge_allocated;
-static size_t huge_mapped;
+static size_t huge_allocated MOZ_GUARDED_BY(huge_mtx);
+static size_t huge_mapped MOZ_GUARDED_BY(huge_mtx);
 
 // **************************
 // base (internal allocation).
 
+static Mutex base_mtx;
+
 // Current pages that are being used for internal memory allocations.  These
 // pages are carved up in cacheline-size quanta, so that there is no chance of
 // false cache line sharing.
-
-static void* base_pages;
-static void* base_next_addr;
-static void* base_next_decommitted;
-static void* base_past_addr;  // Addr immediately past base_pages.
-static Mutex base_mtx MOZ_UNANNOTATED;
-static size_t base_mapped;
-static size_t base_committed;
+static void* base_pages MOZ_GUARDED_BY(base_mtx);
+static void* base_next_addr MOZ_GUARDED_BY(base_mtx);
+static void* base_next_decommitted MOZ_GUARDED_BY(base_mtx);
+// Address immediately past base_pages.
+static void* base_past_addr MOZ_GUARDED_BY(base_mtx);
+static size_t base_mapped MOZ_GUARDED_BY(base_mtx);
+static size_t base_committed MOZ_GUARDED_BY(base_mtx);
 
 // ******
 // Arenas.
@@ -1371,6 +1373,108 @@ static inline void ApplyZeroOrJunk(void* aPtr, size_t aSize) {
   }
 }
 
+// On Windows, delay crashing on OOM.
+#ifdef XP_WIN
+
+// Implementation of VirtualAlloc wrapper (bug 1716727).
+namespace MozAllocRetries {
+
+// Maximum retry count on OOM.
+constexpr size_t kMaxAttempts = 10;
+// Minimum delay time between retries. (The actual delay time may be larger. See
+// Microsoft's documentation for ::Sleep() for details.)
+constexpr size_t kDelayMs = 50;
+
+struct StallSpecs {
+  size_t maxAttempts;
+  size_t delayMs;
+};
+
+static constexpr StallSpecs maxStall = {.maxAttempts = kMaxAttempts,
+                                        .delayMs = kDelayMs};
+
+static inline StallSpecs GetStallSpecs() {
+#  if defined(JS_STANDALONE)
+  // GetGeckoProcessType() isn't available in this configuration. (SpiderMonkey
+  // on Windows mostly skips this in favor of directly calling ::VirtualAlloc(),
+  // though, so it's probably not going to matter whether we stall here or not.)
+  return maxStall;
+#  else
+  switch (GetGeckoProcessType()) {
+    // For the main process, stall for the maximum permissible time period. (The
+    // main process is the most important one to keep alive.)
+    case GeckoProcessType::GeckoProcessType_Default:
+      return maxStall;
+
+    // For all other process types, stall for at most half as long.
+    default:
+      return {.maxAttempts = kMaxAttempts / 2, .delayMs = kDelayMs};
+  }
+#  endif
+}
+
+// Drop-in wrapper around VirtualAlloc. When out of memory, may attempt to stall
+// and retry rather than returning immediately, in hopes that the page file is
+// about to be expanded by Windows.
+//
+// Ref: https://docs.microsoft.com/en-us/troubleshoot/windows-client/performance/slow-page-file-growth-memory-allocation-errors
+[[nodiscard]] void* MozVirtualAlloc(LPVOID lpAddress, SIZE_T dwSize,
+                                    DWORD flAllocationType, DWORD flProtect) {
+  constexpr auto IsOOMError = [] {
+    switch (::GetLastError()) {
+      // This is the usual error result from VirtualAlloc for OOM.
+      case ERROR_COMMITMENT_LIMIT:
+      // Although rare, this has also been observed in low-memory situations.
+      // (Presumably this means Windows can't allocate enough kernel-side space
+      // for its own internal representation of the process's virtual address
+      // space.)
+      case ERROR_NOT_ENOUGH_MEMORY:
+        return true;
+    }
+    return false;
+  };
+
+  {
+    void* ptr = ::VirtualAlloc(lpAddress, dwSize, flAllocationType, flProtect);
+    if (MOZ_LIKELY(ptr)) return ptr;
+
+    // We can't do anything for errors other than OOM...
+    if (!IsOOMError()) return nullptr;
+    // ... or if this wasn't a request to commit memory in the first place.
+    // (This function has no strategy for resolving MEM_RESERVE failures.)
+    if (!(flAllocationType & MEM_COMMIT)) return nullptr;
+  }
+
+  // Retry as many times as desired (possibly zero).
+  const StallSpecs stallSpecs = GetStallSpecs();
+
+  for (size_t i = 0; i < stallSpecs.maxAttempts; ++i) {
+    ::Sleep(stallSpecs.delayMs);
+    void* ptr = ::VirtualAlloc(lpAddress, dwSize, flAllocationType, flProtect);
+
+    if (ptr) {
+      // The OOM status has been handled, and should not be reported to
+      // telemetry.
+      if (IsOOMError()) {
+        ::SetLastError(0);
+      }
+      return ptr;
+    }
+
+    // Failure for some reason other than OOM.
+    if (!IsOOMError()) {
+      return nullptr;
+    }
+  }
+
+  // Ah, well. We tried.
+  return nullptr;
+}
+}  // namespace MozAllocRetries
+
+using MozAllocRetries::MozVirtualAlloc;
+#endif  // XP_WIN
+
 // ***************************************************************************
 
 static inline void pages_decommit(void* aAddr, size_t aSize) {
@@ -1420,7 +1524,7 @@ static inline void pages_decommit(void* aAddr, size_t aSize) {
   // time, we may touch any region in chunksized increments.
   size_t pages_size = std::min(aSize, kChunkSize - GetChunkOffsetForPtr(aAddr));
   while (aSize > 0) {
-    if (!VirtualAlloc(aAddr, pages_size, MEM_COMMIT, PAGE_READWRITE)) {
+    if (!MozVirtualAlloc(aAddr, pages_size, MEM_COMMIT, PAGE_READWRITE)) {
       return false;
     }
     aAddr = (void*)((uintptr_t)aAddr + pages_size);
@@ -1437,7 +1541,7 @@ static inline void pages_decommit(void* aAddr, size_t aSize) {
   return true;
 }
 
-static bool base_pages_alloc(size_t minsize) {
+static bool base_pages_alloc(size_t minsize) MOZ_REQUIRES(base_mtx) {
   size_t csize;
   size_t pminsize;
 
@@ -1565,7 +1669,7 @@ using UniqueBaseNode =
 
 static void* pages_map(void* aAddr, size_t aSize) {
   void* ret = nullptr;
-  ret = VirtualAlloc(aAddr, aSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+  ret = MozVirtualAlloc(aAddr, aSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
   return ret;
 }
 
@@ -1764,7 +1868,7 @@ void* AddressRadixTree<Bits>::Get(void* aKey) {
 template <size_t Bits>
 bool AddressRadixTree<Bits>::Set(void* aKey, void* aValue) {
   MutexAutoLock lock(mLock);
-  void** slot = GetSlot(aKey, /* create = */ true);
+  void** slot = GetSlot(aKey, /* aCreate = */ true);
   if (slot) {
     *slot = aValue;
   }
@@ -1776,11 +1880,11 @@ bool AddressRadixTree<Bits>::Set(void* aKey, void* aValue) {
 
 // Return the offset between a and the nearest aligned address at or below a.
 #define ALIGNMENT_ADDR2OFFSET(a, alignment) \
-  ((size_t)((uintptr_t)(a) & (alignment - 1)))
+  ((size_t)((uintptr_t)(a) & ((alignment)-1)))
 
 // Return the smallest alignment multiple that is >= s.
 #define ALIGNMENT_CEILING(s, alignment) \
-  (((s) + (alignment - 1)) & (~(alignment - 1)))
+  (((s) + ((alignment)-1)) & (~((alignment)-1)))
 
 static void* pages_trim(void* addr, size_t alloc_size, size_t leadsize,
                         size_t size) {
@@ -1960,7 +2064,7 @@ static void* chunk_recycle(size_t aSize, size_t aAlignment, bool* aZeroed) {
 // awkward to recycle allocations of varying sizes. Therefore we only allow
 // recycling when the size equals the chunksize, unless deallocation is entirely
 // disabled.
-#  define CAN_RECYCLE(size) (size == kChunkSize)
+#  define CAN_RECYCLE(size) ((size) == kChunkSize)
 #else
 #  define CAN_RECYCLE(size) true
 #endif
@@ -2136,7 +2240,7 @@ static inline arena_t* thread_local_arena(bool enabled) {
     // because in practice nothing actually calls this function
     // with `false`, except maybe at shutdown.
     arena =
-        gArenas.CreateArena(/* IsPrivate = */ false, /* Params = */ nullptr);
+        gArenas.CreateArena(/* aIsPrivate = */ false, /* aParams = */ nullptr);
   } else {
     arena = gArenas.GetDefault();
   }
@@ -3998,7 +4102,6 @@ static size_t GetKernelPageSize() {
 static bool malloc_init_hard() {
   unsigned i;
   const char* opts;
-  long result;
 
   AutoLock<StaticMutex> lock(gInitLock);
 
@@ -4013,18 +4116,18 @@ static bool malloc_init_hard() {
   }
 
   // Get page size and number of CPUs
-  result = GetKernelPageSize();
+  const size_t result = GetKernelPageSize();
   // We assume that the page size is a power of 2.
   MOZ_ASSERT(((result - 1) & result) == 0);
 #ifdef MALLOC_STATIC_PAGESIZE
-  if (gPageSize % (size_t)result) {
+  if (gPageSize % result) {
     _malloc_message(
         _getprogname(),
         "Compile-time page size does not divide the runtime one.\n");
     MOZ_CRASH();
   }
 #else
-  gRealPageSize = gPageSize = (size_t)result;
+  gRealPageSize = gPageSize = result;
 #endif
 
   // Get runtime configuration.
@@ -4119,19 +4222,25 @@ static bool malloc_init_hard() {
 
   // Initialize chunks data.
   chunks_mtx.Init();
+  MOZ_PUSH_IGNORE_THREAD_SAFETY
   gChunksBySize.Init();
   gChunksByAddress.Init();
+  MOZ_POP_THREAD_SAFETY
 
   // Initialize huge allocation data.
   huge_mtx.Init();
+  MOZ_PUSH_IGNORE_THREAD_SAFETY
   huge.Init();
   huge_allocated = 0;
   huge_mapped = 0;
+  MOZ_POP_THREAD_SAFETY
 
   // Initialize base allocation data structures.
+  base_mtx.Init();
+  MOZ_PUSH_IGNORE_THREAD_SAFETY
   base_mapped = 0;
   base_committed = 0;
-  base_mtx.Init();
+  MOZ_POP_THREAD_SAFETY
 
   // Initialize arenas collection here.
   if (!gArenas.Init()) {
@@ -4202,7 +4311,7 @@ inline void* BaseAllocator::malloc(size_t aSize) {
     aSize = 1;
   }
   arena = mArena ? mArena : choose_arena(aSize);
-  ret = arena->Malloc(aSize, /* zero = */ false);
+  ret = arena->Malloc(aSize, /* aZero = */ false);
 
 RETURN:
   if (!ret) {
@@ -4239,7 +4348,7 @@ inline void* BaseAllocator::calloc(size_t aNum, size_t aSize) {
         allocSize = 1;
       }
       arena_t* arena = mArena ? mArena : choose_arena(allocSize);
-      ret = arena->Malloc(allocSize, /* zero = */ true);
+      ret = arena->Malloc(allocSize, /* aZero = */ true);
     } else {
       ret = nullptr;
     }
@@ -4273,7 +4382,7 @@ inline void* BaseAllocator::realloc(void* aPtr, size_t aSize) {
       ret = nullptr;
     } else {
       arena_t* arena = mArena ? mArena : choose_arena(aSize);
-      ret = arena->Malloc(aSize, /* zero = */ false);
+      ret = arena->Malloc(aSize, /* aZero = */ false);
     }
   }
 
@@ -4642,7 +4751,7 @@ inline void MozJemalloc::moz_dispose_arena(arena_id_t aArenaId) {
 // running in threaded mode, so there is no need to check whether the program
 // is threaded here.
 FORK_HOOK
-void _malloc_prefork(void) NO_THREAD_SAFETY_ANALYSIS {
+void _malloc_prefork(void) MOZ_NO_THREAD_SAFETY_ANALYSIS {
   // Acquire all mutexes in a safe order.
   gArenas.mLock.Lock();
 
@@ -4656,7 +4765,7 @@ void _malloc_prefork(void) NO_THREAD_SAFETY_ANALYSIS {
 }
 
 FORK_HOOK
-void _malloc_postfork_parent(void) NO_THREAD_SAFETY_ANALYSIS {
+void _malloc_postfork_parent(void) MOZ_NO_THREAD_SAFETY_ANALYSIS {
   // Release all mutexes, now that fork() has completed.
   huge_mtx.Unlock();
 

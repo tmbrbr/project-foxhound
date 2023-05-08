@@ -211,6 +211,7 @@
                 <menuitem id="menu_readerModeItem"
                           observes="View:ReaderView"
                           key="key_toggleReaderMode"
+                          data-l10n-id="menu-view-enter-readerview"
                           hidden="true"/>
                 <menuitem id="menu_showAllTabs"
                           hidden="true"
@@ -310,7 +311,7 @@
       <menuitem id="menu_bookmarkThisPage"
                 command="Browser:AddBookmarkAs"
                 key="addBookmarkAsKb"
-                data-l10n-id="menu-bookmark-current-tab"/>
+                data-l10n-id="menu-bookmark-tab"/>
       <menuitem id="menu_bookmarkAllTabs"
                 class="show-only-for-keyboard"
                 command="Browser:BookmarkAllTabs"
@@ -393,10 +394,8 @@
                         hidden="true"
                         oncommand="gSync.openSignInAgainPage('menubar');" data-l10n-id="menu-tools-fxa-re-auth"/>
 
-#ifdef NIGHTLY_BUILD
               <menuitem id="menu_openFirefoxView"
                         oncommand="FirefoxViewHandler.openTab();" data-l10n-id="menu-tools-firefox-view"/>
-#endif
               <menuseparator id="devToolsSeparator"/>
               <menu id="browserToolsMenu" data-l10n-id="menu-tools-browser-tools">
                 <menupopup id="menuWebDeveloperPopup">

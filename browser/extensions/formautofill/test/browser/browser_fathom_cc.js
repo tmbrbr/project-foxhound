@@ -103,7 +103,7 @@ async function run_test(path, dirs) {
 
           // This value should sync with the number of supported types in
           // CreditCardRuleset.jsm (See `get types()` in `this.creditCardRulesets`).
-          const EXPECTED_NUM_OF_CONFIDENCE = 1;
+          const EXPECTED_NUM_OF_CONFIDENCE = 2;
           for (let i = 0; i < eligibleFields.length; i++) {
             if (
               Object.keys(nativeConfidencesKeyedByType[i]).length !=
@@ -192,11 +192,9 @@ add_task(async function test_native_cc_model() {
 });
 
 add_task(async function test_native_cc_model_autofill_repo() {
-  const { OS } = ChromeUtils.import("resource://gre/modules/osfile.jsm");
-
   const path = "fathom/autofill-repo-samples/";
   const dirs = ["validation/", "training/", "testing/"];
-  if (await OS.File.exists(getTestFilePath(path))) {
+  if (await IOUtils.exists(getTestFilePath(path))) {
     // Just to ignore timeout failure while running the test on the local
     requestLongerTimeout(10);
 

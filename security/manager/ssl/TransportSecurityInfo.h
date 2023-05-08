@@ -16,7 +16,6 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/ipc/TransportSecurityInfoUtils.h"
 #include "mozpkix/pkixtypes.h"
-#include "nsTHashMap.h"
 #include "nsIClassInfo.h"
 #include "nsIObjectInputStream.h"
 #include "nsIInterfaceRequestor.h"
@@ -79,7 +78,7 @@ class TransportSecurityInfo : public nsITransportSecurityInfo,
   bool IsCanceled();
 
   void SetStatusErrorBits(const nsCOMPtr<nsIX509Cert>& cert,
-                          uint32_t collected_errors);
+                          OverridableErrorCategory overridableErrorCategory);
 
   nsresult SetFailedCertChain(nsTArray<nsTArray<uint8_t>>&& certList);
 
@@ -105,14 +104,22 @@ class TransportSecurityInfo : public nsITransportSecurityInfo,
     mCertificateTransparencyStatus = aCertificateTransparencyStatus;
   }
 
+  void SetMadeOCSPRequest(bool aMadeOCSPRequests) {
+    MutexAutoLock lock(mMutex);
+    mMadeOCSPRequests = aMadeOCSPRequests;
+  }
+
+  void SetUsedPrivateDNS(bool aUsedPrivateDNS) {
+    MutexAutoLock lock(mMutex);
+    mUsedPrivateDNS = aUsedPrivateDNS;
+  }
+
   void SetResumed(bool aResumed);
 
-  Atomic<bool> mIsDomainMismatch;
-  Atomic<bool> mIsNotValidAtThisTime;
-  Atomic<bool> mIsUntrusted;
+  Atomic<OverridableErrorCategory> mOverridableErrorCategory;
   Atomic<bool> mIsEV;
-
   Atomic<bool> mHasIsEVStatus;
+
   Atomic<bool> mHaveCipherSuiteAndProtocol;
 
   /* mHaveCertErrrorBits is relied on to determine whether or not a SPDY
@@ -128,24 +135,26 @@ class TransportSecurityInfo : public nsITransportSecurityInfo,
  protected:
   mutable ::mozilla::Mutex mMutex;
 
-  uint16_t mCipherSuite GUARDED_BY(mMutex);
-  uint16_t mProtocolVersion GUARDED_BY(mMutex);
-  uint16_t mCertificateTransparencyStatus GUARDED_BY(mMutex);
-  nsCString mKeaGroup GUARDED_BY(mMutex);
-  nsCString mSignatureSchemeName GUARDED_BY(mMutex);
+  uint16_t mCipherSuite MOZ_GUARDED_BY(mMutex);
+  uint16_t mProtocolVersion MOZ_GUARDED_BY(mMutex);
+  uint16_t mCertificateTransparencyStatus MOZ_GUARDED_BY(mMutex);
+  nsCString mKeaGroup MOZ_GUARDED_BY(mMutex);
+  nsCString mSignatureSchemeName MOZ_GUARDED_BY(mMutex);
 
-  bool mIsAcceptedEch GUARDED_BY(mMutex);
-  bool mIsDelegatedCredential GUARDED_BY(mMutex);
+  bool mIsAcceptedEch MOZ_GUARDED_BY(mMutex);
+  bool mIsDelegatedCredential MOZ_GUARDED_BY(mMutex);
+  bool mMadeOCSPRequests MOZ_GUARDED_BY(mMutex);
+  bool mUsedPrivateDNS MOZ_GUARDED_BY(mMutex);
 
-  nsCOMPtr<nsIInterfaceRequestor> mCallbacks GUARDED_BY(mMutex);
-  nsTArray<RefPtr<nsIX509Cert>> mSucceededCertChain GUARDED_BY(mMutex);
-  bool mNPNCompleted GUARDED_BY(mMutex);
-  nsCString mNegotiatedNPN GUARDED_BY(mMutex);
-  bool mResumed GUARDED_BY(mMutex);
-  bool mIsBuiltCertChainRootBuiltInRoot GUARDED_BY(mMutex);
-  nsCString mPeerId GUARDED_BY(mMutex);
-  nsCString mHostName GUARDED_BY(mMutex);
-  OriginAttributes mOriginAttributes GUARDED_BY(mMutex);
+  nsCOMPtr<nsIInterfaceRequestor> mCallbacks MOZ_GUARDED_BY(mMutex);
+  nsTArray<RefPtr<nsIX509Cert>> mSucceededCertChain MOZ_GUARDED_BY(mMutex);
+  bool mNPNCompleted MOZ_GUARDED_BY(mMutex);
+  nsCString mNegotiatedNPN MOZ_GUARDED_BY(mMutex);
+  bool mResumed MOZ_GUARDED_BY(mMutex);
+  bool mIsBuiltCertChainRootBuiltInRoot MOZ_GUARDED_BY(mMutex);
+  nsCString mPeerId MOZ_GUARDED_BY(mMutex);
+  nsCString mHostName MOZ_GUARDED_BY(mMutex);
+  OriginAttributes mOriginAttributes MOZ_GUARDED_BY(mMutex);
 
  private:
   static nsresult ReadBoolAndSetAtomicFieldHelper(nsIObjectInputStream* stream,
@@ -188,11 +197,13 @@ class TransportSecurityInfo : public nsITransportSecurityInfo,
 
   Atomic<int32_t> mPort;
 
-  nsCOMPtr<nsIX509Cert> mServerCert GUARDED_BY(mMutex);
+  nsCOMPtr<nsIX509Cert> mServerCert MOZ_GUARDED_BY(mMutex);
 
   /* Peer cert chain for failed connections (for error reporting) */
-  nsTArray<RefPtr<nsIX509Cert>> mFailedCertChain GUARDED_BY(mMutex);
+  nsTArray<RefPtr<nsIX509Cert>> mFailedCertChain MOZ_GUARDED_BY(mMutex);
 
+  nsresult ReadOldOverridableErrorBits(nsIObjectInputStream* aStream,
+                                       MutexAutoLock& aProofOfLock);
   nsresult ReadSSLStatus(nsIObjectInputStream* aStream,
                          MutexAutoLock& aProofOfLock);
 
@@ -205,40 +216,6 @@ class TransportSecurityInfo : public nsITransportSecurityInfo,
                                       uint32_t aSize,
                                       nsTArray<RefPtr<nsIX509Cert>>& aCertList,
                                       MutexAutoLock& aProofOfLock);
-};
-
-class RememberCertErrorsTable {
- private:
-  RememberCertErrorsTable();
-
-  struct CertStateBits {
-    bool mIsDomainMismatch;
-    bool mIsNotValidAtThisTime;
-    bool mIsUntrusted;
-  };
-  nsTHashMap<nsCStringHashKey, CertStateBits> mErrorHosts GUARDED_BY(mMutex);
-
- public:
-  void RememberCertHasError(TransportSecurityInfo* infoObject,
-                            SECStatus certVerificationResult);
-  void LookupCertErrorBits(TransportSecurityInfo* infoObject);
-
-  static void Init() { sInstance = new RememberCertErrorsTable(); }
-
-  static RememberCertErrorsTable& GetInstance() {
-    MOZ_ASSERT(sInstance);
-    return *sInstance;
-  }
-
-  static void Cleanup() {
-    delete sInstance;
-    sInstance = nullptr;
-  }
-
- private:
-  Mutex mMutex;
-
-  static RememberCertErrorsTable* sInstance;
 };
 
 }  // namespace psm

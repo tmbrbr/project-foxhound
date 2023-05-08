@@ -5,6 +5,7 @@
 #include "AndroidDataEncoder.h"
 
 #include "AnnexB.h"
+#include "H264.h"
 #include "MediaData.h"
 #include "MediaInfo.h"
 #include "SimpleMap.h"
@@ -169,14 +170,21 @@ RefPtr<MediaDataEncoder::EncodePromise> AndroidDataEncoder<ConfigType>::Encode(
 }
 
 static jni::ByteBuffer::LocalRef ConvertI420ToNV12Buffer(
-    RefPtr<const VideoData> aSample, RefPtr<MediaByteBuffer>& aYUVBuffer) {
-  const PlanarYCbCrImage* image = aSample->mImage->AsPlanarYCbCrImage();
+    RefPtr<const VideoData> aSample, RefPtr<MediaByteBuffer>& aYUVBuffer,
+    int aStride, int aYPlaneHeight) {
+  const layers::PlanarYCbCrImage* image = aSample->mImage->AsPlanarYCbCrImage();
   MOZ_ASSERT(image);
-  const PlanarYCbCrData* yuv = image->GetData();
+  const layers::PlanarYCbCrData* yuv = image->GetData();
   auto ySize = yuv->YDataSize();
   auto cbcrSize = yuv->CbCrDataSize();
-  size_t yLength = yuv->mYStride * ySize.height;
-  size_t length = yLength + (yuv->mCbCrStride * cbcrSize.height * 2);
+  // If we have a stride or height passed in from the Codec we need to use
+  // those.
+  auto yStride = aStride != 0 ? aStride : yuv->mYStride;
+  auto height = aYPlaneHeight != 0 ? aYPlaneHeight : ySize.height;
+  size_t yLength = yStride * height;
+  size_t length =
+      yLength + yStride * (cbcrSize.height - 1) + cbcrSize.width * 2;
+
   if (!aYUVBuffer || aYUVBuffer->Capacity() < length) {
     aYUVBuffer = MakeRefPtr<MediaByteBuffer>(length);
     aYUVBuffer->SetLength(length);
@@ -186,9 +194,9 @@ static jni::ByteBuffer::LocalRef ConvertI420ToNV12Buffer(
 
   if (libyuv::I420ToNV12(yuv->mYChannel, yuv->mYStride, yuv->mCbChannel,
                          yuv->mCbCrStride, yuv->mCrChannel, yuv->mCbCrStride,
-                         aYUVBuffer->Elements(), yuv->mYStride,
-                         aYUVBuffer->Elements() + yLength, yuv->mCbCrStride * 2,
-                         ySize.width, ySize.height) != 0) {
+                         aYUVBuffer->Elements(), yStride,
+                         aYUVBuffer->Elements() + yLength, yStride, ySize.width,
+                         ySize.height) != 0) {
     return nullptr;
   }
 
@@ -205,8 +213,11 @@ AndroidDataEncoder<ConfigType>::ProcessEncode(RefPtr<const MediaData> aSample) {
   RefPtr<const VideoData> sample(aSample->As<const VideoData>());
   MOZ_ASSERT(sample);
 
-  jni::ByteBuffer::LocalRef buffer =
-      ConvertI420ToNV12Buffer(sample, mYUVBuffer);
+  // Bug 1789846: Check with the Encoder if MediaCodec has a stride or height
+  // value to use.
+  jni::ByteBuffer::LocalRef buffer = ConvertI420ToNV12Buffer(
+      sample, mYUVBuffer, mJavaEncoder->GetInputFormatStride(),
+      mJavaEncoder->GetInputFormatYPlaneHeight());
   if (!buffer) {
     return EncodePromise::CreateAndReject(NS_ERROR_ILLEGAL_INPUT, __func__);
   }

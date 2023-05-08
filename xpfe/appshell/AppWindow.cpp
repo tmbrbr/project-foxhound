@@ -1991,7 +1991,7 @@ NS_IMETHODIMP AppWindow::SavePersistentAttributes() {
   ErrorResult rv;
   // (only for size elements which are persisted)
   if ((mPersistentAttributesDirty & PAD_POSITION) && gotRestoredBounds) {
-    if (persistString.Find("screenX") >= 0) {
+    if (persistString.Find(u"screenX") >= 0) {
       sizeString.Truncate();
       sizeString.AppendInt(NSToIntRound(rect.X() / posScale.scale));
       docShellElement->SetAttribute(SCREENX_ATTRIBUTE, sizeString, rv);
@@ -1999,7 +1999,7 @@ NS_IMETHODIMP AppWindow::SavePersistentAttributes() {
         Unused << SetPersistentValue(nsGkAtoms::screenX, sizeString);
       }
     }
-    if (persistString.Find("screenY") >= 0) {
+    if (persistString.Find(u"screenY") >= 0) {
       sizeString.Truncate();
       sizeString.AppendInt(NSToIntRound(rect.Y() / posScale.scale));
       docShellElement->SetAttribute(SCREENY_ATTRIBUTE, sizeString, rv);
@@ -2012,7 +2012,7 @@ NS_IMETHODIMP AppWindow::SavePersistentAttributes() {
   if ((mPersistentAttributesDirty & PAD_SIZE) && gotRestoredBounds) {
     LayoutDeviceIntRect innerRect =
         rect - GetOuterToInnerSizeDifference(mWindow);
-    if (persistString.Find("width") >= 0) {
+    if (persistString.Find(u"width") >= 0) {
       sizeString.Truncate();
       sizeString.AppendInt(NSToIntRound(innerRect.Width() / sizeScale.scale));
       docShellElement->SetAttribute(WIDTH_ATTRIBUTE, sizeString, rv);
@@ -2020,7 +2020,7 @@ NS_IMETHODIMP AppWindow::SavePersistentAttributes() {
         Unused << SetPersistentValue(nsGkAtoms::width, sizeString);
       }
     }
-    if (persistString.Find("height") >= 0) {
+    if (persistString.Find(u"height") >= 0) {
       sizeString.Truncate();
       sizeString.AppendInt(NSToIntRound(innerRect.Height() / sizeScale.scale));
       docShellElement->SetAttribute(HEIGHT_ATTRIBUTE, sizeString, rv);
@@ -2043,7 +2043,7 @@ NS_IMETHODIMP AppWindow::SavePersistentAttributes() {
       else
         sizeString.Assign(SIZEMODE_NORMAL);
       docShellElement->SetAttribute(MODE_ATTRIBUTE, sizeString, rv);
-      if (shouldPersist && persistString.Find("sizemode") >= 0) {
+      if (shouldPersist && persistString.Find(u"sizemode") >= 0) {
         Unused << SetPersistentValue(nsGkAtoms::sizemode, sizeString);
       }
     }
@@ -2054,7 +2054,7 @@ NS_IMETHODIMP AppWindow::SavePersistentAttributes() {
       sizeString.Assign(u"false"_ns);
     }
     docShellElement->SetAttribute(TILED_ATTRIBUTE, sizeString, rv);
-    if (persistString.Find("zlevel") >= 0) {
+    if (persistString.Find(u"zlevel") >= 0) {
       uint32_t zLevel;
       nsCOMPtr<nsIWindowMediator> mediator(
           do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
@@ -2158,7 +2158,7 @@ nsresult AppWindow::GetPrimaryContentShellSize(int32_t* aWidth,
   CSSIntSize size = RoundedToInt(
       shellWindow->GetSize() / shellWindow->UnscaledDevicePixelsPerCSSPixel());
   *aWidth = size.width;
-  *aHeight = size.width;
+  *aHeight = size.height;
   return NS_OK;
 }
 
@@ -2649,10 +2649,12 @@ void AppWindow::SizeShell() {
       nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
       docShell->GetTreeOwner(getter_AddRefs(treeOwner));
       if (treeOwner) {
-        // GetContentSize can fail, so initialise |width| and |height| to be
-        // on the safe side.
-        int32_t width = 0, height = 0;
-        if (NS_SUCCEEDED(cv->GetContentSize(&width, &height))) {
+        if (Maybe<CSSIntSize> size = cv->GetContentSize()) {
+          nsPresContext* pc = cv->GetPresContext();
+          MOZ_ASSERT(pc, "Should have pres context");
+          int32_t width = pc->CSSPixelsToDevPixels(size->width);
+          int32_t height = pc->CSSPixelsToDevPixels(size->height);
+
           treeOwner->SizeShellTo(docShell, width, height);
           // Update specified size for the final LoadPositionFromXUL call.
           specWidth = width + windowDiff.width;
@@ -2810,17 +2812,22 @@ bool AppWindow::RequestWindowClose(nsIWidget* aWidget) {
   return false;
 }
 
-void AppWindow::SizeModeChanged(nsSizeMode sizeMode) {
+void AppWindow::SizeModeChanged(nsSizeMode aSizeMode) {
   // An alwaysRaised (or higher) window will hide any newly opened normal
   // browser windows, so here we just drop a raised window to the normal
   // zlevel if it's maximized. We make no provision for automatically
   // re-raising it when restored.
-  if (sizeMode == nsSizeMode_Maximized || sizeMode == nsSizeMode_Fullscreen) {
+  if (aSizeMode == nsSizeMode_Maximized || aSizeMode == nsSizeMode_Fullscreen) {
     uint32_t zLevel;
     GetZLevel(&zLevel);
-    if (zLevel > nsIAppWindow::normalZ) SetZLevel(nsIAppWindow::normalZ);
+    if (zLevel > nsIAppWindow::normalZ) {
+      SetZLevel(nsIAppWindow::normalZ);
+    }
   }
-  mWindow->SetSizeMode(sizeMode);
+
+#ifdef XP_WIN
+  mWindow->SetSizeMode(aSizeMode);
+#endif
 
   RecomputeBrowsingContextVisibility();
 
@@ -2833,9 +2840,9 @@ void AppWindow::SizeModeChanged(nsSizeMode sizeMode) {
   if (ourWindow) {
     // Ensure that the fullscreen state is synchronized between
     // the widget and the outer window object.
-    if (sizeMode == nsSizeMode_Fullscreen) {
+    if (aSizeMode == nsSizeMode_Fullscreen) {
       ourWindow->SetFullScreen(true);
-    } else if (sizeMode != nsSizeMode_Minimized) {
+    } else if (aSizeMode != nsSizeMode_Minimized) {
       if (ourWindow->GetFullScreen()) {
         // The first SetFullscreenInternal call below ensures that we do
         // not trigger any fullscreen transition even if the window was
@@ -2854,7 +2861,7 @@ void AppWindow::SizeModeChanged(nsSizeMode sizeMode) {
   }
 
   if (PresShell* presShell = GetPresShell()) {
-    presShell->GetPresContext()->SizeModeChanged(sizeMode);
+    presShell->GetPresContext()->SizeModeChanged(aSizeMode);
   }
 
   // Note the current implementation of SetSizeMode just stores
@@ -3330,7 +3337,8 @@ PresShell* AppWindow::WidgetListenerDelegate::GetPresShell() {
 }
 
 bool AppWindow::WidgetListenerDelegate::WindowMoved(nsIWidget* aWidget,
-                                                    int32_t aX, int32_t aY) {
+                                                    int32_t aX, int32_t aY,
+                                                    ByMoveToRect) {
   RefPtr<AppWindow> holder = mAppWindow;
   return holder->WindowMoved(aWidget, aX, aY);
 }

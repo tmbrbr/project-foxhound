@@ -3,13 +3,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
-const EventEmitter = require("devtools/shared/event-emitter");
-const { ELLIPSIS } = require("devtools/shared/l10n");
-const KeyShortcuts = require("devtools/client/shared/key-shortcuts");
-const { parseItemValue } = require("devtools/shared/storage/utils");
-const { KeyCodes } = require("devtools/client/shared/keycodes");
-const { getUnicodeHostname } = require("devtools/client/shared/unicode-url");
-const getStorageTypeURL = require("devtools/client/storage/utils/doc-utils");
+const EventEmitter = require("resource://devtools/shared/event-emitter.js");
+const { ELLIPSIS } = require("resource://devtools/shared/l10n.js");
+const KeyShortcuts = require("resource://devtools/client/shared/key-shortcuts.js");
+const {
+  parseItemValue,
+} = require("resource://devtools/shared/storage/utils.js");
+const { KeyCodes } = require("resource://devtools/client/shared/keycodes.js");
+const {
+  getUnicodeHostname,
+} = require("resource://devtools/client/shared/unicode-url.js");
+const getStorageTypeURL = require("resource://devtools/client/storage/utils/doc-utils.js");
 
 // GUID to be used as a separator in compound keys. This must match the same
 // constant in devtools/server/actors/storage.js,
@@ -20,18 +24,24 @@ const SEPARATOR_GUID = "{9d414cc5-8319-0a04-0586-c0a6ae01670a}";
 loader.lazyRequireGetter(
   this,
   "TreeWidget",
-  "devtools/client/shared/widgets/TreeWidget",
+  "resource://devtools/client/shared/widgets/TreeWidget.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "TableWidget",
-  "devtools/client/shared/widgets/TableWidget",
+  "resource://devtools/client/shared/widgets/TableWidget.js",
   true
 );
-loader.lazyRequireGetter(this, "debounce", "devtools/shared/debounce", true);
-loader.lazyImporter(
+loader.lazyRequireGetter(
   this,
+  "debounce",
+  "resource://devtools/shared/debounce.js",
+  true
+);
+const lazy = {};
+ChromeUtils.defineModuleGetter(
+  lazy,
   "VariablesView",
   "resource://devtools/client/storage/VariablesView.jsm"
 );
@@ -154,8 +164,8 @@ class StorageUI {
     this.table.on(TableWidget.EVENTS.CELL_EDIT, this.editItem);
 
     this.sidebar = this._panelDoc.getElementById("storage-sidebar");
-    this.sidebar.setAttribute("width", "300");
-    this.view = new VariablesView(this.sidebar.firstChild, {
+    this.sidebar.style.width = "300px";
+    this.view = new lazy.VariablesView(this.sidebar.firstChild, {
       lazyEmpty: true,
       // ms
       lazyEmptyDelay: 10,
@@ -556,7 +566,7 @@ class StorageUI {
    *         An array of keys of columns to be made editable
    */
   makeFieldsEditable(editableFields) {
-    if (editableFields && editableFields.length > 0) {
+    if (editableFields && editableFields.length) {
       this.table.makeFieldsEditable(editableFields);
     } else if (this.table._editableFieldsEngine) {
       this.table._editableFieldsEngine.destroy();
@@ -741,7 +751,7 @@ class StorageUI {
     for (const type in added) {
       for (const host in added[type]) {
         const label = this.getReadableLabelFromHostname(host);
-        this.tree.add([type, { id: host, label: label, type: "url" }]);
+        this.tree.add([type, { id: host, label, type: "url" }]);
         for (let name of added[type][host]) {
           try {
             name = JSON.parse(name);
@@ -813,7 +823,7 @@ class StorageUI {
                 }
 
                 // Remove the item from table if currently displayed.
-                if (names.length > 0) {
+                if (names.length) {
                   const tableItemName = names.pop();
                   if (this.tree.isSelected([type, host, ...names])) {
                     await this.removeItemFromTable(tableItemName);
@@ -847,11 +857,7 @@ class StorageUI {
     }
 
     const [type, host, db, objectStore] = selectedItem;
-    if (
-      !changed[type] ||
-      !changed[type][host] ||
-      changed[type][host].length == 0
-    ) {
+    if (!changed[type] || !changed[type][host] || !changed[type][host].length) {
       return;
     }
     try {
@@ -992,7 +998,7 @@ class StorageUI {
     const populateTreeFromResource = (type, resource) => {
       for (const host in resource.hosts) {
         const label = this.getReadableLabelFromHostname(host);
-        this.tree.add([type, { id: host, label: label, type: "url" }]);
+        this.tree.add([type, { id: host, label, type: "url" }]);
         for (const name of resource.hosts[host]) {
           try {
             const names = JSON.parse(name);
@@ -1643,7 +1649,7 @@ class StorageUI {
     const data = this.table.items.get(rowId);
 
     let name = data[uniqueId];
-    if (path.length > 0) {
+    if (path.length) {
       name = JSON.stringify([...path, name]);
     }
     front.removeItem(host, name);
@@ -1660,7 +1666,7 @@ class StorageUI {
     // data from server are successfully fetched (and that's async).
     const [, host, ...path] = this.tree.selectedItem;
     const front = this.getCurrentFront();
-    const name = path.length > 0 ? JSON.stringify(path) : undefined;
+    const name = path.length ? JSON.stringify(path) : undefined;
     front.removeAll(host, name);
   }
 
@@ -1673,7 +1679,7 @@ class StorageUI {
     // table data from server is successfully fetched (and that's async).
     const [, host, ...path] = this.tree.selectedItem;
     const front = this.getCurrentFront();
-    const name = path.length > 0 ? JSON.stringify(path) : undefined;
+    const name = path.length ? JSON.stringify(path) : undefined;
     front.removeAllSessionCookies(host, name);
   }
 

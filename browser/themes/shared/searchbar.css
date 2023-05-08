@@ -10,9 +10,13 @@
   fill: currentColor;
 }
 
-.search-one-offs {
-  -moz-box-orient: vertical;
+.search-one-offs:not([hidden]) {
+  display: block;
   width: 100%;
+}
+
+.search-panel-one-offs-header {
+  display: block;
 }
 
 .search-panel-header {
@@ -66,7 +70,7 @@
 
 .searchbar-engine-one-off-item {
   appearance: none;
-  display: inline-block;
+  display: -moz-inline-box;
   background-color: transparent;
   border: none;
   min-width: 32px;
@@ -109,6 +113,7 @@
 .search-panel-tree {
   background: transparent;
   color: inherit;
+  -moz-box-flex: 0;
 }
 
 .search-panel-tree > .autocomplete-richlistitem {
@@ -170,7 +175,7 @@
     background-color: transparent;
 
     margin: -4px;
-    --panel-border-color: var(--menu-border-color);
+    --panel-border-color: var(--arrowpanel-border-color);
     --panel-border-radius: var(--arrowpanel-border-radius);
   }
   /* TODO(emilio): We should consider adding shadows to all panels on Windows,

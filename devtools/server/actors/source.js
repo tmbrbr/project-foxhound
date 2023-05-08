@@ -6,36 +6,37 @@
 
 const {
   setBreakpointAtEntryPoints,
-} = require("devtools/server/actors/breakpoint");
-const { ActorClassWithSpec, Actor } = require("devtools/shared/protocol");
-const { sourceSpec } = require("devtools/shared/specs/source");
+} = require("resource://devtools/server/actors/breakpoint.js");
+const {
+  ActorClassWithSpec,
+  Actor,
+} = require("resource://devtools/shared/protocol.js");
+const { sourceSpec } = require("resource://devtools/shared/specs/source.js");
 const {
   getSourcemapBaseURL,
-} = require("devtools/server/actors/utils/source-map-utils");
+} = require("resource://devtools/server/actors/utils/source-map-utils.js");
 const {
   getDebuggerSourceURL,
-} = require("devtools/server/actors/utils/source-url");
+} = require("resource://devtools/server/actors/utils/source-url.js");
 
 loader.lazyRequireGetter(
   this,
   "ArrayBufferActor",
-  "devtools/server/actors/array-buffer",
+  "resource://devtools/server/actors/array-buffer.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "LongStringActor",
-  "devtools/server/actors/string",
+  "resource://devtools/server/actors/string.js",
   true
 );
 
 loader.lazyRequireGetter(
   this,
   "DevToolsUtils",
-  "devtools/shared/DevToolsUtils"
+  "resource://devtools/shared/DevToolsUtils.js"
 );
-
-loader.lazyRequireGetter(this, "Services");
 
 const windowsDrive = /^([a-zA-Z]:)/;
 
@@ -111,7 +112,7 @@ function getSourceURL(source, targetActor) {
  *        The current thread actor.
  */
 const SourceActor = ActorClassWithSpec(sourceSpec, {
-  initialize: function({ source, thread }) {
+  initialize({ source, thread }) {
     Actor.prototype.initialize.call(this, thread.conn);
 
     this._threadActor = thread;
@@ -181,7 +182,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
     return this._source.id;
   },
 
-  form: function() {
+  form() {
     const source = this._source;
 
     let introductionType = source.introductionType;
@@ -210,7 +211,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
     };
   },
 
-  destroy: function() {
+  destroy() {
     const parent = this.getParent();
     if (parent && parent.sourceActors) {
       delete parent.sourceActors[this.actorID];
@@ -222,7 +223,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
     return this._source.introductionType === "wasm";
   },
 
-  _getSourceText: async function() {
+  async _getSourceText() {
     if (this._isWasm) {
       const wasm = this._source.binary;
       const buffer = wasm.buffer;
@@ -296,7 +297,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
     return true;
   },
 
-  getBreakableLines: async function() {
+  async getBreakableLines() {
     const positions = await this.getBreakpointPositions();
     const lines = new Set();
     for (const position of positions) {
@@ -541,7 +542,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
     }
   },
 
-  getBreakpointPositions: async function(query) {
+  async getBreakpointPositions(query) {
     const scripts = this._findDebuggeeScripts(
       query,
       /* forBreakpointPositions */ true
@@ -593,7 +594,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
     }
   },
 
-  getBreakpointPositionsCompressed: async function(query) {
+  async getBreakpointPositionsCompressed(query) {
     const items = await this.getBreakpointPositions(query);
     const compressed = {};
     for (const { line, column } of items) {
@@ -612,7 +613,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
    *         a field `source`. `source` can either be an ArrayBuffer or
    *         a LongString.
    */
-  source: async function() {
+  async source() {
     try {
       const { content, contentType } = await this._getSourceText();
       if (
@@ -632,7 +633,6 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
         contentType,
       };
     } catch (error) {
-      reportError(error, "Got an exception during SA_onSource: ");
       throw new Error(
         "Could not load the source for " +
           this.url +
@@ -645,7 +645,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
   /**
    * Handler for the "blackbox" packet.
    */
-  blackbox: function(range) {
+  blackbox(range) {
     this.sourcesManager.blackBox(this.url, range);
     if (
       this.threadActor.state == "paused" &&
@@ -660,7 +660,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
   /**
    * Handler for the "unblackbox" packet.
    */
-  unblackbox: function(range) {
+  unblackbox(range) {
     this.sourcesManager.unblackBox(this.url, range);
   },
 
@@ -676,7 +676,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
    *          }
    *        }
    */
-  setPausePoints: function(pausePoints) {
+  setPausePoints(pausePoints) {
     const uncompressed = {};
     const points = {
       0: {},
@@ -704,7 +704,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
    *
    * @returns A Promise that resolves to the given BreakpointActor.
    */
-  applyBreakpoint: async function(actor) {
+  async applyBreakpoint(actor) {
     let { line, column } = actor.location;
 
     // Find all entry points that correspond to the given location.
@@ -728,7 +728,7 @@ const SourceActor = ActorClassWithSpec(sourceSpec, {
       }
       lineMatches.sort((a, b) => a.columnNumber - b.columnNumber);
 
-      if (lineMatches.length > 0) {
+      if (lineMatches.length) {
         // A single Debugger.Source may have _multiple_ Debugger.Scripts
         // at the same position from multiple evaluations of the source,
         // so we explicitly want to take all of the matches for the matched

@@ -46,31 +46,6 @@ class TablePartRule : public PivotRule {
   }
 };
 
-// Iterates through headers explicitly associated with a remote table cell via
-// the headers DOM attribute. These are cached as Accessible ids.
-class RemoteExplicitHeadersIterator : public AccIterable {
- public:
-  RemoteExplicitHeadersIterator(const nsTArray<uint64_t>& aHeaders,
-                                Accessible* aDoc)
-      : mHeaders(aHeaders), mDoc(aDoc), mIndex(0) {}
-
-  virtual Accessible* Next() override {
-    while (mIndex < mHeaders.Length()) {
-      uint64_t id = mHeaders[mIndex++];
-      Accessible* acc = nsAccUtils::GetAccessibleByID(mDoc, id);
-      if (acc) {
-        return acc;
-      }
-    }
-    return nullptr;
-  }
-
- private:
-  const nsTArray<uint64_t>& mHeaders;
-  Accessible* mDoc;
-  uint32_t mIndex;
-};
-
 // The Accessible* keys should only be used for lookup. They should not be
 // dereferenced.
 using CachedTablesMap = nsTHashMap<Accessible*, CachedTableAccessible>;
@@ -97,19 +72,8 @@ void CachedTableAccessible::Invalidate(Accessible* aAcc) {
   if (!sCachedTables) {
     return;
   }
-  Accessible* table = nullptr;
-  if (aAcc->IsTable()) {
-    table = aAcc;
-  } else if (aAcc->IsTableCell()) {
-    for (table = aAcc->Parent(); table; table = table->Parent()) {
-      if (table->IsTable()) {
-        break;
-      }
-    }
-  } else {
-    MOZ_ASSERT_UNREACHABLE("Should only be called on a table or a cell");
-  }
-  if (table) {
+
+  if (Accessible* table = nsAccUtils::TableFor(aAcc)) {
     // Destroy the instance (if any). We'll create a new one the next time it
     // is requested.
     sCachedTables->Remove(table);
@@ -382,8 +346,7 @@ UniquePtr<AccIterable> CachedTableCellAccessible::GetExplicitHeadersIterator() {
       if (auto headers =
               remoteAcc->mCachedFields->GetAttribute<nsTArray<uint64_t>>(
                   nsGkAtoms::headers)) {
-        return MakeUnique<RemoteExplicitHeadersIterator>(*headers,
-                                                         remoteAcc->Document());
+        return MakeUnique<RemoteAccIterator>(*headers, remoteAcc->Document());
       }
     }
   } else if (LocalAccessible* localAcc = mAcc->AsLocal()) {

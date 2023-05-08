@@ -10,7 +10,7 @@
 
 const {
   RUNTIME_PREFERENCE,
-} = require("devtools/client/aboutdebugging/src/constants");
+} = require("resource://devtools/client/aboutdebugging/src/constants.js");
 
 // Sensible default values for runtime preferences that should be usable in most
 // situations
@@ -22,7 +22,7 @@ const DEFAULT_PREFERENCES = {
 
 // Creates a simple mock ClientWrapper.
 function createClientMock() {
-  const EventEmitter = require("devtools/shared/event-emitter");
+  const EventEmitter = require("resource://devtools/shared/event-emitter.js");
   const eventEmitter = {};
   EventEmitter.decorate(eventEmitter);
 
@@ -62,7 +62,7 @@ function createClientMock() {
     // no-op
     getDeviceDescription: () => {},
     // Return default preference value or null if no match.
-    getPreference: function(prefName) {
+    getPreference(prefName) {
       if (prefName in this._preferences) {
         return this._preferences[prefName];
       }
@@ -95,7 +95,7 @@ function createClientMock() {
     // no-op
     getFront: () => {},
     // stores the preference locally (doesn't update about:config)
-    setPreference: function(prefName, value) {
+    setPreference(prefName, value) {
       this._preferences[prefName] = value;
     },
     getPerformancePanelUrl: () => CHROME_URL_ROOT + "empty.html",
@@ -104,7 +104,7 @@ function createClientMock() {
     checkVersionCompatibility: () => {
       const {
         COMPATIBILITY_STATUS,
-      } = require("devtools/client/shared/remote-debugging/version-checker");
+      } = require("resource://devtools/client/shared/remote-debugging/version-checker.js");
       return { status: COMPATIBILITY_STATUS.COMPATIBLE };
     },
   };

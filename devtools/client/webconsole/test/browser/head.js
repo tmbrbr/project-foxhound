@@ -30,9 +30,9 @@ Services.scriptloader.loadSubScript(
 
 var {
   BrowserConsoleManager,
-} = require("devtools/client/webconsole/browser-console-manager");
+} = require("resource://devtools/client/webconsole/browser-console-manager.js");
 
-var WCUL10n = require("devtools/client/webconsole/utils/l10n");
+var WCUL10n = require("resource://devtools/client/webconsole/utils/l10n.js");
 const DOCS_GA_PARAMS = `?${new URLSearchParams({
   utm_source: "mozilla",
   utm_medium: "firefox-console-errors",
@@ -44,7 +44,7 @@ const GA_PARAMS = `?${new URLSearchParams({
   utm_campaign: "default",
 })}`;
 
-const wcActions = require("devtools/client/webconsole/actions/index");
+const wcActions = require("resource://devtools/client/webconsole/actions/index.js");
 
 registerCleanupFunction(async function() {
   // Reset all cookies, tests loading sjs_slow-response-test-server.sjs will
@@ -397,7 +397,7 @@ async function checkUniqueMessageExists(hud, msg, typeSelector) {
         text: msg,
         typeSelector,
       });
-      return msgs.length > 0 ? msgs : null;
+      return msgs.length ? msgs : null;
     });
   } catch (e) {
     ok(false, `Message "${msg}" wasn't logged\n`);
@@ -1009,7 +1009,7 @@ function overrideOpenLink(fn) {
     const openLinkIn = function(link, where) {
       browserWindow.openTrustedLinkIn = oldOpenTrustedLinkIn;
       browserWindow.openWebLinkIn = oldOpenWebLinkIn;
-      resolve({ link: link, where });
+      resolve({ link, where });
     };
     browserWindow.openWebLinkIn = browserWindow.openTrustedLinkIn = openLinkIn;
     fn();

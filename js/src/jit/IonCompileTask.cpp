@@ -15,6 +15,7 @@
 #include "vm/JSScript.h"
 
 #include "vm/JSScript-inl.h"
+#include "vm/Realm-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -47,7 +48,7 @@ void IonCompileTask::runHelperThreadTask(AutoLockHelperThreadState& locked) {
 void IonCompileTask::runTask() {
   // This is the entry point when ion compiles are run offthread.
 
-  jit::JitContext jctx(mirGen_.realm->runtime(), mirGen_.realm, &alloc());
+  jit::JitContext jctx(mirGen_.realm->runtime());
   setBackgroundCodegen(jit::CompileBackEnd(&mirGen_, snapshot_));
 }
 

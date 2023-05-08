@@ -3037,6 +3037,7 @@ exports.CSS_PROPERTIES = {
       "font-variation-settings",
       "font-language-override",
       "font-optical-sizing",
+      "font-palette",
       "math-depth",
       "math-style",
       "-moz-osx-font-smoothing",
@@ -3297,6 +3298,23 @@ exports.CSS_PROPERTIES = {
       "step-end",
       "step-start",
       "steps",
+      "unset"
+    ]
+  },
+  "animation-composition": {
+    "isInherited": false,
+    "subproperties": [
+      "animation-composition"
+    ],
+    "supports": [],
+    "values": [
+      "accumulate",
+      "add",
+      "inherit",
+      "initial",
+      "replace",
+      "revert",
+      "revert-layer",
       "unset"
     ]
   },
@@ -6019,6 +6037,87 @@ exports.CSS_PROPERTIES = {
       "unset"
     ]
   },
+  "contain-intrinsic-block-size": {
+    "isInherited": false,
+    "subproperties": [
+      "contain-intrinsic-block-size"
+    ],
+    "supports": [],
+    "values": [
+      "auto",
+      "inherit",
+      "initial",
+      "none",
+      "revert",
+      "revert-layer",
+      "unset"
+    ]
+  },
+  "contain-intrinsic-height": {
+    "isInherited": false,
+    "subproperties": [
+      "contain-intrinsic-height"
+    ],
+    "supports": [],
+    "values": [
+      "auto",
+      "inherit",
+      "initial",
+      "none",
+      "revert",
+      "revert-layer",
+      "unset"
+    ]
+  },
+  "contain-intrinsic-inline-size": {
+    "isInherited": false,
+    "subproperties": [
+      "contain-intrinsic-inline-size"
+    ],
+    "supports": [],
+    "values": [
+      "auto",
+      "inherit",
+      "initial",
+      "none",
+      "revert",
+      "revert-layer",
+      "unset"
+    ]
+  },
+  "contain-intrinsic-size": {
+    "isInherited": false,
+    "subproperties": [
+      "contain-intrinsic-width",
+      "contain-intrinsic-height"
+    ],
+    "supports": [],
+    "values": [
+      "auto",
+      "inherit",
+      "initial",
+      "none",
+      "revert",
+      "revert-layer",
+      "unset"
+    ]
+  },
+  "contain-intrinsic-width": {
+    "isInherited": false,
+    "subproperties": [
+      "contain-intrinsic-width"
+    ],
+    "supports": [],
+    "values": [
+      "auto",
+      "inherit",
+      "initial",
+      "none",
+      "revert",
+      "revert-layer",
+      "unset"
+    ]
+  },
   "content": {
     "isInherited": false,
     "subproperties": [
@@ -6583,7 +6682,8 @@ exports.CSS_PROPERTIES = {
       "font-variant-position",
       "font-language-override",
       "font-feature-settings",
-      "font-variation-settings"
+      "font-variation-settings",
+      "font-palette"
     ],
     "supports": [],
     "values": [
@@ -6712,6 +6812,20 @@ exports.CSS_PROPERTIES = {
       "inherit",
       "initial",
       "none",
+      "revert",
+      "revert-layer",
+      "unset"
+    ]
+  },
+  "font-palette": {
+    "isInherited": true,
+    "subproperties": [
+      "font-palette"
+    ],
+    "supports": [],
+    "values": [
+      "inherit",
+      "initial",
       "revert",
       "revert-layer",
       "unset"
@@ -11709,10 +11823,6 @@ exports.PSEUDO_ELEMENTS = [
  */
 exports.PREFERENCES = [
   [
-    "aspect-ratio",
-    "layout.css.aspect-ratio.enabled"
-  ],
-  [
     "container-type",
     "layout.css.container-queries.enabled"
   ],
@@ -11759,10 +11869,6 @@ exports.PREFERENCES = [
   [
     "scrollbar-gutter",
     "layout.css.scrollbar-gutter.enabled"
-  ],
-  [
-    "-webkit-line-clamp",
-    "layout.css.webkit-line-clamp.enabled"
   ],
   [
     "overflow-clip-box-block",
@@ -11827,6 +11933,10 @@ exports.PREFERENCES = [
   [
     "d",
     "layout.css.d-property.enabled"
+  ],
+  [
+    "font-palette",
+    "layout.css.font-palette.enabled"
   ],
   [
     "font-variation-settings",

@@ -2,6 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#if defined(ACCESSIBILITY) && defined(XP_WIN)
+#  include "mozilla/a11y/Compatibility.h"
+#endif
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/Unused.h"
 #include "nsArrayUtils.h"
@@ -23,6 +26,10 @@ nsClipboardProxy::nsClipboardProxy() : mClipboardCaps(false, false) {}
 NS_IMETHODIMP
 nsClipboardProxy::SetData(nsITransferable* aTransferable,
                           nsIClipboardOwner* anOwner, int32_t aWhichClipboard) {
+#if defined(ACCESSIBILITY) && defined(XP_WIN)
+  a11y::Compatibility::SuppressA11yForClipboardCopy();
+#endif
+
   ContentChild* child = ContentChild::GetSingleton();
 
   IPCDataTransfer ipcDataTransfer;
@@ -33,9 +40,9 @@ nsClipboardProxy::SetData(nsITransferable* aTransferable,
   nsCOMPtr<nsIPrincipal> requestingPrincipal =
       aTransferable->GetRequestingPrincipal();
   nsContentPolicyType contentPolicyType = aTransferable->GetContentPolicyType();
-  child->SendSetClipboard(ipcDataTransfer, isPrivateData,
-                          IPC::Principal(requestingPrincipal),
-                          contentPolicyType, aWhichClipboard);
+  child->SendSetClipboard(std::move(ipcDataTransfer), isPrivateData,
+                          requestingPrincipal, contentPolicyType,
+                          aWhichClipboard);
 
   return NS_OK;
 }
@@ -50,8 +57,7 @@ nsClipboardProxy::GetData(nsITransferable* aTransferable,
   ContentChild::GetSingleton()->SendGetClipboard(types, aWhichClipboard,
                                                  &dataTransfer);
   return nsContentUtils::IPCTransferableToTransferable(
-      dataTransfer, false /* aAddDataFlavor */, aTransferable,
-      ContentChild::GetSingleton());
+      dataTransfer, false /* aAddDataFlavor */, aTransferable);
 }
 
 NS_IMETHODIMP
@@ -87,4 +93,61 @@ nsClipboardProxy::SupportsFindClipboard(bool* aIsSupported) {
 void nsClipboardProxy::SetCapabilities(
     const ClipboardCapabilities& aClipboardCaps) {
   mClipboardCaps = aClipboardCaps;
+}
+
+RefPtr<DataFlavorsPromise> nsClipboardProxy::AsyncHasDataMatchingFlavors(
+    const nsTArray<nsCString>& aFlavorList, int32_t aWhichClipboard) {
+  auto promise = MakeRefPtr<DataFlavorsPromise::Private>(__func__);
+  ContentChild::GetSingleton()
+      ->SendClipboardHasTypesAsync(aFlavorList, aWhichClipboard)
+      ->Then(
+          GetMainThreadSerialEventTarget(), __func__,
+          /* resolve */
+          [promise](nsTArray<nsCString> types) {
+            promise->Resolve(std::move(types), __func__);
+          },
+          /* reject */
+          [promise](mozilla::ipc::ResponseRejectReason aReason) {
+            promise->Reject(NS_ERROR_FAILURE, __func__);
+          });
+
+  return promise.forget();
+}
+
+RefPtr<GenericPromise> nsClipboardProxy::AsyncGetData(
+    nsITransferable* aTransferable, int32_t aWhichClipboard) {
+  if (!aTransferable) {
+    return GenericPromise::CreateAndReject(NS_ERROR_FAILURE, __func__);
+  }
+
+  // Get a list of flavors this transferable can import
+  nsTArray<nsCString> flavors;
+  nsresult rv = aTransferable->FlavorsTransferableCanImport(flavors);
+  if (NS_FAILED(rv)) {
+    return GenericPromise::CreateAndReject(rv, __func__);
+  }
+
+  nsCOMPtr<nsITransferable> transferable(aTransferable);
+  auto promise = MakeRefPtr<GenericPromise::Private>(__func__);
+  ContentChild::GetSingleton()
+      ->SendGetClipboardAsync(flavors, aWhichClipboard)
+      ->Then(
+          GetMainThreadSerialEventTarget(), __func__,
+          /* resolve */
+          [promise, transferable](const IPCDataTransfer& ipcDataTransfer) {
+            nsresult rv = nsContentUtils::IPCTransferableToTransferable(
+                ipcDataTransfer, false /* aAddDataFlavor */, transferable);
+            if (NS_FAILED(rv)) {
+              promise->Reject(rv, __func__);
+              return;
+            }
+
+            promise->Resolve(true, __func__);
+          },
+          /* reject */
+          [promise](mozilla::ipc::ResponseRejectReason aReason) {
+            promise->Reject(NS_ERROR_FAILURE, __func__);
+          });
+
+  return promise.forget();
 }

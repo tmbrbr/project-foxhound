@@ -12,38 +12,35 @@
  * See devtools/docs/backend/actor-hierarchy.md for more details.
  */
 
-const { extend } = require("devtools/shared/extend");
-const { Ci, Cu } = require("chrome");
-const Services = require("Services");
+const { extend } = require("resource://devtools/shared/extend.js");
 
 const {
   ParentProcessTargetActor,
   parentProcessTargetPrototype,
-} = require("devtools/server/actors/targets/parent-process");
-const makeDebugger = require("devtools/server/actors/utils/make-debugger");
+} = require("resource://devtools/server/actors/targets/parent-process.js");
+const makeDebugger = require("resource://devtools/server/actors/utils/make-debugger.js");
 const {
   webExtensionTargetSpec,
-} = require("devtools/shared/specs/targets/webextension");
+} = require("resource://devtools/shared/specs/targets/webextension.js");
 
-const Targets = require("devtools/server/actors/targets/index");
-const TargetActorMixin = require("devtools/server/actors/targets/target-actor-mixin");
+const Targets = require("resource://devtools/server/actors/targets/index.js");
+const TargetActorMixin = require("resource://devtools/server/actors/targets/target-actor-mixin.js");
 const {
   getChildDocShells,
-} = require("devtools/server/actors/targets/window-global");
+} = require("resource://devtools/server/actors/targets/window-global.js");
 
 loader.lazyRequireGetter(
   this,
   "unwrapDebuggerObjectGlobal",
-  "devtools/server/actors/thread",
+  "resource://devtools/server/actors/thread.js",
   true
 );
 
-loader.lazyRequireGetter(
-  this,
-  "getAddonIdForWindowGlobal",
-  "devtools/server/actors/watcher/browsing-context-helpers.jsm",
-  true
-);
+const lazy = {};
+ChromeUtils.defineESModuleGetters(lazy, {
+  getAddonIdForWindowGlobal:
+    "resource://devtools/server/actors/watcher/browsing-context-helpers.sys.mjs",
+});
 
 const FALLBACK_DOC_URL =
   "chrome://devtools/content/shared/webextension-fallback.html";
@@ -176,7 +173,7 @@ webExtensionTargetPrototype.isRootActor = true;
 // Override the ParentProcessTargetActor's override in order to only iterate
 // over the docshells specific to this add-on
 Object.defineProperty(webExtensionTargetPrototype, "docShells", {
-  get: function() {
+  get() {
     // Iterate over all top-level windows and all their docshells.
     let docShells = [];
     for (const window of Services.ww.getWindowEnumerator(null)) {
@@ -311,7 +308,7 @@ webExtensionTargetPrototype.isExtensionWindowDescendent = function(window) {
   // Check if the source is coming from a descendant docShell of an extension window.
   // We may have an iframe that loads http content which won't use the add-on principal.
   const rootWin = window.docShell.sameTypeRootTreeItem.domWindow;
-  const addonId = getAddonIdForWindowGlobal(rootWin.windowGlobalChild);
+  const addonId = lazy.getAddonIdForWindowGlobal(rootWin.windowGlobalChild);
   return addonId == this.addonId;
 };
 

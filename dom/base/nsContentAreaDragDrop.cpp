@@ -274,8 +274,8 @@ nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable* aTransferable,
           nsIMIMEService::VALIDATE_DEFAULT, targetFilename);
     } else {
       // make the filename safe for the filesystem
-      targetFilename.ReplaceChar(FILE_PATH_SEPARATOR FILE_ILLEGAL_CHARACTERS,
-                                 '-');
+      targetFilename.ReplaceChar(
+          u"" FILE_PATH_SEPARATOR FILE_ILLEGAL_CHARACTERS, u'-');
     }
 #endif /* defined(XP_MACOSX) */
 
@@ -384,8 +384,7 @@ void DragDataProducer::CreateLinkText(const nsAString& inURL,
 
 nsresult DragDataProducer::GetImageData(imgIContainer* aImage,
                                         imgIRequest* aRequest) {
-  nsCOMPtr<nsIURI> imgUri;
-  aRequest->GetURI(getter_AddRefs(imgUri));
+  nsCOMPtr<nsIURI> imgUri = aRequest->GetURI();
 
   nsCOMPtr<nsIURL> imgUrl(do_QueryInterface(imgUri));
   if (imgUrl) {
@@ -745,7 +744,7 @@ nsresult DragDataProducer::AddStringsToDataTransfer(
     // that expects url\ntitle formatted data for x-moz-url.
     nsAutoString title(mTitleString);
     title.Trim("\r\n");
-    title.ReplaceChar("\r\n", ' ');
+    title.ReplaceChar(u"\r\n", ' ');
     dragData += title;
 
     AddString(aDataTransfer, NS_LITERAL_STRING_FROM_CSTRING(kURLMime), dragData,

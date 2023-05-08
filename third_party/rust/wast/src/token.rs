@@ -38,6 +38,11 @@ impl Span {
         }
         (text.lines().count(), 0)
     }
+
+    /// Returns the byte offset of this span.
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
 }
 
 /// An identifier in a WebAssembly module, prefixed by `$` in the textual
@@ -156,10 +161,7 @@ impl Index<'_> {
     }
 
     pub(crate) fn is_resolved(&self) -> bool {
-        match self {
-            Index::Num(..) => true,
-            _ => false,
-        }
+        matches!(self, Index::Num(..))
     }
 }
 
@@ -252,7 +254,7 @@ impl<'a, K: Peek> Peek for ItemRef<'a, K> {
 }
 
 /// An `@name` annotation in source, currently of the form `@name "foo"`
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct NameAnnotation<'a> {
     /// The name specified for the item
     pub name: &'a str,
@@ -376,7 +378,7 @@ macro_rules! float {
         name: $parse:ident,
     })*) => ($(
         /// A parsed floating-point type
-        #[derive(Debug)]
+        #[derive(Debug, Copy, Clone)]
         pub struct $name {
             /// The raw bits that this floating point number represents.
             pub bits: $int,

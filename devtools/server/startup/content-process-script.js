@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/* eslint-env mozilla/process-script */
+
 "use strict";
 
 /**
@@ -44,11 +46,11 @@ class ContentProcessStartup {
     }
   }
 
-  destroy() {
+  destroy(options) {
     this.removeListeners();
 
     for (const [, connectionInfo] of this._connections) {
-      connectionInfo.connection.close();
+      connectionInfo.connection.close(options);
     }
     this._connections.clear();
   }
@@ -131,7 +133,7 @@ class ContentProcessStartup {
         );
         break;
       case "debug:destroy-process-script":
-        this.destroy();
+        this.destroy(msg.data.options);
         break;
       default:
         throw new Error(`Unsupported message name ${msg.name}`);
@@ -213,8 +215,8 @@ class ContentProcessStartup {
     const prefix =
       parentConnectionPrefix + "contentProcess" + Services.appinfo.processID;
     //TODO: probably merge content-process.jsm with this module
-    const { initContentProcessTarget } = ChromeUtils.import(
-      "resource://devtools/server/startup/content-process.jsm"
+    const { initContentProcessTarget } = ChromeUtils.importESModule(
+      "resource://devtools/server/startup/content-process.sys.mjs"
     );
     const { actor, connection } = initContentProcessTarget({
       target: Services.cpmm,

@@ -14,8 +14,8 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   EventEmitter: "resource://gre/modules/EventEmitter.jsm",
   FxAccountsPairingFlow: "resource://gre/modules/FxAccountsPairing.jsm",
 });
-const { require } = ChromeUtils.import(
-  "resource://devtools/shared/loader/Loader.jsm"
+const { require } = ChromeUtils.importESModule(
+  "resource://devtools/shared/loader/Loader.sys.mjs"
 );
 const QR = require("devtools/shared/qrcode/index");
 
@@ -38,6 +38,13 @@ var gFxaPairDeviceDialog = {
   },
 
   uninit() {
+    // When the modal closes we want to remove any query params
+    // To prevent refreshes/restores from reopening the dialog
+    const browser = window.docShell.chromeEventHandler;
+    browser.loadURI("about:preferences#sync", {
+      triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+    });
+
     this.teardownListeners();
     this._emitter.emit("view:Closed");
   },

@@ -8,11 +8,6 @@
 
 // Have to use the same timer functions used by the inspector.
 const { clearTimeout } = ChromeUtils.import("resource://gre/modules/Timer.jsm");
-ChromeUtils.defineModuleGetter(
-  this,
-  "Preferences",
-  "resource://gre/modules/Preferences.jsm"
-);
 
 const TEST_URL = URL_ROOT + "doc_markup_flashing.html";
 
@@ -28,7 +23,7 @@ const TEST_URL = URL_ROOT + "doc_markup_flashing.html";
 const TEST_DATA = [
   {
     desc: "Adding a new node should flash the new node",
-    mutate: async function() {
+    async mutate() {
       await SpecialPowers.spawn(gBrowser.selectedBrowser, [], () => {
         const newLi = content.document.createElement("LI");
         newLi.textContent = "new list item";
@@ -39,7 +34,7 @@ const TEST_DATA = [
   },
   {
     desc: "Removing a node should flash its parent",
-    mutate: async function() {
+    async mutate() {
       await SpecialPowers.spawn(gBrowser.selectedBrowser, [], () => {
         const root = content.document.querySelector(".list");
         root.removeChild(root.lastElementChild);
@@ -48,7 +43,7 @@ const TEST_DATA = [
   },
   {
     desc: "Re-appending an existing node should only flash this node",
-    mutate: async function() {
+    async mutate() {
       await SpecialPowers.spawn(gBrowser.selectedBrowser, [], () => {
         const root = content.document.querySelector(".list");
         root.appendChild(root.firstElementChild);
@@ -59,7 +54,7 @@ const TEST_DATA = [
   {
     desc: "Adding an attribute should flash the attribute",
     attribute: "test-name",
-    mutate: async function() {
+    async mutate() {
       await setContentPageElementAttribute(
         ".list",
         "test-name",
@@ -72,7 +67,7 @@ const TEST_DATA = [
       "Adding an attribute with css reserved characters should flash the " +
       "attribute",
     attribute: "one:two",
-    mutate: async function() {
+    async mutate() {
       await setContentPageElementAttribute(
         ".list",
         "one:two",
@@ -83,7 +78,7 @@ const TEST_DATA = [
   {
     desc: "Editing an attribute should flash the attribute",
     attribute: "class",
-    mutate: async function() {
+    async mutate() {
       await setContentPageElementAttribute(
         ".list",
         "class",
@@ -94,7 +89,7 @@ const TEST_DATA = [
   {
     desc: "Multiple changes to an attribute should flash the attribute",
     attribute: "class",
-    mutate: async function() {
+    async mutate() {
       await SpecialPowers.spawn(gBrowser.selectedBrowser, [], () => {
         const root = content.document.querySelector(".list");
         root.removeAttribute("class");
@@ -108,7 +103,7 @@ const TEST_DATA = [
   },
   {
     desc: "Removing an attribute should flash the node",
-    mutate: async function() {
+    async mutate() {
       await SpecialPowers.spawn(gBrowser.selectedBrowser, [], () => {
         const root = content.document.querySelector(".list");
         root.removeAttribute("class");
@@ -118,12 +113,7 @@ const TEST_DATA = [
 ];
 
 add_task(async function() {
-  const timerPrecision = Preferences.get("privacy.reduceTimerPrecision");
-  Preferences.set("privacy.reduceTimerPrecision", false);
-
-  registerCleanupFunction(function() {
-    Preferences.set("privacy.reduceTimerPrecision", timerPrecision);
-  });
+  await pushPref("privacy.reduceTimerPrecision", false);
 
   const { inspector } = await openInspectorForURL(TEST_URL);
 

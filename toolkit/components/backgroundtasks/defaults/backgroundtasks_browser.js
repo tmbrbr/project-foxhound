@@ -9,6 +9,7 @@
 // XUL notifications make no sense in background tasks.  This is only applies to
 // Windows for now.
 pref("alerts.useSystemBackend", true);
+pref("alerts.useSystemBackend.windows.notificationserver.enabled", true);
 
 // Configure Messaging Experiments for background tasks, with
 // background task-specific feature ID.  The regular Firefox Desktop
@@ -31,3 +32,7 @@ pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features", false
 
 // Don't refresh experiments while a background task is running.
 pref("app.normandy.run_interval_seconds", 0);
+
+// Use a separate Nimbus application ID from regular Firefox Desktop.
+// This prevents enrolling in regular desktop experiments.
+pref("nimbus.appId", "firefox-desktop-background-task");

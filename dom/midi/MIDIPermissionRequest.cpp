@@ -59,10 +59,18 @@ MIDIPermissionRequest::GetTypes(nsIArray** aTypes) {
 
 NS_IMETHODIMP
 MIDIPermissionRequest::Cancel() {
-  mPromise->MaybeRejectWithSecurityError(
-      "WebMIDI requires a site permission add-on to activate — see "
-      "https://extensionworkshop.com/documentation/publish/"
-      "site-permission-add-on/ for details.");
+  if (StaticPrefs::dom_sitepermsaddon_provider_enabled()) {
+    mPromise->MaybeRejectWithSecurityError(
+        "WebMIDI requires a site permission add-on to activate");
+  } else {
+    // This message is used for the initial XPIProvider-based implementation
+    // of Site Permissions.
+    // It should be removed as part of Bug 1789718.
+    mPromise->MaybeRejectWithSecurityError(
+        "WebMIDI requires a site permission add-on to activate — see "
+        "https://extensionworkshop.com/documentation/publish/"
+        "site-permission-add-on/ for details.");
+  }
   return NS_OK;
 }
 
@@ -109,16 +117,28 @@ MIDIPermissionRequest::Run() {
     return NS_OK;
   }
 
-  // If the add-on is not installed, auto-deny (except for localhost).
-  if (!nsContentUtils::HasSitePerm(mPrincipal, kPermName) &&
-      !BasePrincipal::Cast(mPrincipal)->IsLoopbackHost()) {
+  // If the add-on is not installed, and sitepermsaddon provider not enabled,
+  // auto-deny (except for localhost).
+  if (StaticPrefs::dom_webmidi_gated() &&
+      !StaticPrefs::dom_sitepermsaddon_provider_enabled() &&
+      !nsContentUtils::HasSitePerm(mPrincipal, kPermName) &&
+      !mPrincipal->GetIsLoopbackHost()) {
     Cancel();
     return NS_OK;
   }
 
-  // We can only get here for localhost, or if the add-on is installed, but the
-  // user has subsequently changed the permission from ALLOW to ASK. In that
-  // unusual case, throw up a prompt.
+  // If sitepermsaddon provider is enabled and user denied install,
+  // auto-deny (except for localhost, where we use a regular permission flow).
+  if (StaticPrefs::dom_sitepermsaddon_provider_enabled() &&
+      nsContentUtils::IsSitePermDeny(mPrincipal, "install"_ns) &&
+      !mPrincipal->GetIsLoopbackHost()) {
+    Cancel();
+    return NS_OK;
+  }
+
+  // We can only get here for localhost, if add-on gating is disabled or if the
+  // add-on is installed but the user has subsequently changed the permission
+  // from ALLOW to ASK. In that unusual case, throw up a prompt.
   if (NS_FAILED(nsContentPermissionUtils::AskPermission(this, mWindow))) {
     Cancel();
     return NS_ERROR_FAILURE;

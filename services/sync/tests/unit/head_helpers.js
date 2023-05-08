@@ -67,8 +67,8 @@ add_setup(async function head_setup() {
 });
 
 XPCOMUtils.defineLazyGetter(this, "SyncPingSchema", function() {
-  let { FileUtils } = ChromeUtils.import(
-    "resource://gre/modules/FileUtils.jsm"
+  let { FileUtils } = ChromeUtils.importESModule(
+    "resource://gre/modules/FileUtils.sys.mjs"
   );
   let { NetUtil } = ChromeUtils.import("resource://gre/modules/NetUtil.jsm");
   let stream = Cc["@mozilla.org/network/file-input-stream;1"].createInstance(
@@ -92,8 +92,8 @@ XPCOMUtils.defineLazyGetter(this, "SyncPingSchema", function() {
 });
 
 XPCOMUtils.defineLazyGetter(this, "SyncPingValidator", function() {
-  const { JsonSchema } = ChromeUtils.import(
-    "resource://gre/modules/JsonSchema.jsm"
+  const { JsonSchema } = ChromeUtils.importESModule(
+    "resource://gre/modules/JsonSchema.sys.mjs"
   );
   return new JsonSchema.Validator(SyncPingSchema);
 });
@@ -208,16 +208,10 @@ function mockGetTabState(tab) {
   return tab;
 }
 
-function mockGetWindowEnumerator(url, numWindows, numTabs, indexes, moreURLs) {
+function mockGetWindowEnumerator(urls) {
   let elements = [];
 
-  function url2entry(urlToConvert) {
-    return {
-      url: typeof urlToConvert == "function" ? urlToConvert() : urlToConvert,
-      title: "title",
-    };
-  }
-
+  const numWindows = 1;
   for (let w = 0; w < numWindows; ++w) {
     let tabs = [];
     let win = {
@@ -229,22 +223,16 @@ function mockGetWindowEnumerator(url, numWindows, numTabs, indexes, moreURLs) {
     };
     elements.push(win);
 
-    for (let t = 0; t < numTabs; ++t) {
-      tabs.push(
-        Cu.cloneInto(
-          {
-            index: indexes ? indexes() : 1,
-            entries: (moreURLs ? [url].concat(moreURLs()) : [url]).map(
-              url2entry
-            ),
-            attributes: {
-              image: "image",
-            },
-            lastAccessed: 1499,
-          },
-          {}
-        )
-      );
+    let lastAccessed = 2000;
+    for (let url of urls) {
+      tabs.push({
+        linkedBrowser: {
+          currentURI: Services.io.newURI(url),
+          contentTitle: "title",
+        },
+        lastAccessed,
+      });
+      lastAccessed += 1000;
     }
   }
 
@@ -292,7 +280,7 @@ function assert_valid_ping(record) {
   // will typically have no recorded syncs, and the validator complains about
   // it. So ignore such records (but only ignore when *both* shutdown and
   // no Syncs - either of them not being true might be an actual problem)
-  if (record && (record.why != "shutdown" || record.syncs.length != 0)) {
+  if (record && (record.why != "shutdown" || !!record.syncs.length)) {
     const result = SyncPingValidator.validate(record);
     if (!result.valid) {
       if (result.errors.length) {

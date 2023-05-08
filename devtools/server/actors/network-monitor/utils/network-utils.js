@@ -3,17 +3,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
-const { Ci, Cr } = require("chrome");
-const Services = require("Services");
 
 const {
   wildcardToRegExp,
-} = require("devtools/server/actors/network-monitor/utils/wildcard-to-regexp");
+} = require("resource://devtools/server/actors/network-monitor/utils/wildcard-to-regexp.js");
 
 loader.lazyRequireGetter(
   this,
   "NetworkHelper",
-  "devtools/shared/webconsole/network-helper"
+  "resource://devtools/shared/webconsole/network-helper.js"
 );
 
 loader.lazyGetter(this, "tpFlagsMask", () => {
@@ -317,11 +315,11 @@ exports.fetchRequestHeadersAndCookies = function(
 
   // Copy the request header data.
   channel.visitRequestHeaders({
-    visitHeader: function(name, value) {
+    visitHeader(name, value) {
       if (name == "Cookie") {
         cookieHeader = value;
       }
-      headers.push({ name: name, value: value });
+      headers.push({ name, value });
     },
   });
 

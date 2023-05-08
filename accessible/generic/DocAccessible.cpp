@@ -10,12 +10,13 @@
 #include "CachedTableAccessible.h"
 #include "DocAccessible-inl.h"
 #include "DocAccessibleChild.h"
+#include "EventTree.h"
 #include "HTMLImageMapAccessible.h"
 #include "nsAccCache.h"
 #include "nsAccessiblePivot.h"
 #include "nsAccUtils.h"
-#include "nsDeckFrame.h"
 #include "nsEventShell.h"
+#include "nsIIOService.h"
 #include "nsLayoutUtils.h"
 #include "nsTextEquivUtils.h"
 #include "Pivot.h"
@@ -43,12 +44,16 @@
 #include "nsTHashSet.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
+#include "mozilla/Components.h"  // for mozilla::components
 #include "mozilla/EditorBase.h"
 #include "mozilla/HTMLEditor.h"
+#include "mozilla/ipc/ProcessChild.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/StaticPrefs_accessibility.h"
+#include "mozilla/a11y/DocAccessibleParent.h"
 #include "mozilla/dom/AncestorIterator.h"
 #include "mozilla/dom/BrowserChild.h"
+#include "mozilla/dom/BrowserParent.h"
 #include "mozilla/dom/DocumentType.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLSelectElement.h"
@@ -264,10 +269,34 @@ void DocAccessible::ApplyARIAState(uint64_t* aState) const {
   if (mParent) mParent->ApplyARIAState(aState);
 }
 
-LocalAccessible* DocAccessible::FocusedChild() {
+Accessible* DocAccessible::FocusedChild() {
   // Return an accessible for the current global focus, which does not have to
   // be contained within the current document.
-  return FocusMgr()->FocusedAccessible();
+  if (Accessible* focusedAcc = FocusMgr()->FocusedAccessible()) {
+    return focusedAcc;
+  }
+  nsFocusManager* focusManagerDOM = nsFocusManager::GetFocusManager();
+
+  if (!focusManagerDOM) {
+    return nullptr;
+  }
+
+  if (!XRE_IsParentProcess()) {
+    // DocAccessibleParent's don't exist in the content
+    // process, so we can't return anything useful if this
+    // is the case.
+    return nullptr;
+  }
+  // If we call GetFocusedBrowsingContext from the chrome process
+  // it returns the BrowsingContext for the focused _window_, which
+  // is not helpful here. Instead use GetFocusedBrowsingContextInChrome
+  // which returns the content BrowsingContext that has focus.
+  dom::BrowsingContext* focusedContext =
+      focusManagerDOM->GetFocusedBrowsingContextInChrome();
+
+  DocAccessibleParent* focusedDoc =
+      DocAccessibleParent::GetFrom(focusedContext);
+  return focusedDoc ? focusedDoc->GetFocusedAcc() : nullptr;
 }
 
 void DocAccessible::TakeFocus() const {
@@ -315,15 +344,37 @@ already_AddRefed<EditorBase> DocAccessible::GetEditor() const {
 // DocAccessible public method
 
 void DocAccessible::URL(nsAString& aURL) const {
+  aURL.Truncate();
   nsCOMPtr<nsISupports> container = mDocumentNode->GetContainer();
   nsCOMPtr<nsIWebNavigation> webNav(do_GetInterface(container));
-  nsAutoCString theURL;
-  if (webNav) {
-    nsCOMPtr<nsIURI> pURI;
-    webNav->GetCurrentURI(getter_AddRefs(pURI));
-    if (pURI) pURI->GetSpec(theURL);
+  if (MOZ_UNLIKELY(!webNav)) {
+    return;
   }
-  CopyUTF8toUTF16(theURL, aURL);
+
+  nsCOMPtr<nsIURI> uri;
+  webNav->GetCurrentURI(getter_AddRefs(uri));
+  if (MOZ_UNLIKELY(!uri)) {
+    return;
+  }
+  // Let's avoid treating too long URI in the main process for avoiding
+  // memory fragmentation as far as possible.
+  if (uri->SchemeIs("data") || uri->SchemeIs("blob")) {
+    return;
+  }
+
+  nsCOMPtr<nsIIOService> io = mozilla::components::IO::Service();
+  if (NS_WARN_IF(!io)) {
+    return;
+  }
+  nsCOMPtr<nsIURI> exposableURI;
+  if (NS_FAILED(io->CreateExposableURI(uri, getter_AddRefs(exposableURI))) ||
+      MOZ_UNLIKELY(!exposableURI)) {
+    return;
+  }
+  nsAutoCString theURL;
+  if (NS_SUCCEEDED(exposableURI->GetSpec(theURL))) {
+    CopyUTF8toUTF16(theURL, aURL);
+  }
 }
 
 void DocAccessible::Title(nsString& aTitle) const {
@@ -1026,21 +1077,6 @@ LocalAccessible* DocAccessible::GetAccessibleOrContainer(
       return nullptr;
     }
 
-    // Check if node is in an unselected deck panel
-    if (aNoContainerIfPruned && currNode->IsXULElement()) {
-      if (nsIFrame* frame = currNode->AsContent()->GetPrimaryFrame()) {
-        nsDeckFrame* deckFrame = do_QueryFrame(frame->GetParent());
-        if (deckFrame && deckFrame->GetSelectedBox() != frame) {
-          // If deck is not a <tabpanels>, return null
-          nsIContent* parentFrameContent = deckFrame->GetContent();
-          if (!parentFrameContent ||
-              !parentFrameContent->IsXULElement(nsGkAtoms::tabpanels)) {
-            return nullptr;
-          }
-        }
-      }
-    }
-
     // Check if node is in zero-sized map
     if (aNoContainerIfPruned && currNode->IsHTMLElement(nsGkAtoms::map)) {
       if (nsIFrame* frame = currNode->AsContent()->GetPrimaryFrame()) {
@@ -1292,21 +1328,13 @@ bool DocAccessible::PruneOrInsertSubtree(nsIContent* aRoot) {
 
     // If the accessible is a table, or table part, its layout table
     // status may have changed. We need to invalidate the associated
-    // cache, which listens for the following event.
+    // table cache, which listens for the following event.
     if (acc->IsTable() || acc->IsTableRow() || acc->IsTableCell()) {
-      FireDelayedEvent(nsIAccessibleEvent::EVENT_TABLE_STYLING_CHANGED, acc);
-      LocalAccessible* table;
-      if (acc->IsTable()) {
-        table = acc;
-      } else {
-        for (table = acc->LocalParent(); table; table = table->LocalParent()) {
-          if (table->IsTable()) {
-            break;
-          }
-        }
-      }
+      LocalAccessible* table = nsAccUtils::TableFor(acc);
       if (table && table->IsTable()) {
-        QueueCacheUpdate(acc, CacheDomain::Table);
+        FireDelayedEvent(nsIAccessibleEvent::EVENT_TABLE_STYLING_CHANGED,
+                         table);
+        QueueCacheUpdate(table, CacheDomain::Table);
       }
     }
 
@@ -1424,7 +1452,7 @@ void DocAccessible::ProcessQueuedCacheUpdates() {
   for (auto iter = mQueuedCacheUpdates.Iter(); !iter.Done(); iter.Next()) {
     LocalAccessible* acc = iter.Key();
     uint64_t domain = iter.UserData();
-    if (acc->IsInDocument() && !acc->IsDefunct()) {
+    if (acc && acc->IsInDocument() && !acc->IsDefunct()) {
       RefPtr<AccAttributes> fields =
           acc->BundleFieldsForCache(domain, CacheUpdateType::Update);
 
@@ -1597,6 +1625,9 @@ void DocAccessible::DoInitialUpdate() {
     ParentDocument()->FireDelayedEvent(reorderEvent);
   }
 
+  if (ipc::ProcessChild::ExpectingShutdown()) {
+    return;
+  }
   if (IPCAccessibilityActive()) {
     DocAccessibleChild* ipcDoc = IPCDoc();
     MOZ_ASSERT(ipcDoc);
@@ -1742,7 +1773,7 @@ bool DocAccessible::UpdateAccessibleOnAttrChange(dom::Element* aElement,
     if (mContent == aElement) {
       SetRoleMapEntryForDoc(aElement);
       if (mIPCDoc) {
-        mIPCDoc->SendRoleChangedEvent(Role());
+        mIPCDoc->SendRoleChangedEvent(Role(), mRoleMapEntryIndex);
       }
 
       return true;
@@ -1795,7 +1826,7 @@ void DocAccessible::UpdateRootElIfNeeded() {
     mContent = rootEl;
     SetRoleMapEntryForDoc(rootEl);
     if (mIPCDoc) {
-      mIPCDoc->SendRoleChangedEvent(Role());
+      mIPCDoc->SendRoleChangedEvent(Role(), mRoleMapEntryIndex);
     }
   }
 }
@@ -2379,8 +2410,6 @@ bool DocAccessible::MoveChild(LocalAccessible* aChild,
       mARIAOwnsHash.Remove(curParent);
     }
   }
-
-  NotificationController::MoveGuard mguard(mNotificationController);
 
   if (curParent == aNewParent) {
     MOZ_ASSERT(aChild->IndexInParent() != aIdxInParent, "No move case");

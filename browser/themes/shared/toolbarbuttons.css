@@ -12,7 +12,7 @@
   --toolbarbutton-hover-background: var(--button-hover-bgcolor);
   --toolbarbutton-active-background: var(--button-active-bgcolor);
 
-  --toolbarseparator-color: color-mix(in srgb, currentColor 20%, transparent);
+  --toolbarseparator-color: color-mix(in srgb, currentColor 60%, transparent);
 
   --bookmark-block-padding: 4px;
 
@@ -210,16 +210,6 @@ toolbar .toolbarbutton-1:focus-visible {
 
 /* bookmarks menu button */
 
-#BMB_bookmarksPopup[side="top"],
-#BMB_bookmarksPopup[side="bottom"] {
-  margin-inline: -20px;
-}
-
-#BMB_bookmarksPopup[side="left"],
-#BMB_bookmarksPopup[side="right"] {
-  margin-block: -20px;
-}
-
 /* ::::: bookmark buttons ::::: */
 
 #personal-toolbar-empty-description,
@@ -267,6 +257,10 @@ toolbarbutton.bookmark-item:not(.subviewbutton) {
 #PersonalToolbar #import-button > .toolbarbutton-text,
 .bookmark-item > .toolbarbutton-text {
   display: -moz-box !important;
+}
+
+#PlacesToolbarItems {
+  contain: inline-size;
 }
 
 #PlacesToolbarItems > .bookmark-item > .toolbarbutton-icon {

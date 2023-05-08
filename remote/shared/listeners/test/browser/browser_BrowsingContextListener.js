@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const { BrowsingContextListener } = ChromeUtils.import(
-  "chrome://remote/content/shared/listeners/BrowsingContextListener.jsm"
+const { BrowsingContextListener } = ChromeUtils.importESModule(
+  "chrome://remote/content/shared/listeners/BrowsingContextListener.sys.mjs"
 );
 
 add_task(async function test_attachedOnNewTab() {
@@ -87,7 +87,7 @@ add_task(async function test_replaceTopLevelOnNavigation() {
 
   listener.startListening();
 
-  await loadURL(tab.linkedBrowser, "about:robots");
+  await loadURL(tab.linkedBrowser, "about:mozilla");
 
   const discardEvent = await discarded;
   const attachEvent = await attached;

@@ -119,7 +119,8 @@ NS_IMETHODIMP nsExtProtocolChannel::SetNotificationCallbacks(
 }
 
 NS_IMETHODIMP
-nsExtProtocolChannel::GetSecurityInfo(nsISupports** aSecurityInfo) {
+nsExtProtocolChannel::GetSecurityInfo(
+    nsITransportSecurityInfo** aSecurityInfo) {
   *aSecurityInfo = nullptr;
   return NS_OK;
 }
@@ -345,6 +346,20 @@ NS_IMETHODIMP nsExtProtocolChannel::IsPending(bool* result) {
 NS_IMETHODIMP nsExtProtocolChannel::GetStatus(nsresult* status) {
   *status = mStatus;
   return NS_OK;
+}
+
+NS_IMETHODIMP nsExtProtocolChannel::SetCanceledReason(
+    const nsACString& aReason) {
+  return SetCanceledReasonImpl(aReason);
+}
+
+NS_IMETHODIMP nsExtProtocolChannel::GetCanceledReason(nsACString& aReason) {
+  return GetCanceledReasonImpl(aReason);
+}
+
+NS_IMETHODIMP nsExtProtocolChannel::CancelWithReason(
+    nsresult aStatus, const nsACString& aReason) {
+  return CancelWithReasonImpl(aStatus, aReason);
 }
 
 NS_IMETHODIMP nsExtProtocolChannel::Cancel(nsresult status) {

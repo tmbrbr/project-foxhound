@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use crate::interfaces::nsrefcnt;
+use crate::interfaces::{nsISupports, nsrefcnt};
 use libc;
 use nserror::{nsresult, NS_OK};
 use std::cell::Cell;
+use std::convert::TryInto;
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
@@ -27,6 +28,7 @@ pub unsafe trait RefCounted {
 /// A smart pointer holding a RefCounted object. The object itself manages its
 /// own memory. RefPtr will invoke the addref and release methods at the
 /// appropriate times to facilitate the bookkeeping.
+#[repr(transparent)]
 pub struct RefPtr<T: RefCounted + 'static> {
     _ptr: NonNull<T>,
     // Tell dropck that we own an instance of T.
@@ -115,6 +117,18 @@ impl<T: RefCounted + 'static + fmt::Debug> fmt::Debug for RefPtr<T> {
 // vice-versa.
 unsafe impl<T: RefCounted + 'static + Send + Sync> Send for RefPtr<T> {}
 unsafe impl<T: RefCounted + 'static + Send + Sync> Sync for RefPtr<T> {}
+
+macro_rules! assert_layout_eq {
+    ($T:ty, $U:ty) => {
+        const _: [(); std::mem::size_of::<$T>()] = [(); std::mem::size_of::<$U>()];
+        const _: [(); std::mem::align_of::<$T>()] = [(); std::mem::align_of::<$U>()];
+    };
+}
+
+// Assert that `RefPtr<nsISupports>` has the correct memory layout.
+assert_layout_eq!(RefPtr<nsISupports>, *const nsISupports);
+// Assert that the null-pointer optimization applies to `RefPtr<nsISupports>`.
+assert_layout_eq!(RefPtr<nsISupports>, Option<RefPtr<nsISupports>>);
 
 /// A wrapper that binds a RefCounted value to its original thread,
 /// preventing retrieval from other threads and panicking if the value
@@ -236,10 +250,9 @@ where
 
 /// The type of the reference count type for xpcom structs.
 ///
-/// `#[derive(xpcom)]` will use this type for the `__refcnt` field when
-/// `#[refcnt = "nonatomic"]` is used.
+/// `#[xpcom(nonatomic)]` will use this type for the `__refcnt` field.
 #[derive(Debug)]
-pub struct Refcnt(Cell<nsrefcnt>);
+pub struct Refcnt(Cell<usize>);
 impl Refcnt {
     /// Create a new reference count value. This is unsafe as manipulating
     /// Refcnt values is an easy footgun.
@@ -253,7 +266,7 @@ impl Refcnt {
         // XXX: Checked add?
         let new = self.0.get() + 1;
         self.0.set(new);
-        new
+        new.try_into().unwrap()
     }
 
     /// Decrement the reference count. Returns the new reference count. This is
@@ -262,19 +275,18 @@ impl Refcnt {
         // XXX: Checked sub?
         let new = self.0.get() - 1;
         self.0.set(new);
-        new
+        new.try_into().unwrap()
     }
 
     /// Get the current value of the reference count.
-    pub fn get(&self) -> nsrefcnt {
+    pub fn get(&self) -> usize {
         self.0.get()
     }
 }
 
 /// The type of the atomic reference count used for xpcom structs.
 ///
-/// `#[derive(xpcom)]` will use this type for the `__refcnt` field when
-/// `#[refcnt = "atomic"]` is used.
+/// `#[xpcom(atomic)]` will use this type for the `__refcnt` field.
 ///
 /// See `nsISupportsImpl.h`'s `ThreadSafeAutoRefCnt` class for reasoning behind
 /// memory ordering decisions.
@@ -290,13 +302,14 @@ impl AtomicRefcnt {
     /// Increment the reference count. Returns the new reference count. This is
     /// unsafe as modifying this value can cause a use-after-free.
     pub unsafe fn inc(&self) -> nsrefcnt {
-        self.0.fetch_add(1, Ordering::Relaxed) as nsrefcnt + 1
+        let result = self.0.fetch_add(1, Ordering::Relaxed) + 1;
+        result.try_into().unwrap()
     }
 
     /// Decrement the reference count. Returns the new reference count. This is
     /// unsafe as modifying this value can cause a use-after-free.
     pub unsafe fn dec(&self) -> nsrefcnt {
-        let result = self.0.fetch_sub(1, Ordering::Release) as nsrefcnt - 1;
+        let result = self.0.fetch_sub(1, Ordering::Release) - 1;
         if result == 0 {
             // We're going to destroy the object on this thread, so we need
             // acquire semantics to synchronize with the memory released by
@@ -311,12 +324,12 @@ impl AtomicRefcnt {
                 atomic::fence(Ordering::Acquire);
             }
         }
-        result
+        result.try_into().unwrap()
     }
 
     /// Get the current value of the reference count.
-    pub fn get(&self) -> nsrefcnt {
-        self.0.load(Ordering::Acquire) as nsrefcnt
+    pub fn get(&self) -> usize {
+        self.0.load(Ordering::Acquire)
     }
 }
 

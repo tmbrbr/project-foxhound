@@ -31,11 +31,9 @@ ChromeUtils.defineModuleGetter(
   "ExtensionTestCommon",
   "resource://testing-common/ExtensionTestCommon.jsm"
 );
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "FileUtils",
-  "resource://gre/modules/FileUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  FileUtils: "resource://gre/modules/FileUtils.sys.mjs",
+});
 ChromeUtils.defineModuleGetter(
   lazy,
   "Management",
@@ -269,8 +267,8 @@ class ExtensionWrapper {
    * This method sends the message to force-sleep the background scripts.
    * @returns {Promise} resolves after the background is asleep and listeners primed.
    */
-  terminateBackground() {
-    return this.extension.terminateBackground();
+  terminateBackground(...args) {
+    return this.extension.terminateBackground(...args);
   }
 
   wakeupBackground() {

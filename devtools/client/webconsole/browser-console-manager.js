@@ -4,22 +4,30 @@
 
 "use strict";
 
-var Services = require("Services");
 const {
   CommandsFactory,
-} = require("devtools/shared/commands/commands-factory");
+} = require("resource://devtools/shared/commands/commands-factory.js");
 
-loader.lazyRequireGetter(this, "Tools", "devtools/client/definitions", true);
-loader.lazyRequireGetter(this, "l10n", "devtools/client/webconsole/utils/l10n");
+loader.lazyRequireGetter(
+  this,
+  "Tools",
+  "resource://devtools/client/definitions.js",
+  true
+);
+loader.lazyRequireGetter(
+  this,
+  "l10n",
+  "resource://devtools/client/webconsole/utils/l10n.js"
+);
 loader.lazyRequireGetter(
   this,
   "BrowserConsole",
-  "devtools/client/webconsole/browser-console"
+  "resource://devtools/client/webconsole/browser-console.js"
 );
 loader.lazyRequireGetter(
   this,
   "PREFS",
-  "devtools/client/webconsole/constants",
+  "resource://devtools/client/webconsole/constants.js",
   true
 );
 
@@ -117,13 +125,7 @@ class BrowserConsoleManager {
       once: true,
     });
 
-    const fissionSupport = Services.prefs.getBoolPref(
-      PREFS.FEATURES.BROWSER_TOOLBOX_FISSION
-    );
-    const title = fissionSupport
-      ? l10n.getStr("multiProcessBrowserConsole.title")
-      : l10n.getStr("browserConsole.title");
-    win.document.title = title;
+    this.updateWindowTitle(win);
     return win;
   }
 
@@ -149,6 +151,36 @@ class BrowserConsoleManager {
    */
   getBrowserConsole() {
     return this._browserConsole;
+  }
+
+  /**
+   * Set the title of the Browser Console window.
+   *
+   * @param {Window} win: The BrowserConsole window
+   */
+  updateWindowTitle(win) {
+    const fissionSupport = Services.prefs.getBoolPref(
+      PREFS.FEATURES.BROWSER_TOOLBOX_FISSION
+    );
+
+    let title;
+    if (!fissionSupport) {
+      title = l10n.getStr("browserConsole.title");
+    } else {
+      const mode = Services.prefs.getCharPref(
+        "devtools.browsertoolbox.scope",
+        null
+      );
+      if (mode == "everything") {
+        title = l10n.getStr("multiProcessBrowserConsole.title");
+      } else if (mode == "parent-process") {
+        title = l10n.getStr("parentProcessBrowserConsole.title");
+      } else {
+        throw new Error("Unsupported mode: " + mode);
+      }
+    }
+
+    win.document.title = title;
   }
 }
 

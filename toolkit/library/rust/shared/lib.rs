@@ -73,7 +73,7 @@ extern crate fluent_langneg_ffi;
 extern crate fluent;
 extern crate fluent_ffi;
 
-extern crate regex_ffi;
+extern crate rure;
 
 extern crate fluent_fallback;
 extern crate l10nregistry_ffi;
@@ -98,6 +98,22 @@ extern crate origin_trials_ffi;
 extern crate dap_ffi;
 
 extern crate data_encoding_ffi;
+
+#[cfg(feature = "uniffi_fixtures")]
+mod uniffi_fixtures {
+    extern crate arithmetical;
+    extern crate uniffi_geometry;
+    extern crate uniffi_rondpoint;
+    extern crate uniffi_sprites;
+    extern crate uniffi_todolist;
+
+    arithmetical::uniffi_reexport_scaffolding!();
+    uniffi_custom_types::uniffi_reexport_scaffolding!();
+    uniffi_geometry::uniffi_reexport_scaffolding!();
+    uniffi_rondpoint::uniffi_reexport_scaffolding!();
+    uniffi_sprites::uniffi_reexport_scaffolding!();
+    uniffi_todolist::uniffi_reexport_scaffolding!();
+}
 
 extern crate log;
 use log::info;

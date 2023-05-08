@@ -67,6 +67,7 @@
 #include "mozilla/MouseEvents.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/ScopeExit.h"
+#include "mozilla/StaticPrefs_browser.h"
 #include "mozilla/SwipeTracker.h"
 #include "mozilla/TouchEvents.h"
 #include "mozilla/TimeStamp.h"
@@ -160,6 +161,7 @@
 #include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/StaticPrefs_widget.h"
 #include "nsNativeAppSupportWin.h"
+#include "mozilla/browser/NimbusFeatures.h"
 
 #include "nsIGfxInfo.h"
 #include "nsUXThemeConstants.h"
@@ -261,18 +263,14 @@ using namespace mozilla::plugins;
 static const wchar_t kUser32LibName[] = L"user32.dll";
 
 uint32_t nsWindow::sInstanceCount = 0;
-bool nsWindow::sSwitchKeyboardLayout = false;
-BOOL nsWindow::sIsOleInitialized = FALSE;
+bool nsWindow::sIsOleInitialized = false;
 nsIWidget::Cursor nsWindow::sCurrentCursor = {};
 nsWindow* nsWindow::sCurrentWindow = nullptr;
 bool nsWindow::sJustGotDeactivate = false;
 bool nsWindow::sJustGotActivate = false;
 bool nsWindow::sIsInMouseCapture = false;
 
-// imported in nsWidgetFactory.cpp
-TriStateBool nsWindow::sCanQuit = TRI_UNKNOWN;
-
-// Hook Data Memebers for Dropdowns. sProcessHook Tells the
+// Hook Data Members for Dropdowns. sProcessHook Tells the
 // hook methods whether they should be processing the hook
 // messages.
 HHOOK nsWindow::sMsgFilterHook = nullptr;
@@ -283,20 +281,11 @@ UINT nsWindow::sRollupMsgId = 0;
 HWND nsWindow::sRollupMsgWnd = nullptr;
 UINT nsWindow::sHookTimerId = 0;
 
-// Mouse Clicks - static variable definitions for figuring
-// out 1 - 3 Clicks.
-POINT nsWindow::sLastMousePoint = {0};
+// Used to prevent dispatching mouse events that do not originate from user
+// input.
 POINT nsWindow::sLastMouseMovePoint = {0};
-LONG nsWindow::sLastMouseDownTime = 0L;
-LONG nsWindow::sLastClickCount = 0L;
-BYTE nsWindow::sLastMouseButton = 0;
 
-bool nsWindow::sHaveInitializedPrefs = false;
 bool nsWindow::sIsRestoringSession = false;
-
-bool nsWindow::sFirstTopLevelWindowCreated = false;
-
-TriStateBool nsWindow::sHasBogusPopupsDropShadowOnMultiMonitor = TRI_UNKNOWN;
 
 bool nsWindow::sTouchInjectInitialized = false;
 InjectTouchInputPtr nsWindow::sInjectTouchFuncPtr;
@@ -369,9 +358,6 @@ static const char* sScreenManagerContractID =
     "@mozilla.org/gfx/screenmanager;1";
 
 extern mozilla::LazyLogModule gWindowsLog;
-
-// True if we have sent a notification that we are suspending/sleeping.
-static bool gIsSleepMode = false;
 
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 
@@ -627,22 +613,24 @@ class InitializeVirtualDesktopManagerTask : public Task {
   }
 };
 
-static BOOL GetMouseVanishSystemPref(bool aShouldUpdate) {
-  static bool sInitialized = false;
-  static BOOL sMouseVanishSystemPref = FALSE;
+static bool GetMouseVanishSystemPref(bool aShouldUpdate) {
+  static Maybe<bool> sCachedMouseVanishSystemPref;
 
-  if (!sInitialized || aShouldUpdate) {
-    BOOL ok = ::SystemParametersInfo(SPI_GETMOUSEVANISH, 0,
-                                     &sMouseVanishSystemPref, 0);
-    if (!ok) {
-      // Getting system pref failed so just use user pref.
-      sMouseVanishSystemPref =
-          StaticPrefs::widget_windows_hide_cursor_when_typing();
-    }
-    sInitialized = true;
+  if (aShouldUpdate) {
+    sCachedMouseVanishSystemPref.reset();
   }
 
-  return sMouseVanishSystemPref;
+  if (sCachedMouseVanishSystemPref.isNothing()) {
+    BOOL mouseVanishSystemPref;
+    BOOL ok = ::SystemParametersInfo(SPI_GETMOUSEVANISH, 0,
+                                     &mouseVanishSystemPref, 0);
+    // If getting system pref failed, just use user pref.
+    sCachedMouseVanishSystemPref.emplace(
+        ok ? mouseVanishSystemPref
+           : StaticPrefs::widget_windows_hide_cursor_when_typing());
+  }
+
+  return *sCachedMouseVanishSystemPref;
 }
 
 static bool IsMouseVanishKey(WPARAM aVirtKey) {
@@ -776,7 +764,7 @@ nsWindow::nsWindow(bool aIsChildWindow)
     mozilla::TIPMessageHandler::Initialize();
 #endif  // defined(ACCESSIBILITY)
     if (SUCCEEDED(::OleInitialize(nullptr))) {
-      sIsOleInitialized = TRUE;
+      sIsOleInitialized = true;
     }
     NS_ASSERTION(sIsOleInitialized, "***** OLE is not initialized!\n");
     MouseScrollHandler::Initialize();
@@ -819,7 +807,7 @@ nsWindow::~nsWindow() {
     if (sIsOleInitialized) {
       ::OleFlushClipboard();
       ::OleUninitialize();
-      sIsOleInitialized = FALSE;
+      sIsOleInitialized = false;
     }
   }
 
@@ -1022,6 +1010,8 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
 
   const wchar_t* className = ChooseWindowClass(mWindowType, mForMenupopupFrame);
 
+  // Take specific actions when creating the first top-level window
+  static bool sFirstTopLevelWindowCreated = false;
   if (aInitData->mWindowType == eWindowType_toplevel && !aParent &&
       !sFirstTopLevelWindowCreated) {
     sFirstTopLevelWindowCreated = true;
@@ -1112,8 +1102,13 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
   }
 
   if (aInitData->mIsPrivate) {
-    if (Preferences::GetBool(
-            "browser.privacySegmentation.windowSeparation.enabled", false)) {
+    if (NimbusFeatures::GetBool("majorRelease2022"_ns,
+                                "feltPrivacyWindowSeparation"_ns, true) &&
+        // Although permanent Private Browsing mode is indeed Private Browsing,
+        // we choose to make it look like regular Firefox in terms of the icon
+        // it uses (which also means we shouldn't use the Private Browsing
+        // AUMID).
+        !StaticPrefs::browser_privatebrowsing_autostart()) {
       RefPtr<IPropertyStore> pPropStore;
       if (!FAILED(SHGetPropertyStoreForWindow(mWnd, IID_IPropertyStore,
                                               getter_AddRefs(pPropStore)))) {
@@ -1209,7 +1204,12 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
     ::SetWindowLongPtrW(scrollableWnd, GWLP_USERDATA, (LONG_PTR)oldWndProc);
   }
 
-  SubclassWindow(TRUE);
+  // We will start receiving native events after associating with our native
+  // window. We will also become the output of WinUtils::GetNSWindowPtr for that
+  // window.
+  if (!AssociateWithNativeWindow()) {
+    return NS_ERROR_FAILURE;
+  }
 
   // Starting with Windows XP, a process always runs within a terminal services
   // session. In order to play nicely with RDP, fast user switching, and the
@@ -1221,15 +1221,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
 
   mDefaultIMC.Init(this);
   IMEHandler::InitInputContext(this, mInputContext);
-
-  // Do some initialization work, but only if (a) it hasn't already been done,
-  // and (b) this is the hidden window (which is conveniently created before
-  // any visible windows but after the profile has been initialized).
-  if (!sHaveInitializedPrefs && mWindowType == eWindowType_invisible) {
-    sSwitchKeyboardLayout =
-        Preferences::GetBool("intl.keyboard.per_window_layout", false);
-    sHaveInitializedPrefs = true;
-  }
 
   // Query for command button metric data for rendering the titlebar. We
   // only do this once on the first window that has an actual titlebar
@@ -1495,33 +1486,65 @@ DWORD nsWindow::WindowExStyle() {
 
 /**************************************************************
  *
- * SECTION: Window subclassing utilities
+ * SECTION: Native window association utilities
  *
- * Set or clear window subclasses on native windows. Used in
- * Create and Destroy.
+ * Used in Create and Destroy. A nsWindow can associate with its
+ * underlying native window mWnd. Once a native window is
+ * associated with a nsWindow, its native events will be handled
+ * by the static member function nsWindow::WindowProc. Moreover,
+ * the association will be registered in the WinUtils association
+ * list, that is, calling WinUtils::GetNSWindowPtr on the native
+ * window will return the associated nsWindow. This is used in
+ * nsWindow::WindowProc to correctly dispatch native events to
+ * the handler methods defined in nsWindow, even though it is a
+ * static member function.
+ *
+ * After dissociation, the native events of the native window will
+ * no longer be handled by nsWindow::WindowProc, and will thus not
+ * be dispatched to the nsWindow native event handler methods.
+ * Moreover, the association will no longer be registered in the
+ * WinUtils association list, so calling WinUtils::GetNSWindowPtr
+ * on the native window will return nullptr.
  *
  **************************************************************/
 
-// Subclass (or remove the subclass from) this component's nsWindow
-void nsWindow::SubclassWindow(BOOL bState) {
-  if (bState) {
-    if (!mWnd || !IsWindow(mWnd)) {
-      NS_ERROR("Invalid window handle");
-    }
-
-    mPrevWndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(
-        mWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(nsWindow::WindowProc)));
-    NS_ASSERTION(mPrevWndProc, "Null standard window procedure");
-    // connect the this pointer to the nsWindow handle
-    WinUtils::SetNSWindowPtr(mWnd, this);
-  } else {
-    if (IsWindow(mWnd)) {
-      SetWindowLongPtrW(mWnd, GWLP_WNDPROC,
-                        reinterpret_cast<LONG_PTR>(mPrevWndProc));
-    }
-    WinUtils::SetNSWindowPtr(mWnd, nullptr);
-    mPrevWndProc = nullptr;
+bool nsWindow::AssociateWithNativeWindow() {
+  if (!mWnd || !IsWindow(mWnd)) {
+    NS_ERROR("Invalid window handle");
+    return false;
   }
+
+  // Connect the this pointer to the native window handle.
+  // This should be done before SetWindowLongPtrW, because nsWindow::WindowProc
+  // uses WinUtils::GetNSWindowPtr internally.
+  WinUtils::SetNSWindowPtr(mWnd, this);
+
+  ::SetLastError(ERROR_SUCCESS);
+  const auto prevWndProc = reinterpret_cast<WNDPROC>(::SetWindowLongPtrW(
+      mWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(nsWindow::WindowProc)));
+  if (!prevWndProc && GetLastError() != ERROR_SUCCESS) {
+    NS_ERROR("Failure in SetWindowLongPtrW");
+    WinUtils::SetNSWindowPtr(mWnd, nullptr);
+    return false;
+  }
+
+  mPrevWndProc.emplace(prevWndProc);
+  return true;
+}
+
+void nsWindow::DissociateFromNativeWindow() {
+  if (!mWnd || !IsWindow(mWnd) || mPrevWndProc.isNothing()) {
+    return;
+  }
+
+  DebugOnly<WNDPROC> wndProcBeforeDissociate =
+      reinterpret_cast<WNDPROC>(::SetWindowLongPtrW(
+          mWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(*mPrevWndProc)));
+  NS_ASSERTION(wndProcBeforeDissociate == nsWindow::WindowProc,
+               "Unstacked an unexpected native window procedure");
+
+  WinUtils::SetNSWindowPtr(mWnd, nullptr);
+  mPrevWndProc.reset();
 }
 
 /**************************************************************
@@ -4474,6 +4497,7 @@ bool nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
                                   int16_t aButton, uint16_t aInputSource,
                                   WinPointerInfo* aPointerInfo,
                                   bool aIgnoreAPZ) {
+  ContextMenuPreventer contextMenuPreventer(this);
   bool result = false;
 
   UserActivity();
@@ -4590,6 +4614,12 @@ bool nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
     event.pointerId = pointerId;
   }
 
+  // Static variables used to distinguish simple-, double- and triple-clicks.
+  static POINT sLastMousePoint = {0};
+  static LONG sLastMouseDownTime = 0L;
+  static LONG sLastClickCount = 0L;
+  static BYTE sLastMouseButton = 0;
+
   bool insideMovementThreshold =
       (DeprecatedAbs(sLastMousePoint.x - eventPoint.x) <
        (short)::GetSystemMetrics(SM_CXDOUBLECLK)) &&
@@ -4690,12 +4720,10 @@ bool nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
       }
     }
 
-    result = ConvertStatus(DispatchInputEvent(&event).mContentStatus);
-
-    // Release the widget with NS_IF_RELEASE() just in case
-    // the context menu key code in EventListenerManager::HandleEvent()
-    // released it already.
-    return result;
+    nsIWidget::ContentAndAPZEventStatus eventStatus =
+        DispatchInputEvent(&event);
+    contextMenuPreventer.Update(event, eventStatus);
+    return ConvertStatus(eventStatus.mContentStatus);
   }
 
   return result;
@@ -4957,8 +4985,108 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam,
                                                wParam, lParam);
 }
 
+namespace geckoprofiler::markers {
+
+struct WindowProcMarker {
+  static constexpr Span<const char> MarkerTypeName() {
+    return MakeStringSpan("WindowProc");
+  }
+  static void StreamJSONMarkerData(baseprofiler::SpliceableJSONWriter& aWriter,
+                                   UINT aMsg, WPARAM aWParam, LPARAM aLParam) {
+    aWriter.IntProperty("uMsg", aMsg);
+    const char* name;
+    if (aMsg < WM_USER) {
+      const auto eventMsgInfo = mozilla::widget::gAllEvents.find(aMsg);
+      if (eventMsgInfo != mozilla::widget::gAllEvents.end()) {
+        name = eventMsgInfo->second.mStr;
+      } else {
+        name = "ui message";
+      }
+    } else if (aMsg >= WM_USER && aMsg < WM_APP) {
+      name = "WM_USER message";
+    } else if (aMsg >= WM_APP && aMsg < 0xC000) {
+      name = "WM_APP message";
+    } else if (aMsg >= 0xC000 && aMsg < 0x10000) {
+      name = "registered windows message";
+    } else {
+      name = "system message";
+    }
+    aWriter.StringProperty("name", MakeStringSpan(name));
+
+    if (aWParam) {
+      aWriter.IntProperty("wParam", aWParam);
+    }
+    if (aLParam) {
+      aWriter.IntProperty("lParam", aLParam);
+    }
+  }
+
+  static MarkerSchema MarkerTypeDisplay() {
+    using MS = MarkerSchema;
+    MS schema{MS::Location::MarkerChart, MS::Location::MarkerTable};
+    schema.AddKeyFormat("uMsg", MS::Format::Integer);
+    schema.SetChartLabel("{marker.data.name} ({marker.data.uMsg})");
+    schema.SetTableLabel(
+        "{marker.name} - {marker.data.name} ({marker.data.uMsg})");
+    schema.SetTooltipLabel("{marker.name} - {marker.data.name}");
+    schema.AddKeyFormat("wParam", MS::Format::Integer);
+    schema.AddKeyFormat("lParam", MS::Format::Integer);
+    return schema;
+  }
+};
+
+}  // namespace geckoprofiler::markers
+
+class MOZ_RAII AutoProfilerMessageMarker {
+ public:
+  explicit AutoProfilerMessageMarker(HWND hWnd, UINT msg, WPARAM wParam,
+                                     LPARAM lParam)
+      : mMsg(msg), mWParam(wParam), mLParam(lParam) {
+    if (profiler_thread_is_being_profiled_for_markers()) {
+      mOptions.emplace(MarkerOptions(MarkerTiming::IntervalStart()));
+      nsWindow* win = WinUtils::GetNSWindowPtr(hWnd);
+      if (win) {
+        nsIWidgetListener* wl = win->GetWidgetListener();
+        if (wl) {
+          PresShell* presShell = wl->GetPresShell();
+          if (presShell) {
+            Document* doc = presShell->GetDocument();
+            if (doc) {
+              mOptions->Set(MarkerInnerWindowId(doc->InnerWindowID()));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  ~AutoProfilerMessageMarker() {
+    if (!profiler_thread_is_being_profiled_for_markers()) {
+      return;
+    }
+
+    if (mOptions) {
+      mOptions->TimingRef().SetIntervalEnd();
+    } else {
+      mOptions.emplace(MarkerOptions(MarkerTiming::IntervalEnd()));
+    }
+    profiler_add_marker("WindowProc", ::mozilla::baseprofiler::category::OTHER,
+                        std::move(*mOptions),
+                        geckoprofiler::markers::WindowProcMarker{}, mMsg,
+                        mWParam, mLParam);
+  }
+
+ protected:
+  Maybe<MarkerOptions> mOptions;
+  UINT mMsg;
+  WPARAM mWParam;
+  LPARAM mLParam;
+};
+
 LRESULT CALLBACK nsWindow::WindowProcInternal(HWND hWnd, UINT msg,
                                               WPARAM wParam, LPARAM lParam) {
+  AutoProfilerMessageMarker marker(hWnd, msg, wParam, lParam);
+
   if (::GetWindowLongPtrW(hWnd, GWLP_ID) == eFakeTrackPointScrollableID) {
     // This message was sent to the FAKETRACKPOINTSCROLLABLE.
     if (msg == WM_HSCROLL) {
@@ -5079,29 +5207,39 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
     return true;
   }
 
+  // The preference whether to use a different keyboard layout for each
+  // window is cached, and updating it will not take effect until the
+  // next restart. We read the preference here and not upon WM_ACTIVATE to make
+  // sure that this behavior is consistent. Otherwise, if the user changed the
+  // preference before having ever lowered the window, the preference would take
+  // effect immediately.
+  static const bool sSwitchKeyboardLayout =
+      Preferences::GetBool("intl.keyboard.per_window_layout", false);
+  static Maybe<bool> sCanQuit;
+
   // (Large blocks of code should be broken out into OnEvent handlers.)
   switch (msg) {
     // WM_QUERYENDSESSION must be handled by all windows.
     // Otherwise Windows thinks the window can just be killed at will.
     case WM_QUERYENDSESSION:
-      if (sCanQuit == TRI_UNKNOWN) {
+      if (sCanQuit.isNothing()) {
         // Ask if it's ok to quit, and store the answer until we
         // get WM_ENDSESSION signaling the round is complete.
         nsCOMPtr<nsIObserverService> obsServ =
             mozilla::services::GetObserverService();
-        nsCOMPtr<nsISupportsPRBool> cancelQuit =
+        nsCOMPtr<nsISupportsPRBool> cancelQuitWrapper =
             do_CreateInstance(NS_SUPPORTS_PRBOOL_CONTRACTID);
-        cancelQuit->SetData(false);
+        cancelQuitWrapper->SetData(false);
 
         const char16_t* quitType = GetQuitType();
-        obsServ->NotifyObservers(cancelQuit, "quit-application-requested",
-                                 quitType);
+        obsServ->NotifyObservers(cancelQuitWrapper,
+                                 "quit-application-requested", quitType);
 
-        bool abortQuit;
-        cancelQuit->GetData(&abortQuit);
-        sCanQuit = abortQuit ? TRI_FALSE : TRI_TRUE;
+        bool shouldCancelQuit;
+        cancelQuitWrapper->GetData(&shouldCancelQuit);
+        sCanQuit.emplace(!shouldCancelQuit);
       }
-      *aRetValue = sCanQuit ? TRUE : FALSE;
+      *aRetValue = *sCanQuit;
       result = true;
       break;
 
@@ -5116,7 +5254,9 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
 
     case WM_ENDSESSION:
     case MOZ_WM_APP_QUIT:
-      if (msg == MOZ_WM_APP_QUIT || (wParam == TRUE && sCanQuit == TRI_TRUE)) {
+      // For WM_ENDSESSION, wParam indicates whether the session is being ended
+      // (TRUE) or not (FALSE)
+      if (msg == MOZ_WM_APP_QUIT || (wParam && sCanQuit.valueOr(false))) {
         // Let's fake a shutdown sequence without actually closing windows etc.
         // to avoid Windows killing us in the middle. A proper shutdown would
         // require having a chance to pump some messages. Unfortunately
@@ -5148,7 +5288,7 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
 
         AppShutdown::DoImmediateExit();
       }
-      sCanQuit = TRI_UNKNOWN;
+      sCanQuit.reset();
       result = true;
       break;
 
@@ -5683,6 +5823,14 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
       if (mTouchWindow &&
           MOUSE_INPUT_SOURCE() == MouseEvent_Binding::MOZ_SOURCE_TOUCH) {
         MOZ_ASSERT(mAPZC);  // since mTouchWindow is true, APZ must be enabled
+        result = true;
+        break;
+      }
+
+      // If this WM_CONTEXTMENU is triggered by a mouse's secondary button up
+      // event in overscroll gutter, we shouldn't open context menu.
+      if (MOUSE_INPUT_SOURCE() == MouseEvent_Binding::MOZ_SOURCE_MOUSE &&
+          mNeedsToPreventContextMenu) {
         result = true;
         break;
       }
@@ -6563,9 +6711,13 @@ TimeStamp nsWindow::GetMessageTimeStamp(LONG aEventTime) const {
 }
 
 void nsWindow::PostSleepWakeNotification(const bool aIsSleepMode) {
-  if (aIsSleepMode == gIsSleepMode) return;
+  // Retain the previous mode that was notified to observers
+  static bool sWasSleepMode = false;
 
-  gIsSleepMode = aIsSleepMode;
+  // Only notify observers if mode changed
+  if (aIsSleepMode == sWasSleepMode) return;
+
+  sWasSleepMode = aIsSleepMode;
 
   nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
@@ -7359,9 +7511,10 @@ void nsWindow::OnDestroy() {
   // Unregister notifications from terminal services
   ::WTSUnRegisterSessionNotification(mWnd);
 
-  // Free our subclass and clear the |this|-pointer associated with our HWND. We
-  // will no longer receive events from Windows after this point.
-  SubclassWindow(FALSE);
+  // We will stop receiving native events after dissociating from our native
+  // window. We will also disappear from the output of WinUtils::GetNSWindowPtr
+  // for that window.
+  DissociateFromNativeWindow();
 
   // Once mWidgetListener is cleared and the subclass is reset, sCurrentWindow
   // can be cleared. (It's used in tracking windows for mouse events.)
@@ -7502,35 +7655,35 @@ void nsWindow::WindowUsesOMTC() {
   NS_WARNING_ASSERTION(result, "Could not reset window class style");
 }
 
+// See bug 603793
 bool nsWindow::HasBogusPopupsDropShadowOnMultiMonitor() {
-  if (sHasBogusPopupsDropShadowOnMultiMonitor == TRI_UNKNOWN) {
+  static const bool sHasBogusPopupsDropShadowOnMultiMonitor = [] {
     // Since any change in the preferences requires a restart, this can be
     // done just once.
     // Check for Direct2D first.
-    sHasBogusPopupsDropShadowOnMultiMonitor =
-        gfxWindowsPlatform::GetPlatform()->IsDirect2DBackend() ? TRI_TRUE
-                                                               : TRI_FALSE;
-    if (!sHasBogusPopupsDropShadowOnMultiMonitor) {
-      // Otherwise check if Direct3D 9 may be used.
-      if (gfxConfig::IsEnabled(gfx::Feature::HW_COMPOSITING) &&
-          !gfxConfig::IsEnabled(gfx::Feature::OPENGL_COMPOSITING)) {
-        nsCOMPtr<nsIGfxInfo> gfxInfo = components::GfxInfo::Service();
-        if (gfxInfo) {
-          int32_t status;
-          nsCString discardFailureId;
-          if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(
-                  nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, discardFailureId,
-                  &status))) {
-            if (status == nsIGfxInfo::FEATURE_STATUS_OK ||
-                gfxConfig::IsForcedOnByUser(gfx::Feature::HW_COMPOSITING)) {
-              sHasBogusPopupsDropShadowOnMultiMonitor = TRI_TRUE;
-            }
+    if (gfxWindowsPlatform::GetPlatform()->IsDirect2DBackend()) {
+      return true;
+    }
+    // Otherwise check if Direct3D 9 may be used.
+    if (gfxConfig::IsEnabled(gfx::Feature::HW_COMPOSITING) &&
+        !gfxConfig::IsEnabled(gfx::Feature::OPENGL_COMPOSITING)) {
+      nsCOMPtr<nsIGfxInfo> gfxInfo = components::GfxInfo::Service();
+      if (gfxInfo) {
+        int32_t status;
+        nsCString discardFailureId;
+        if (NS_SUCCEEDED(
+                gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS,
+                                          discardFailureId, &status))) {
+          if (status == nsIGfxInfo::FEATURE_STATUS_OK ||
+              gfxConfig::IsForcedOnByUser(gfx::Feature::HW_COMPOSITING)) {
+            return true;
           }
         }
       }
     }
-  }
-  return !!sHasBogusPopupsDropShadowOnMultiMonitor;
+    return false;
+  }();
+  return sHasBogusPopupsDropShadowOnMultiMonitor;
 }
 
 void nsWindow::OnDPIChanged(int32_t x, int32_t y, int32_t width,
@@ -9164,6 +9317,14 @@ bool nsWindow::HandleAppCommandMsg(const MSG& aAppCommandMsg,
   return consumed;
 }
 
+#ifdef DEBUG
+nsresult nsWindow::SetHiDPIMode(bool aHiDPI) {
+  return WinUtils::SetHiDPIMode(aHiDPI);
+}
+
+nsresult nsWindow::RestoreHiDPIMode() { return WinUtils::RestoreHiDPIMode(); }
+#endif
+
 static nsSizeMode GetSizeModeForWindowFrame(HWND aWnd, bool aFullscreenMode) {
   WINDOWPLACEMENT pl;
   pl.length = sizeof(pl);
@@ -9334,4 +9495,14 @@ void nsWindow::FrameState::SetSizeModeInternal(nsSizeMode aMode) {
       (aMode == nsSizeMode_Maximized || aMode == nsSizeMode_Fullscreen)) {
     mWindow->DispatchFocusToTopLevelWindow(true);
   }
+}
+
+void nsWindow::ContextMenuPreventer::Update(
+    const WidgetMouseEvent& aEvent,
+    const nsIWidget::ContentAndAPZEventStatus& aEventStatus) {
+  mNeedsToPreventContextMenu =
+      aEvent.mMessage == eMouseUp &&
+      aEvent.mButton == MouseButton::eSecondary &&
+      aEvent.mInputSource == MouseEvent_Binding::MOZ_SOURCE_MOUSE &&
+      aEventStatus.mApzStatus == nsEventStatus_eConsumeNoDefault;
 }

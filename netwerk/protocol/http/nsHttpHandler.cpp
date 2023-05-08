@@ -91,6 +91,10 @@
 #  include <sys/utsname.h>
 #endif
 
+#if defined(MOZ_WIDGET_GTK)
+#  include "mozilla/WidgetUtilsGtk.h"
+#endif
+
 #if defined(XP_WIN)
 #  include <windows.h>
 #  include "mozilla/WindowsVersion.h"
@@ -156,6 +160,25 @@ static nsCString GetDeviceModelId() {
     return std::move(deviceString);
   }
   return std::move(deviceModelId);
+}
+#endif
+
+#ifdef XP_UNIX
+static bool IsRunningUnderUbuntuSnap() {
+#  if defined(MOZ_WIDGET_GTK)
+  if (!widget::IsRunningUnderSnap()) {
+    return false;
+  }
+
+  char version[100];
+  if (PR_GetSystemInfo(PR_SI_RELEASE_BUILD, version, sizeof(version)) ==
+      PR_SUCCESS) {
+    if (strstr(version, "Ubuntu")) {
+      return true;
+    }
+  }
+#  endif
+  return false;
 }
 #endif
 
@@ -829,6 +852,12 @@ void nsHttpHandler::InitUserAgentComponents() {
       "X11"
 #endif
   );
+
+#ifdef XP_UNIX
+  if (IsRunningUnderUbuntuSnap()) {
+    mPlatform.AppendLiteral("; Ubuntu");
+  }
+#endif
 
 #ifdef ANDROID
   nsCOMPtr<nsIPropertyBag2> infoService =
@@ -2608,6 +2637,13 @@ HttpTrafficAnalyzer* nsHttpHandler::GetHttpTrafficAnalyzer() {
   return &mHttpTrafficAnalyzer;
 }
 
+bool nsHttpHandler::IsHttp3Enabled() {
+  static const uint32_t TLS3_PREF_VALUE = 4;
+
+  return StaticPrefs::network_http_http3_enable() &&
+         (StaticPrefs::security_tls_version_max() >= TLS3_PREF_VALUE);
+}
+
 bool nsHttpHandler::IsHttp3VersionSupported(const nsACString& version) {
   if (!StaticPrefs::network_http_http3_support_version1() &&
       version.EqualsLiteral("h3")) {
@@ -2740,7 +2776,7 @@ void nsHttpHandler::SetHttpHandlerInitArgs(const HttpHandlerInitArgs& aArgs) {
   mDeviceModelId = aArgs.mDeviceModelId();
 }
 
-void nsHttpHandler::SetDeviceModelId(const nsCString& aModelId) {
+void nsHttpHandler::SetDeviceModelId(const nsACString& aModelId) {
   MOZ_ASSERT(XRE_IsSocketProcess());
   mDeviceModelId = aModelId;
 }
@@ -2749,8 +2785,7 @@ void nsHttpHandler::MaybeAddAltSvcForTesting(
     nsIURI* aUri, const nsACString& aUsername, bool aPrivateBrowsing,
     nsIInterfaceRequestor* aCallbacks,
     const OriginAttributes& aOriginAttributes) {
-  if (!StaticPrefs::network_http_http3_enable() ||
-      mAltSvcMappingTemptativeMap.IsEmpty()) {
+  if (!IsHttp3Enabled() || mAltSvcMappingTemptativeMap.IsEmpty()) {
     return;
   }
 

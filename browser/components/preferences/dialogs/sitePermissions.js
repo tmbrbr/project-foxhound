@@ -13,37 +13,37 @@ const { SitePermissions } = ChromeUtils.import(
 
 const sitePermissionsL10n = {
   "desktop-notification": {
-    window: "permissions-site-notification-window",
+    window: "permissions-site-notification-window2",
     description: "permissions-site-notification-desc",
     disableLabel: "permissions-site-notification-disable-label",
     disableDescription: "permissions-site-notification-disable-desc",
   },
   geo: {
-    window: "permissions-site-location-window",
+    window: "permissions-site-location-window2",
     description: "permissions-site-location-desc",
     disableLabel: "permissions-site-location-disable-label",
     disableDescription: "permissions-site-location-disable-desc",
   },
   xr: {
-    window: "permissions-site-xr-window",
+    window: "permissions-site-xr-window2",
     description: "permissions-site-xr-desc",
     disableLabel: "permissions-site-xr-disable-label",
     disableDescription: "permissions-site-xr-disable-desc",
   },
   camera: {
-    window: "permissions-site-camera-window",
+    window: "permissions-site-camera-window2",
     description: "permissions-site-camera-desc",
     disableLabel: "permissions-site-camera-disable-label",
     disableDescription: "permissions-site-camera-disable-desc",
   },
   microphone: {
-    window: "permissions-site-microphone-window",
+    window: "permissions-site-microphone-window2",
     description: "permissions-site-microphone-desc",
     disableLabel: "permissions-site-microphone-disable-label",
     disableDescription: "permissions-site-microphone-disable-desc",
   },
   "autoplay-media": {
-    window: "permissions-site-autoplay-window",
+    window: "permissions-site-autoplay-window2",
     description: "permissions-site-autoplay-desc",
   },
 };
@@ -351,18 +351,18 @@ var gSitePermissionsManager = {
     let richlistitem = document.createXULElement("richlistitem");
     richlistitem.setAttribute("origin", permission.origin);
     let row = document.createXULElement("hbox");
-    row.setAttribute("flex", "1");
+    row.setAttribute("style", "-moz-box-flex: 1");
 
     let hbox = document.createXULElement("hbox");
     let website = document.createXULElement("label");
     website.setAttribute("value", permission.origin);
     website.setAttribute("width", width);
     hbox.setAttribute("class", "website-name");
-    hbox.setAttribute("flex", "3");
+    hbox.setAttribute("style", "-moz-box-flex: 3");
     hbox.appendChild(website);
 
     let menulist = document.createXULElement("menulist");
-    menulist.setAttribute("flex", "1");
+    menulist.setAttribute("style", "-moz-box-flex: 1");
     menulist.setAttribute("width", width);
     menulist.setAttribute("class", "website-status");
     let states = SitePermissions.getAvailableStates(permission.type);

@@ -5,7 +5,7 @@
 
 /* Exercise prefix-based forwarding of packets to other transports. */
 
-const { RootActor } = require("devtools/server/actors/root");
+const { RootActor } = require("resource://devtools/server/actors/root.js");
 
 var gMainConnection, gMainTransport;
 var gSubconnection1, gSubconnection2;
@@ -44,7 +44,7 @@ function newConnection(prefix) {
 
   const transport = DevToolsServer.connectPipe(prefix);
 
-  return { conn: conn, transport: transport };
+  return { conn, transport };
 }
 
 /* Create the main connection for these tests. */
@@ -142,7 +142,7 @@ function newSubconnection(prefix) {
   };
   gMainConnection.setForwarding(prefix, transport);
 
-  return { conn: conn, transport: transport };
+  return { conn, transport };
 }
 
 /* Create a second root actor, to which we can forward things. */
@@ -176,7 +176,7 @@ function TestForwardPrefix12OnlyRoot() {
 // the reply-sending code attaches the replying actor's name to the packet,
 // so simply matching the 'from' field in the reply ensures that we heard
 // from the right actor.
-const { Actor } = require("devtools/shared/protocol/Actor");
+const { Actor } = require("resource://devtools/shared/protocol/Actor.js");
 class EchoActor extends Actor {
   constructor(conn) {
     super(conn);

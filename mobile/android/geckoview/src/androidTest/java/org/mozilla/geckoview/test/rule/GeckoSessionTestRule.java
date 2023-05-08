@@ -140,7 +140,7 @@ public class GeckoSessionTestRule implements TestRule {
     displayTexture.setDefaultBufferSize(x, y);
 
     final Surface displaySurface = new Surface(displayTexture);
-    display.surfaceChanged(displaySurface, x, y);
+    display.surfaceChanged(new GeckoDisplay.SurfaceInfo.Builder(displaySurface).size(x, y).build());
 
     mDisplays.put(session, display);
     mDisplayTextures.put(session, displayTexture);
@@ -363,7 +363,9 @@ public class GeckoSessionTestRule implements TestRule {
   @Target(ElementType.METHOD)
   @Retention(RetentionPolicy.RUNTIME)
   public @interface IgnoreCrash {
-    /** @return True if content crashes should be ignored, false otherwise. Default is true. */
+    /**
+     * @return True if content crashes should be ignored, false otherwise. Default is true.
+     */
     boolean value() default true;
   }
 
@@ -1377,13 +1379,13 @@ public class GeckoSessionTestRule implements TestRule {
 
   protected void cleanupExtensions() throws Throwable {
     final WebExtensionController controller = getRuntime().getWebExtensionController();
-    final List<WebExtension> list = waitForResult(controller.list());
+    final List<WebExtension> list = waitForResult(controller.list(), env.getDefaultTimeoutMillis());
 
     boolean hasTestSupport = false;
     // Uninstall any left-over extensions
     for (final WebExtension extension : list) {
       if (!extension.id.equals(RuntimeCreator.TEST_SUPPORT_EXTENSION_ID)) {
-        waitForResult(controller.uninstall(extension));
+        waitForResult(controller.uninstall(extension), env.getDefaultTimeoutMillis());
       } else {
         hasTestSupport = true;
       }
@@ -2115,22 +2117,40 @@ public class GeckoSessionTestRule implements TestRule {
    * location providers, accuracy determines preference.
    *
    * @param locationManager location manager to accept the locations
-   * @param mockproviderName location provider that will use this location
+   * @param mockProviderName location provider that will use this location
    * @param latitude latitude in degrees to mock
    * @param longitude longitude in degrees to mock
    */
   public void setMockLocation(
-      LocationManager locationManager, String mockproviderName, double latitude, double longitude) {
-    Location location = new Location(mockproviderName);
+      LocationManager locationManager, String mockProviderName, double latitude, double longitude) {
     // Closer accuracy helps ensure the mock location provider is prioritized
-    location.setAccuracy(.000001f);
+    setMockLocation(locationManager, mockProviderName, latitude, longitude, .000001f);
+  }
+
+  /**
+   * Sets the mock location on a given location provider. Use when accuracy needs to be specified.
+   * NB: The system may still prioritize other location providers, accuracy determines preference.
+   *
+   * @param locationManager location manager to accept the locations
+   * @param mockProviderName location provider that will use this location
+   * @param latitude latitude in degrees to mock
+   * @param longitude longitude in degrees to mock
+   * @param accuracy horizontal accuracy in meters to mock
+   */
+  public void setMockLocation(
+      LocationManager locationManager,
+      String mockProviderName,
+      double latitude,
+      double longitude,
+      float accuracy) {
+    Location location = new Location(mockProviderName);
+    location.setAccuracy(accuracy);
     location.setLatitude(latitude);
     location.setLongitude(longitude);
     location.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
     location.setTime(System.currentTimeMillis());
-    locationManager.setTestProviderLocation(mockproviderName, location);
+    locationManager.setTestProviderLocation(mockProviderName, location);
   }
-
   /**
    * Simulates a press to the Home button, causing the application to go to onPause. NB: Some time
    * must elapse for the event to fully occur.
@@ -2141,6 +2161,7 @@ public class GeckoSessionTestRule implements TestRule {
     Intent intent = new Intent();
     intent.setAction(Intent.ACTION_MAIN);
     intent.addCategory(Intent.CATEGORY_HOME);
+    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     context.startActivity(intent);
   }
 
@@ -2154,6 +2175,7 @@ public class GeckoSessionTestRule implements TestRule {
     Intent notificationIntent = new Intent(context, GeckoViewTestActivity.class);
     notificationIntent.setAction(Intent.ACTION_MAIN);
     notificationIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+    notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     context.startActivity(notificationIntent);
   }
 
@@ -2682,7 +2704,9 @@ public class GeckoSessionTestRule implements TestRule {
     }
   }
 
-  /** @see #addExternalDelegateUntilTestEnd(Class, DelegateRegistrar, DelegateRegistrar, Object) */
+  /**
+   * @see #addExternalDelegateUntilTestEnd(Class, DelegateRegistrar, DelegateRegistrar, Object)
+   */
   public <T> void addExternalDelegateUntilTestEnd(
       @NonNull final KClass<T> delegate,
       @NonNull final DelegateRegistrar<T> register,
@@ -2746,9 +2770,22 @@ public class GeckoSessionTestRule implements TestRule {
    * @return The value of the completed {@link GeckoResult}.
    */
   public <T> T waitForResult(@NonNull final GeckoResult<T> result) throws Throwable {
+    return waitForResult(result, mTimeoutMillis);
+  }
+
+  /**
+   * This is similar to waitForResult with specific timeout.
+   *
+   * @param result A {@link GeckoResult} instance.
+   * @param timeout timeout in milliseconds
+   * @param <T> The type of the value held by the {@link GeckoResult}
+   * @return The value of the completed {@link GeckoResult}.
+   */
+  private <T> T waitForResult(@NonNull final GeckoResult<T> result, final long timeout)
+      throws Throwable {
     beforeWait();
     try {
-      return UiThreadUtils.waitForResult(result, mTimeoutMillis);
+      return UiThreadUtils.waitForResult(result, timeout);
     } catch (final Throwable e) {
       throw unwrapRuntimeException(e);
     } finally {

@@ -214,6 +214,8 @@ struct nsTextFrame::DrawTextRunParams {
   DrawPathCallbacks* callbacks = nullptr;
   nscolor textColor = NS_RGBA(0, 0, 0, 0);
   nscolor textStrokeColor = NS_RGBA(0, 0, 0, 0);
+  nsAtom* fontPalette = nullptr;
+  gfx::FontPaletteValueSet* paletteValueSet = nullptr;
   float textStrokeWidth = 0.0f;
   bool drawSoftHyphen = false;
   explicit DrawTextRunParams(gfxContext* aContext) : context(aContext) {}
@@ -2343,24 +2345,6 @@ already_AddRefed<gfxTextRun> BuildTextRunsScanner::BuildTextRunForFrames(
     } else if (mLineContainer->HasAnyStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI)) {
       flags2 |= nsTextFrameUtils::Flags::IsSingleCharMi;
       anyMathMLStyling = true;
-      // Test for fontstyle attribute as StyleFont() may not be accurate
-      // To be consistent in terms of ignoring CSS style changes, fontweight
-      // gets checked too.
-      if (parent) {
-        nsIContent* content = parent->GetContent();
-        if (content && content->IsElement()) {
-          if (content->AsElement()->AttrValueIs(kNameSpaceID_None,
-                                                nsGkAtoms::fontstyle_,
-                                                u"normal"_ns, eCaseMatters)) {
-            mathFlags |= MathMLTextRunFactory::MATH_FONT_STYLING_NORMAL;
-          }
-          if (content->AsElement()->AttrValueIs(kNameSpaceID_None,
-                                                nsGkAtoms::fontweight_,
-                                                u"bold"_ns, eCaseMatters)) {
-            mathFlags |= MathMLTextRunFactory::MATH_FONT_WEIGHT_BOLD;
-          }
-        }
-      }
     }
     if (mLineContainer->HasAnyStateBits(TEXT_IS_IN_TOKEN_MATHML)) {
       // All MathML tokens except <mtext> use 'math' script.
@@ -6369,6 +6353,9 @@ void nsTextFrame::PaintOneShadow(const PaintShadowParams& aParams,
   // Multi-color shadow is not allowed, so we use the same color of the text
   // color.
   params.decorationOverrideColor = &params.textColor;
+  params.fontPalette = StyleFont()->GetFontPaletteAtom();
+  params.paletteValueSet = PresContext()->GetFontPaletteValueSet();
+
   DrawText(aParams.range, aParams.textBaselinePt + shadowGfxOffset, params);
 
   contextBoxBlur.DoPaint();
@@ -6496,6 +6483,8 @@ bool nsTextFrame::PaintTextWithSelectionColors(
   params.advanceWidth = &advance;
   params.callbacks = aParams.callbacks;
   params.glyphRange = aParams.glyphRange;
+  params.fontPalette = StyleFont()->GetFontPaletteAtom();
+  params.paletteValueSet = PresContext()->GetFontPaletteValueSet();
 
   PaintShadowParams shadowParams(aParams);
   shadowParams.provider = aParams.provider;
@@ -7066,6 +7055,9 @@ void nsTextFrame::PaintText(const PaintTextParams& aParams,
   params.contextPaint = aParams.contextPaint;
   params.callbacks = aParams.callbacks;
   params.glyphRange = range;
+  params.fontPalette = StyleFont()->GetFontPaletteAtom();
+  params.paletteValueSet = PresContext()->GetFontPaletteValueSet();
+
   DrawText(range, textBaselinePt, params);
 }
 
@@ -7078,6 +7070,8 @@ static void DrawTextRun(const gfxTextRun* aTextRun,
   params.provider = aParams.provider;
   params.advanceWidth = aParams.advanceWidth;
   params.contextPaint = aParams.contextPaint;
+  params.fontPalette = aParams.fontPalette;
+  params.paletteValueSet = aParams.paletteValueSet;
   params.callbacks = aParams.callbacks;
   if (aParams.callbacks) {
     aParams.callbacks->NotifyBeforeText(aParams.textColor);
@@ -7416,6 +7410,18 @@ int16_t nsTextFrame::GetSelectionStatus(int16_t* aSelectionFlags) {
   selectionController->GetDisplaySelection(&selectionValue);
 
   return selectionValue;
+}
+
+bool nsTextFrame::IsEntirelyWhitespace() const {
+  const nsTextFragment& text = mContent->AsText()->TextFragment();
+  for (uint32_t index = 0; index < text.GetLength(); ++index) {
+    const char16_t ch = text.CharAt(index);
+    if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == 0xa0) {
+      continue;
+    }
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -9339,8 +9345,6 @@ void nsTextFrame::Reflow(nsPresContext* aPresContext, ReflowOutput& aMetrics,
   ReflowText(*aReflowInput.mLineLayout, aReflowInput.AvailableWidth(),
              aReflowInput.mRenderingContext->GetDrawTarget(), aMetrics,
              aStatus);
-
-  NS_FRAME_SET_TRUNCATION(aStatus, aReflowInput, aMetrics);
 }
 
 #ifdef ACCESSIBILITY

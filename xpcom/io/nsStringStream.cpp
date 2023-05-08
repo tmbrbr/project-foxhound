@@ -173,16 +173,20 @@ class nsStringInputStream final : public nsIStringInputStream,
     return mSource ? mSource->Data().Length() : 0;
   }
 
-  StringTaint Taint() const { return mSource ? mSource->Taint().safeSubTaint(mOffset, Length()) : EmptyTaint; }
+  StringTaint Taint() const {
+    return mSource ? mSource->Taint().safeSubTaint(mOffset, Length()) : EmptyTaint;
+  }
 
-  size_t LengthRemaining() const REQUIRES(mMon) { return Length() - mOffset; }
+  size_t LengthRemaining() const REQUIRES(mMon) {
+    return Length() - mOffset;
+  }
 
-  void Clear() REQUIRES(mMon) { mSource = nullptr; }
+  void Clear() MOZ_REQUIRES(mMon) { mSource = nullptr; }
 
-  bool Closed() REQUIRES(mMon) { return !mSource; }
+  bool Closed() MOZ_REQUIRES(mMon) { return !mSource; }
 
-  RefPtr<StreamBufferSource> mSource GUARDED_BY(mMon);
-  size_t mOffset GUARDED_BY(mMon) = 0;
+  RefPtr<StreamBufferSource> mSource MOZ_GUARDED_BY(mMon);
+  size_t mOffset MOZ_GUARDED_BY(mMon) = 0;
 
   mutable mozilla::ReentrantMonitor mMon{"nsStringInputStream"};
 };

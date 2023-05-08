@@ -55,7 +55,7 @@ const { PREF_ACCOUNT_ROOT } = ChromeUtils.import(
   "resource://gre/modules/FxAccountsCommon.js"
 );
 
-const CLIENTS_TTL = 1814400; // 21 days
+const CLIENTS_TTL = 15552000; // 180 days
 const CLIENTS_TTL_REFRESH = 604800; // 7 days
 const STALE_CLIENT_REMOTE_AGE = 604800; // 7 days
 
@@ -595,7 +595,7 @@ ClientEngine.prototype = {
       const fxaDeviceId = this.getClientFxaDeviceId(id);
       return fxaDeviceId ? acc.concat(fxaDeviceId) : acc;
     }, []);
-    if (idsToNotify.length > 0) {
+    if (idsToNotify.length) {
       this._notifyOtherClientsModified(idsToNotify);
     }
   },

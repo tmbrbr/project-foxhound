@@ -29,8 +29,7 @@ class RenderTextureHostWrapper final : public RenderTextureHostSWGL {
   explicit RenderTextureHostWrapper(ExternalImageId aExternalImageId);
 
   // RenderTextureHost
-  wr::WrExternalImage Lock(uint8_t aChannelIndex, gl::GLContext* aGL,
-                           wr::ImageRendering aRendering) override;
+  wr::WrExternalImage Lock(uint8_t aChannelIndex, gl::GLContext* aGL) override;
   void Unlock() override;
   void ClearCachedResources() override;
   void PrepareForUse() override;
@@ -40,6 +39,7 @@ class RenderTextureHostWrapper final : public RenderTextureHostSWGL {
   RenderMacIOSurfaceTextureHost* AsRenderMacIOSurfaceTextureHost() override;
   RenderDXGITextureHost* AsRenderDXGITextureHost() override;
   RenderDXGIYCbCrTextureHost* AsRenderDXGIYCbCrTextureHost() override;
+  RenderDcompSurfaceTextureHost* AsRenderDcompSurfaceTextureHost() override;
 
   // RenderTextureHostSWGL
   size_t GetPlaneCount() const override;

@@ -421,6 +421,7 @@ class VideoData : public MediaData {
   typedef gfx::ColorDepth ColorDepth;
   typedef gfx::ColorRange ColorRange;
   typedef gfx::YUVColorSpace YUVColorSpace;
+  typedef gfx::ColorSpace2 ColorSpace2;
   typedef gfx::ChromaSubsampling ChromaSubsampling;
   typedef layers::ImageContainer ImageContainer;
   typedef layers::Image Image;
@@ -444,6 +445,7 @@ class VideoData : public MediaData {
 
     Plane mPlanes[3];
     YUVColorSpace mYUVColorSpace = YUVColorSpace::Identity;
+    ColorSpace2 mColorPrimaries = ColorSpace2::UNKNOWN;
     ColorDepth mColorDepth = ColorDepth::COLOR_8;
     ColorRange mColorRange = ColorRange::LIMITED;
     ChromaSubsampling mChromaSubsampling = ChromaSubsampling::FULL;
@@ -495,6 +497,8 @@ class VideoData : public MediaData {
 
   // This frame's image.
   RefPtr<Image> mImage;
+
+  ColorDepth GetColorDepth() const;
 
   uint32_t mFrameID;
 

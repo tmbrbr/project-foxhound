@@ -171,6 +171,7 @@ class BaseProcessLauncher {
         mTmpDirName(aHost->mTmpDirName),
         mChildId(++gChildCounter) {
     SprintfLiteral(mPidString, "%" PRIPID, base::GetCurrentProcId());
+    aHost->mInitialChannelId.ToProvidedString(mInitialChannelIdString);
 
     // Compute the serial event target we'll use for launching.
     nsCOMPtr<nsIEventTarget> threadOrPool = GetIPCLauncher();
@@ -237,6 +238,7 @@ class BaseProcessLauncher {
   int32_t mChildId;
   TimeStamp mStartTimeStamp = TimeStamp::Now();
   char mPidString[32];
+  char mInitialChannelIdString[NSID_LENGTH];
 
   // Set during launch.
   IPC::Channel::ChannelId mChannelId;
@@ -386,6 +388,7 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
       mIsFileContent(aIsFileContent),
       mMonitor("mozilla.ipc.GeckChildProcessHost.mMonitor"),
       mLaunchOptions(MakeUnique<base::LaunchOptions>()),
+      mInitialChannelId(nsID::GenerateUUID()),
       mProcessState(CREATING_CHANNEL),
 #ifdef XP_WIN
       mGroupId(u"-"),
@@ -428,6 +431,8 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
     // this process, we just disable the cache to prevent that.
     mLaunchOptions->env_map["MESA_GLSL_CACHE_DISABLE"] = "true";
     mLaunchOptions->env_map["MESA_SHADER_CACHE_DISABLE"] = "true";
+    // In case the nvidia driver is also loaded:
+    mLaunchOptions->env_map["__GL_SHADER_DISK_CACHE"] = "0";
   }
 #endif
 #if defined(MOZ_ENABLE_FORKSERVER)
@@ -835,11 +840,9 @@ void GeckoChildProcessHost::InitializeChannel(
 
   aChannelReady(GetChannel());
 
-  if (mProcessType != GeckoProcessType_ForkServer) {
-    mNodeController = NodeController::GetSingleton();
-    std::tie(mInitialPort, mNodeChannel) =
-        mNodeController->InviteChildProcess(TakeChannel());
-  }
+  mNodeController = NodeController::GetSingleton();
+  std::tie(mInitialPort, mNodeChannel) =
+      mNodeController->InviteChildProcess(TakeChannel());
 
   MonitorAutoLock lock(mMonitor);
   mProcessState = CHANNEL_INITIALIZED;
@@ -879,7 +882,7 @@ void BaseProcessLauncher::GetChildLogName(const char* origLogName,
 
   // Append child-specific postfix to name
   buffer.AppendLiteral(".child-");
-  buffer.AppendInt(gChildCounter);
+  buffer.AppendInt(mChildId);
 }
 
 // Windows needs a single dedicated thread for process launching,
@@ -896,7 +899,7 @@ void BaseProcessLauncher::GetChildLogName(const char* origLogName,
 
 static mozilla::StaticMutex gIPCLaunchThreadMutex;
 static mozilla::StaticRefPtr<nsIThread> gIPCLaunchThread
-    GUARDED_BY(gIPCLaunchThreadMutex);
+    MOZ_GUARDED_BY(gIPCLaunchThreadMutex);
 
 class IPCLaunchThreadObserver final : public nsIObserver {
  public:
@@ -1164,16 +1167,19 @@ bool PosixProcessLauncher::DoSetup() {
 
   // remap the IPC socket fd to a well-known int, as the OS does for
   // STDOUT_FILENO, for example
+  // The fork server doesn't use IPC::Channel, so can skip this step.
+  if (mProcessType != GeckoProcessType_ForkServer) {
 #  ifdef MOZ_WIDGET_ANDROID
-  // On Android mChannelDstFd is uninitialised and the launching code uses only
-  // the first of each pair.
-  mLaunchOptions->fds_to_remap.push_back(
-      std::pair<int, int>(mChannelSrcFd.get(), -1));
+    // On Android mChannelDstFd is uninitialised and the launching code uses
+    // only the first of each pair.
+    mLaunchOptions->fds_to_remap.push_back(
+        std::pair<int, int>(mChannelSrcFd.get(), -1));
 #  else
-  MOZ_ASSERT(mChannelDstFd >= 0);
-  mLaunchOptions->fds_to_remap.push_back(
-      std::pair<int, int>(mChannelSrcFd.get(), mChannelDstFd));
+    MOZ_ASSERT(mChannelDstFd >= 0);
+    mLaunchOptions->fds_to_remap.push_back(
+        std::pair<int, int>(mChannelSrcFd.get(), mChannelDstFd));
 #  endif
+  }
 
   // no need for kProcessChannelID, the child process inherits the
   // other end of the socketpair() from us
@@ -1206,6 +1212,8 @@ bool PosixProcessLauncher::DoSetup() {
     AddAppDirToCommandLine(mChildArgv, mAppDir, nullptr);
 #  endif
   }
+
+  mChildArgv.push_back(mInitialChannelIdString);
 
   mChildArgv.push_back(mPidString);
 
@@ -1486,6 +1494,9 @@ bool WindowsProcessLauncher::DoSetup() {
   // Win app model id
   mCmdLine->AppendLooseValue(mGroupId.get());
 
+  // Initial MessageChannel id
+  mCmdLine->AppendLooseValue(UTF8ToWide(mInitialChannelIdString));
+
   // Process id
   mCmdLine->AppendLooseValue(UTF8ToWide(mPidString));
 
@@ -1765,24 +1776,28 @@ RefPtr<ProcessLaunchPromise> BaseProcessLauncher::Launch(
     GeckoChildProcessHost* aHost) {
   AssertIOThread();
 
-  // Initializing the channel needs to happen on the I/O thread, but everything
-  // else can run on the launcher thread (or pool), to avoid blocking IPC
-  // messages.
-  //
-  // We avoid passing the host to the launcher thread to reduce the chances of
-  // data races with the IO thread (where e.g. OnChannelConnected may run
-  // concurrently). The pool currently needs access to the channel, which is not
-  // great.
-  bool failed = false;
-  aHost->InitializeChannel([&](IPC::Channel* channel) {
-    if (NS_WARN_IF(!channel || !SetChannel(channel))) {
-      failed = true;
+  // The ForkServer doesn't use IPC::Channel for communication, so we can skip
+  // initializing it.
+  if (mProcessType != GeckoProcessType_ForkServer) {
+    // Initializing the channel needs to happen on the I/O thread, but
+    // everything else can run on the launcher thread (or pool), to avoid
+    // blocking IPC messages.
+    //
+    // We avoid passing the host to the launcher thread to reduce the chances of
+    // data races with the IO thread (where e.g. OnChannelConnected may run
+    // concurrently). The pool currently needs access to the channel, which is
+    // not great.
+    bool failed = false;
+    aHost->InitializeChannel([&](IPC::Channel* channel) {
+      if (NS_WARN_IF(!channel || !SetChannel(channel))) {
+        failed = true;
+      }
+    });
+    if (failed) {
+      return ProcessLaunchPromise::CreateAndReject(LaunchError{}, __func__);
     }
-  });
-  if (failed) {
-    return ProcessLaunchPromise::CreateAndReject(LaunchError{}, __func__);
+    mChannelId = aHost->GetChannelId();
   }
-  mChannelId = aHost->GetChannelId();
 
   return InvokeAsync(mLaunchThread, this, __func__,
                      &BaseProcessLauncher::PerformAsyncLaunch);

@@ -20,10 +20,12 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  ResponsivenessMonitor: "resource://gre/modules/ResponsivenessMonitor.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   LoginHelper: "resource://gre/modules/LoginHelper.jsm",
-  OS: "resource://gre/modules/osfile.jsm",
-  ResponsivenessMonitor: "resource://gre/modules/ResponsivenessMonitor.jsm",
 });
 
 XPCOMUtils.defineLazyGetter(lazy, "d3", () => {
@@ -146,7 +148,7 @@ class LoginCSVImport {
     let csvFieldToColumnMap = new Map();
     let csvString;
     try {
-      csvString = await lazy.OS.File.read(filePath, { encoding: "utf-8" });
+      csvString = await IOUtils.readUTF8(filePath);
     } catch (ex) {
       TelemetryStopwatch.cancel("PWMGR_IMPORT_LOGINS_FROM_FILE_MS");
       Cu.reportError(ex);

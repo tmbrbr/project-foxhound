@@ -3,22 +3,23 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include IPCStream;
-include IPCChannelInfo;
 include PBackgroundSharedTypes;
 include PerformanceTimingTypes;
+include NeckoChannelParams;
 
 include "mozilla/dom/FetchIPCTypes.h";
+include "mozilla/ipc/TransportSecurityInfoUtils.h";
 
 using HeadersGuardEnum from "mozilla/dom/HeadersBinding.h";
 using ReferrerPolicy from "mozilla/dom/ReferrerPolicyBinding.h";
 using RequestCache from "mozilla/dom/RequestBinding.h";
 using RequestCredentials from "mozilla/dom/RequestBinding.h";
-using RequestMode from "mozilla/dom/RequestBinding.h";
 using RequestRedirect from "mozilla/dom/RequestBinding.h";
 using ResponseType from "mozilla/dom/ResponseBinding.h";
 using struct nsID from "nsID.h";
 using FetchDriverObserver::EndReason from "mozilla/dom/FetchDriver.h";
 [RefCounted] using class mozilla::RemoteLazyInputStream from "mozilla/RemoteLazyInputStream.h";
+[RefCounted] using class nsITransportSecurityInfo from "nsITransportSecurityInfo.h";
 
 namespace mozilla {
 namespace dom {
@@ -65,6 +66,10 @@ struct IPCInternalRequest {
   nsString integrity;
   nsCString fragment;
   PrincipalInfo? principalInfo;
+  PrincipalInfo? interceptionTriggeringPrincipalInfo;
+  uint32_t interceptionContentPolicyType;
+  RedirectHistoryEntryInfo[] interceptionRedirectChain;
+  bool interceptionFromThirdParty;
 };
 
 struct InternalResponseMetadata {
@@ -76,7 +81,7 @@ struct InternalResponseMetadata {
   HeadersEntry[] headers;
   nsresult errorCode;
   nsCString alternativeDataType;
-  IPCChannelInfo channelInfo;
+  nsITransportSecurityInfo securityInfo;
   PrincipalInfo? principalInfo;
 };
 

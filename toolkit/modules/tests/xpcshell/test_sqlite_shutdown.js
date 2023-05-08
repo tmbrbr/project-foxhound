@@ -5,9 +5,9 @@
 
 do_get_profile();
 
-ChromeUtils.import("resource://gre/modules/osfile.jsm");
-// OS.File doesn't like to be first imported during shutdown
-const { Sqlite } = ChromeUtils.import("resource://gre/modules/Sqlite.jsm");
+const { Sqlite } = ChromeUtils.importESModule(
+  "resource://gre/modules/Sqlite.sys.mjs"
+);
 const { AsyncShutdown } = ChromeUtils.import(
   "resource://gre/modules/AsyncShutdown.jsm"
 );

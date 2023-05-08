@@ -4,20 +4,25 @@
 
 "use strict";
 
-const nsIConsoleListenerWatcher = require("devtools/server/actors/resources/utils/nsi-console-listener-watcher");
-const { Ci } = require("chrome");
-const { DevToolsServer } = require("devtools/server/devtools-server");
-const { createStringGrip } = require("devtools/server/actors/object/utils");
+const nsIConsoleListenerWatcher = require("resource://devtools/server/actors/resources/utils/nsi-console-listener-watcher.js");
+const {
+  DevToolsServer,
+} = require("resource://devtools/server/devtools-server.js");
+const {
+  createStringGrip,
+} = require("resource://devtools/server/actors/object/utils.js");
 const {
   getActorIdForInternalSourceId,
-} = require("devtools/server/actors/utils/dbg-source");
-const { WebConsoleUtils } = require("devtools/server/actors/webconsole/utils");
+} = require("resource://devtools/server/actors/utils/dbg-source.js");
+const {
+  WebConsoleUtils,
+} = require("resource://devtools/server/actors/webconsole/utils.js");
 
 const {
   TYPES: { CSS_MESSAGE },
-} = require("devtools/server/actors/resources/index");
+} = require("resource://devtools/server/actors/resources/index.js");
 
-const { MESSAGE_CATEGORY } = require("devtools/shared/constants");
+const { MESSAGE_CATEGORY } = require("resource://devtools/shared/constants.js");
 
 class CSSMessageWatcher extends nsIConsoleListenerWatcher {
   /**
@@ -113,7 +118,7 @@ class CSSMessageWatcher extends nsIConsoleListenerWatcher {
       columnNumber,
       category: error.category,
       innerWindowID: error.innerWindowID,
-      timeStamp: error.timeStamp,
+      timeStamp: error.microSecondTimeStamp / 1000,
       warning: !!(error.flags & error.warningFlag),
       error: !(error.flags & (error.warningFlag | error.infoFlag)),
       info: !!(error.flags & error.infoFlag),

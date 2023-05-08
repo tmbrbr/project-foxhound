@@ -563,6 +563,47 @@ describe("DiscoveryStreamFeed", () => {
         { index: 4 },
       ]);
     });
+    it("should create a layout with spoc position data", async () => {
+      feed.config.hardcoded_layout = true;
+      feed.store = createStore(combineReducers(reducers), {
+        Prefs: {
+          values: {
+            pocketConfig: {
+              spocAdTypes: "1230",
+              spocZoneIds: "4560, 7890",
+            },
+          },
+        },
+      });
+
+      await feed.loadLayout(feed.store.dispatch);
+
+      const { layout } = feed.store.getState().DiscoveryStream;
+      assert.deepEqual(layout[0].components[2].placement.ad_types, [1230]);
+      assert.deepEqual(layout[0].components[2].placement.zone_ids, [
+        4560,
+        7890,
+      ]);
+    });
+    it("should create a layout with proper spoc url with a site id", async () => {
+      feed.config.hardcoded_layout = true;
+      feed.store = createStore(combineReducers(reducers), {
+        Prefs: {
+          values: {
+            pocketConfig: {
+              spocSiteId: "1234",
+            },
+          },
+        },
+      });
+
+      await feed.loadLayout(feed.store.dispatch);
+      const { spocs } = feed.store.getState().DiscoveryStream;
+      assert.deepEqual(
+        spocs.spocs_endpoint,
+        "https://spocs.getpocket.com/spocs?site=1234"
+      );
+    });
   });
 
   describe("#updatePlacements", () => {
@@ -715,6 +756,7 @@ describe("DiscoveryStreamFeed", () => {
     let fakeDiscoveryStream;
     beforeEach(() => {
       fakeDiscoveryStream = {
+        Prefs: {},
         DiscoveryStream: {
           layout: [
             { components: [{ feed: { url: "foo.com" } }] },
@@ -1790,6 +1832,68 @@ describe("DiscoveryStreamFeed", () => {
     });
   });
 
+  describe("#setupPrefs", () => {
+    it("should call setupPrefs", async () => {
+      sandbox.spy(feed, "setupPrefs");
+      feed.onAction({
+        type: at.INIT,
+      });
+      assert.calledOnce(feed.setupPrefs);
+    });
+    it("should dispatch to at.DISCOVERY_STREAM_PREFS_SETUP with proper data", async () => {
+      sandbox.spy(feed.store, "dispatch");
+      globals.set("ExperimentAPI", {
+        getExperiment: () => ({
+          slug: "experimentId",
+          branch: {
+            slug: "branchId",
+          },
+        }),
+      });
+      global.Services.prefs.getBoolPref
+        .withArgs("extensions.pocket.enabled")
+        .returns(true);
+      feed.store.getState = () => ({
+        Prefs: {
+          values: {
+            region: "CA",
+            pocketConfig: {
+              recentSavesEnabled: true,
+              hideDescriptions: false,
+              hideDescriptionsRegions: "US,CA,GB",
+              compactImages: true,
+              imageGradient: true,
+              newSponsoredLabel: true,
+              titleLines: "1",
+              descLines: "1",
+              readTime: true,
+              saveToPocketCard: false,
+              saveToPocketCardRegions: "US,CA,GB",
+            },
+          },
+        },
+      });
+      feed.setupPrefs();
+      assert.deepEqual(feed.store.dispatch.firstCall.args[0].data, {
+        utmSource: "pocket-newtab",
+        utmCampaign: "experimentId",
+        utmContent: "branchId",
+      });
+      assert.deepEqual(feed.store.dispatch.secondCall.args[0].data, {
+        recentSavesEnabled: true,
+        pocketButtonEnabled: true,
+        saveToPocketCard: true,
+        hideDescriptions: true,
+        compactImages: true,
+        imageGradient: true,
+        newSponsoredLabel: true,
+        titleLines: "1",
+        descLines: "1",
+        readTime: true,
+      });
+    });
+  });
+
   describe("#onAction: DISCOVERY_STREAM_IMPRESSION_STATS", () => {
     it("should call recordTopRecImpressions from DISCOVERY_STREAM_IMPRESSION_STATS", async () => {
       sandbox.stub(feed, "recordTopRecImpressions").returns();
@@ -2214,25 +2318,25 @@ describe("DiscoveryStreamFeed", () => {
 
       assert.calledOnce(feed.loadSpocs);
     });
-    it("should fire onPocketConfigChanged when pocketConfig pref changes", async () => {
-      sandbox.stub(feed, "onPocketConfigChanged").returns(Promise.resolve());
+    it("should fire onPrefChange when pocketConfig pref changes", async () => {
+      sandbox.stub(feed, "onPrefChange").returns(Promise.resolve());
 
       await feed.onAction({
         type: at.PREF_CHANGED,
         data: { name: "pocketConfig", value: false },
       });
 
-      assert.calledOnce(feed.onPocketConfigChanged);
+      assert.calledOnce(feed.onPrefChange);
     });
-    it("should fire onPocketConfigChanged when collections pref changes", async () => {
-      sandbox.stub(feed, "onPocketConfigChanged").returns(Promise.resolve());
+    it("should fire onCollectionsChanged when collections pref changes", async () => {
+      sandbox.stub(feed, "onCollectionsChanged").returns(Promise.resolve());
 
       await feed.onAction({
         type: at.PREF_CHANGED,
         data: { name: "discoverystream.sponsored-collections.enabled" },
       });
 
-      assert.calledOnce(feed.onPocketConfigChanged);
+      assert.calledOnce(feed.onCollectionsChanged);
     });
     it("should call clearSpocs when sponsored content is turned off", async () => {
       sandbox.stub(feed, "clearSpocs").returns(Promise.resolve());
@@ -2319,13 +2423,24 @@ describe("DiscoveryStreamFeed", () => {
     });
   });
 
-  describe("#onPocketConfigChanged", () => {
+  describe("#onCollectionsChanged", () => {
     it("should call loadLayout when Pocket config changes", async () => {
       sandbox.stub(feed, "loadLayout").callsFake(dispatch => dispatch("foo"));
       sandbox.stub(feed.store, "dispatch");
-      await feed.onPocketConfigChanged();
+      await feed.onCollectionsChanged();
       assert.calledOnce(feed.loadLayout);
       assert.calledWith(feed.store.dispatch, ac.AlsoToPreloaded("foo"));
+    });
+  });
+
+  describe("#onPrefChange", () => {
+    it("should call loadLayout when Pocket config changes", async () => {
+      sandbox.stub(feed, "loadLayout");
+      feed._prefCache.config = {
+        enabled: true,
+      };
+      await feed.onPrefChange();
+      assert.calledOnce(feed.loadLayout);
     });
   });
 
@@ -2392,6 +2507,76 @@ describe("DiscoveryStreamFeed", () => {
         type: at.DISCOVERY_STREAM_DEV_EXPIRE_CACHE,
       });
       assert.calledOnce(feed.resetContentCache);
+    });
+  });
+
+  describe("#spocsCacheUpdateTime", () => {
+    it("should call setupSpocsCacheUpdateTime", () => {
+      const defaultCacheTime = 30 * 60 * 1000;
+      sandbox.spy(feed, "setupSpocsCacheUpdateTime");
+      const cacheTime = feed.spocsCacheUpdateTime;
+      assert.equal(feed._spocsCacheUpdateTime, defaultCacheTime);
+      assert.equal(cacheTime, defaultCacheTime);
+      assert.calledOnce(feed.setupSpocsCacheUpdateTime);
+    });
+    it("should return _spocsCacheUpdateTime", () => {
+      sandbox.spy(feed, "setupSpocsCacheUpdateTime");
+      const testCacheTime = 123;
+      feed._spocsCacheUpdateTime = testCacheTime;
+      const cacheTime = feed.spocsCacheUpdateTime;
+      // Ensure _spocsCacheUpdateTime was not changed.
+      assert.equal(feed._spocsCacheUpdateTime, testCacheTime);
+      assert.equal(cacheTime, testCacheTime);
+      assert.notCalled(feed.setupSpocsCacheUpdateTime);
+    });
+  });
+
+  describe("#setupSpocsCacheUpdateTime", () => {
+    it("should set _spocsCacheUpdateTime with default value", () => {
+      const defaultCacheTime = 30 * 60 * 1000;
+      feed.setupSpocsCacheUpdateTime();
+      assert.equal(feed._spocsCacheUpdateTime, defaultCacheTime);
+    });
+    it("should set _spocsCacheUpdateTime with min", () => {
+      const defaultCacheTime = 30 * 60 * 1000;
+      feed.store.getState = () => ({
+        Prefs: {
+          values: {
+            pocketConfig: {
+              spocsCacheTimeout: 1,
+            },
+          },
+        },
+      });
+      feed.setupSpocsCacheUpdateTime();
+      assert.equal(feed._spocsCacheUpdateTime, defaultCacheTime);
+    });
+    it("should set _spocsCacheUpdateTime with max", () => {
+      const defaultCacheTime = 30 * 60 * 1000;
+      feed.store.getState = () => ({
+        Prefs: {
+          values: {
+            pocketConfig: {
+              spocsCacheTimeout: 31,
+            },
+          },
+        },
+      });
+      feed.setupSpocsCacheUpdateTime();
+      assert.equal(feed._spocsCacheUpdateTime, defaultCacheTime);
+    });
+    it("should set _spocsCacheUpdateTime with spocsCacheTimeout", () => {
+      feed.store.getState = () => ({
+        Prefs: {
+          values: {
+            pocketConfig: {
+              spocsCacheTimeout: 20,
+            },
+          },
+        },
+      });
+      feed.setupSpocsCacheUpdateTime();
+      assert.equal(feed._spocsCacheUpdateTime, 20 * 60 * 1000);
     });
   });
 

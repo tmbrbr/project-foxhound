@@ -4,12 +4,10 @@
 
 "use strict";
 
-loader.lazyRequireGetter(this, "Ci", "chrome", true);
-loader.lazyRequireGetter(this, "Services");
 loader.lazyRequireGetter(
   this,
   ["loadSheet", "removeSheet"],
-  "devtools/shared/layout/utils",
+  "resource://devtools/shared/layout/utils.js",
   true
 );
 

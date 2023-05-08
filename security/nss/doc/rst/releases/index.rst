@@ -8,9 +8,13 @@ Releases
    :glob:
    :hidden:
 
+   nss_3_84.rst
+   nss_3_83.rst
+   nss_3_82.rst
    nss_3_81.rst
    nss_3_80.rst
    nss_3_79.rst
+   nss_3_79_1.rst
    nss_3_78_1.rst
    nss_3_78.rst
    nss_3_77.rst
@@ -38,20 +42,16 @@ Releases
 
 .. note::
 
-   **NSS 3.81** is the latest version of NSS.
-   Complete release notes are available here: :ref:`mozilla_projects_nss_nss_3_81_release_notes`
+   **NSS 3.84** is the latest version of NSS.
+   Complete release notes are available here: :ref:`mozilla_projects_nss_nss_3_84_release_notes`
 
-   **NSS 3.79** is the latest ESR version of NSS.
-   Complete release notes are available here: :ref:`mozilla_projects_nss_nss_3_79_release_notes`
+   **NSS 3.79.1** is the latest ESR version of NSS.
+   Complete release notes are available here: :ref:`mozilla_projects_nss_nss_3_79_1_release_notes`
 
 
 .. container::
 
-   Changes in 3.81 included in this release:
+   Changes in 3.84 included in this release:
 
-   - Bug 1762831: Enable aarch64 hardware crypto support on OpenBSD.
-   - Bug 1775359 - make NSS_SecureMemcmp 0/1 valued.
-   - Bug 1779285: Add no_application_protocol alert handler and test client error code is set.
-   - Bug 1777672 - Gracefully handle null nickname in CERT_GetCertNicknameWithValidity.
-
-
+   - Bug 1791699 - Bump minimum NSPR version to 4.35.
+   - Bug 1792103 - Add a flag to disable building libnssckbi.

@@ -13,6 +13,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
+import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -26,7 +27,6 @@ import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
-import android.util.SparseArray;
 import android.view.PointerIcon;
 import android.view.Surface;
 import android.view.View;
@@ -69,6 +69,7 @@ import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoThread;
 import org.mozilla.gecko.IGeckoEditableParent;
+import org.mozilla.gecko.MagnifiableSurfaceView;
 import org.mozilla.gecko.NativeQueue;
 import org.mozilla.gecko.annotation.WrapForJNI;
 import org.mozilla.gecko.mozglue.JNIObject;
@@ -171,9 +172,14 @@ public class GeckoSession {
   }
 
   @TargetApi(Build.VERSION_CODES.P)
-  private static class SessionMagnifierP implements GeckoSession.SessionMagnifier {
+  private class SessionMagnifierP implements GeckoSession.SessionMagnifier {
     private @Nullable View mView;
     private @Nullable Magnifier mMagnifier;
+    private final @NonNull Compositor mCompositor;
+
+    private SessionMagnifierP(final Compositor compositor) {
+      mCompositor = compositor;
+    }
 
     @Override
     @UiThread
@@ -207,7 +213,15 @@ public class GeckoSession {
         mMagnifier = new Magnifier(mView);
       }
 
+      if (mView instanceof MagnifiableSurfaceView) {
+        final MagnifiableSurfaceView view = (MagnifiableSurfaceView) mView;
+        view.setMagnifierSurface(mCompositor.getMagnifiableSurface());
+      }
       mMagnifier.show(sourceCenter.x, sourceCenter.y);
+      if (mView instanceof MagnifiableSurfaceView) {
+        final MagnifiableSurfaceView view = (MagnifiableSurfaceView) mView;
+        view.setMagnifierSurface(null);
+      }
     }
 
     @Override
@@ -311,6 +325,12 @@ public class GeckoSession {
     @WrapForJNI(calledFrom = "ui", dispatchTo = "current")
     public native void syncResumeResizeCompositor(
         int x, int y, int width, int height, Object surface, Object surfaceControl);
+
+    // Returns a Surface that content has been rendered in to, which should be used when the
+    // magnifier is shown. This may differ from the Surface we have passed to
+    // syncResumeResizeCompositor().
+    @WrapForJNI(calledFrom = "ui", dispatchTo = "current")
+    public native Surface getMagnifiableSurface();
 
     @WrapForJNI(calledFrom = "ui", dispatchTo = "current")
     public native void setMaxToolbarHeight(int height);
@@ -891,6 +911,8 @@ public class GeckoSession {
             "GeckoView:ShowSelectionAction",
             "GeckoView:HideMagnifier",
             "GeckoView:ShowMagnifier",
+            "GeckoView:ClipboardPermissionRequest",
+            "GeckoView:DismissClipboardPermissionRequest",
           }) {
         @Override
         public void handleMessage(
@@ -898,6 +920,7 @@ public class GeckoSession {
             final String event,
             final GeckoBundle message,
             final EventCallback callback) {
+          Log.d(LOGTAG, "handleMessage: " + event);
           if ("GeckoView:ShowSelectionAction".equals(event)) {
             final @SelectionActionDelegateAction HashSet<String> actionsSet =
                 new HashSet<>(Arrays.asList(message.getStringArray("actions")));
@@ -937,6 +960,25 @@ public class GeckoSession {
             GeckoSession.this.getMagnifier().show(new PointF(origin[0], origin[1]));
           } else if ("GeckoView:HideMagnifier".equals(event)) {
             GeckoSession.this.getMagnifier().dismiss();
+          } else if ("GeckoView:ClipboardPermissionRequest".equals(event)) {
+            final SelectionActionDelegate.ClipboardPermission permission =
+                new SelectionActionDelegate.ClipboardPermission(message);
+
+            final GeckoResult<AllowOrDeny> result =
+                delegate.onShowClipboardPermissionRequest(GeckoSession.this, permission);
+            callback.resolveTo(
+                result.map(
+                    value -> {
+                      if (value == AllowOrDeny.ALLOW) {
+                        return true;
+                      }
+                      if (value == AllowOrDeny.DENY) {
+                        return false;
+                      }
+                      throw new IllegalArgumentException("Invalid response");
+                    }));
+          } else if ("GeckoView:DismissClipboardPermissionRequest".equals(event)) {
+            delegate.onDismissClipboardPermissionRequest(GeckoSession.this);
           }
         }
       };
@@ -1611,7 +1653,7 @@ public class GeckoSession {
     ThreadUtils.assertOnUiThread();
     if (mMagnifier == null) {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        mMagnifier = new SessionMagnifierP();
+        mMagnifier = new SessionMagnifierP(mCompositor);
       } else {
         mMagnifier = new SessionMagnifier() {};
       }
@@ -2674,7 +2716,7 @@ public class GeckoSession {
 
   /**
    * Acquire the GeckoDisplay instance for providing the session with a drawing Surface. Be sure to
-   * call {@link GeckoDisplay#surfaceChanged(Surface, int, int)} on the acquired display if there is
+   * call {@link GeckoDisplay#surfaceChanged(SurfaceInfo)} on the acquired display if there is
    * already a valid Surface.
    *
    * @return GeckoDisplay instance.
@@ -2818,7 +2860,9 @@ public class GeckoSession {
     mHistoryHandler.setDelegate(delegate, this);
   }
 
-  /** @return The history tracking delegate for this session. */
+  /**
+   * @return The history tracking delegate for this session.
+   */
   @AnyThread
   public @Nullable HistoryDelegate getHistoryDelegate() {
     return mHistoryHandler.getDelegate();
@@ -3665,6 +3709,63 @@ public class GeckoSession {
     @UiThread
     default void onHideAction(
         @NonNull final GeckoSession session, @SelectionActionDelegateHideReason final int reason) {}
+
+    /**
+     * Permission for reading clipboard data. See: <a
+     * href="https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText">Clipboard.readText()</a>
+     */
+    int PERMISSION_CLIPBOARD_READ = 1;
+
+    /** Represents attributes of a clipboard permission. */
+    public class ClipboardPermission {
+      /** The URI associated with this content permission. */
+      public final @NonNull String uri;
+
+      /**
+       * The type of this permission; one of {@link #PERMISSION_CLIPBOARD_READ
+       * PERMISSION_CLIPBOARD_*}.
+       */
+      public final @ClipboardPermissionType int type;
+      /**
+       * The last mouse or touch location in screen coordinates when the permission is requested.
+       */
+      public final @Nullable Point screenPoint;
+
+      /** Empty constructor for tests */
+      protected ClipboardPermission() {
+        this.uri = "";
+        this.type = PERMISSION_CLIPBOARD_READ;
+        this.screenPoint = null;
+      }
+
+      private ClipboardPermission(final @NonNull GeckoBundle bundle) {
+        this.uri = bundle.getString("uri");
+        this.type = PERMISSION_CLIPBOARD_READ;
+        this.screenPoint = bundle.getPoint("screenPoint");
+      }
+    }
+
+    /**
+     * Request clipboard permission.
+     *
+     * @param session The GeckoSession that initiated the callback.
+     * @param permission An {@link ClipboardPermission} describing the permission being requested.
+     * @return A {@link GeckoResult} with {@link AllowOrDeny}, determining the response to the
+     *     permission request for this site.
+     */
+    @UiThread
+    default @Nullable GeckoResult<AllowOrDeny> onShowClipboardPermissionRequest(
+        @NonNull final GeckoSession session, @NonNull ClipboardPermission permission) {
+      return GeckoResult.deny();
+    }
+
+    /**
+     * Dismiss requesting clipboard permission popup or model.
+     *
+     * @param session The GeckoSession that initiated the callback.
+     */
+    @UiThread
+    default void onDismissClipboardPermissionRequest(@NonNull final GeckoSession session) {}
   }
 
   @Retention(RetentionPolicy.SOURCE)
@@ -3701,19 +3802,13 @@ public class GeckoSession {
   })
   public @interface SelectionActionDelegateHideReason {}
 
-  public interface NavigationDelegate {
-    /**
-     * A view has started loading content from the network.
-     *
-     * @param session The GeckoSession that initiated the callback.
-     * @param url The resource being loaded.
-     */
-    @UiThread
-    @Deprecated
-    @DeprecationSchedule(id = "location-permissions", version = 104)
-    default void onLocationChange(
-        @NonNull final GeckoSession session, @Nullable final String url) {}
+  @Retention(RetentionPolicy.SOURCE)
+  @IntDef({
+    SelectionActionDelegate.PERMISSION_CLIPBOARD_READ,
+  })
+  public @interface ClipboardPermissionType {}
 
+  public interface NavigationDelegate {
     /**
      * A view has started loading content from the network.
      *
@@ -3725,9 +3820,7 @@ public class GeckoSession {
     default void onLocationChange(
         @NonNull GeckoSession session,
         @Nullable String url,
-        final @NonNull List<PermissionDelegate.ContentPermission> perms) {
-      session.getNavigationDelegate().onLocationChange(session, url);
-    }
+        final @NonNull List<PermissionDelegate.ContentPermission> perms) {}
 
     /**
      * The view's ability to go back has changed.
@@ -5265,7 +5358,7 @@ public class GeckoSession {
     ThreadUtils.assertOnUiThread();
 
     if (mOverscroll == null) {
-      mOverscroll = new OverscrollEdgeEffect(this);
+      mOverscroll = new OverscrollEdgeEffect();
     }
     return mOverscroll;
   }
@@ -6506,23 +6599,12 @@ public class GeckoSession {
     getAutofillSupport().setDelegate(delegate);
   }
 
-  /** @return The current {@link Autofill.Delegate} for this session, if any. */
+  /**
+   * @return The current {@link Autofill.Delegate} for this session, if any.
+   */
   @UiThread
   public @Nullable Autofill.Delegate getAutofillDelegate() {
     return getAutofillSupport().getDelegate();
-  }
-
-  /**
-   * Perform autofill using the specified values.
-   *
-   * @param values Map of autofill IDs to values.
-   * @deprecated Use {@link Autofill.Session#autofill} instead.
-   */
-  @UiThread
-  @Deprecated
-  @DeprecationSchedule(id = "autofill-node", version = 104)
-  public void autofill(final @NonNull SparseArray<CharSequence> values) {
-    getAutofillSession().autofill(values);
   }
 
   /**

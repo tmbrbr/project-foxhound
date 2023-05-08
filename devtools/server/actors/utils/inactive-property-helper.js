@@ -4,13 +4,12 @@
 
 "use strict";
 
-const Services = require("Services");
 const InspectorUtils = require("InspectorUtils");
 
 loader.lazyRequireGetter(
   this,
   "CssLogic",
-  "devtools/server/actors/inspector/css-logic",
+  "resource://devtools/server/actors/inspector/css-logic.js",
   true
 );
 
@@ -402,6 +401,20 @@ class InactivePropertyHelper {
           this.checkTableParentHasBorderCollapsed(),
         fixId: "inactive-css-border-image-fix",
         msgId: "inactive-css-border-image",
+      },
+      // width & height properties used on ruby elements.
+      {
+        invalidProperties: [
+          "height",
+          "min-height",
+          "max-height",
+          "width",
+          "min-width",
+          "max-width",
+        ],
+        when: () => this.checkComputedStyle("display", ["ruby", "ruby-text"]),
+        fixId: "inactive-css-ruby-element-fix",
+        msgId: "inactive-css-ruby-element",
       },
     ];
   }

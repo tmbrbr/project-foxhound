@@ -24,6 +24,9 @@ class RefPtr;
 
 namespace mozilla {
 
+template <typename V, typename E>
+class Result;
+
 template <typename T>
 class OwningNonNull;
 
@@ -36,16 +39,15 @@ class Text;
  * enum classes
  ******************************************************************************/
 
-enum class CollectChildrenOption;              // mozilla/HTMLEditUtils.h
+enum class CollectChildrenOption;              // HTMLEditUtils.h
 enum class EditAction;                         // mozilla/EditAction.h
 enum class EditorCommandParamType : uint16_t;  // mozilla/EditorCommands.h
 enum class EditSubAction : int32_t;            // mozilla/EditAction.h
+enum class JoinNodesDirection;                 // JoinSplitNodeDirection.h
 enum class ParagraphSeparator;                 // mozilla/HTMLEditor.h
-enum class SpecifiedStyle : uint8_t;           // mozilla/TypeInState.h
-enum class SuggestCaret;                       // mozilla/EditorUtils.h
-
-enum class JoinNodesDirection;  // HTMLEditHelper.h
-enum class SplitNodeDirection;  // HTMLEditHelper.h
+enum class SpecifiedStyle : uint8_t;           // mozilla/PendingStyles.h
+enum class SplitNodeDirection;                 // JoinSplitNodeDirection.h
+enum class SuggestCaret;                       // EditorUtils.h
 
 /******************************************************************************
  * enum sets
@@ -71,22 +73,24 @@ using EditorRawDOMPointInText = EditorDOMPointBase<dom::Text*, nsIContent*>;
  * classes
  ******************************************************************************/
 
-class AutoRangeArray;           // mozilla/EditorUtils.h
-class AutoSelectionRangeArray;  // mozilla/EditorUtils.h
-class AutoStyleCacheArray;      // mozilla/TypeInState.h
-class ChangeStyleTransaction;   // mozilla/ChangeStyleTransaction.h
-class CSSEditUtils;             // mozilla/CSSEditUtils.h
-class EditActionResult;         // mozilla/EditorUtils.h
-class EditTransactionBase;      // mozilla/EditTransactionBase.h
-class EditorBase;               // mozilla/EditorBase.h
-class HTMLEditor;               // mozilla/HTMLEditor.h
-class ManualNACPtr;             // mozilla/ManualNAC.h
-class RangeUpdater;             // mozilla/SelectionState.h
-class SelectionState;           // mozilla/SelectionState.h
-class StyleCache;               // mozilla/TypeInState.h
-class TextEditor;               // mozilla/TextEditor.h
-class TypeInState;              // mozilla/TypeInState.h
+class AutoPendingStyleCacheArray;  // mozilla/PendingStyles.h
+class AutoSelectionRangeArray;     // EditorUtils.h
+class CaretPoint;                  // EditorUtils.h
+class ChangeStyleTransaction;      // ChangeStyleTransaction.h
+class CSSEditUtils;                // CSSEditUtils.h
+class EditActionResult;            // EditorUtils.h
+class EditTransactionBase;         // mozilla/EditTransactionBase.h
+class EditorBase;                  // mozilla/EditorBase.h
+class HTMLEditor;                  // mozilla/HTMLEditor.h
+class ManualNACPtr;                // mozilla/ManualNAC.h
+class PendingStyle;                // mozilla/PendingStyles.h
+class PendingStyleCache;           // mozilla/PendingStyles.h
+class PendingStyles;               // mozilla/PendingStyles.h
+class RangeUpdater;                // mozilla/SelectionState.h
+class SelectionState;              // mozilla/SelectionState.h
+class TextEditor;                  // mozilla/TextEditor.h
 
+class AutoRangeArray;               // AutoRangeArray.h
 class ChangeAttributeTransaction;   // ChangeAttributeTransaction.h
 class CompositionTransaction;       // CompositionTransaction.h
 class DeleteNodeTransaction;        // DeleteNodeTransaction.h
@@ -96,7 +100,7 @@ class EditAggregateTransaction;     // EditAggregateTransaction.h
 class EditorEventListener;          // EditorEventListener.h
 class EditResult;                   // HTMLEditHelpers.h
 class HTMLEditorEventListener;      // HTMLEditorEventListener.h
-class InsertNodeTransaction;        // IntertNodeTransaction.h
+class InsertNodeTransaction;        // InsertNodeTransaction.h
 class InsertTextTransaction;        // InsertTextTransaction.h
 class InterCiter;                   // InterCiter.h
 class JoinNodesResult;              // HTMLEditHelpers.h
@@ -117,8 +121,9 @@ class WSScanResult;                 // WSRunObject.h
  * structs
  ******************************************************************************/
 
-struct PropItem;   // mozilla/TypeInState.h
-struct RangeItem;  // mozilla/SelectionState.h
+struct EditorInlineStyle;          // HTMLEditHelpers.h
+struct EditorInlineStyleAndValue;  // HTMLEditHelpers.h
+struct RangeItem;                  // mozilla/SelectionState.h
 
 /******************************************************************************
  * template classes
@@ -128,10 +133,10 @@ template <typename EditorDOMPointType>
 class EditorDOMRangeBase;  // mozilla/EditorDOMPoint.h
 
 template <typename NodeType>
-class CreateNodeResultBase;  // mozilla/EditorUtils.h
+class CreateNodeResultBase;  // EditorUtils.h
 
 template <typename EditorDOMPointType>
-class ReplaceRangeDataBase;  // mozilla/EditorUtils.h
+class ReplaceRangeDataBase;  // EditorUtils.h
 
 /******************************************************************************
  * aliases
@@ -140,6 +145,11 @@ class ReplaceRangeDataBase;  // mozilla/EditorUtils.h
 using CreateContentResult = CreateNodeResultBase<nsIContent>;
 using CreateElementResult = CreateNodeResultBase<dom::Element>;
 using CreateTextResult = CreateNodeResultBase<dom::Text>;
+
+// InsertParagraphResult is an alias of CreateElementResult because it returns
+// new paragraph from point of view of users (i.e., right paragraph if split)
+// instead of newly created paragraph element.
+using InsertParagraphResult = CreateElementResult;
 
 using EditorDOMRange = EditorDOMRangeBase<EditorDOMPoint>;
 using EditorRawDOMRange = EditorDOMRangeBase<EditorRawDOMPoint>;

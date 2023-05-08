@@ -4,19 +4,23 @@
 
 "use strict";
 
-const { Actor } = require("devtools/shared/protocol");
-const { workerTargetSpec } = require("devtools/shared/specs/targets/worker");
+const { Actor } = require("resource://devtools/shared/protocol.js");
+const {
+  workerTargetSpec,
+} = require("resource://devtools/shared/specs/targets/worker.js");
 
-const { ThreadActor } = require("devtools/server/actors/thread");
-const { WebConsoleActor } = require("devtools/server/actors/webconsole");
-const Targets = require("devtools/server/actors/targets/index");
+const { ThreadActor } = require("resource://devtools/server/actors/thread.js");
+const {
+  WebConsoleActor,
+} = require("resource://devtools/server/actors/webconsole.js");
+const Targets = require("resource://devtools/server/actors/targets/index.js");
 
-const makeDebuggerUtil = require("devtools/server/actors/utils/make-debugger");
+const makeDebuggerUtil = require("resource://devtools/server/actors/utils/make-debugger.js");
 const {
   SourcesManager,
-} = require("devtools/server/actors/utils/sources-manager");
+} = require("resource://devtools/server/actors/utils/sources-manager.js");
 
-const TargetActorMixin = require("devtools/server/actors/targets/target-actor-mixin");
+const TargetActorMixin = require("resource://devtools/server/actors/targets/target-actor-mixin.js");
 
 exports.WorkerTargetActor = TargetActorMixin(
   Targets.TYPES.WORKER,
@@ -31,15 +35,12 @@ exports.WorkerTargetActor = TargetActorMixin(
      * @param {String} workerDebuggerData.id: The worker debugger id
      * @param {String} workerDebuggerData.url: The worker debugger url
      * @param {String} workerDebuggerData.type: The worker debugger type
+     * @param {Boolean} workerDebuggerData.workerConsoleApiMessagesDispatchedToMainThread:
+     *                  Value of the dom.worker.console.dispatch_events_to_main_thread pref
      * @param {Object} sessionContext: The Session Context to help know what is debugged.
      *                                 See devtools/server/actors/watcher/session-context.js
      */
-    initialize: function(
-      connection,
-      workerGlobal,
-      workerDebuggerData,
-      sessionContext
-    ) {
+    initialize(connection, workerGlobal, workerDebuggerData, sessionContext) {
       Actor.prototype.initialize.call(this, connection);
 
       // workerGlobal is needed by the console actor for evaluations.
@@ -48,6 +49,8 @@ exports.WorkerTargetActor = TargetActorMixin(
 
       this._workerDebuggerData = workerDebuggerData;
       this._sourcesManager = null;
+      this.workerConsoleApiMessagesDispatchedToMainThread =
+        workerDebuggerData.workerConsoleApiMessagesDispatchedToMainThread;
 
       this.makeDebugger = makeDebuggerUtil.bind(null, {
         findDebuggees: () => {

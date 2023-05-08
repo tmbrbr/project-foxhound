@@ -14,15 +14,18 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  InlineSpellCheckerContent:
+    "resource://gre/modules/InlineSpellCheckerContent.sys.mjs",
+  SelectionUtils: "resource://gre/modules/SelectionUtils.sys.mjs",
+  SpellCheckHelper: "resource://gre/modules/InlineSpellChecker.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   E10SUtils: "resource://gre/modules/E10SUtils.jsm",
-  SpellCheckHelper: "resource://gre/modules/InlineSpellChecker.jsm",
   LoginManagerChild: "resource://gre/modules/LoginManagerChild.jsm",
   WebNavigationFrames: "resource://gre/modules/WebNavigationFrames.jsm",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
-  SelectionUtils: "resource://gre/modules/SelectionUtils.jsm",
-  InlineSpellCheckerContent:
-    "resource://gre/modules/InlineSpellCheckerContent.jsm",
   ContentDOMReference: "resource://gre/modules/ContentDOMReference.jsm",
 });
 
@@ -167,8 +170,11 @@ class ContextMenuChild extends JSWindowActorChild {
         let img = lazy.ContentDOMReference.resolve(
           message.data.targetIdentifier
         );
-        img.recognizeCurrentImageText();
-        break;
+        const { direction } = this.contentWindow.getComputedStyle(img);
+
+        return img.recognizeCurrentImageText().then(results => {
+          return { results, direction };
+        });
       }
 
       case "ContextMenu:ToggleRevealPassword": {
@@ -1097,6 +1103,8 @@ class ContextMenuChild extends JSWindowActorChild {
       context.onNumeric = (editFlags & lazy.SpellCheckHelper.NUMERIC) !== 0;
       context.onEditable = (editFlags & lazy.SpellCheckHelper.EDITABLE) !== 0;
       context.onPassword = (editFlags & lazy.SpellCheckHelper.PASSWORD) !== 0;
+      context.isDesignMode =
+        (editFlags & lazy.SpellCheckHelper.CONTENTEDITABLE) !== 0;
       context.passwordRevealed =
         context.onPassword && context.target.revealPassword;
       context.onSpellcheckable =
@@ -1180,6 +1188,11 @@ class ContextMenuChild extends JSWindowActorChild {
           context.onTelLink = context.linkProtocol == "tel";
           context.onMozExtLink = context.linkProtocol == "moz-extension";
           context.onSaveableLink = this._isLinkSaveable(context.link);
+
+          context.isSponsoredLink =
+            (elem.ownerDocument.URL === "about:newtab" ||
+              elem.ownerDocument.URL === "about:home") &&
+            elem.dataset.isSponsoredLink === "true";
 
           try {
             if (elem.download) {

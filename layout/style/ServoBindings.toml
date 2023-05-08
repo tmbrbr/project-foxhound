@@ -4,6 +4,7 @@ headers = [
     "mozilla/StyleAnimationValue.h",
     "gfxFontConstants.h",
     "gfxFontFeatures.h",
+    "COLRFonts.h",
     "nsStyleConsts.h",
     "mozilla/css/Loader.h",
     "mozilla/css/SheetLoadData.h",
@@ -17,7 +18,6 @@ headers = [
     "mozilla/ipc/ByteBuf.h",
     "mozilla/AnimationPropertySegment.h",
     "mozilla/ComputedTiming.h",
-    "mozilla/ComputedTimingFunction.h",
     "mozilla/CORSMode.h",
     "mozilla/Keyframe.h",
     "mozilla/ServoElementSnapshot.h",
@@ -47,6 +47,7 @@ raw-lines = [
 hide-types = [
     ".*char_traits",
     ".*incompatible_char_type",
+    ".*string_view",
     # https://github.com/rust-lang/rust-bindgen/issues/1503
     "mozilla::StyleTimingFunction.*",
     # https://github.com/rust-lang/rust-bindgen/issues/1559
@@ -147,6 +148,7 @@ rusty-enums = [
     "mozilla::StyleTopLayer",
     "mozilla::StyleIsolation",
     "mozilla::StyleTextOrientation",
+    "mozilla::StyleMozBoxLayout",
     "mozilla::StyleTableLayout",
     "mozilla::StyleEmptyCells",
     "nsStyleImageType",
@@ -204,7 +206,6 @@ allowlist-types = [
     "mozilla::AnonymousCounterStyle",
     "mozilla::AtomArray",
     "mozilla::ComputedTiming",
-    "mozilla::ComputedTimingFunction",
     "mozilla::Matrix4x4Components",
     "mozilla::PreferenceSheet",
     "mozilla::SeenPtrs",
@@ -234,6 +235,8 @@ allowlist-types = [
     "mozilla::LookAndFeel",
     "mozilla::gfx::Float",
     "mozilla::gfx::FontVariation",
+    "mozilla::gfx::FontPaletteValueSet",
+    "mozilla::gfx::FontPaletteValueSet::PaletteValeus",
     "mozilla::StyleImageLayerAttachment",
     "gfxFontFeature",
     "gfxFontVariation",
@@ -384,6 +387,8 @@ opaque-types = [
     "mozilla::WeakPtr",
     "nsWritingIterator_reference", "nsReadingIterator_reference",
     "nsTObserverArray",  # <- Inherits from nsAutoTObserverArray<T, 0>
+    "mozilla::DoublyLinkedList",
+    "mozilla::SafeDoublyLinkedList",
     "nsTHashtable",  # <- Inheriting from inner typedefs that clang
                      #    doesn't expose properly.
     "nsTBaseHashSet", # <- Ditto
@@ -424,6 +429,8 @@ cbindgen-types = [
     { gecko = "StyleFillRule", servo = "crate::values::generics::basic_shape::FillRule" },
     { gecko = "StyleFontDisplay", servo = "crate::font_face::FontDisplay" },
     { gecko = "StyleFontFaceSourceListComponent", servo = "crate::font_face::FontFaceSourceListComponent" },
+    { gecko = "StyleFontFaceSourceFormatKeyword", servo = "crate::font_face::FontFaceSourceFormatKeyword" },
+    { gecko = "StyleFontFaceSourceTechFlags", servo = "crate::font_face::FontFaceSourceTechFlags" },
     { gecko = "StyleFontLanguageOverride", servo = "crate::values::computed::font::FontLanguageOverride" },
     { gecko = "StyleOffsetPath", servo = "crate::values::computed::motion::OffsetPath" },
     { gecko = "StyleGenericOffsetPath", servo = "crate::values::generics::motion::OffsetPath" },
@@ -436,12 +443,12 @@ cbindgen-types = [
     { gecko = "StyleTextJustify", servo = "crate::values::computed::TextJustify" },
     { gecko = "StyleMozControlCharacterVisibility", servo = "crate::values::computed::text::MozControlCharacterVisibility" },
     { gecko = "StyleLineBreak", servo = "crate::values::computed::LineBreak" },
+    { gecko = "StyleLineClamp", servo = "crate::values::computed::LineClamp" },
     { gecko = "StyleUserSelect", servo = "crate::values::computed::UserSelect" },
     { gecko = "StyleBreakBetween", servo = "crate::values::computed::BreakBetween" },
     { gecko = "StyleBreakWithin", servo = "crate::values::computed::BreakWithin" },
     { gecko = "StyleBorderStyle", servo = "crate::values::computed::BorderStyle" },
     { gecko = "StyleOutlineStyle", servo = "crate::values::computed::OutlineStyle" },
-    { gecko = "StyleScrollDirection", servo = "crate::stylesheets::scroll_timeline_rule::ScrollDirection" },
     { gecko = "StyleScrollSnapAlign", servo = "crate::values::computed::ScrollSnapAlign" },
     { gecko = "StyleScrollSnapStop", servo = "crate::values::computed::ScrollSnapStop" },
     { gecko = "StyleScrollSnapStrictness", servo = "crate::values::computed::ScrollSnapStrictness" },
@@ -451,6 +458,7 @@ cbindgen-types = [
     { gecko = "StyleResize", servo = "crate::values::computed::Resize" },
     { gecko = "StyleOverflowClipBox", servo = "crate::values::computed::OverflowClipBox" },
     { gecko = "StyleFloat", servo = "crate::values::computed::Float" },
+    { gecko = "StyleClear", servo = "crate::values::computed::Clear" },
     { gecko = "StyleOverscrollBehavior", servo = "crate::values::computed::OverscrollBehavior" },
     { gecko = "StyleTextAlign", servo = "crate::values::computed::TextAlign" },
     { gecko = "StyleTextAlignLast", servo = "crate::values::computed::text::TextAlignLast" },
@@ -562,6 +570,7 @@ cbindgen-types = [
     { gecko = "StyleGenericTrackList", servo = "crate::values::generics::grid::TrackList" },
     { gecko = "StyleGenericGridTemplateComponent", servo = "crate::values::generics::grid::GridTemplateComponent" },
     { gecko = "StyleTextEmphasisStyle", servo = "crate::values::computed::text::TextEmphasisStyle" },
+    { gecko = "StyleTextEmphasisPosition", servo = "crate::values::computed::TextEmphasisPosition" },
     { gecko = "StyleVariantAlternatesList", servo = "crate::values::specified::font::VariantAlternatesList" },
     { gecko = "StyleSVGPaintOrder", servo = "crate::values::specified::svg::SVGPaintOrder" },
     { gecko = "StyleClipRectOrAuto", servo = "crate::values::computed::ClipRectOrAuto" },
@@ -590,7 +599,6 @@ cbindgen-types = [
     { gecko = "StyleSVGOpacity", servo = "crate::values::computed::svg::SVGOpacity" },
     { gecko = "StyleSVGLength", servo = "crate::values::computed::svg::SVGLength" },
     { gecko = "StyleFontSizeKeyword", servo = "crate::values::specified::font::FontSizeKeyword" },
-    { gecko = "StyleDefaultFontSizes", servo = "crate::gecko::wrapper::DefaultFontSizes" },
     { gecko = "StyleCaptionSide", servo = "crate::values::computed::table::CaptionSide" },
     { gecko = "StylePageName", servo = "crate::values::specified::page::PageName" },
     { gecko = "StylePageSize", servo = "crate::values::computed::page::PageSize" },
@@ -604,6 +612,8 @@ cbindgen-types = [
     { gecko = "StyleFontStyle", servo = "crate::values::computed::font::FontStyle" },
     { gecko = "StyleFontWeight", servo = "crate::values::computed::font::FontWeight" },
     { gecko = "StyleFontStretch", servo = "crate::values::computed::font::FontStretch" },
+    { gecko = "StyleFontPalette", servo = "crate::values::computed::font::FontPalette" },
+    { gecko = "StyleBoolInteger", servo = "crate::values::computed::BoolInteger" },
 ]
 
 mapped-generic-types = [

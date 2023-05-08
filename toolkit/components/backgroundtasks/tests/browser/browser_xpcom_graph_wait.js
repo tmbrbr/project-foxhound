@@ -18,8 +18,6 @@
 
 "use strict";
 
-const { OS } = ChromeUtils.import("resource://gre/modules/osfile.jsm");
-
 const Cm = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
 
 // Shortcuts for conditions.
@@ -33,11 +31,11 @@ const backgroundtaskPhases = {
       modules: [
         "resource://gre/modules/AppConstants.jsm",
         "resource://gre/modules/AsyncShutdown.jsm",
-        "resource://gre/modules/BackgroundTasksManager.jsm",
+        "resource://gre/modules/BackgroundTasksManager.sys.mjs",
         "resource://gre/modules/Console.jsm",
-        "resource://gre/modules/EnterprisePolicies.jsm",
-        "resource://gre/modules/EnterprisePoliciesParent.jsm",
-        "resource://gre/modules/PromiseUtils.jsm",
+        "resource://gre/modules/EnterprisePolicies.sys.mjs",
+        "resource://gre/modules/EnterprisePoliciesParent.sys.mjs",
+        "resource://gre/modules/PromiseUtils.sys.mjs",
         "resource://gre/modules/XPCOMUtils.sys.mjs",
         "resource://gre/modules/nsAsyncShutdown.jsm",
       ],
@@ -122,17 +120,15 @@ const backgroundtaskPhases = {
     allowlist: {
       modules: [
         // We have a profile marker for this, even though it failed to load!
-        "resource:///modules/backgroundtasks/BackgroundTask_wait.jsm",
         "resource:///modules/backgroundtasks/BackgroundTask_wait.sys.mjs",
 
         "resource://gre/modules/ConsoleAPIStorage.jsm",
         "resource://gre/modules/Timer.jsm",
 
         // We have a profile marker for this, even though it failed to load!
-        "resource://gre/modules/backgroundtasks/BackgroundTask_wait.jsm",
         "resource://gre/modules/backgroundtasks/BackgroundTask_wait.sys.mjs",
 
-        "resource://testing-common/backgroundtasks/BackgroundTask_wait.jsm",
+        "resource://testing-common/backgroundtasks/BackgroundTask_wait.sys.mjs",
       ],
       services: ["@mozilla.org/consoleAPI-storage;1"],
     },
@@ -207,10 +203,13 @@ add_task(async function test_xpcom_graph_wait() {
     .get("MOZ_UPLOAD_DIR");
   profilePath =
     profilePath ||
-    FileUtils.getDir("ProfD", [`testBackgroundTask-${Math.random()}`], true)
-      .path;
+    (await IOUtils.createUniqueFile(
+      PathUtils.profileDir,
+      "testBackgroundTask",
+      0o600
+    ));
 
-  profilePath = OS.Path.join(profilePath, "profile_backgroundtask_wait.json");
+  profilePath = PathUtils.join(profilePath, "profile_backgroundtask_wait.json");
   await IOUtils.remove(profilePath, { ignoreAbsent: true });
 
   let extraEnv = {
@@ -221,8 +220,7 @@ add_task(async function test_xpcom_graph_wait() {
   let exitCode = await do_backgroundtask("wait", { extraEnv });
   Assert.equal(0, exitCode);
 
-  let fileContents = await IOUtils.readUTF8(profilePath);
-  let rootProfile = JSON.parse(fileContents);
+  let rootProfile = await IOUtils.readJSON(profilePath);
   let profile = rootProfile.threads[0];
 
   const nameCol = profile.markers.schema.name;

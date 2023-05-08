@@ -23,9 +23,6 @@
 #include "Units.h"
 #include "FrameMetrics.h"
 
-#define NS_DEFAULT_VERTICAL_SCROLL_DISTANCE 3
-#define NS_DEFAULT_HORIZONTAL_SCROLL_DISTANCE 5
-
 class gfxContext;
 class nsBoxLayoutState;
 class nsIScrollPositionListener;
@@ -36,6 +33,7 @@ class nsIContent;
 namespace mozilla {
 class DisplayItemClip;
 class nsDisplayListBuilder;
+enum class StyleScrollSnapAlignKeyword : uint8_t;
 
 namespace layers {
 struct ScrollMetadata;
@@ -54,11 +52,14 @@ class ScrollAnchorContainer;
  */
 class nsIScrollableFrame : public nsIScrollbarMediator {
  public:
-  typedef mozilla::CSSIntPoint CSSIntPoint;
-  typedef mozilla::layers::ScrollSnapInfo ScrollSnapInfo;
-  typedef mozilla::layout::ScrollAnchorContainer ScrollAnchorContainer;
-  typedef mozilla::ScrollMode ScrollMode;
-  typedef mozilla::ScrollOrigin ScrollOrigin;
+  using CSSIntPoint = mozilla::CSSIntPoint;
+  using ScrollSnapInfo = mozilla::layers::ScrollSnapInfo;
+  using ScrollAnchorContainer = mozilla::layout::ScrollAnchorContainer;
+  using ScrollMode = mozilla::ScrollMode;
+  using ScrollOrigin = mozilla::ScrollOrigin;
+  using PhysicalScrollSnapAlign =
+      std::pair<mozilla::StyleScrollSnapAlignKeyword,
+                mozilla::StyleScrollSnapAlignKeyword>;
 
   NS_DECL_QUERYFRAME_TARGET(nsIScrollableFrame)
 
@@ -413,7 +414,7 @@ class nsIScrollableFrame : public nsIScrollbarMediator {
   /**
    * Gets the async scroll animation state of this scroll frame.
    *
-   * There are four possible kinds that can overlap.
+   * There are five possible kinds that can overlap.
    * MainThread means async scroll animated by the main thread.
    * APZ scroll animations that are requested from the main thread go through
    * three states: 1) pending, when the main thread has recorded that it wants
@@ -421,13 +422,17 @@ class nsIScrollableFrame : public nsIScrollbarMediator {
    * the request to the compositor (but it hasn't necessarily arrived yet), and
    * 3) in progress, after apz has responded to the main thread that it got the
    * request.
+   * TriggeredByScript means that the async scroll animation was triggered by
+   * script, e.g. Element.scrollTo().
    */
   enum class AnimationState {
-    MainThread,    // mAsyncScroll || mAsyncSmoothMSDScroll
-    APZPending,    // mScrollUpdates.LastElement() is Smooth or SmoothMsd
-    APZRequested,  // mApzAnimationRequested
-    APZInProgress  // mCurrentAPZScrollAnimationType !=
-                   // APZScrollAniationType::No
+    MainThread,        // mAsyncScroll || mAsyncSmoothMSDScroll
+    APZPending,        // mScrollUpdates.LastElement() is Smooth or SmoothMsd
+    APZRequested,      // mApzAnimationRequested
+    APZInProgress,     // mCurrentAPZScrollAnimationType !=
+                       // APZScrollAniationType::No
+    TriggeredByScript  // The animation was triggered with
+                       // ScrollTriggeredByScript::Yes
   };
   virtual mozilla::EnumSet<AnimationState> ScrollAnimationState() const = 0;
 
@@ -585,6 +590,15 @@ class nsIScrollableFrame : public nsIScrollbarMediator {
    */
   virtual void PostPendingResnapIfNeeded(const nsIFrame* aFrame) = 0;
   virtual void PostPendingResnap() = 0;
+
+  /**
+   * Returns a pair of the scroll-snap-align property value both on X and Y axes
+   * for the given |aFrame| considering the scroll-snap-type of this scroll
+   * container. For example, if the scroll-snap-type is `none`, the pair of
+   * scroll-snap-align is also `none none`.
+   */
+  virtual PhysicalScrollSnapAlign GetScrollSnapAlignFor(
+      const nsIFrame* aFrame) const = 0;
 
   /**
    * Given the drag event aEvent, determine whether the mouse is near the edge

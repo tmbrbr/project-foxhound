@@ -24,6 +24,7 @@
 #include "mozilla/gfx/CanvasManagerParent.h"
 #include "mozilla/gfx/CanvasRenderThread.h"
 #include "mozilla/ClearOnShutdown.h"
+#include "mozilla/EnumTypeTraits.h"
 #include "mozilla/StaticPrefs_accessibility.h"
 #include "mozilla/StaticPrefs_apz.h"
 #include "mozilla/StaticPrefs_bidi.h"
@@ -438,8 +439,7 @@ void gfxPlatform::OnMemoryPressure(layers::MemoryPressureReason aWhy) {
 }
 
 gfxPlatform::gfxPlatform()
-    : mHasVariationFontSupport(false),
-      mAzureCanvasBackendCollector(this, &gfxPlatform::GetAzureBackendInfo),
+    : mAzureCanvasBackendCollector(this, &gfxPlatform::GetAzureBackendInfo),
       mApzSupportCollector(this, &gfxPlatform::GetApzSupportInfo),
       mFrameStatsCollector(this, &gfxPlatform::GetFrameStats),
       mCMSInfoCollector(this, &gfxPlatform::GetCMSSupportInfo),
@@ -776,6 +776,28 @@ WebRenderMemoryReporter::CollectReports(nsIHandleReportCallback* aHandleReport,
 #undef REPORT_INTERNER
 #undef REPORT_DATA_STORE
 
+std::atomic<int8_t> gfxPlatform::sHasVariationFontSupport = -1;
+
+bool gfxPlatform::HasVariationFontSupport() {
+  // We record the status here: 0 for not supported, 1 for supported.
+  if (sHasVariationFontSupport < 0) {
+    // It doesn't actually matter if we race with another thread setting this,
+    // as any thread will set it to the same value.
+#if defined(XP_WIN)
+    sHasVariationFontSupport = gfxWindowsPlatform::CheckVariationFontSupport();
+#elif defined(XP_MACOSX)
+    sHasVariationFontSupport = gfxPlatformMac::CheckVariationFontSupport();
+#elif defined(MOZ_WIDGET_GTK)
+    sHasVariationFontSupport = gfxPlatformGtk::CheckVariationFontSupport();
+#elif defined(ANDROID)
+    sHasVariationFontSupport = gfxAndroidPlatform::CheckVariationFontSupport();
+#else
+#  error "No gfxPlatform implementation available"
+#endif
+  }
+  return sHasVariationFontSupport > 0;
+}
+
 void gfxPlatform::Init() {
   MOZ_RELEASE_ASSERT(!XRE_IsGPUProcess(), "GFX: Not allowed in GPU process.");
   MOZ_RELEASE_ASSERT(!XRE_IsRDDProcess(), "GFX: Not allowed in RDD process.");
@@ -923,10 +945,6 @@ void gfxPlatform::Init() {
   }
 
   if (XRE_IsParentProcess()) {
-    nsAutoCString allowlist;
-    Preferences::GetCString("gfx.offscreencanvas.domain-allowlist", allowlist);
-    gfxVars::SetOffscreenCanvasDomainAllowlist(allowlist);
-
     // Create the global vsync source and dispatcher.
     RefPtr<VsyncSource> vsyncSource =
         gfxPlatform::ForceSoftwareVsync()
@@ -955,8 +973,6 @@ void gfxPlatform::Init() {
   gfxGradientCache::Init();
 
   InitLayersIPC();
-
-  gPlatform->mHasVariationFontSupport = gPlatform->CheckVariationFontSupport();
 
   // This *create* the platform font list instance, but may not *initialize* it
   // yet if the gfx.font-list.lazy-init.enabled pref is set. The first *use*
@@ -1013,7 +1029,7 @@ void gfxPlatform::Init() {
 
   if (XRE_IsParentProcess()) {
     Preferences::Unlock(FONT_VARIATIONS_PREF);
-    if (!gPlatform->HasVariationFontSupport()) {
+    if (!gfxPlatform::HasVariationFontSupport()) {
       // Ensure variation fonts are disabled and the pref is locked.
       Preferences::SetBool(FONT_VARIATIONS_PREF, false, PrefValueKind::Default);
       Preferences::SetBool(FONT_VARIATIONS_PREF, false);
@@ -1329,9 +1345,9 @@ void gfxPlatform::ShutdownLayersIPC() {
     layers::ImageBridgeChild::ShutDown();
     // This could be running on either the Compositor or the Renderer thread.
     gfx::CanvasManagerParent::Shutdown();
-    RemoteTextureMap::Shutdown();
     // This has to happen after shutting down the child protocols.
     layers::CompositorThreadHolder::Shutdown();
+    RemoteTextureMap::Shutdown();
     image::ImageMemoryReporter::ShutdownForWebRender();
     // There is a case that RenderThread exists when UseWebRender() is
     // false. This could happen when WebRender was fallbacked to compositor.
@@ -1781,22 +1797,52 @@ bool gfxPlatform::UseGraphiteShaping() {
   return StaticPrefs::gfx_font_rendering_graphite_enabled();
 }
 
-bool gfxPlatform::IsFontFormatSupported(uint32_t aFormatFlags) {
-  // check for strange format flags
-  MOZ_ASSERT(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
-             "strange font format hint set");
-
-  // accept "common" formats that we support on all platforms
-  if (aFormatFlags & gfxUserFontSet::FLAG_FORMATS_COMMON) {
-    return true;
+bool gfxPlatform::IsFontFormatSupported(
+    StyleFontFaceSourceFormatKeyword aFormatHint,
+    StyleFontFaceSourceTechFlags aTechFlags) {
+  // By default, font resources are assumed to be supported; but if the format
+  // hint or technology flags explicitly indicate something we don't support,
+  // then return false.
+  switch (aFormatHint) {
+    case StyleFontFaceSourceFormatKeyword::None:
+      break;
+    case StyleFontFaceSourceFormatKeyword::Collection:
+      return false;
+    case StyleFontFaceSourceFormatKeyword::Opentype:
+    case StyleFontFaceSourceFormatKeyword::Truetype:
+      break;
+    case StyleFontFaceSourceFormatKeyword::EmbeddedOpentype:
+      return false;
+    case StyleFontFaceSourceFormatKeyword::Svg:
+      return false;
+    case StyleFontFaceSourceFormatKeyword::Woff:
+      break;
+    case StyleFontFaceSourceFormatKeyword::Woff2:
+      break;
+    case StyleFontFaceSourceFormatKeyword::Unknown:
+      return false;
+    default:
+      MOZ_ASSERT_UNREACHABLE("bad format hint!");
+      return false;
   }
-
-  // reject all other formats, known and unknown
-  if (aFormatFlags != 0) {
+  StyleFontFaceSourceTechFlags unsupportedTechnologies =
+      StyleFontFaceSourceTechFlags::INCREMENTAL |
+      StyleFontFaceSourceTechFlags::COLOR_SBIX;
+  if (!StaticPrefs::gfx_downloadable_fonts_keep_color_bitmaps()) {
+    unsupportedTechnologies |= StyleFontFaceSourceTechFlags::COLOR_CBDT;
+  }
+  if (!StaticPrefs::gfx_font_rendering_colr_v1_enabled()) {
+    unsupportedTechnologies |= StyleFontFaceSourceTechFlags::COLOR_COLRV1;
+  }
+  if (!StaticPrefs::layout_css_font_palette_enabled()) {
+    unsupportedTechnologies |= StyleFontFaceSourceTechFlags::PALETTES;
+  }
+  if (!StaticPrefs::layout_css_font_variations_enabled()) {
+    unsupportedTechnologies |= StyleFontFaceSourceTechFlags::VARIATIONS;
+  }
+  if (aTechFlags & unsupportedTechnologies) {
     return false;
   }
-
-  // no format hint set, need to look at data
   return true;
 }
 
@@ -2024,6 +2070,14 @@ const mozilla::gfx::ContentDeviceData* gfxPlatform::GetInitContentDeviceData() {
   return gContentDeviceInitData;
 }
 
+CMSMode GfxColorManagementMode() {
+  const auto mode = StaticPrefs::gfx_color_management_mode();
+  if (mode >= 0 && mode < UnderlyingValue(CMSMode::AllCount)) {
+    return CMSMode(mode);
+  }
+  return CMSMode::Off;
+}
+
 void gfxPlatform::InitializeCMS() {
   if (gCMSInitialized) {
     return;
@@ -2042,12 +2096,7 @@ void gfxPlatform::InitializeCMS() {
     return;
   }
 
-  {
-    int32_t mode = StaticPrefs::gfx_color_management_mode();
-    if (mode >= 0 && mode < int32_t(CMSMode::AllCount)) {
-      gCMSMode = CMSMode(mode);
-    }
-  }
+  gCMSMode = GfxColorManagementMode();
 
   gCMSsRGBProfile = qcms_profile_sRGB();
 
@@ -2067,8 +2116,8 @@ void gfxPlatform::InitializeCMS() {
     nsTArray<uint8_t> outputProfileData =
         gfxPlatform::GetPlatform()->GetPlatformCMSOutputProfileData();
     if (!outputProfileData.IsEmpty()) {
-      gCMSOutputProfile = qcms_profile_from_memory(outputProfileData.Elements(),
-                                                   outputProfileData.Length());
+      gCMSOutputProfile = qcms_profile_from_memory_curves_only(outputProfileData.Elements(),
+                                                               outputProfileData.Length());
     }
   }
 
@@ -2231,7 +2280,7 @@ void gfxPlatform::FontsPrefsChanged(const char* aPref) {
       !strcmp("gfx.font_rendering.ahem_antialias_none", aPref)) {
     FlushFontAndWordCaches();
   } else if (!strcmp(GFX_PREF_OPENTYPE_SVG, aPref)) {
-    gfxFontCache::GetCache()->AgeAllGenerations();
+    gfxFontCache::GetCache()->Flush();
     gfxFontCache::GetCache()->NotifyGlyphsChanged();
   }
 }
@@ -2716,7 +2765,7 @@ void gfxPlatform::InitWebRenderConfig() {
                                  "FEATURE_FAILURE_WR_NO_GFX_INFO"_ns);
         useHwVideoZeroCopy = false;
       } else {
-        if (status != nsIGfxInfo::FEATURE_STATUS_OK) {
+        if (status != nsIGfxInfo::FEATURE_ALLOW_ALWAYS) {
           FeatureState& feature =
               gfxConfig::GetFeature(Feature::HW_DECODED_VIDEO_ZERO_COPY);
           feature.DisableByDefault(FeatureStatus::Blocked,
@@ -2753,7 +2802,7 @@ void gfxPlatform::InitWebRenderConfig() {
                                  "FEATURE_FAILURE_WR_NO_GFX_INFO"_ns);
         reuseDecoderDevice = false;
       } else {
-        if (status != nsIGfxInfo::FEATURE_STATUS_OK) {
+        if (status != nsIGfxInfo::FEATURE_ALLOW_ALWAYS) {
           FeatureState& feature =
               gfxConfig::GetFeature(Feature::REUSE_DECODER_DEVICE);
           feature.DisableByDefault(FeatureStatus::Blocked,
@@ -2893,7 +2942,7 @@ void gfxPlatform::InitWebGLConfig() {
     // It causes the linking of some shaders to fail. See bug 1485441.
     nsAutoString renderer;
     gfxInfo->GetAdapterDeviceID(renderer);
-    if (renderer.Find("Adreno (TM) 630") != -1) {
+    if (renderer.Find(u"Adreno (TM) 630") != -1) {
       gfxVars::SetAllowEglRbab(false);
     }
   }

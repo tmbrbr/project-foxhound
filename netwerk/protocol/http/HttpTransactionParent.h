@@ -11,11 +11,12 @@
 #include "mozilla/net/HttpTransactionShell.h"
 #include "mozilla/net/NeckoChannelParams.h"
 #include "mozilla/net/PHttpTransactionParent.h"
-#include "nsHttp.h"
 #include "nsCOMPtr.h"
+#include "nsHttp.h"
+#include "nsIRequest.h"
 #include "nsIThreadRetargetableRequest.h"
 #include "nsITransport.h"
-#include "nsIRequest.h"
+#include "nsITransportSecurityInfo.h"
 
 namespace mozilla::net {
 
@@ -48,8 +49,8 @@ class HttpTransactionParent final : public PHttpTransactionParent,
 
   mozilla::ipc::IPCResult RecvOnStartRequest(
       const nsresult& aStatus, const Maybe<nsHttpResponseHead>& aResponseHead,
-      const nsCString& aSecurityInfoSerialization,
-      const bool& aProxyConnectFailed, const TimingStructArgs& aTimings,
+      nsITransportSecurityInfo* aSecurityInfo, const bool& aProxyConnectFailed,
+      const TimingStructArgs& aTimings,
       const int32_t& aProxyConnectResponseCode,
       nsTArray<uint8_t>&& aDataForSniffer, const Maybe<nsCString>& aAltSvcUsed,
       const bool& aDataToChildProcess, const bool& aRestarted,
@@ -75,6 +76,8 @@ class HttpTransactionParent final : public PHttpTransactionParent,
                                              const nsCString& aRequestString);
   mozilla::ipc::IPCResult RecvEarlyHint(const nsCString& aValue);
 
+  virtual mozilla::TimeStamp GetPendingTime() override;
+
   already_AddRefed<nsIEventTarget> GetNeckoTarget();
 
   void SetSniffedTypeToChannel(
@@ -93,8 +96,8 @@ class HttpTransactionParent final : public PHttpTransactionParent,
                          HttpConnectionInfoCloneArgs& aArgs);
   void DoOnStartRequest(
       const nsresult& aStatus, const Maybe<nsHttpResponseHead>& aResponseHead,
-      const nsCString& aSecurityInfoSerialization,
-      const bool& aProxyConnectFailed, const TimingStructArgs& aTimings,
+      nsITransportSecurityInfo* aSecurityInfo, const bool& aProxyConnectFailed,
+      const TimingStructArgs& aTimings,
       const int32_t& aProxyConnectResponseCode,
       nsTArray<uint8_t>&& aDataForSniffer, const Maybe<nsCString>& aAltSvcUsed,
       const bool& aDataToChildProcess, const bool& aRestarted,
@@ -120,7 +123,7 @@ class HttpTransactionParent final : public PHttpTransactionParent,
   nsCOMPtr<nsIEventTarget> mODATarget;
   Mutex mEventTargetMutex MOZ_UNANNOTATED{
       "HttpTransactionParent::EventTargetMutex"};
-  nsCOMPtr<nsISupports> mSecurityInfo;
+  nsCOMPtr<nsITransportSecurityInfo> mSecurityInfo;
   UniquePtr<nsHttpResponseHead> mResponseHead;
   UniquePtr<nsHttpHeaderArray> mResponseTrailers;
   RefPtr<ChannelEventQueue> mEventQ;

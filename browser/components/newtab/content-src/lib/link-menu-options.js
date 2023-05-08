@@ -65,6 +65,7 @@ export const LinkMenuOptions = {
         referrer: site.referrer,
         typedBonus: site.typedBonus,
         url: site.url,
+        sponsored_tile_id: site.sponsored_tile_id,
       },
     }),
     userEvent: "OPEN_NEW_WINDOW",
@@ -216,7 +217,9 @@ export const LinkMenuOptions = {
     icon: "pocket-save",
     action: ac.AlsoToMain({
       type: at.SAVE_TO_POCKET,
-      data: { site: { url: site.url, title: site.title } },
+      data: {
+        site: { url: site.url, title: site.title },
+      },
     }),
     impression: ac.ImpressionStats({
       source: eventSource,

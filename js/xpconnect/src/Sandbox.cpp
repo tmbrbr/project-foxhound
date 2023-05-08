@@ -80,7 +80,6 @@
 #include "mozilla/dom/StorageManager.h"
 #include "mozilla/dom/TextDecoderBinding.h"
 #include "mozilla/dom/TextEncoderBinding.h"
-#include "mozilla/dom/UnionConversions.h"
 #include "mozilla/dom/URLBinding.h"
 #include "mozilla/dom/URLSearchParamsBinding.h"
 #include "mozilla/dom/XMLHttpRequest.h"
@@ -105,7 +104,7 @@ using namespace xpc;
 using mozilla::dom::DestroyProtoAndIfaceCache;
 using mozilla::dom::IndexedDatabaseManager;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(SandboxPrivate)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(SandboxPrivate)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(SandboxPrivate)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
@@ -119,8 +118,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(SandboxPrivate)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mModuleLoader)
   tmp->TraverseObjectsInGlobal(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(SandboxPrivate)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(SandboxPrivate)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(SandboxPrivate)
@@ -297,23 +294,6 @@ static bool SandboxCreateRTCIdentityProvider(JSContext* cx,
 }
 #endif
 
-static bool SetFetchRequestFromValue(JSContext* cx, RequestOrUSVString& request,
-                                     const MutableHandleValue& requestOrUrl) {
-  RequestOrUSVStringArgument requestHolder(request);
-  bool noMatch = true;
-  if (requestOrUrl.isObject() &&
-      !requestHolder.TrySetToRequest(cx, requestOrUrl, noMatch, false)) {
-    return false;
-  }
-  if (noMatch && !requestHolder.TrySetToUSVString(cx, requestOrUrl, noMatch)) {
-    return false;
-  }
-  if (noMatch) {
-    return false;
-  }
-  return true;
-}
-
 static bool SandboxFetch(JSContext* cx, JS::HandleObject scope,
                          const CallArgs& args) {
   if (args.length() < 1) {
@@ -321,14 +301,13 @@ static bool SandboxFetch(JSContext* cx, JS::HandleObject scope,
     return false;
   }
 
+  BindingCallContext callCx(cx, "fetch");
   RequestOrUSVString request;
-  if (!SetFetchRequestFromValue(cx, request, args[0])) {
-    JS_ReportErrorASCII(cx, "fetch requires a string or Request in argument 1");
+  if (!request.Init(callCx, args[0], "Argument 1")) {
     return false;
   }
   RootedDictionary<dom::RequestInit> options(cx);
-  BindingCallContext callCx(cx, "fetch");
-  if (!options.Init(cx, args.hasDefined(1) ? args[1] : JS::NullHandleValue,
+  if (!options.Init(callCx, args.hasDefined(1) ? args[1] : JS::NullHandleValue,
                     "Argument 2", false)) {
     return false;
   }
@@ -412,7 +391,7 @@ static bool SandboxStructuredClone(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
-static bool SandboxCreateStructuredClone(JSContext* cx, HandleObject obj) {
+bool xpc::SandboxCreateStructuredClone(JSContext* cx, HandleObject obj) {
   MOZ_ASSERT(JS_IsGlobalObject(obj));
 
   return JS_DefineFunction(cx, obj, "structuredClone", SandboxStructuredClone,

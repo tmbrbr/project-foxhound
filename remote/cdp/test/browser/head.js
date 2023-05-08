@@ -5,14 +5,14 @@
 
 const { OS } = ChromeUtils.import("resource://gre/modules/osfile.jsm");
 
-const { RemoteAgent } = ChromeUtils.import(
-  "chrome://remote/content/components/RemoteAgent.jsm"
+const { RemoteAgent } = ChromeUtils.importESModule(
+  "chrome://remote/content/components/RemoteAgent.sys.mjs"
 );
-const { RemoteAgentError } = ChromeUtils.import(
-  "chrome://remote/content/cdp/Error.jsm"
+const { RemoteAgentError } = ChromeUtils.importESModule(
+  "chrome://remote/content/cdp/Error.sys.mjs"
 );
-const { TabManager } = ChromeUtils.import(
-  "chrome://remote/content/shared/TabManager.jsm"
+const { TabManager } = ChromeUtils.importESModule(
+  "chrome://remote/content/shared/TabManager.sys.mjs"
 );
 
 const TIMEOUT_MULTIPLIER = SpecialPowers.isDebugBuild ? 4 : 1;
@@ -137,8 +137,8 @@ async function getCDP() {
   // library in order to do the cross-domain http request, which,
   // in a regular Web page, is impossible.
   window.criRequest = (options, callback) => {
-    const { host, port, path } = options;
-    const url = `http://${host}:${port}${path}`;
+    const { path } = options;
+    const url = `http://${RemoteAgent.host}:${RemoteAgent.port}${path}`;
     const xhr = new XMLHttpRequest();
     xhr.open("GET", url, true);
 

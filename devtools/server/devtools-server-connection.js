@@ -4,15 +4,19 @@
 
 "use strict";
 
-var { Pool } = require("devtools/shared/protocol");
-var DevToolsUtils = require("devtools/shared/DevToolsUtils");
+var { Pool } = require("resource://devtools/shared/protocol.js");
+var DevToolsUtils = require("resource://devtools/shared/DevToolsUtils.js");
 var { dumpn } = DevToolsUtils;
 
-loader.lazyRequireGetter(this, "EventEmitter", "devtools/shared/event-emitter");
+loader.lazyRequireGetter(
+  this,
+  "EventEmitter",
+  "resource://devtools/shared/event-emitter.js"
+);
 loader.lazyRequireGetter(
   this,
   "DevToolsServer",
-  "devtools/server/devtools-server",
+  "resource://devtools/server/devtools-server.js",
   true
 );
 
@@ -89,9 +93,9 @@ DevToolsServerConnection.prototype = {
    */
   parentMessageManager: null,
 
-  close() {
+  close(options) {
     if (this._transport) {
-      this._transport.close();
+      this._transport.close(options);
     }
   },
 
@@ -230,7 +234,10 @@ DevToolsServerConnection.prototype = {
 
   _unknownError(from, prefix, error) {
     const errorString = prefix + ": " + DevToolsUtils.safeErrorString(error);
-    reportError(errorString);
+    // On worker threads we don't have access to Cu.
+    if (!isWorker) {
+      Cu.reportError(errorString);
+    }
     dumpn(errorString);
     return {
       from,
@@ -239,7 +246,7 @@ DevToolsServerConnection.prototype = {
     };
   },
 
-  _queueResponse: function(from, type, responseOrPromise) {
+  _queueResponse(from, type, responseOrPromise) {
     const pendingResponse =
       this._actorResponses.get(from) || Promise.resolve(null);
     const responsePromise = pendingResponse
@@ -455,7 +462,7 @@ DevToolsServerConnection.prototype = {
       }
     } else {
       const message = `Actor ${actorKey} does not recognize the bulk packet type '${type}'`;
-      ret = { error: "unrecognizedPacketType", message: message };
+      ret = { error: "unrecognizedPacketType", message };
       packet.done.reject(new Error(message));
     }
 
@@ -471,8 +478,11 @@ DevToolsServerConnection.prototype = {
    * @param status nsresult
    *        The status code that corresponds to the reason for closing
    *        the stream.
+   * @param {object} options
+   * @param {boolean} options.isModeSwitching
+   *        true when this is called as the result of a change to the devtools.browsertoolbox.scope pref
    */
-  onTransportClosed(status) {
+  onTransportClosed(status, options) {
     dumpn("Cleaning up connection.");
     if (!this._actorPool) {
       // Ignore this call if the connection is already closed.
@@ -490,7 +500,7 @@ DevToolsServerConnection.prototype = {
     // See test_connection_closes_all_pools.js for practical examples of Pool
     // hierarchies.
     const topLevelPools = this._extraPools.filter(p => p.isTopPool());
-    topLevelPools.forEach(p => p.destroy());
+    topLevelPools.forEach(p => p.destroy(options));
 
     this._extraPools = null;
 
@@ -557,8 +567,8 @@ DevToolsServerConnection.prototype = {
 
     return this.parentMessageManager.sendSyncMessage("debug:setup-in-parent", {
       prefix: this.prefix,
-      module: module,
-      setupParent: setupParent,
+      module,
+      setupParent,
     });
   },
 

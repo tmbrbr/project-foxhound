@@ -3,11 +3,22 @@
 
 /* import-globals-from ../../unit/head.js */
 
+ChromeUtils.defineESModuleGetters(this, {
+  UrlbarProviderQuickSuggest:
+    "resource:///modules/UrlbarProviderQuickSuggest.sys.mjs",
+  UrlbarQuickSuggest: "resource:///modules/UrlbarQuickSuggest.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(this, {
   TelemetryTestUtils: "resource://testing-common/TelemetryTestUtils.jsm",
-  UrlbarProviderQuickSuggest:
-    "resource:///modules/UrlbarProviderQuickSuggest.jsm",
-  UrlbarQuickSuggest: "resource:///modules/UrlbarQuickSuggest.jsm",
+});
+
+add_setup(async function setUpQuickSuggestXpcshellTest() {
+  // Initializing TelemetryEnvironment in an xpcshell environment requires
+  // jumping through a bunch of hoops. Suggest's use of TelemetryEnvironment is
+  // tested in browser tests, and there's no other necessary reason to wait for
+  // TelemetryEnvironment initialization in xpcshell tests, so just skip it.
+  UrlbarPrefs._testSkipTelemetryEnvironmentInit = true;
 });
 
 /**

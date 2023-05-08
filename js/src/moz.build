@@ -50,9 +50,6 @@ for stlfile in ["jsdate.*", "jsnum.*"]:
 with Files("builtin/intl/*"):
     BUG_COMPONENT = component_intl
 
-if CONFIG["ENABLE_WASM_CRANELIFT"]:
-    CONFIGURE_SUBST_FILES += ["rust/extra-bindgen-flags"]
-
 if not CONFIG["JS_DISABLE_SHELL"]:
     DIRS += [
         "rust",
@@ -168,6 +165,7 @@ EXPORTS.js += [
     "../public/Id.h",
     "../public/Initialization.h",
     "../public/Interrupt.h",
+    "../public/JitCodeAPI.h",
     "../public/JSON.h",
     "../public/LocaleSensitive.h",
     "../public/MapAndSet.h",
@@ -368,6 +366,7 @@ UNIFIED_SOURCES += [
     "vm/DateTime.cpp",
     "vm/EnvironmentObject.cpp",
     "vm/EqualityOperations.cpp",
+    "vm/ErrorContext.cpp",
     "vm/ErrorMessages.cpp",
     "vm/ErrorObject.cpp",
     "vm/ErrorReporting.cpp",
@@ -442,7 +441,7 @@ UNIFIED_SOURCES += [
     "vm/Xdr.cpp",
 ]
 
-if not CONFIG["MOZ_DOM_STREAMS"]:
+if CONFIG["MOZ_JS_STREAMS"]:
     UNIFIED_SOURCES += [
         "builtin/Stream.cpp",
         "builtin/streams/MiscellaneousOperations.cpp",

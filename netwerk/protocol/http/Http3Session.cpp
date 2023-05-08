@@ -122,6 +122,7 @@ nsresult Http3Session::Init(const nsHttpConnectionInfo* aConnInfo,
       gHttpHandler->DefaultHttp3MaxBlockedStreams(),
       StaticPrefs::network_http_http3_max_data(),
       StaticPrefs::network_http_http3_max_stream_data(),
+      StaticPrefs::network_http_http3_version_negotiation_enabled(),
       gHttpHandler->Http3QlogDir(), getter_AddRefs(mHttp3Connection));
   if (NS_FAILED(rv)) {
     return rv;
@@ -130,10 +131,12 @@ nsresult Http3Session::Init(const nsHttpConnectionInfo* aConnInfo,
   nsAutoCString peerId;
   mSocketControl->GetPeerId(peerId);
   nsTArray<uint8_t> token;
+  SessionCacheInfo info;
   if (StaticPrefs::network_http_http3_enable_0rtt() &&
-      NS_SUCCEEDED(SSLTokensCache::Get(peerId, token))) {
+      NS_SUCCEEDED(SSLTokensCache::Get(peerId, token, info))) {
     LOG(("Found a resumption token in the cache."));
     mHttp3Connection->SetResumptionToken(token);
+    mSocketControl->SetSessionCacheInfo(std::move(info));
     if (mHttp3Connection->IsZeroRtt()) {
       LOG(("Can send ZeroRtt data"));
       RefPtr<Http3Session> self(this);
@@ -1543,12 +1546,9 @@ bool Http3Session::RealJoinConnection(const nsACString& hostname, int32_t port,
   nsresult rv;
   bool isJoined = false;
 
-  nsCOMPtr<nsISupports> securityInfo;
   nsCOMPtr<nsISSLSocketControl> sslSocketControl;
-
-  mConnection->GetSecurityInfo(getter_AddRefs(securityInfo));
-  sslSocketControl = do_QueryInterface(securityInfo, &rv);
-  if (NS_FAILED(rv) || !sslSocketControl) {
+  mConnection->GetTLSSocketControl(getter_AddRefs(sslSocketControl));
+  if (!sslSocketControl) {
     return false;
   }
 
@@ -1888,10 +1888,9 @@ void Http3Session::ZeroRttTelemetry(ZeroRttOutcome aOutcome) {
   }
 }
 
-nsresult Http3Session::GetTransactionSecurityInfo(nsISupports** secinfo) {
-  nsCOMPtr<nsISupports> info;
-  mSocketControl->QueryInterface(NS_GET_IID(nsISupports), getter_AddRefs(info));
-  info.forget(secinfo);
+nsresult Http3Session::GetTransactionTLSSocketControl(
+    nsISSLSocketControl** tlsSocketControl) {
+  NS_IF_ADDREF(*tlsSocketControl = mSocketControl);
   return NS_OK;
 }
 

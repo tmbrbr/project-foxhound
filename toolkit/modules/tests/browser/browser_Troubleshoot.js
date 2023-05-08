@@ -9,8 +9,8 @@
 const { AppConstants } = ChromeUtils.import(
   "resource://gre/modules/AppConstants.jsm"
 );
-const { Troubleshoot } = ChromeUtils.import(
-  "resource://gre/modules/Troubleshoot.jsm"
+const { Troubleshoot } = ChromeUtils.importESModule(
+  "resource://gre/modules/Troubleshoot.sys.mjs"
 );
 const { sinon } = ChromeUtils.import("resource://testing-common/Sinon.jsm");
 
@@ -858,6 +858,10 @@ const SNAPSHOT_SCHEMA = {
               },
             },
           },
+        },
+        codecSupportInfo: {
+          required: false,
+          type: "string",
         },
       },
     },

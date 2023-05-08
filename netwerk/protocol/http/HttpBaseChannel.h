@@ -36,6 +36,7 @@
 #include "nsIThrottledInputChannel.h"
 #include "nsITimedChannel.h"
 #include "nsITraceableChannel.h"
+#include "nsITransportSecurityInfo.h"
 #include "nsIURI.h"
 #include "nsIUploadChannel2.h"
 #include "nsStringEnumerator.h"
@@ -205,8 +206,6 @@ class HttpBaseChannel : public nsHashPropertyBag,
                                        nsIHttpHeaderVisitor* aVisitor) override;
   NS_IMETHOD VisitOriginalResponseHeaders(
       nsIHttpHeaderVisitor* aVisitor) override;
-  NS_IMETHOD GetAllowPipelining(bool* value) override;  // deprecated
-  NS_IMETHOD SetAllowPipelining(bool value) override;   // deprecated
   NS_IMETHOD GetAllowSTS(bool* value) override;
   NS_IMETHOD SetAllowSTS(bool value) override;
   NS_IMETHOD GetRedirectionLimit(uint32_t* value) override;
@@ -430,7 +429,8 @@ class HttpBaseChannel : public nsHashPropertyBag,
   const NetAddr& GetSelfAddr() { return mSelfAddr; }
   const NetAddr& GetPeerAddr() { return mPeerAddr; }
 
-  [[nodiscard]] nsresult OverrideSecurityInfo(nsISupports* aSecurityInfo);
+  [[nodiscard]] nsresult OverrideSecurityInfo(
+      nsITransportSecurityInfo* aSecurityInfo);
 
  public: /* Necko internal use only... */
   int64_t GetAltDataLength() { return mAltDataLength; }
@@ -551,7 +551,6 @@ class HttpBaseChannel : public nsHashPropertyBag,
   // was fired.
   void NotifySetCookie(const nsACString& aCookie);
 
-  mozilla::dom::PerformanceStorage* GetPerformanceStorage();
   void MaybeReportTimingData();
   nsIURI* GetReferringPage();
   nsPIDOMWindowInner* GetInnerDOMWindow();
@@ -559,6 +558,9 @@ class HttpBaseChannel : public nsHashPropertyBag,
   void AddCookiesToRequest();
   [[nodiscard]] virtual nsresult SetupReplacementChannel(
       nsIURI*, nsIChannel*, bool preserveMethod, uint32_t redirectFlags);
+
+  // WHATWG Fetch Standard 4.4. HTTP-redirect fetch, step 10
+  virtual bool ShouldTaintReplacementChannelOrigin(nsIURI* aNewURI);
 
   // bundle calling OMR observers and marking flag into one function
   inline void CallOnModifyRequestObservers() {
@@ -642,9 +644,6 @@ class HttpBaseChannel : public nsHashPropertyBag,
   nsCOMPtr<nsIEventTarget> mCurrentThread;
 
  private:
-  // WHATWG Fetch Standard 4.4. HTTP-redirect fetch, step 10
-  bool ShouldTaintReplacementChannelOrigin(nsIURI* aNewURI);
-
   // Proxy release all members above on main thread.
   void ReleaseMainThreadOnlyReferences();
 
@@ -689,7 +688,7 @@ class HttpBaseChannel : public nsHashPropertyBag,
   UniquePtr<nsHttpHeaderArray> mResponseTrailers;
   RefPtr<nsHttpConnectionInfo> mConnectionInfo;
   nsCOMPtr<nsIProxyInfo> mProxyInfo;
-  nsCOMPtr<nsISupports> mSecurityInfo;
+  nsCOMPtr<nsITransportSecurityInfo> mSecurityInfo;
   nsCOMPtr<nsIHttpUpgradeListener> mUpgradeProtocolCallback;
   UniquePtr<nsString> mContentDispositionFilename;
   nsCOMPtr<nsIConsoleReportCollector> mReportCollector;
@@ -716,6 +715,7 @@ class HttpBaseChannel : public nsHashPropertyBag,
   TimeStamp mAsyncOpenTime;
   TimeStamp mCacheReadStart;
   TimeStamp mCacheReadEnd;
+  TimeStamp mTransactionPendingTime;
   TimeStamp mLaunchServiceWorkerStart;
   TimeStamp mLaunchServiceWorkerEnd;
   TimeStamp mDispatchFetchEventStart;

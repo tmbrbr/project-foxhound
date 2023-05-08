@@ -231,7 +231,8 @@ void gfxUserFontEntry::StoreUserFontData(gfxFontEntry* aFontEntry,
       break;
   }
   userFontData->mPrivate = aPrivate;
-  userFontData->mFormat = src.mFormatFlags;
+  userFontData->mTechFlags = src.mTechFlags;
+  userFontData->mFormatHint = src.mFormatHint;
   userFontData->mRealName = aOriginalName;
   if (aMetadata) {
     userFontData->mMetadata = std::move(*aMetadata);
@@ -257,7 +258,8 @@ gfxUserFontFamily::~gfxUserFontFamily() {
 already_AddRefed<gfxFontSrcPrincipal> gfxFontFaceSrc::LoadPrincipal(
     const gfxUserFontSet& aFontSet) const {
   MOZ_ASSERT(mSourceType == eSourceType_URL);
-  if (mUseOriginPrincipal && mOriginPrincipal) {
+  if (mUseOriginPrincipal) {
+    MOZ_ASSERT(mOriginPrincipal);
     return RefPtr{mOriginPrincipal}.forget();
   }
   return aFontSet.GetStandardFontLoadPrincipal();
@@ -428,7 +430,7 @@ void gfxUserFontEntry::DoLoadNextSrc(bool aForceAsync) {
         // Note that we've attempted a local lookup, even if it failed,
         // as this means we are dependent on any updates to the font list.
         mSeenLocalSource = true;
-        nsTArray<gfxUserFontSet*> fontSets;
+        nsTArray<RefPtr<gfxUserFontSet>> fontSets;
         GetUserFontSets(fontSets);
         for (gfxUserFontSet* fontSet : fontSets) {
           // We need to note on each gfxUserFontSet that contains the user
@@ -468,7 +470,7 @@ void gfxUserFontEntry::DoLoadNextSrc(bool aForceAsync) {
     // src url ==> start the load process
     else if (currSrc.mSourceType == gfxFontFaceSrc::eSourceType_URL) {
       if (gfxPlatform::GetPlatform()->IsFontFormatSupported(
-              currSrc.mFormatFlags)) {
+              currSrc.mFormatHint, currSrc.mTechFlags)) {
         if (ServoStyleSet* set = gfxFontUtils::CurrentServoStyleSet()) {
           // Only support style worker threads synchronously getting
           // entries from the font cache when it's not a data: URI
@@ -791,7 +793,7 @@ void gfxUserFontEntry::Load() {
 }
 
 void gfxUserFontEntry::IncrementGeneration() {
-  nsTArray<gfxUserFontSet*> fontSets;
+  nsTArray<RefPtr<gfxUserFontSet>> fontSets;
   GetUserFontSets(fontSets);
   for (gfxUserFontSet* fontSet : fontSets) {
     fontSet->IncrementGeneration();
@@ -914,7 +916,8 @@ void gfxUserFontEntry::FontLoadFailed(nsIFontLoadCompleteCallback* aCallback) {
   aCallback->FontLoadComplete();
 }
 
-void gfxUserFontEntry::GetUserFontSets(nsTArray<gfxUserFontSet*>& aResult) {
+void gfxUserFontEntry::GetUserFontSets(
+    nsTArray<RefPtr<gfxUserFontSet>>& aResult) {
   aResult.Clear();
   aResult.AppendElement(mFontSet);
 }

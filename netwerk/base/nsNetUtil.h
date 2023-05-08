@@ -40,7 +40,7 @@ class nsICookieJarSettings;
 class nsIDownloadObserver;
 class nsIEventTarget;
 class nsIFileProtocolHandler;
-class nsIFileStream;
+class nsIFileRandomAccessStream;
 class nsIHttpChannel;
 class nsIInputStream;
 class nsIInputStreamPump;
@@ -49,6 +49,7 @@ class nsIOutputStream;
 class nsIParentChannel;
 class nsIPersistentProperties;
 class nsIProxyInfo;
+class nsIRandomAccessStream;
 class nsIRequestObserver;
 class nsIStreamListener;
 class nsIStreamLoader;
@@ -513,13 +514,14 @@ nsresult NS_NewSafeLocalFileOutputStream(nsIOutputStream** result,
                                          int32_t perm = -1,
                                          int32_t behaviorFlags = 0);
 
-nsresult NS_NewLocalFileStream(nsIFileStream** result, nsIFile* file,
-                               int32_t ioFlags = -1, int32_t perm = -1,
-                               int32_t behaviorFlags = 0);
+nsresult NS_NewLocalFileRandomAccessStream(nsIRandomAccessStream** result,
+                                           nsIFile* file, int32_t ioFlags = -1,
+                                           int32_t perm = -1,
+                                           int32_t behaviorFlags = 0);
 
-mozilla::Result<nsCOMPtr<nsIFileStream>, nsresult> NS_NewLocalFileStream(
-    nsIFile* file, int32_t ioFlags = -1, int32_t perm = -1,
-    int32_t behaviorFlags = 0);
+mozilla::Result<nsCOMPtr<nsIRandomAccessStream>, nsresult>
+NS_NewLocalFileRandomAccessStream(nsIFile* file, int32_t ioFlags = -1,
+                                  int32_t perm = -1, int32_t behaviorFlags = 0);
 
 [[nodiscard]] nsresult NS_NewBufferedInputStream(
     nsIInputStream** aResult, already_AddRefed<nsIInputStream> aInputStream,
@@ -1054,8 +1056,6 @@ bool CheckPreloadAttrs(const nsAttrValue& aAs, const nsAString& aType,
                        const nsAString& aMedia,
                        mozilla::dom::Document* aDocument);
 void WarnIgnoredPreload(const mozilla::dom::Document&, nsIURI&);
-}  // namespace net
-}  // namespace mozilla
 
 /**
  * Returns true if the |aInput| in is part of the root domain of |aHost|.
@@ -1066,11 +1066,14 @@ void WarnIgnoredPreload(const mozilla::dom::Document&, nsIURI&);
  * @param aInput The host to be analyzed.
  * @param aHost  The host to compare to.
  */
-nsresult NS_HasRootDomain(const nsACString& aInput, const nsACString& aHost,
-                          bool* aResult);
+nsresult HasRootDomain(const nsACString& aInput, const nsACString& aHost,
+                       bool* aResult);
 
 void CheckForBrokenChromeURL(nsILoadInfo* aLoadInfo, nsIURI* aURI);
 
 bool IsCoepCredentiallessEnabled(bool aIsOriginTrialCoepCredentiallessEnabled);
+
+}  // namespace net
+}  // namespace mozilla
 
 #endif  // !nsNetUtil_h__

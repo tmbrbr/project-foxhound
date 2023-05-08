@@ -90,8 +90,10 @@ def split_apps(config, tests):
             continue
 
         for app in apps:
-            # Ignore variants for non-Firefox applications.
-            if app != "firefox" and test["attributes"].get("unittest_variant"):
+            # Ignore variants for non-Firefox or non-mobile applications.
+            if app not in ["firefox", "geckoview", "fenix", "chrome-m"] and test[
+                "attributes"
+            ].get("unittest_variant"):
                 continue
 
             atest = deepcopy(test)
@@ -245,6 +247,19 @@ def modify_extra_options(config, tests):
                     break
             if ind:
                 extra_options[ind] += "-youtube"
+
+        if "unity-webgl" in test_name:
+            # Disable the extra-profiler-run for unity-webgl tests.
+            extra_options = test.setdefault("mozharness", {}).setdefault(
+                "extra-options", []
+            )
+            ind = None
+            for i, opt in enumerate(extra_options):
+                if "extra-profiler-run" in opt:
+                    ind = i
+                    break
+            if ind:
+                extra_options.pop(ind)
 
         yield test
 

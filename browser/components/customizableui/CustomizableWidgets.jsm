@@ -21,10 +21,13 @@ const { PrivateBrowsingUtils } = ChromeUtils.import(
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   RecentlyClosedTabsAndWindowsMenuUtils:
     "resource:///modules/sessionstore/RecentlyClosedTabsAndWindowsMenuUtils.jsm",
-  ShortcutUtils: "resource://gre/modules/ShortcutUtils.jsm",
   Sanitizer: "resource:///modules/Sanitizer.jsm",
   SessionStore: "resource:///modules/sessionstore/SessionStore.jsm",
 });
@@ -459,20 +462,6 @@ const CustomizableWidgets = [
     onCommand(aEvent) {
       let win = aEvent.view;
       win.MailIntegration.sendLinkForBrowser(win.gBrowser.selectedBrowser);
-    },
-  },
-  {
-    id: "firefox-view-button",
-    l10nId: "toolbar-button-firefox-view",
-    defaultArea: CustomizableUI.AREA_TABSTRIP,
-    introducedInVersion: Services.prefs.getBoolPref("browser.tabs.firefox-view")
-      ? "pref"
-      : 0,
-    onBeforeCreated() {
-      return Services.prefs.getBoolPref("browser.tabs.firefox-view");
-    },
-    onCommand(e) {
-      e.view.FirefoxViewHandler.openTab();
     },
   },
 ];

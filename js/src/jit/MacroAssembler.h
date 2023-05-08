@@ -37,7 +37,6 @@
 #include "jit/ABIArgGenerator.h"
 #include "jit/ABIFunctions.h"
 #include "jit/AtomicOp.h"
-#include "jit/AutoJitContextAlloc.h"
 #include "jit/IonTypes.h"
 #include "jit/MoveResolver.h"
 #include "jit/VMFunctions.h"
@@ -334,25 +333,23 @@ struct AllocSiteInput
 // use cx->lifoAlloc, so take care not to interleave masm use with other
 // lifoAlloc use if one will be destroyed before the other.
 class MacroAssembler : public MacroAssemblerSpecific {
- public:
-  mozilla::Maybe<JitContext> jitContext_;
-  mozilla::Maybe<AutoJitContextAlloc> alloc_;
-
  private:
+  // Information about the current JSRuntime. This is nullptr only for Wasm
+  // compilations.
+  CompileRuntime* maybeRuntime_ = nullptr;
+
+  // Information about the current Realm. This is nullptr for Wasm compilations
+  // and when compiling JitRuntime trampolines.
+  CompileRealm* maybeRealm_ = nullptr;
+
   // Labels for handling exceptions and failures.
   NonAssertingLabel failureLabel_;
 
  protected:
-  // Constructors are protected. Use one of the derived classes!
-  MacroAssembler();
-
-  // This constructor should only be used when there is no JitContext active
-  // (for example when generating string and regexp stubs).
-  explicit MacroAssembler(JSContext* cx);
-
-  // wasm compilation handles its own JitContext-pushing
-  struct WasmToken {};
-  explicit MacroAssembler(WasmToken, TempAllocator& alloc);
+  // Constructor is protected. Use one of the derived classes!
+  explicit MacroAssembler(TempAllocator& alloc,
+                          CompileRuntime* maybeRuntime = nullptr,
+                          CompileRealm* maybeRealm = nullptr);
 
  public:
   MoveResolver& moveResolver() {
@@ -365,6 +362,15 @@ class MacroAssembler : public MacroAssemblerSpecific {
   }
 
   size_t instructionsSize() const { return size(); }
+
+  CompileRealm* realm() const {
+    MOZ_ASSERT(maybeRealm_);
+    return maybeRealm_;
+  }
+  CompileRuntime* runtime() const {
+    MOZ_ASSERT(maybeRuntime_);
+    return maybeRuntime_;
+  }
 
 #ifdef JS_HAS_HIDDEN_SP
   void Push(RegisterOrSP reg);
@@ -704,9 +710,12 @@ class MacroAssembler : public MacroAssemblerSpecific {
   //
   //    There are overloads to allow calls to registers and addresses.
   //
-  // 5) Take care of the ReturnReg or ReturnDoubleReg
+  // 5) Take care of the result
   //
-  //      masm.mov(ReturnReg, scratch1);
+  //      masm.storeCallPointerResult(scratch1);
+  //      masm.storeCallBoolResult(scratch1);
+  //      masm.storeCallInt32Result(scratch1);
+  //      masm.storeCallFloatResult(scratch1);
   //
   // 6) Restore the potentially clobbered volatile registers
   //
@@ -1399,6 +1408,13 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // Branch functions
 
   inline void branch8(Condition cond, const Address& lhs, Imm32 rhs,
+                      Label* label) PER_SHARED_ARCH;
+
+  // Compares the byte in |lhs| against |rhs| using a 8-bit comparison on
+  // x86/x64 or a 32-bit comparison (all other platforms). The caller should
+  // ensure |rhs| is a zero- resp. sign-extended byte value for cross-platform
+  // compatible code.
+  inline void branch8(Condition cond, const BaseIndex& lhs, Register rhs,
                       Label* label) PER_SHARED_ARCH;
 
   inline void branch16(Condition cond, const Address& lhs, Imm32 rhs,
@@ -2123,7 +2139,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   template <typename T>
   void storeUnboxedValue(const ConstantOrRegister& value, MIRType valueType,
-                         const T& dest, MIRType slotType) PER_ARCH;
+                         const T& dest) PER_ARCH;
 
   inline void memoryBarrier(MemoryBarrierBits barrier) PER_SHARED_ARCH;
 
@@ -3419,6 +3435,10 @@ class MacroAssembler : public MacroAssemblerSpecific {
                                        FloatRegister dest, FloatRegister temp)
       DEFINED_ON(arm64);
 
+  inline void dotBFloat16x8ThenAdd(FloatRegister lhs, FloatRegister rhs,
+                                   FloatRegister dest, FloatRegister temp)
+      DEFINED_ON(x86_shared, arm64);
+
   // Floating point rounding
 
   inline void ceilFloat32x4(FloatRegister src, FloatRegister dest)
@@ -3450,14 +3470,16 @@ class MacroAssembler : public MacroAssemblerSpecific {
   inline void fmaFloat32x4(FloatRegister src1, FloatRegister src2,
                            FloatRegister srcDest) DEFINED_ON(x86_shared, arm64);
 
-  inline void fmsFloat32x4(FloatRegister src1, FloatRegister src2,
-                           FloatRegister srcDest) DEFINED_ON(x86_shared, arm64);
+  inline void fnmaFloat32x4(FloatRegister src1, FloatRegister src2,
+                            FloatRegister srcDest)
+      DEFINED_ON(x86_shared, arm64);
 
   inline void fmaFloat64x2(FloatRegister src1, FloatRegister src2,
                            FloatRegister srcDest) DEFINED_ON(x86_shared, arm64);
 
-  inline void fmsFloat64x2(FloatRegister src1, FloatRegister src2,
-                           FloatRegister srcDest) DEFINED_ON(x86_shared, arm64);
+  inline void fnmaFloat64x2(FloatRegister src1, FloatRegister src2,
+                            FloatRegister srcDest)
+      DEFINED_ON(x86_shared, arm64);
 
   inline void minFloat32x4Relaxed(FloatRegister src, FloatRegister srcDest)
       DEFINED_ON(x86_shared, arm64);
@@ -3743,8 +3765,9 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   // This function takes care of loading the callee's instance and address from
   // pinned reg.
-  CodeOffset wasmCallRef(const wasm::CallSiteDesc& desc,
-                         const wasm::CalleeDesc& callee);
+  void wasmCallRef(const wasm::CallSiteDesc& desc,
+                   const wasm::CalleeDesc& callee, CodeOffset* fastCallOffset,
+                   CodeOffset* slowCallOffset);
 
   // WasmTableCallIndexReg must contain the index of the indirect call.
   // This is for asm.js calls only.
@@ -4378,9 +4401,10 @@ class MacroAssembler : public MacroAssemblerSpecific {
   void loadInlineStringCharsForStore(Register str, Register dest);
 
   void loadStringChar(Register str, Register index, Register output,
-                      Register scratch, Label* fail);
+                      Register scratch1, Register scratch2, Label* fail);
 
   void loadRopeLeftChild(Register str, Register dest);
+  void loadRopeRightChild(Register str, Register dest);
   void storeRopeChildren(Register left, Register right, Register str);
 
   void loadDependentStringBase(Register str, Register dest);
@@ -4926,7 +4950,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
                                   uint32_t end);
 
   void initGCSlots(Register obj, Register temp,
-                   const TemplateNativeObject& templateObj, bool initContents);
+                   const TemplateNativeObject& templateObj);
 
  public:
   void callFreeStub(Register slots);
@@ -4939,7 +4963,8 @@ class MacroAssembler : public MacroAssemblerSpecific {
                            Register temp2, uint32_t numFixedSlots,
                            uint32_t numDynamicSlots, gc::AllocKind allocKind,
                            gc::InitialHeap initialHeap, Label* fail,
-                           const AllocSiteInput& allocSite = AllocSiteInput());
+                           const AllocSiteInput& allocSite,
+                           bool initContents = true);
 
   void createArrayWithFixedElements(
       Register result, Register shape, Register temp, uint32_t arrayLength,
@@ -4986,6 +5011,13 @@ class MacroAssembler : public MacroAssemblerSpecific {
   void setIsCrossRealmArrayConstructor(Register obj, Register output);
 
   void setIsDefinitelyTypedArrayConstructor(Register obj, Register output);
+
+  void loadMegamorphicCache(Register dest);
+
+  void emitMegamorphicCacheLookup(PropertyKey id, Register obj,
+                                  Register scratch1, Register scratch2,
+                                  Register scratch3, ValueOperand output,
+                                  Label* fail, Label* cacheHit);
 
   void loadDOMExpandoValueGuardGeneration(
       Register obj, ValueOperand output,
@@ -5257,7 +5289,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // on the stack, such that the JitFrameLayout would be correctly aligned on
   // the JitStackAlignment.
   void alignJitStackBasedOnNArgs(Register nargs, bool countIncludesThis);
-  void alignJitStackBasedOnNArgs(uint32_t argc);
+  void alignJitStackBasedOnNArgs(uint32_t argc, bool countIncludesThis);
 
   inline void assertStackAlignment(uint32_t alignment, int32_t offset = 0);
 
@@ -5277,8 +5309,7 @@ class MOZ_RAII StackMacroAssembler : public MacroAssembler {
   JS::AutoCheckCannotGC nogc;
 
  public:
-  StackMacroAssembler() : MacroAssembler() {}
-  explicit StackMacroAssembler(JSContext* cx) : MacroAssembler(cx) {}
+  StackMacroAssembler(JSContext* cx, TempAllocator& alloc);
 };
 
 // WasmMacroAssembler does not contain GC pointers, so it doesn't need the no-GC
@@ -5296,9 +5327,7 @@ class MOZ_RAII WasmMacroAssembler : public MacroAssembler {
 // GC cancels off-thread compilations.
 class IonHeapMacroAssembler : public MacroAssembler {
  public:
-  IonHeapMacroAssembler() : MacroAssembler() {
-    MOZ_ASSERT(CurrentThreadIsIonCompiling());
-  }
+  IonHeapMacroAssembler(TempAllocator& alloc, CompileRealm* realm);
 };
 
 //{{{ check_macroassembler_style

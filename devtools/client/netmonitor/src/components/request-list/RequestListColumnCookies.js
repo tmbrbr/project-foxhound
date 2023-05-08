@@ -4,12 +4,14 @@
 
 "use strict";
 
-const { Component } = require("devtools/client/shared/vendor/react");
-const dom = require("devtools/client/shared/vendor/react-dom-factories");
-const PropTypes = require("devtools/client/shared/vendor/react-prop-types");
+const {
+  Component,
+} = require("resource://devtools/client/shared/vendor/react.js");
+const dom = require("resource://devtools/client/shared/vendor/react-dom-factories.js");
+const PropTypes = require("resource://devtools/client/shared/vendor/react-prop-types.js");
 const {
   fetchNetworkUpdatePacket,
-} = require("devtools/client/netmonitor/src/utils/request-utils");
+} = require("resource://devtools/client/netmonitor/src/utils/request-utils.js");
 
 class RequestListColumnCookies extends Component {
   static get propTypes() {
@@ -45,8 +47,9 @@ class RequestListColumnCookies extends Component {
   render() {
     let { requestCookies = { cookies: [] } } = this.props.item;
     requestCookies = requestCookies.cookies || requestCookies;
-    const requestCookiesLength =
-      requestCookies.length > 0 ? requestCookies.length : "";
+    const requestCookiesLength = requestCookies.length
+      ? requestCookies.length
+      : "";
     return dom.td(
       {
         className: "requests-list-column requests-list-cookies",

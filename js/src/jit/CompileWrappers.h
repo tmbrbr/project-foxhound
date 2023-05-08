@@ -76,10 +76,10 @@ class CompileRuntime {
   const JSClass* maybeWindowProxyClass();
 
   const void* mainContextPtr();
-  uint32_t* addressOfTenuredAllocCount();
   const void* addressOfJitStackLimit();
   const void* addressOfInterruptBits();
   const void* addressOfZone();
+  const void* addressOfMegamorphicCache();
 
 #ifdef DEBUG
   const void* addressOfIonBailAfterCounter();
@@ -102,6 +102,7 @@ class CompileZone {
   bool isAtomsZone();
 
   const uint32_t* addressOfNeedsIncrementalBarrier();
+  uint32_t* addressOfTenuredAllocCount();
   gc::FreeSpan** addressOfFreeList(gc::AllocKind allocKind);
   void* addressOfNurseryPosition();
   void* addressOfStringNurseryPosition();

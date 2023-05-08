@@ -29,7 +29,6 @@
 #include "jstypes.h"
 
 #include "builtin/Array.h"
-#include "builtin/Boolean.h"
 #if JS_HAS_INTL_API
 #  include "builtin/intl/CommonFunctions.h"
 #  include "builtin/intl/FormatBuffer.h"
@@ -50,14 +49,10 @@
 #include "util/StringBuffer.h"
 #include "util/Unicode.h"
 #include "vm/GlobalObject.h"
-#include "vm/Interpreter.h"
-#include "vm/JSAtom.h"
 #include "vm/JSContext.h"
 #include "vm/JSObject.h"
-#include "vm/Opcodes.h"
 #include "vm/Printer.h"
 #include "vm/RegExpObject.h"
-#include "vm/RegExpStatics.h"
 #include "vm/SelfHosting.h"
 #include "vm/StaticStrings.h"
 #include "vm/ToSource.h"       // js::ValueToSource
@@ -65,7 +60,6 @@
 
 #include "vm/GeckoProfiler-inl.h"
 #include "vm/InlineCharBuffer-inl.h"
-#include "vm/Interpreter-inl.h"
 #include "vm/NativeObject-inl.h"
 #include "vm/StringObject-inl.h"
 #include "vm/StringType-inl.h"
@@ -987,7 +981,7 @@ static char16_t Final_Sigma(const char16_t* chars, size_t length,
   bool precededByCased = false;
   for (size_t i = index; i > 0;) {
     char16_t c = chars[--i];
-    uint32_t codePoint = c;
+    char32_t codePoint = c;
     if (unicode::IsTrailSurrogate(c) && i > 0) {
       char16_t lead = chars[i - 1];
       if (unicode::IsLeadSurrogate(lead)) {
@@ -1013,7 +1007,7 @@ static char16_t Final_Sigma(const char16_t* chars, size_t length,
   bool followedByCased = false;
   for (size_t i = index + 1; i < length;) {
     char16_t c = chars[i++];
-    uint32_t codePoint = c;
+    char32_t codePoint = c;
     if (unicode::IsLeadSurrogate(c) && i < length) {
       char16_t trail = chars[i];
       if (unicode::IsTrailSurrogate(trail)) {
@@ -1283,6 +1277,8 @@ static const char* CaseMappingLocale(JSContext* cx, JSString* str) {
   return "";  // ICU root locale
 }
 
+static bool HasDefaultCasing(const char* locale) { return !strcmp(locale, ""); }
+
 bool js::intl_toLocaleLowerCase(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 2);
@@ -1297,7 +1293,7 @@ bool js::intl_toLocaleLowerCase(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   // Call String.prototype.toLowerCase() for language independent casing.
-  if (intl::StringsAreEqual(locale, "")) {
+  if (HasDefaultCasing(locale)) {
     JSString* str = StringToLowerCase(cx, string);
     if (!str) {
       return false;
@@ -1723,7 +1719,7 @@ bool js::intl_toLocaleUpperCase(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   // Call String.prototype.toUpperCase() for language independent casing.
-  if (intl::StringsAreEqual(locale, "")) {
+  if (HasDefaultCasing(locale)) {
     JSString* str = js::StringToUpperCase(cx, string);
     if (!str) {
       return false;
@@ -2612,6 +2608,27 @@ bool js::str_indexOf(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+bool js::StringIndexOf(JSContext* cx, HandleString string,
+                       HandleString searchString, int32_t* result) {
+  if (string == searchString) {
+    *result = 0;
+    return true;
+  }
+
+  JSLinearString* text = string->ensureLinear(cx);
+  if (!text) {
+    return false;
+  }
+
+  JSLinearString* searchStr = searchString->ensureLinear(cx);
+  if (!searchStr) {
+    return false;
+  }
+
+  *result = StringMatch(text, searchStr, 0);
+  return true;
+}
+
 template <typename TextChar, typename PatChar>
 static int32_t LastIndexOfImpl(const TextChar* text, size_t textLen,
                                const PatChar* pat, size_t patLen,
@@ -2804,6 +2821,27 @@ bool js::str_startsWith(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+bool js::StringStartsWith(JSContext* cx, HandleString string,
+                          HandleString searchString, bool* result) {
+  if (searchString->length() > string->length()) {
+    *result = false;
+    return true;
+  }
+
+  JSLinearString* str = string->ensureLinear(cx);
+  if (!str) {
+    return false;
+  }
+
+  JSLinearString* searchStr = searchString->ensureLinear(cx);
+  if (!searchStr) {
+    return false;
+  }
+
+  *result = HasSubstringAt(str, searchStr, 0);
+  return true;
+}
+
 // ES2018 draft rev de77aaeffce115deaf948ed30c7dbe4c60983c0c
 // 21.1.3.6 String.prototype.endsWith ( searchString [ , endPosition ] )
 bool js::str_endsWith(JSContext* cx, unsigned argc, Value* vp) {
@@ -2867,6 +2905,29 @@ bool js::str_endsWith(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   args.rval().setBoolean(HasSubstringAt(text, searchStr, start));
+  return true;
+}
+
+bool js::StringEndsWith(JSContext* cx, HandleString string,
+                        HandleString searchString, bool* result) {
+  if (searchString->length() > string->length()) {
+    *result = false;
+    return true;
+  }
+
+  JSLinearString* str = string->ensureLinear(cx);
+  if (!str) {
+    return false;
+  }
+
+  JSLinearString* searchStr = searchString->ensureLinear(cx);
+  if (!searchStr) {
+    return false;
+  }
+
+  uint32_t start = str->length() - searchStr->length();
+
+  *result = HasSubstringAt(str, searchStr, start);
   return true;
 }
 
@@ -3967,10 +4028,12 @@ static const JSFunctionSpec string_methods[] = {
     JS_SELF_HOSTED_FN("padStart", "String_pad_start", 2, 0),
     JS_SELF_HOSTED_FN("padEnd", "String_pad_end", 2, 0),
     JS_SELF_HOSTED_FN("codePointAt", "String_codePointAt", 1, 0),
-    JS_FN("includes", str_includes, 1, 0), JS_FN("indexOf", str_indexOf, 1, 0),
+    JS_FN("includes", str_includes, 1, 0),
+    JS_INLINABLE_FN("indexOf", str_indexOf, 1, 0, StringIndexOf),
     JS_FN("lastIndexOf", str_lastIndexOf, 1, 0),
-    JS_FN("startsWith", str_startsWith, 1, 0),
-    JS_FN("endsWith", str_endsWith, 1, 0), JS_FN("trim", str_trim, 0, 0),
+    JS_INLINABLE_FN("startsWith", str_startsWith, 1, 0, StringStartsWith),
+    JS_INLINABLE_FN("endsWith", str_endsWith, 1, 0, StringEndsWith),
+    JS_FN("trim", str_trim, 0, 0),
     JS_FN("trimStart", str_trimStart, 0, 0),
     JS_FN("trimEnd", str_trimEnd, 0, 0),
 #if JS_HAS_INTL_API
@@ -4017,12 +4080,12 @@ static const JSFunctionSpec string_methods[] = {
     JS_SELF_HOSTED_FN("fontcolor", "String_fontcolor", 1, 0),
     JS_SELF_HOSTED_FN("fontsize", "String_fontsize", 1, 0),
 
-    JS_SELF_HOSTED_SYM_FN(iterator, "String_iterator", 0,0),
+    JS_SELF_HOSTED_SYM_FN(iterator, "String_iterator", 0, 0),
 
     /* TaintFox: add untaint method to strings. */
-    JS_FN("untaint",           str_untaint,            0,0),
+    JS_FN("untaint",           str_untaint,            0, 0),
 
-    JS_FS_END
+    JS_FS_END,
 };
 
 // ES6 rev 27 (2014 Aug 24) 21.1.1
@@ -4138,14 +4201,14 @@ bool js::str_fromCharCode_one_arg(JSContext* cx, HandleValue code,
 }
 
 static MOZ_ALWAYS_INLINE bool ToCodePoint(JSContext* cx, HandleValue code,
-                                          uint32_t* codePoint) {
+                                          char32_t* codePoint) {
   // String.fromCodePoint, Steps 5.a-b.
 
   // Fast path for the common case - the input is already an int32.
   if (code.isInt32()) {
     int32_t nextCP = code.toInt32();
     if (nextCP >= 0 && nextCP <= int32_t(unicode::NonBMPMax)) {
-      *codePoint = uint32_t(nextCP);
+      *codePoint = char32_t(nextCP);
       return true;
     }
   }
@@ -4166,7 +4229,7 @@ static MOZ_ALWAYS_INLINE bool ToCodePoint(JSContext* cx, HandleValue code,
     return false;
   }
 
-  *codePoint = uint32_t(nextCP);
+  *codePoint = char32_t(nextCP);
   return true;
 }
 
@@ -4175,7 +4238,7 @@ bool js::str_fromCodePoint_one_arg(JSContext* cx, HandleValue code,
   // Steps 1-4 (omitted).
 
   // Steps 5.a-d.
-  uint32_t codePoint;
+  char32_t codePoint;
   if (!ToCodePoint(cx, code, &codePoint)) {
     return false;
   }
@@ -4208,7 +4271,7 @@ static bool str_fromCodePoint_few_args(JSContext* cx, const CallArgs& args) {
   unsigned length = 0;
   for (unsigned nextIndex = 0; nextIndex < args.length(); nextIndex++) {
     // Steps 5.a-d.
-    uint32_t codePoint;
+    char32_t codePoint;
     if (!ToCodePoint(cx, args[nextIndex], &codePoint)) {
       return false;
     }
@@ -4262,7 +4325,7 @@ bool js::str_fromCodePoint(JSContext* cx, unsigned argc, Value* vp) {
   unsigned length = 0;
   for (unsigned nextIndex = 0; nextIndex < args.length(); nextIndex++) {
     // Steps 5.a-d.
-    uint32_t codePoint;
+    char32_t codePoint;
     if (!ToCodePoint(cx, args[nextIndex], &codePoint)) {
       return false;
     }
@@ -4527,7 +4590,7 @@ static MOZ_NEVER_INLINE EncodeResult Encode(StringBuffer& sb,
           return Encode_BadUri;
         }
 
-        uint32_t v;
+        char32_t v;
         if (!unicode::IsLeadSurrogate(c)) {
           v = c;
         } else {
@@ -4698,7 +4761,7 @@ static DecodeResult Decode(StringBuffer& sb, const CharT* chars, size_t length,
         if (taint.at(k))
           sb.taint().append(TaintRange(sb.length(), sb.length() + 1, *taint.at(k)));
 
-        uint32_t v = JS::Utf8ToOneUcs4Char(octets, n);
+        char32_t v = JS::Utf8ToOneUcs4Char(octets, n);
         MOZ_ASSERT(v >= 128);
         if (v >= unicode::NonBMPMin) {
           if (v > unicode::NonBMPMax) {

@@ -11,7 +11,7 @@ use neqo_http3::{Error as Http3Error, Priority};
 use neqo_http3::{Http3Client, Http3ClientEvent, Http3Parameters, Http3State};
 use neqo_transport::{
     stream_id::StreamType, CongestionControlAlgorithm, ConnectionParameters,
-    Error as TransportError, Output, QuicVersion, RandomConnectionIdGenerator, StreamId,
+    Error as TransportError, Output, RandomConnectionIdGenerator, StreamId, Version,
 };
 use nserror::*;
 use nsstring::*;
@@ -92,6 +92,7 @@ impl NeqoHttp3Conn {
         max_blocked_streams: u16,
         max_data: u64,
         max_stream_data: u64,
+        version_negotiation: bool,
         qlog_dir: &nsACString,
     ) -> Result<RefPtr<NeqoHttp3Conn>, nsresult> {
         // Nss init.
@@ -106,17 +107,22 @@ impl NeqoHttp3Conn {
         let remote: SocketAddr = netaddr_to_socket_addr(remote_addr)?;
 
         let quic_version = match alpn_conv {
-            "h3-32" => QuicVersion::Draft32,
-            "h3-31" => QuicVersion::Draft31,
-            "h3-30" => QuicVersion::Draft30,
-            "h3-29" => QuicVersion::Draft29,
-            "h3" => QuicVersion::Version1,
+            "h3-32" => Version::Draft32,
+            "h3-31" => Version::Draft31,
+            "h3-30" => Version::Draft30,
+            "h3-29" => Version::Draft29,
+            "h3" => Version::Version1,
             _ => return Err(NS_ERROR_INVALID_ARG),
         };
 
+        let version_list = if version_negotiation {
+             Version::all()
+        } else {
+             vec![quic_version]
+        };
         #[allow(unused_mut)]
         let mut params = ConnectionParameters::default()
-            .quic_version(quic_version)
+            .versions(quic_version, version_list)
             .cc_algorithm(CongestionControlAlgorithm::Cubic)
             .max_data(max_data)
             .max_stream_data(StreamType::BiDi, false, max_stream_data);
@@ -197,7 +203,7 @@ pub unsafe extern "C" fn neqo_http3conn_addref(conn: &NeqoHttp3Conn) -> nsrefcnt
 pub unsafe extern "C" fn neqo_http3conn_release(conn: &NeqoHttp3Conn) -> nsrefcnt {
     let rc = conn.refcnt.dec();
     if rc == 0 {
-        Box::from_raw(conn as *const _ as *mut NeqoHttp3Conn);
+        std::mem::drop(Box::from_raw(conn as *const _ as *mut NeqoHttp3Conn));
     }
     rc
 }
@@ -223,6 +229,7 @@ pub extern "C" fn neqo_http3conn_new(
     max_blocked_streams: u16,
     max_data: u64,
     max_stream_data: u64,
+    version_negotiation: bool,
     qlog_dir: &nsACString,
     result: &mut *const NeqoHttp3Conn,
 ) -> nsresult {
@@ -237,6 +244,7 @@ pub extern "C" fn neqo_http3conn_new(
         max_blocked_streams,
         max_data,
         max_stream_data,
+        version_negotiation,
         qlog_dir,
     ) {
         Ok(http3_conn) => {
@@ -461,7 +469,6 @@ pub extern "C" fn neqo_htttp3conn_send_request_body(
 
 fn crypto_error_code(err: neqo_crypto::Error) -> u64 {
     match err {
-        neqo_crypto::Error::AeadInitFailure => 0,
         neqo_crypto::Error::AeadError => 1,
         neqo_crypto::Error::CertificateLoading => 2,
         neqo_crypto::Error::CreateSslSocket => 3,
@@ -479,6 +486,7 @@ fn crypto_error_code(err: neqo_crypto::Error) -> u64 {
         neqo_crypto::Error::UnsupportedVersion => 15,
         neqo_crypto::Error::StringError => 16,
         neqo_crypto::Error::EchRetry(_) => 17,
+        neqo_crypto::Error::CipherInitFailure => 18,
     }
 }
 
@@ -536,7 +544,7 @@ impl From<TransportError> for CloseError {
             TransportError::InvalidResumptionToken => CloseError::TransportInternalErrorOther(11),
             TransportError::InvalidRetry => CloseError::TransportInternalErrorOther(12),
             TransportError::InvalidStreamId => CloseError::TransportInternalErrorOther(13),
-            TransportError::KeysDiscarded => CloseError::TransportInternalErrorOther(14),
+            TransportError::KeysDiscarded(_) => CloseError::TransportInternalErrorOther(14),
             TransportError::KeysPending(_) => CloseError::TransportInternalErrorOther(15),
             TransportError::KeyUpdateBlocked => CloseError::TransportInternalErrorOther(16),
             TransportError::NoMoreData => CloseError::TransportInternalErrorOther(17),
@@ -551,6 +559,7 @@ impl From<TransportError> for CloseError {
             TransportError::WrongRole => CloseError::TransportInternalErrorOther(26),
             TransportError::QlogError => CloseError::TransportInternalErrorOther(27),
             TransportError::NotAvailable => CloseError::TransportInternalErrorOther(28),
+            TransportError::DisabledVersion => CloseError::TransportInternalErrorOther(29),
         }
     }
 }

@@ -111,9 +111,12 @@ SizeComputationInput::SizeComputationInput(nsIFrame* aFrame,
     : mFrame(aFrame),
       mRenderingContext(aRenderingContext),
       mWritingMode(aFrame->GetWritingMode()),
+      mIsThemed(aFrame->IsThemed()),
       mComputedMargin(mWritingMode),
       mComputedBorderPadding(mWritingMode),
-      mComputedPadding(mWritingMode) {}
+      mComputedPadding(mWritingMode) {
+  MOZ_ASSERT(mFrame);
+}
 
 SizeComputationInput::SizeComputationInput(
     nsIFrame* aFrame, gfxContext* aRenderingContext,
@@ -205,7 +208,6 @@ ReflowInput::ReflowInput(nsPresContext* aPresContext,
   mFlags.mDummyParentReflowInput = false;
   mFlags.mStaticPosIsCBOrigin = aFlags.contains(InitFlag::StaticPosIsCBOrigin);
   mFlags.mIOffsetsNeedCSSAlign = mFlags.mBOffsetsNeedCSSAlign = false;
-  mFlags.mApplyLineClamp = false;
 
   if (aFlags.contains(InitFlag::DummyParentReflowInput) ||
       (mParentReflowInput->mFlags.mDummyParentReflowInput &&
@@ -270,7 +272,6 @@ bool ReflowInput::ShouldReflowAllKids() const {
 }
 
 void ReflowInput::SetComputedISize(nscoord aComputedISize) {
-  NS_ASSERTION(mFrame, "Must have a frame!");
   // It'd be nice to assert that |frame| is not in reflow, but this fails for
   // two reasons:
   //
@@ -284,9 +285,9 @@ void ReflowInput::SetComputedISize(nscoord aComputedISize) {
   //    (like a text control, for example), we'll end up creating a reflow
   //    input for the parent while the parent is reflowing.
 
-  MOZ_ASSERT(aComputedISize >= 0, "Invalid computed inline-size!");
+  NS_WARNING_ASSERTION(aComputedISize >= 0, "Invalid computed inline-size!");
   if (ComputedISize() != aComputedISize) {
-    ComputedISize() = aComputedISize;
+    ComputedISize() = std::max(0, aComputedISize);
     const LayoutFrameType frameType = mFrame->Type();
     if (frameType != LayoutFrameType::Viewport) {
       InitResizeFlags(mFrame->PresContext(), frameType);
@@ -295,7 +296,6 @@ void ReflowInput::SetComputedISize(nscoord aComputedISize) {
 }
 
 void ReflowInput::SetComputedBSize(nscoord aComputedBSize) {
-  NS_ASSERTION(mFrame, "Must have a frame!");
   // It'd be nice to assert that |frame| is not in reflow, but this fails
   // because:
   //
@@ -305,11 +305,20 @@ void ReflowInput::SetComputedBSize(nscoord aComputedBSize) {
   //    (like a text control, for example), we'll end up creating a reflow
   //    input for the parent while the parent is reflowing.
 
-  MOZ_ASSERT(aComputedBSize >= 0, "Invalid computed block-size!");
   if (ComputedBSize() != aComputedBSize) {
-    ComputedBSize() = aComputedBSize;
+    SetComputedBSizeWithoutResettingResizeFlags(aComputedBSize);
     InitResizeFlags(mFrame->PresContext(), mFrame->Type());
   }
+}
+
+void ReflowInput::SetComputedBSizeWithoutResettingResizeFlags(
+    nscoord aComputedBSize) {
+  // Viewport frames reset the computed block size on a copy of their reflow
+  // input when reflowing fixed-pos kids.  In that case we actually don't
+  // want to mess with the resize flags, because comparing the frame's rect
+  // to the munged computed isize is pointless.
+  NS_WARNING_ASSERTION(aComputedBSize >= 0, "Invalid computed block-size!");
+  ComputedBSize() = std::max(0, aComputedBSize);
 }
 
 void ReflowInput::Init(nsPresContext* aPresContext,
@@ -351,6 +360,7 @@ void ReflowInput::Init(nsPresContext* aPresContext,
 
   mFlags.mIsReplaced = mFrame->IsFrameOfType(nsIFrame::eReplaced) ||
                        mFrame->IsFrameOfType(nsIFrame::eReplacedContainsBlock);
+
   InitConstraints(aPresContext, aContainingBlockSize, aBorder, aPadding, type);
 
   InitResizeFlags(aPresContext, type);
@@ -419,7 +429,7 @@ void ReflowInput::Init(nsPresContext* aPresContext,
     }
   }
 
-  if (mStyleDisplay->GetContainSizeAxes().mBContained) {
+  if (mFrame->GetContainSizeAxes().mBContained) {
     // In the case that a box is size contained in block axis, we want to ensure
     // that it is also monolithic. We do this by setting AvailableBSize() to an
     // unconstrained size to avoid fragmentation.
@@ -2197,11 +2207,8 @@ void ReflowInput::InitConstraints(
       // to use the mComputedHeight of the cell instead of what the cell block
       // passed in.
       // XXX It seems like this could lead to bugs with min-height and friends
-      if (cbri->mParentReflowInput) {
-        if (cbri->mFrame->IsTableCellFrame()) {
-          // use the cell's computed block size
-          cbSize.BSize(wm) = cbri->ComputedSize(wm).BSize(wm);
-        }
+      if (cbri->mParentReflowInput && cbri->mFrame->IsTableCellFrame()) {
+        cbSize.BSize(wm) = cbri->ComputedSize(wm).BSize(wm);
       }
     }
 
@@ -2478,12 +2485,11 @@ void SizeComputationInput::InitOffsets(WritingMode aCBWM, nscoord aPercentBasis,
 
   const WritingMode wm = GetWritingMode();
   const nsStyleDisplay* disp = mFrame->StyleDisplayWithOptionalParam(aDisplay);
-  bool isThemed = mFrame->IsThemed(disp);
   bool needPaddingProp;
   LayoutDeviceIntMargin widgetPadding;
-  if (isThemed && presContext->Theme()->GetWidgetPadding(
-                      presContext->DeviceContext(), mFrame,
-                      disp->EffectiveAppearance(), &widgetPadding)) {
+  if (mIsThemed && presContext->Theme()->GetWidgetPadding(
+                       presContext->DeviceContext(), mFrame,
+                       disp->EffectiveAppearance(), &widgetPadding)) {
     const nsMargin padding = LayoutDevicePixel::ToAppUnits(
         widgetPadding, presContext->AppUnitsPerDevPixel());
     SetComputedLogicalPadding(wm, LogicalMargin(wm, padding));
@@ -2527,7 +2533,7 @@ void SizeComputationInput::InitOffsets(WritingMode aCBWM, nscoord aPercentBasis,
       }
     }
   };
-  if (!aFlags.contains(ComputeSizeFlag::UseAutoBSize)) {
+  if (!aFlags.contains(ComputeSizeFlag::IsGridMeasuringReflow)) {
     ApplyBaselinePadding(eLogicalAxisBlock, nsIFrame::BBaselinePadProperty());
   }
   if (!aFlags.contains(ComputeSizeFlag::ShrinkWrap)) {
@@ -2535,7 +2541,7 @@ void SizeComputationInput::InitOffsets(WritingMode aCBWM, nscoord aPercentBasis,
   }
 
   LogicalMargin border(wm);
-  if (isThemed) {
+  if (mIsThemed) {
     const LayoutDeviceIntMargin widgetBorder =
         presContext->Theme()->GetWidgetBorder(
             presContext->DeviceContext(), mFrame, disp->EffectiveAppearance());
@@ -2933,6 +2939,20 @@ void ReflowInput::ComputeMinMaxValues(const LogicalSize& aCBSize) {
   const auto& minBSize = mStylePosition->MinBSize(wm);
   const auto& maxBSize = mStylePosition->MaxBSize(wm);
 
+  LogicalSize minWidgetSize(wm);
+  if (mIsThemed) {
+    nsPresContext* pc = mFrame->PresContext();
+    const LayoutDeviceIntSize widget = pc->Theme()->GetMinimumWidgetSize(
+        pc, mFrame, mStyleDisplay->EffectiveAppearance());
+
+    // Convert themed widget's physical dimensions to logical coords.
+    minWidgetSize = {
+        wm, LayoutDeviceIntSize::ToAppUnits(widget, pc->AppUnitsPerDevPixel())};
+
+    // GetMinimumWidgetSize() returns border-box; we need content-box.
+    minWidgetSize -= ComputedLogicalBorderPadding(wm).Size(wm);
+  }
+
   // NOTE: min-width:auto resolves to 0, except on a flex item. (But
   // even there, it's supposed to be ignored (i.e. treated as 0) until
   // the flex container explicitly resolves & considers it.)
@@ -2941,6 +2961,10 @@ void ReflowInput::ComputeMinMaxValues(const LogicalSize& aCBSize) {
   } else {
     ComputedMinISize() =
         ComputeISizeValue(aCBSize, mStylePosition->mBoxSizing, minISize);
+  }
+
+  if (mIsThemed) {
+    ComputedMinISize() = std::max(ComputedMinISize(), minWidgetSize.ISize(wm));
   }
 
   if (maxISize.IsNone()) {
@@ -2982,6 +3006,10 @@ void ReflowInput::ComputeMinMaxValues(const LogicalSize& aCBSize) {
     ComputedMinBSize() =
         ComputeBSizeValue(bPercentageBasis, mStylePosition->mBoxSizing,
                           minBSize.AsLengthPercentage());
+  }
+
+  if (mIsThemed) {
+    ComputedMinBSize() = std::max(ComputedMinBSize(), minWidgetSize.BSize(wm));
   }
 
   if (BSizeBehavesAsInitialValue(maxBSize)) {

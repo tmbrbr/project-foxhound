@@ -8,7 +8,7 @@ const sessionString = l10n.formatValueSync("storage-expires-session");
 const {
   naturalSortCaseSensitive,
   naturalSortCaseInsensitive,
-} = require("devtools/shared/natural-sort");
+} = require("resource://devtools/shared/natural-sort.js");
 
 function run_test() {
   test("different values types", function() {
@@ -178,6 +178,24 @@ function run_test() {
       ],
       `"${sessionString}" amongst date strings`
     );
+    runTest(
+      [
+        "Wed, 04 Sep 2024 09:11:44 GMT",
+        sessionString,
+        "Tue, 06 Sep 2022 09:11:44 GMT",
+        sessionString,
+        "Mon, 05 Sep 2022 09:12:41 GMT",
+      ],
+      [
+        sessionString,
+        sessionString,
+        "Mon, 05 Sep 2022 09:12:41 GMT",
+        "Tue, 06 Sep 2022 09:11:44 GMT",
+        "Wed, 04 Sep 2024 09:11:44 GMT",
+      ],
+      `"${sessionString}" amongst date strings (complex)`
+    );
+
     runTest(
       [
         "Madras",

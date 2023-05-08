@@ -442,10 +442,10 @@ bool nsTransitionManager::ConsiderInitiatingTransition(
       duration, delay, 1.0 /* iteration count */,
       dom::PlaybackDirection::Normal, dom::FillMode::Backwards);
 
-  const nsTimingFunction& tf =
+  const StyleComputedTimingFunction& tf =
       aStyle.GetTransitionTimingFunction(transitionIdx);
-  if (!tf.IsLinear()) {
-    timing.SetTimingFunction(Some(ComputedTimingFunction(tf)));
+  if (!tf.IsLinearKeyword()) {
+    timing.SetTimingFunction(Some(tf));
   }
 
   KeyframeEffectParams effectOptions;
@@ -456,7 +456,7 @@ bool nsTransitionManager::ConsiderInitiatingTransition(
   keyframeEffect->SetKeyframes(
       GetTransitionKeyframes(aProperty, std::move(startValue),
                              std::move(endValue)),
-      &aNewStyle);
+      &aNewStyle, timeline);
 
   if (NS_WARN_IF(MOZ_UNLIKELY(!keyframeEffect->IsValidTransition()))) {
     return false;

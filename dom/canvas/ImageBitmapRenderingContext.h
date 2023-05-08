@@ -52,7 +52,7 @@ class ImageBitmapRenderingContext final
   // nsISupports interface + CC
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(ImageBitmapRenderingContext)
+  NS_DECL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(ImageBitmapRenderingContext)
 
   void GetCanvas(
       Nullable<OwningHTMLCanvasElementOrOffscreenCanvas>& retval) const;
@@ -80,7 +80,7 @@ class ImageBitmapRenderingContext final
 
   virtual void SetOpaqueValueFromOpaqueAttr(bool aOpaqueAttrValue) override;
   virtual bool GetIsOpaque() override;
-  NS_IMETHOD Reset() override;
+  void ResetBitmap() override;
   virtual already_AddRefed<layers::Image> GetAsImage() override {
     return ClipToIntrinsicSize();
   }
@@ -89,7 +89,6 @@ class ImageBitmapRenderingContext final
   virtual void MarkContextClean() override;
 
   NS_IMETHOD Redraw(const gfxRect& aDirty) override;
-  NS_IMETHOD SetIsIPC(bool aIsIPC) override;
 
   virtual void DidRefresh() override;
 

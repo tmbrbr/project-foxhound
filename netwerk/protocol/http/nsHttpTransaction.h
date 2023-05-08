@@ -9,27 +9,28 @@
 #ifndef nsHttpTransaction_h__
 #define nsHttpTransaction_h__
 
-#include "nsHttp.h"
-#include "nsAHttpTransaction.h"
-#include "HttpTransactionShell.h"
-#include "nsAHttpConnection.h"
+#include "ARefBase.h"
 #include "EventTokenBucket.h"
+#include "Http2Push.h"
+#include "HttpTransactionShell.h"
+#include "TimingStruct.h"
+#include "mozilla/StaticPrefs_security.h"
+#include "mozilla/net/DNS.h"
+#include "mozilla/net/NeckoChannelParams.h"
+#include "nsAHttpConnection.h"
+#include "nsAHttpTransaction.h"
 #include "nsCOMPtr.h"
+#include "nsHttp.h"
 #include "nsIAsyncOutputStream.h"
-#include "nsThreadUtils.h"
+#include "nsIClassOfService.h"
+#include "nsIEarlyHintObserver.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIPipe.h"
 #include "nsIAsyncOutputStream.h"
+#include "nsISSLSocketControl.h"
 #include "nsITimer.h"
-#include "nsIEarlyHintObserver.h"
 #include "nsTHashMap.h"
-#include "nsIClassOfService.h"
-#include "TimingStruct.h"
-#include "Http2Push.h"
-#include "mozilla/net/DNS.h"
-#include "mozilla/net/NeckoChannelParams.h"
-#include "mozilla/StaticPrefs_security.h"
-#include "ARefBase.h"
+#include "nsThreadUtils.h"
 
 //-----------------------------------------------------------------------------
 
@@ -102,8 +103,9 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   // Sets mPendingTime to the current time stamp or to a null time stamp (if now
   // is false)
   void SetPendingTime(bool now = true) {
+    mozilla::MutexAutoLock lock(mLock);
     if (!now && !mPendingTime.IsNull()) {
-      // Remember how long it took. We will use this vaule to record
+      // Remember how long it took. We will use this value to record
       // TRANSACTION_WAIT_TIME_HTTP2_SUP_HTTP3 telemetry, but we need to wait
       // for the response headers.
       mPendingDurationTime = TimeStamp::Now() - mPendingTime;
@@ -115,7 +117,10 @@ class nsHttpTransaction final : public nsAHttpTransaction,
       mPendingTime = now ? TimeStamp::Now() : TimeStamp();
     }
   }
-  TimeStamp GetPendingTime() { return mPendingTime; }
+  TimeStamp GetPendingTime() override {
+    mozilla::MutexAutoLock lock(mLock);
+    return mPendingTime;
+  }
 
   // overload of nsAHttpTransaction::RequestContext()
   nsIRequestContext* RequestContext() override { return mRequestContext.get(); }
@@ -123,6 +128,7 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   void RemoveDispatchedAsBlocking();
 
   void DisableSpdy() override;
+  void DisableHttp2ForProxy() override;
   void DoNotRemoveAltSvc() override { mDoNotRemoveAltSvc = true; }
   void DisableHttp3(bool aAllowRetryHTTPSRR) override;
 
@@ -310,7 +316,7 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
   nsCOMPtr<nsITransportEventSink> mTransportSink;
   nsCOMPtr<nsIEventTarget> mConsumerTarget;
-  nsCOMPtr<nsISupports> mSecurityInfo;
+  nsCOMPtr<nsISSLSocketControl> mTLSSocketControl;
   // TaintFox: reference to pipe added for SetTaint()
   nsCOMPtr<nsIPipe>   mPipe;
   nsCOMPtr<nsIAsyncInputStream> mPipeIn;
@@ -501,21 +507,11 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   Atomic<bool, Relaxed> mClassOfServiceIncremental{false};
 
  public:
-  // setting TunnelProvider to non-null means the transaction should only
-  // be dispatched on a specific ConnectionInfo Hash Key (as opposed to a
-  // generic wild card one). That means in the specific case of carrying this
-  // transaction on an HTTP/2 tunnel it will only be dispatched onto an
-  // existing tunnel instead of triggering creation of a new one.
-  // The tunnel provider is used for ASpdySession::MaybeReTunnel() checks.
-
-  void SetTunnelProvider(ASpdySession* provider) { mTunnelProvider = provider; }
-  ASpdySession* TunnelProvider() { return mTunnelProvider; }
   nsIInterfaceRequestor* SecurityCallbacks() { return mCallbacks; }
   // Called when this transaction is inserted in the pending queue.
   void OnPendingQueueInserted(const nsACString& aConnectionHashKey);
 
  private:
-  RefPtr<ASpdySession> mTunnelProvider;
   TransactionObserverFunc mTransactionObserver;
   NetAddr mSelfAddr;
   NetAddr mPeerAddr;

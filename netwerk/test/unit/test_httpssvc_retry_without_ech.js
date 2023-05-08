@@ -8,9 +8,6 @@ ChromeUtils.import("resource://gre/modules/NetUtil.jsm");
 
 let trrServer;
 
-const dns = Cc["@mozilla.org/network/dns-service;1"].getService(
-  Ci.nsIDNSService
-);
 const certOverrideService = Cc[
   "@mozilla.org/security/certoverride;1"
 ].getService(Ci.nsICertOverrideService);
@@ -128,9 +125,7 @@ add_task(async function testRetryWithoutECH() {
 
   let chan = makeChan(`https://delegated-disabled.example.com:8443`);
   await channelOpenPromise(chan, CL_ALLOW_UNKNOWN_CL);
-  let securityInfo = chan.securityInfo.QueryInterface(
-    Ci.nsITransportSecurityInfo
-  );
+  let securityInfo = chan.securityInfo;
 
   Assert.ok(
     !securityInfo.isAcceptedEch,

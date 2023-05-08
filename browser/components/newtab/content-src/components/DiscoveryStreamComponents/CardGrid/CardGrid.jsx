@@ -95,7 +95,22 @@ export function RecentSavesContainer({
     return null;
   }
 
+  let queryParams = `?utm_source=${utmSource}`;
+  if (utmCampaign && utmContent) {
+    queryParams += `&utm_content=${utmContent}&utm_campaign=${utmCampaign}`;
+  }
+
   function renderCard(rec, index) {
+    const url = new URL(rec.url);
+    const urlSearchParams = new URLSearchParams(queryParams);
+    if (rec?.id && !url.href.match(/getpocket\.com\/read/)) {
+      url.href = `https://getpocket.com/read/${rec.id}`;
+    }
+
+    for (let [key, val] of urlSearchParams.entries()) {
+      url.searchParams.set(key, val);
+    }
+
     return (
       <DSCard
         key={`dscard-${rec?.id || index}`}
@@ -108,7 +123,7 @@ export function RecentSavesContainer({
         time_to_read={rec.time_to_read}
         title={rec.title}
         excerpt={rec.excerpt}
-        url={rec.url}
+        url={url.href}
         source={rec.domain}
         isRecentSave={true}
         dispatch={dispatch}
@@ -118,17 +133,13 @@ export function RecentSavesContainer({
 
   function onMyListClicked() {
     dispatch(
-      ac.UserEvent({
+      ac.DiscoveryStreamUserEvent({
         event: "CLICK",
         source: `${source}_VIEW_LIST`,
       })
     );
   }
 
-  let queryParams = `?utm_source=${utmSource}`;
-  if (utmCampaign && utmContent) {
-    queryParams += `&utm_content=${utmContent}&utm_campaign=${utmCampaign}`;
-  }
   const recentSavesCards = [];
   // We fill the cards with a for loop over an inline map because
   // we want empty placeholders if there are not enough cards.
@@ -140,7 +151,7 @@ export function RecentSavesContainer({
       recentSavesCards.push(
         renderCard(
           {
-            id: recentSave.item_id || recentSave.resolved_id,
+            id: recentSave.id,
             image_src: recentSave.top_image_url,
             raw_image_src: recentSave.top_image_url,
             word_count: recentSave.word_count,
@@ -186,20 +197,15 @@ export class _CardGrid extends React.PureComponent {
       hybridLayout,
       hideCardBackground,
       fourCardLayout,
-      hideDescriptions,
-      saveToPocketCard,
       compactGrid,
-      compactImages,
-      imageGradient,
-      newSponsoredLabel,
-      titleLines,
-      descLines,
-      readTime,
       essentialReadsHeader,
       editorsPicksHeader,
       widgets,
       recentSavesEnabled,
+      hideDescriptions,
+      DiscoveryStream,
     } = this.props;
+    const { saveToPocketCard } = DiscoveryStream;
     const showRecentSaves = prefs.showRecentSaves && recentSavesEnabled;
 
     const recs = this.props.data.recommendations.slice(0, items);
@@ -221,7 +227,6 @@ export class _CardGrid extends React.PureComponent {
             raw_image_src={rec.raw_image_src}
             word_count={rec.word_count}
             time_to_read={rec.time_to_read}
-            displayReadTime={readTime}
             title={rec.title}
             excerpt={rec.excerpt}
             url={rec.url}
@@ -236,15 +241,8 @@ export class _CardGrid extends React.PureComponent {
             pocket_id={rec.pocket_id}
             context_type={rec.context_type}
             bookmarkGuid={rec.bookmarkGuid}
-            pocket_button_enabled={this.props.pocket_button_enabled}
-            hideDescriptions={hideDescriptions}
-            saveToPocketCard={saveToPocketCard}
-            compactImages={compactImages}
-            imageGradient={imageGradient}
-            newSponsoredLabel={newSponsoredLabel}
-            titleLines={titleLines}
-            descLines={descLines}
             is_collection={this.props.is_collection}
+            saveToPocketCard={saveToPocketCard}
           />
         )
       );
@@ -397,7 +395,6 @@ export class _CardGrid extends React.PureComponent {
 
 _CardGrid.defaultProps = {
   items: 4, // Number of stories to display
-  saveToPocketCard: false,
 };
 
 export const CardGrid = connect(state => ({

@@ -73,10 +73,8 @@ class Tiers {
 // available under prefs.)
 
 struct FeatureOptions {
-  FeatureOptions() : simdWormhole(false), intrinsics(false) {}
+  FeatureOptions() : intrinsics(false) {}
 
-  // May be set if javascript.options.wasm_simd_wormhole==true.
-  bool simdWormhole;
   // Enables intrinsic opcodes, only set in WasmIntrinsic.cpp.
   bool intrinsics;
 };
@@ -91,7 +89,6 @@ struct FeatureArgs {
 #undef WASM_FEATURE
             sharedMemory(Shareable::False),
         simd(false),
-        simdWormhole(false),
         intrinsics(false) {
   }
   FeatureArgs(const FeatureArgs&) = default;
@@ -106,7 +103,6 @@ struct FeatureArgs {
 
   Shareable sharedMemory;
   bool simd;
-  bool simdWormhole;
   bool intrinsics;
 };
 
@@ -139,7 +135,6 @@ struct CompileArgs : ShareableBase<CompileArgs> {
 
   bool baselineEnabled;
   bool ionEnabled;
-  bool craneliftEnabled;
   bool debugEnabled;
   bool forceTiering;
 
@@ -147,25 +142,27 @@ struct CompileArgs : ShareableBase<CompileArgs> {
 
   // CompileArgs has three constructors:
   //
-  // - two through a factory function `build`, which checks that flags are
-  // consistent with each other, and optionally reports any errors.
+  // - two through factory functions `build`/`buildAndReport`, which checks
+  //   that flags are consistent with each other, and optionally reports any
+  //   errors.
   // - one that gives complete access to underlying fields.
   //
-  // You should use the first one in general, unless you have a very good
-  // reason (i.e. no JSContext around and you know which flags have been used).
+  // You should use the factory functions in general, unless you have a very
+  // good reason (i.e. no JSContext around and you know which flags have been
+  // used).
 
   static SharedCompileArgs build(JSContext* cx, ScriptedCaller&& scriptedCaller,
                                  const FeatureOptions& options,
                                  CompileArgsError* error);
   static SharedCompileArgs buildAndReport(JSContext* cx,
                                           ScriptedCaller&& scriptedCaller,
-                                          const FeatureOptions& options);
+                                          const FeatureOptions& options,
+                                          bool reportOOM = false);
 
   explicit CompileArgs(ScriptedCaller&& scriptedCaller)
       : scriptedCaller(std::move(scriptedCaller)),
         baselineEnabled(false),
         ionEnabled(false),
-        craneliftEnabled(false),
         debugEnabled(false),
         forceTiering(false) {}
 };

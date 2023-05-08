@@ -6,52 +6,54 @@
 const {
   Component,
   createFactory,
-} = require("devtools/client/shared/vendor/react");
-const dom = require("devtools/client/shared/vendor/react-dom-factories");
-const PropTypes = require("devtools/client/shared/vendor/react-prop-types");
+} = require("resource://devtools/client/shared/vendor/react.js");
+const dom = require("resource://devtools/client/shared/vendor/react-dom-factories.js");
+const PropTypes = require("resource://devtools/client/shared/vendor/react-prop-types.js");
 const { div, button } = dom;
-const DebugTargetInfo = createFactory(
-  require("devtools/client/framework/components/DebugTargetInfo")
-);
 const MenuButton = createFactory(
-  require("devtools/client/shared/components/menu/MenuButton")
+  require("resource://devtools/client/shared/components/menu/MenuButton.js")
 );
 const ToolboxTabs = createFactory(
-  require("devtools/client/framework/components/ToolboxTabs")
+  require("resource://devtools/client/framework/components/ToolboxTabs.js")
 );
-const Services = require("Services");
-
 loader.lazyGetter(this, "MeatballMenu", function() {
   return createFactory(
-    require("devtools/client/framework/components/MeatballMenu")
+    require("resource://devtools/client/framework/components/MeatballMenu.js")
   );
 });
 loader.lazyGetter(this, "MenuItem", function() {
   return createFactory(
-    require("devtools/client/shared/components/menu/MenuItem")
+    require("resource://devtools/client/shared/components/menu/MenuItem.js")
   );
 });
 loader.lazyGetter(this, "MenuList", function() {
   return createFactory(
-    require("devtools/client/shared/components/menu/MenuList")
+    require("resource://devtools/client/shared/components/menu/MenuList.js")
   );
 });
 loader.lazyGetter(this, "LocalizationProvider", function() {
   return createFactory(
-    require("devtools/client/shared/vendor/fluent-react").LocalizationProvider
+    require("resource://devtools/client/shared/vendor/fluent-react.js")
+      .LocalizationProvider
   );
 });
+loader.lazyGetter(this, "DebugTargetInfo", () =>
+  createFactory(
+    require("resource://devtools/client/framework/components/DebugTargetInfo.js")
+  )
+);
+loader.lazyGetter(this, "ChromeDebugToolbar", () =>
+  createFactory(
+    require("resource://devtools/client/framework/components/ChromeDebugToolbar.js")
+  )
+);
 
 loader.lazyRequireGetter(
   this,
   "getUnicodeUrl",
-  "devtools/client/shared/unicode-url",
+  "resource://devtools/client/shared/unicode-url.js",
   true
 );
-
-const BROWSERTOOLBOX_SCOPE_PREF = "devtools.browsertoolbox.scope";
-const BROWSERTOOLBOX_SCOPE_EVERYTHING = "everything";
-const BROWSERTOOLBOX_SCOPE_PARENTPROCESS = "parent-process";
 
 /**
  * This is the overall component for the toolbox toolbar. It is designed to not know how
@@ -99,12 +101,24 @@ class ToolboxToolbar extends Component {
       // undefined means that the option is not relevant in this context
       // (i.e. we're not in a browser toolbox).
       disableAutohide: PropTypes.bool,
+      // Are we displaying the window always on top?
+      //
+      // This is a tri-state value that may be true/false or undefined where
+      // undefined means that the option is not relevant in this context
+      // (i.e. we're not in a local web extension toolbox).
+      alwaysOnTop: PropTypes.bool,
+      // Is the toolbox currently focused?
+      //
+      // This will only be defined when alwaysOnTop is true.
+      focusedState: PropTypes.bool,
       // Function to turn the options panel on / off.
       toggleOptions: PropTypes.func.isRequired,
       // Function to turn the split console on / off.
       toggleSplitConsole: PropTypes.func,
       // Function to turn the disable pop-up autohide behavior on / off.
       toggleNoAutohide: PropTypes.func,
+      // Function to turn the always on top behavior on / off.
+      toggleAlwaysOnTop: PropTypes.func,
       // Function to completely close the toolbox.
       closeToolbox: PropTypes.func,
       // Keep a record of what button is focused.
@@ -126,7 +140,7 @@ class ToolboxToolbar extends Component {
       // Data to show debug target info, if needed
       debugTargetData: PropTypes.shape({
         runtimeInfo: PropTypes.object.isRequired,
-        targetType: PropTypes.string.isRequired,
+        descriptorType: PropTypes.string.isRequired,
       }),
       // The loaded Fluent localization bundles.
       fluentBundles: PropTypes.array.isRequired,
@@ -330,14 +344,6 @@ class ToolboxToolbar extends Component {
     toolbox.onHighlightFrame(id);
   }
 
-  changeScope(event) {
-    Services.prefs.setCharPref(BROWSERTOOLBOX_SCOPE_PREF, event.target.value);
-
-    // Avoid closing the dropdown when changing the scope
-    // so that you can see targets being added/removed from the scope.
-    event.preventDefault();
-  }
-
   createFrameList() {
     const { toolbox } = this.props;
     if (toolbox.frameMap.size < 1) {
@@ -365,50 +371,6 @@ class ToolboxToolbar extends Component {
         items.push(item);
       }
     });
-
-    if (
-      toolbox.isBrowserToolbox &&
-      Services.prefs.getBoolPref("devtools.browsertoolbox.fission", false)
-    ) {
-      const scope = Services.prefs.getCharPref(BROWSERTOOLBOX_SCOPE_PREF);
-      items.unshift(
-        dom.form(
-          {
-            className: "menuitem",
-            role: "presentation",
-          },
-          dom.label(
-            {
-              title: this.props.L10N.getStr("toolbox.scope.everything.tooltip"),
-            },
-            dom.input({
-              type: "radio",
-              name: "scope",
-              value: BROWSERTOOLBOX_SCOPE_EVERYTHING,
-              checked: scope == BROWSERTOOLBOX_SCOPE_EVERYTHING,
-              onClick: this.changeScope,
-            }),
-            this.props.L10N.getStr("toolbox.scope.everything")
-          ),
-          dom.label(
-            {
-              title: this.props.L10N.getStr(
-                "toolbox.scope.parent-process.tooltip"
-              ),
-            },
-            dom.input({
-              type: "radio",
-              name: "scope",
-              value: BROWSERTOOLBOX_SCOPE_PARENTPROCESS,
-              checked: scope == BROWSERTOOLBOX_SCOPE_PARENTPROCESS,
-              onClick: this.changeScope,
-            }),
-            this.props.L10N.getStr("toolbox.scope.parent-process")
-          )
-        ),
-        dom.hr({ role: "menuseparator" })
-      );
-    }
 
     return MenuList(
       {
@@ -462,6 +424,8 @@ class ToolboxToolbar extends Component {
    *        Function to turn the split console on / off.
    * @param {Function} props.toggleNoAutohide
    *        Function to turn the disable pop-up autohide behavior on / off.
+   * @param {Function} props.toggleAlwaysOnTop
+   *        Function to turn the always on top behavior on / off.
    * @param {Function} props.closeToolbox
    *        Completely close the toolbox.
    * @param {Function} props.focusButton
@@ -554,12 +518,27 @@ class ToolboxToolbar extends Component {
       : div({ className: classnames.join(" ") });
 
     const debugTargetInfo = debugTargetData
-      ? DebugTargetInfo({ debugTargetData, L10N, toolbox })
+      ? DebugTargetInfo({
+          alwaysOnTop: this.props.alwaysOnTop,
+          focusedState: this.props.focusedState,
+          toggleAlwaysOnTop: this.props.toggleAlwaysOnTop,
+          debugTargetData,
+          L10N,
+          toolbox,
+        })
       : null;
+
+    // Display the toolbar in the MBT and about:debugging MBT if we have server support for it.
+    const chromeDebugToolbar =
+      toolbox.commands.targetCommand.descriptorFront
+        .isBrowserProcessDescriptor &&
+      Services.prefs.getBoolPref("devtools.browsertoolbox.fission", false)
+        ? ChromeDebugToolbar()
+        : null;
 
     return LocalizationProvider(
       { bundles: fluentBundles },
-      div({}, debugTargetInfo, toolbar)
+      div({}, chromeDebugToolbar, debugTargetInfo, toolbar)
     );
   }
 }

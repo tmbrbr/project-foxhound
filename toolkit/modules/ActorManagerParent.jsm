@@ -27,10 +27,10 @@ const { AppConstants } = ChromeUtils.import(
 let JSPROCESSACTORS = {
   AsyncPrefs: {
     parent: {
-      moduleURI: "resource://gre/modules/AsyncPrefs.jsm",
+      esModuleURI: "resource://gre/modules/AsyncPrefs.sys.mjs",
     },
     child: {
-      moduleURI: "resource://gre/modules/AsyncPrefs.jsm",
+      esModuleURI: "resource://gre/modules/AsyncPrefs.sys.mjs",
     },
   },
 
@@ -203,6 +203,23 @@ let JSWINDOWACTORS = {
     allFrames: true,
   },
 
+  CookieBanner: {
+    parent: {
+      moduleURI: "resource://gre/actors/CookieBannerParent.jsm",
+    },
+    child: {
+      moduleURI: "resource://gre/actors/CookieBannerChild.jsm",
+      events: {
+        DOMContentLoaded: {},
+      },
+    },
+    // We only handle cookie banners for HTTP/S scheme. Avoid initializing
+    // actors for other schemes.
+    matches: ["https://*/*", "http://*/*"],
+    allFrames: true,
+    enablePreference: "cookiebanners.bannerClicking.enabled",
+  },
+
   DateTimePicker: {
     parent: {
       moduleURI: "resource://gre/actors/DateTimePickerParent.jsm",
@@ -315,12 +332,28 @@ let JSWINDOWACTORS = {
     },
   },
 
-  PictureInPictureLauncher: {
+  NetError: {
     parent: {
-      moduleURI: "resource://gre/modules/PictureInPicture.jsm",
+      moduleURI: "resource://gre/actors/NetErrorParent.jsm",
     },
     child: {
-      moduleURI: "resource://gre/actors/PictureInPictureChild.jsm",
+      moduleURI: "resource://gre/actors/NetErrorChild.jsm",
+      events: {
+        DOMDocElementInserted: {},
+        click: {},
+      },
+    },
+
+    matches: ["about:certerror?*", "about:neterror?*"],
+    allFrames: true,
+  },
+
+  PictureInPictureLauncher: {
+    parent: {
+      esModuleURI: "resource://gre/modules/PictureInPicture.sys.mjs",
+    },
+    child: {
+      esModuleURI: "resource://gre/actors/PictureInPictureChild.sys.mjs",
       events: {
         MozTogglePictureInPicture: { capture: true },
       },
@@ -331,10 +364,10 @@ let JSWINDOWACTORS = {
 
   PictureInPicture: {
     parent: {
-      moduleURI: "resource://gre/modules/PictureInPicture.jsm",
+      esModuleURI: "resource://gre/modules/PictureInPicture.sys.mjs",
     },
     child: {
-      moduleURI: "resource://gre/actors/PictureInPictureChild.jsm",
+      esModuleURI: "resource://gre/actors/PictureInPictureChild.sys.mjs",
     },
 
     allFrames: true,
@@ -342,10 +375,10 @@ let JSWINDOWACTORS = {
 
   PictureInPictureToggle: {
     parent: {
-      moduleURI: "resource://gre/modules/PictureInPicture.jsm",
+      esModuleURI: "resource://gre/modules/PictureInPicture.sys.mjs",
     },
     child: {
-      moduleURI: "resource://gre/actors/PictureInPictureChild.jsm",
+      esModuleURI: "resource://gre/actors/PictureInPictureChild.sys.mjs",
       events: {
         UAWidgetSetupOrChange: {},
         contextmenu: { capture: true },
@@ -404,7 +437,7 @@ let JSWINDOWACTORS = {
   // 'ViewSource:LoadSource' or 'ViewSource:LoadSourceWithSelection'.
   ViewSource: {
     child: {
-      moduleURI: "resource://gre/actors/ViewSourceChild.jsm",
+      esModuleURI: "resource://gre/actors/ViewSourceChild.sys.mjs",
     },
 
     allFrames: true,
@@ -413,10 +446,10 @@ let JSWINDOWACTORS = {
   // This actor is for the view-source page itself.
   ViewSourcePage: {
     parent: {
-      moduleURI: "resource://gre/actors/ViewSourcePageParent.jsm",
+      esModuleURI: "resource://gre/actors/ViewSourcePageParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource://gre/actors/ViewSourcePageChild.jsm",
+      esModuleURI: "resource://gre/actors/ViewSourcePageChild.sys.mjs",
       events: {
         pageshow: { capture: true },
         click: {},
@@ -499,15 +532,15 @@ if (!Services.prefs.getBoolPref("browser.pagedata.enabled", false)) {
 
 if (AppConstants.platform != "android") {
   // For GeckoView support see bug 1776829.
-  JSWINDOWACTORS.ClipboardReadTextPaste = {
+  JSWINDOWACTORS.ClipboardReadPaste = {
     parent: {
-      moduleURI: "resource://gre/actors/ClipboardReadTextPasteParent.jsm",
+      moduleURI: "resource://gre/actors/ClipboardReadPasteParent.jsm",
     },
 
     child: {
-      moduleURI: "resource://gre/actors/ClipboardReadTextPasteChild.jsm",
+      moduleURI: "resource://gre/actors/ClipboardReadPasteChild.jsm",
       events: {
-        MozClipboardReadTextPaste: {},
+        MozClipboardReadPaste: {},
       },
     },
 

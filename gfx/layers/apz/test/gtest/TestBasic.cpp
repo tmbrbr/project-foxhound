@@ -35,6 +35,33 @@ TEST_F(APZCBasicTester, Overzoom) {
   EXPECT_LT(std::abs(fm.GetVisualScrollOffset().y), 1e-5);
 }
 
+TEST_F(APZCBasicTester, ZoomLimits) {
+  SCOPED_GFX_PREF_FLOAT("apz.min_zoom", 0.9f);
+  SCOPED_GFX_PREF_FLOAT("apz.max_zoom", 2.0f);
+
+  // the visible area of the document in CSS pixels is x=10 y=0 w=100 h=100
+  FrameMetrics fm;
+  fm.SetCompositionBounds(ParentLayerRect(0, 0, 100, 100));
+  fm.SetScrollableRect(CSSRect(0, 0, 125, 150));
+  fm.SetZoom(CSSToParentLayerScale(1.0));
+  fm.SetIsRootContent(true);
+  apzc->SetFrameMetrics(fm);
+
+  MakeApzcZoomable();
+
+  // This should take the zoom scale to 0.8, but we've capped it at 0.9.
+  PinchWithPinchInputAndCheckStatus(apzc, ScreenIntPoint(50, 50), 0.5, true);
+
+  fm = apzc->GetFrameMetrics();
+  EXPECT_EQ(0.9f, fm.GetZoom().scale);
+
+  // This should take the zoom scale to 2.7, but we've capped it at 2.
+  PinchWithPinchInputAndCheckStatus(apzc, ScreenIntPoint(50, 50), 3, true);
+
+  fm = apzc->GetFrameMetrics();
+  EXPECT_EQ(2.0f, fm.GetZoom().scale);
+}
+
 TEST_F(APZCBasicTester, SimpleTransform) {
   ParentLayerPoint pointOut;
   AsyncTransform viewTransformOut;
@@ -569,4 +596,41 @@ TEST_F(APZCBasicTester, ZoomToRectAndCompositionBoundsChange) {
   }
 
   EXPECT_FALSE(apzc->IsAsyncZooming());
+}
+
+TEST_F(APZCBasicTester, StartTolerance) {
+  SCOPED_GFX_PREF_FLOAT("apz.touch_start_tolerance", 10 / tm->GetDPI());
+
+  FrameMetrics fm;
+  fm.SetCompositionBounds(ParentLayerRect(0, 0, 100, 100));
+  fm.SetScrollableRect(CSSRect(0, 0, 100, 300));
+  fm.SetVisualScrollOffset(CSSPoint(0, 50));
+  fm.SetIsRootContent(true);
+  apzc->SetFrameMetrics(fm);
+
+  uint64_t touchBlock = TouchDown(apzc, {50, 50}, mcc->Time()).mInputBlockId;
+  SetDefaultAllowedTouchBehavior(apzc, touchBlock);
+
+  CSSPoint initialScrollOffset =
+      apzc->GetFrameMetrics().GetVisualScrollOffset();
+
+  mcc->AdvanceByMillis(1);
+  TouchMove(apzc, {50, 70}, mcc->Time());
+
+  // Expect 10 pixels of scrolling: the distance from (50,50) to (50,70)
+  // minus the 10-pixel touch start tolerance.
+  ASSERT_EQ(initialScrollOffset.y - 10,
+            apzc->GetFrameMetrics().GetVisualScrollOffset().y);
+
+  mcc->AdvanceByMillis(1);
+  TouchMove(apzc, {50, 90}, mcc->Time());
+
+  // Expect 30 pixels of scrolling: the distance from (50,50) to (50,90)
+  // minus the 10-pixel touch start tolerance.
+  ASSERT_EQ(initialScrollOffset.y - 30,
+            apzc->GetFrameMetrics().GetVisualScrollOffset().y);
+
+  // Clean up by ending the touch gesture.
+  mcc->AdvanceByMillis(1);
+  TouchUp(apzc, {50, 90}, mcc->Time());
 }

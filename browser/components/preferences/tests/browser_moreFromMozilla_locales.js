@@ -3,11 +3,13 @@
 
 "use strict";
 
-const { EnterprisePolicyTesting } = ChromeUtils.import(
-  "resource://testing-common/EnterprisePolicyTesting.jsm"
+const { EnterprisePolicyTesting } = ChromeUtils.importESModule(
+  "resource://testing-common/EnterprisePolicyTesting.sys.mjs"
 );
 
-let { Region } = ChromeUtils.import("resource://gre/modules/Region.jsm");
+let { Region } = ChromeUtils.importESModule(
+  "resource://gre/modules/Region.sys.mjs"
+);
 
 const initialHomeRegion = Region._home;
 const initialCurrentRegion = Region._current;

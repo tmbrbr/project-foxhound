@@ -30,6 +30,13 @@ namespace mozilla {
 enum class MediaFeatureChangeReason : uint16_t;
 enum class StylePageOrientation : uint8_t;
 enum class StyleRuleChangeKind : uint32_t;
+
+template <typename Integer, typename Number, typename LinearStops>
+struct StyleTimingFunction;
+struct StylePiecewiseLinearFunction;
+using StyleComputedTimingFunction =
+    StyleTimingFunction<int32_t, float, StylePiecewiseLinearFunction>;
+
 namespace css {
 class Rule;
 }  // namespace css
@@ -38,6 +45,9 @@ class CSSImportRule;
 class Element;
 class ShadowRoot;
 }  // namespace dom
+namespace gfx {
+class FontPaletteValueSet;
+}  // namespace gfx
 class StyleSheet;
 struct Keyframe;
 class ServoElementSnapshotTable;
@@ -50,7 +60,6 @@ class nsIContent;
 
 class nsPresContext;
 class nsWindowSizes;
-struct nsTimingFunction;
 struct TreeMatchContext;
 
 namespace mozilla {
@@ -146,6 +155,8 @@ class ServoStyleSet {
   const RawServoStyleSet* RawSet() const { return mRawSet.get(); }
 
   bool GetAuthorStyleDisabled() const { return mAuthorStyleDisabled; }
+
+  bool UsesFontMetrics() const;
 
   void SetAuthorStyleDisabled(bool aStyleDisabled);
 
@@ -339,7 +350,7 @@ class ServoStyleSet {
 
   bool GetKeyframesForName(const dom::Element&, const ComputedStyle&,
                            nsAtom* aName,
-                           const nsTimingFunction& aTimingFunction,
+                           const StyleComputedTimingFunction& aTimingFunction,
                            nsTArray<Keyframe>& aKeyframes);
 
   nsTArray<ComputedKeyframeValues> GetComputedKeyframeValuesFor(
@@ -355,10 +366,11 @@ class ServoStyleSet {
 
   const RawServoCounterStyleRule* CounterStyleRuleForName(nsAtom* aName);
 
-  const RawServoScrollTimelineRule* ScrollTimelineRuleForName(nsAtom* aName);
-
   // Get all the currently-active font feature values set.
   already_AddRefed<gfxFontFeatureValueSet> BuildFontFeatureValueSet();
+
+  // Get the set of all currently-active font-palette-values.
+  already_AddRefed<gfx::FontPaletteValueSet> BuildFontPaletteValueSet();
 
   already_AddRefed<ComputedStyle> GetBaseContextForElement(
       dom::Element* aElement, const ComputedStyle* aStyle);

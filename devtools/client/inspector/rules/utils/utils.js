@@ -15,7 +15,7 @@ const {
   VIEW_NODE_SHAPE_SWATCH,
   VIEW_NODE_VALUE_TYPE,
   VIEW_NODE_VARIABLE_TYPE,
-} = require("devtools/client/inspector/shared/node-types");
+} = require("resource://devtools/client/inspector/shared/node-types.js");
 const INSET_POINT_TYPES = ["top", "right", "bottom", "left"];
 
 /**
@@ -273,7 +273,7 @@ function getShapePoint(node) {
       insetClasses.push(className);
     }
   });
-  if (insetClasses.length > 0) {
+  if (insetClasses.length) {
     point = insetClasses.join(",");
   }
   return point;

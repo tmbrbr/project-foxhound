@@ -4,19 +4,19 @@
 
 "use strict";
 
-const ChromeUtils = require("ChromeUtils");
-const Services = require("Services");
-const { XPCOMUtils } = require("resource://gre/modules/XPCOMUtils.sys.mjs");
-const protocol = require("devtools/shared/protocol");
+const { XPCOMUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/XPCOMUtils.sys.mjs"
+);
+const protocol = require("resource://devtools/shared/protocol.js");
 const {
   serviceWorkerRegistrationSpec,
-} = require("devtools/shared/specs/worker/service-worker-registration");
+} = require("resource://devtools/shared/specs/worker/service-worker-registration.js");
 const {
   PushSubscriptionActor,
-} = require("devtools/server/actors/worker/push-subscription");
+} = require("resource://devtools/server/actors/worker/push-subscription.js");
 const {
   ServiceWorkerActor,
-} = require("devtools/server/actors/worker/service-worker");
+} = require("resource://devtools/server/actors/worker/service-worker.js");
 
 XPCOMUtils.defineLazyServiceGetter(
   this,
@@ -154,8 +154,8 @@ const ServiceWorkerRegistrationActor = protocol.ActorClassWithSpec(
     unregister() {
       const { principal, scope } = this._registration;
       const unregisterCallback = {
-        unregisterSucceeded: function() {},
-        unregisterFailed: function() {
+        unregisterSucceeded() {},
+        unregisterFailed() {
           console.error("Failed to unregister the service worker for " + scope);
         },
         QueryInterface: ChromeUtils.generateQI([

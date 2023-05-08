@@ -4,17 +4,19 @@
 
 "use strict";
 
-const { Ci, Cc } = require("chrome");
-const Services = require("Services");
-const protocol = require("devtools/shared/protocol");
+const protocol = require("resource://devtools/shared/protocol.js");
 
-const { DevToolsServer } = require("devtools/server/devtools-server");
-const { getSystemInfo } = require("devtools/shared/system");
-const { deviceSpec } = require("devtools/shared/specs/device");
-const { AppConstants } = require("resource://gre/modules/AppConstants.jsm");
+const {
+  DevToolsServer,
+} = require("resource://devtools/server/devtools-server.js");
+const { getSystemInfo } = require("resource://devtools/shared/system.js");
+const { deviceSpec } = require("resource://devtools/shared/specs/device.js");
+const { AppConstants } = ChromeUtils.import(
+  "resource://gre/modules/AppConstants.jsm"
+);
 
 exports.DeviceActor = protocol.ActorClassWithSpec(deviceSpec, {
-  initialize: function(conn) {
+  initialize(conn) {
     protocol.Actor.prototype.initialize.call(this, conn);
     // pageshow and pagehide event release wake lock, so we have to acquire
     // wake lock again by pageshow event
@@ -25,7 +27,7 @@ exports.DeviceActor = protocol.ActorClassWithSpec(deviceSpec, {
     this._acquireWakeLock();
   },
 
-  destroy: function() {
+  destroy() {
     protocol.Actor.prototype.destroy.call(this);
     this._releaseWakeLock();
     if (this._window) {
@@ -33,13 +35,13 @@ exports.DeviceActor = protocol.ActorClassWithSpec(deviceSpec, {
     }
   },
 
-  getDescription: function() {
+  getDescription() {
     return Object.assign({}, getSystemInfo(), {
       canDebugServiceWorkers: true,
     });
   },
 
-  _acquireWakeLock: function() {
+  _acquireWakeLock() {
     if (AppConstants.platform !== "android") {
       return;
     }
@@ -50,7 +52,7 @@ exports.DeviceActor = protocol.ActorClassWithSpec(deviceSpec, {
     this._wakelock = pm.newWakeLock("screen", this._window);
   },
 
-  _releaseWakeLock: function() {
+  _releaseWakeLock() {
     if (this._wakelock) {
       try {
         this._wakelock.unlock();
@@ -61,7 +63,7 @@ exports.DeviceActor = protocol.ActorClassWithSpec(deviceSpec, {
     }
   },
 
-  _onPageShow: function() {
+  _onPageShow() {
     this._releaseWakeLock();
     this._acquireWakeLock();
   },

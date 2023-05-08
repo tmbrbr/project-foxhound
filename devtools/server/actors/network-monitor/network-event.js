@@ -4,9 +4,13 @@
 
 "use strict";
 
-const protocol = require("devtools/shared/protocol");
-const { networkEventSpec } = require("devtools/shared/specs/network-event");
-const { LongStringActor } = require("devtools/server/actors/string");
+const protocol = require("resource://devtools/shared/protocol.js");
+const {
+  networkEventSpec,
+} = require("resource://devtools/shared/specs/network-event.js");
+const {
+  LongStringActor,
+} = require("resource://devtools/server/actors/string.js");
 
 /**
  * Creates an actor for a network event.
@@ -215,7 +219,7 @@ const NetworkEventActor = protocol.ActorClassWithSpec(networkEventSpec, {
    * @return object
    *         The cache packet - network cache information.
    */
-  getResponseCache: function() {
+  getResponseCache() {
     return {
       cache: this._response.responseCache,
     };
@@ -437,7 +441,7 @@ const NetworkEventActor = protocol.ActorClassWithSpec(networkEventSpec, {
     this._securityInfo = info;
     this.emit("network-event-update:security-info", "securityInfo", {
       state: info.state,
-      isRacing: isRacing,
+      isRacing,
     });
   },
 
@@ -521,7 +525,7 @@ const NetworkEventActor = protocol.ActorClassWithSpec(networkEventSpec, {
     });
   },
 
-  addResponseCache: function(content) {
+  addResponseCache(content) {
     // Ignore calls when this actor is already destroyed
     if (this.isDestroyed()) {
       return;

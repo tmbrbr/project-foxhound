@@ -12,6 +12,7 @@
 #include "nsICookieJarSettings.h"
 #include "nsIFile.h"
 #include "nsIInputStream.h"
+#include "nsIInterceptionInfo.h"
 #include "nsIOutputStream.h"
 #include "nsIFileChannel.h"
 #include "nsIHttpChannel.h"
@@ -21,6 +22,7 @@
 #include "nsIUploadChannel2.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPipe.h"
+#include "nsIRedirectHistoryEntry.h"
 
 #include "nsContentPolicyUtils.h"
 #include "nsDataHandler.h"
@@ -38,6 +40,7 @@
 #include "mozilla/dom/UserActivation.h"
 #include "mozilla/dom/WorkerCommon.h"
 #include "mozilla/PreloaderBase.h"
+#include "mozilla/net/InterceptionInfo.h"
 #include "mozilla/net/NeckoChannelParams.h"
 #include "mozilla/ipc/PBackgroundSharedTypes.h"
 #include "mozilla/StaticPrefs_browser.h"
@@ -178,7 +181,8 @@ void AlternativeDataStreamListener::Cancel() {
   if (mChannel && mStatus != AlternativeDataStreamListener::FALLBACK) {
     // if mStatus is fallback, we need to keep channel to forward request back
     // to FetchDriver
-    mChannel->Cancel(NS_BINDING_ABORTED);
+    mChannel->CancelWithReason(NS_BINDING_ABORTED,
+                               "AlternativeDataStreamListener::Cancel"_ns);
     mChannel = nullptr;
   }
   mStatus = AlternativeDataStreamListener::CANCELED;
@@ -646,6 +650,33 @@ nsresult FetchDriver::HttpFetch(
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  // If the fetch is created by FetchEvent.request or NavigationPreload request,
+  // corresponding InterceptedHttpChannel information need to propagte to the
+  // channel of the fetch.
+  if (mRequest->GetInterceptionTriggeringPrincipalInfo()) {
+    auto principalOrErr = mozilla::ipc::PrincipalInfoToPrincipal(
+        *(mRequest->GetInterceptionTriggeringPrincipalInfo().get()));
+    if (!principalOrErr.isErr()) {
+      nsCOMPtr<nsIPrincipal> principal = principalOrErr.unwrap();
+
+      nsTArray<nsCOMPtr<nsIRedirectHistoryEntry>> redirectChain;
+      if (!mRequest->InterceptionRedirectChain().IsEmpty()) {
+        for (const RedirectHistoryEntryInfo& entryInfo :
+             mRequest->InterceptionRedirectChain()) {
+          nsCOMPtr<nsIRedirectHistoryEntry> entry =
+              mozilla::ipc::RHEntryInfoToRHEntry(entryInfo);
+          redirectChain.AppendElement(entry);
+        }
+      }
+
+      nsCOMPtr<nsILoadInfo> loadInfo = chan->LoadInfo();
+      MOZ_ASSERT(loadInfo);
+      loadInfo->SetInterceptionInfo(new mozilla::net::InterceptionInfo(
+          principal, mRequest->InterceptionContentPolicyType(), redirectChain,
+          mRequest->InterceptionFromThirdParty()));
+    }
+  }
+
   if (mDocument && mDocument->GetEmbedderElement() &&
       mDocument->GetEmbedderElement()->IsAnyOfHTMLElements(nsGkAtoms::object,
                                                            nsGkAtoms::embed)) {
@@ -923,7 +954,8 @@ FetchDriver::OnStartRequest(nsIRequest* aRequest) {
   // channel will call in with an errored OnStartRequest().
 
   if (mFromPreload && mAborted) {
-    aRequest->Cancel(NS_BINDING_ABORTED);
+    aRequest->CancelWithReason(NS_BINDING_ABORTED,
+                               "FetchDriver::OnStartRequest aborted"_ns);
     return NS_BINDING_ABORTED;
   }
 
@@ -1619,7 +1651,8 @@ void FetchDriver::RunAbortAlgorithm() {
   }
 
   if (mChannel) {
-    mChannel->Cancel(NS_BINDING_ABORTED);
+    mChannel->CancelWithReason(NS_BINDING_ABORTED,
+                               "FetchDriver::RunAbortAlgorithm"_ns);
     mChannel = nullptr;
   }
 

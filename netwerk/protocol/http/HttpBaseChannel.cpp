@@ -2036,20 +2036,6 @@ HttpBaseChannel::VisitOriginalResponseHeaders(nsIHttpHeaderVisitor* aVisitor) {
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetAllowPipelining(bool* value) {
-  NS_ENSURE_ARG_POINTER(value);
-  *value = false;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::SetAllowPipelining(bool value) {
-  ENSURE_CALLED_BEFORE_CONNECT();
-  // nop
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 HttpBaseChannel::GetAllowSTS(bool* value) {
   NS_ENSURE_ARG_POINTER(value);
   *value = LoadAllowSTS();
@@ -2092,7 +2078,8 @@ HttpBaseChannel::SetRedirectionLimit(uint32_t value) {
   return NS_OK;
 }
 
-nsresult HttpBaseChannel::OverrideSecurityInfo(nsISupports* aSecurityInfo) {
+nsresult HttpBaseChannel::OverrideSecurityInfo(
+    nsITransportSecurityInfo* aSecurityInfo) {
   MOZ_ASSERT(!mSecurityInfo,
              "This can only be called when we don't have a security info "
              "object already");
@@ -2237,12 +2224,10 @@ HttpBaseChannel::SetIsMainDocumentChannel(bool aValue) {
 
 NS_IMETHODIMP
 HttpBaseChannel::GetProtocolVersion(nsACString& aProtocolVersion) {
-  nsresult rv;
-  nsCOMPtr<nsITransportSecurityInfo> info =
-      do_QueryInterface(mSecurityInfo, &rv);
   nsAutoCString protocol;
-  if (NS_SUCCEEDED(rv) && info &&
-      NS_SUCCEEDED(info->GetNegotiatedNPN(protocol)) && !protocol.IsEmpty()) {
+  if (mSecurityInfo &&
+      NS_SUCCEEDED(mSecurityInfo->GetNegotiatedNPN(protocol)) &&
+      !protocol.IsEmpty()) {
     // The negotiated protocol was not empty so we can use it.
     aProtocolVersion = protocol;
     return NS_OK;
@@ -5238,6 +5223,12 @@ HttpBaseChannel::GetCacheReadEnd(TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
+HttpBaseChannel::GetTransactionPending(TimeStamp* _retval) {
+  *_retval = mTransactionPendingTime;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 HttpBaseChannel::GetInitiatorType(nsAString& aInitiatorType) {
   aInitiatorType = mInitiatorType;
   return NS_OK;
@@ -5285,32 +5276,26 @@ IMPL_TIMING_ATTR(CacheReadStart)
 IMPL_TIMING_ATTR(CacheReadEnd)
 IMPL_TIMING_ATTR(RedirectStart)
 IMPL_TIMING_ATTR(RedirectEnd)
+IMPL_TIMING_ATTR(TransactionPending)
 
 #undef IMPL_TIMING_ATTR
 
-mozilla::dom::PerformanceStorage* HttpBaseChannel::GetPerformanceStorage() {
+void HttpBaseChannel::MaybeReportTimingData() {
   // If performance timing is disabled, there is no need for the Performance
   // object anymore.
   if (!LoadTimingEnabled()) {
-    return nullptr;
+    return;
   }
 
   // There is no point in continuing, since the performance object in the parent
   // isn't the same as the one in the child which will be reporting resource
   // performance.
   if (XRE_IsE10sParentProcess()) {
-    return nullptr;
-  }
-  return mLoadInfo->GetPerformanceStorage();
-}
-
-void HttpBaseChannel::MaybeReportTimingData() {
-  if (XRE_IsE10sParentProcess()) {
     return;
   }
 
   mozilla::dom::PerformanceStorage* documentPerformance =
-      GetPerformanceStorage();
+      mLoadInfo->GetPerformanceStorage();
   if (documentPerformance) {
     documentPerformance->AddEntry(this, this);
     return;
@@ -5333,8 +5318,10 @@ void HttpBaseChannel::MaybeReportTimingData() {
     if (!performanceTimingData) {
       return;
     }
-    child->SendReportFrameTimingData(mLoadInfo->GetInnerWindowID(), entryName,
-                                     initiatorType,
+
+    Maybe<LoadInfoArgs> loadInfoArgs;
+    mozilla::ipc::LoadInfoToLoadInfoArgs(mLoadInfo, &loadInfoArgs);
+    child->SendReportFrameTimingData(loadInfoArgs, entryName, initiatorType,
                                      std::move(performanceTimingData));
   }
 }

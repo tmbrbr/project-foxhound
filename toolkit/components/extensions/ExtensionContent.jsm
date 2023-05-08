@@ -19,7 +19,7 @@ const lazy = {};
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   ExtensionProcessScript: "resource://gre/modules/ExtensionProcessScript.jsm",
   ExtensionTelemetry: "resource://gre/modules/ExtensionTelemetry.jsm",
-  LanguageDetector: "resource:///modules/translation/LanguageDetector.jsm",
+  LanguageDetector: "resource://gre/modules/translation/LanguageDetector.jsm",
   Schemas: "resource://gre/modules/Schemas.jsm",
   WebNavigationFrames: "resource://gre/modules/WebNavigationFrames.jsm",
 });
@@ -1243,14 +1243,15 @@ var ExtensionContent = {
           const result = await promise;
 
           return { frameId, result };
-        } catch ({ message }) {
-          // Errors cannot be cloned, so return an object with a message
-          // property.
-          // TODO bug 1740608: also support non-Error rejections.
-          return { frameId, error: { message } };
+        } catch (error) {
+          return { frameId, error };
         }
       })
-    ).catch(e => Promise.reject({ message: e.message }));
+    ).catch(
+      // This is useful when we do not return results/errors with frame IDs in
+      // the promises above.
+      e => Promise.reject({ message: e.message })
+    );
 
     try {
       // Check if the result can be structured-cloned before sending back.

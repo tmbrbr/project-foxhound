@@ -556,8 +556,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock> {
   void setLoopDepth(uint32_t loopDepth) { loopDepth_ = loopDepth; }
   uint32_t loopDepth() const { return loopDepth_; }
 
-  bool strict() const { return info_.script()->strict(); }
-
   void dumpStack(GenericPrinter& out);
   void dumpStack();
 
@@ -615,7 +613,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock> {
   // profiling.
   BytecodeSite* trackedSite_;
 
-#if defined(JS_ION_PERF) || defined(DEBUG)
   unsigned lineno_;
   unsigned columnIndex_;
 
@@ -624,7 +621,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock> {
   unsigned lineno() const { return lineno_; }
   void setColumnIndex(unsigned c) { columnIndex_ = c; }
   unsigned columnIndex() const { return columnIndex_; }
-#endif
 };
 
 using MBasicBlockIterator = InlineListIterator<MBasicBlock>;

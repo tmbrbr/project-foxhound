@@ -7,7 +7,7 @@
 // Load the shared-head file first.
 /* import-globals-from ../shared-head.js */
 
-/* exported CommonUtils, testChildAtPoint, Layout, hitTest */
+/* exported CommonUtils, testChildAtPoint, Layout, hitTest, testOffsetAtPoint */
 
 Services.scriptloader.loadSubScript(
   "chrome://mochitests/content/browser/accessible/tests/browser/shared-head.js",
@@ -21,12 +21,12 @@ loadScripts(
   { name: "promisified-events.js", dir: MOCHITESTS_DIR }
 );
 
-const { CommonUtils } = ChromeUtils.import(
-  "chrome://mochitests/content/browser/accessible/tests/browser/Common.jsm"
+const { CommonUtils } = ChromeUtils.importESModule(
+  "chrome://mochitests/content/browser/accessible/tests/browser/Common.sys.mjs"
 );
 
-const { Layout } = ChromeUtils.import(
-  "chrome://mochitests/content/browser/accessible/tests/browser/Layout.jsm"
+const { Layout } = ChromeUtils.importESModule(
+  "chrome://mochitests/content/browser/accessible/tests/browser/Layout.sys.mjs"
 );
 
 function getChildAtPoint(container, x, y, findDeepestChild) {
@@ -86,5 +86,16 @@ async function hitTest(browser, container, child, grandChild) {
     `Wrong deepest child accessible at the point (${x}, ${y}) of ${CommonUtils.prettyName(
       container
     )}, sought ${grandChild ? roleToString(grandChild.role) : "unknown"}`
+  );
+}
+
+/**
+ * Test if getOffsetAtPoint returns the given text offset at given coordinates.
+ */
+async function testOffsetAtPoint(hyperText, x, y, coordType, expectedOffset) {
+  await untilCacheIs(
+    () => hyperText.getOffsetAtPoint(x, y, coordType),
+    expectedOffset,
+    `Wrong offset at given point (${x}, ${y}) for ${prettyName(hyperText)}`
   );
 }

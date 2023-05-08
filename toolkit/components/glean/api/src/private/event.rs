@@ -43,6 +43,20 @@ impl<K: 'static + ExtraKeys + Send + Sync> EventMetric<K> {
         }
     }
 
+    pub fn with_runtime_extra_keys(
+        id: MetricId,
+        meta: CommonMetricData,
+        allowed_extra_keys: Vec<String>,
+    ) -> Self {
+        if need_ipc() {
+            EventMetric::Child(EventMetricIpc(id))
+        } else {
+            let inner =
+                glean::private::EventMetric::with_runtime_extra_keys(meta, allowed_extra_keys);
+            EventMetric::Parent { id, inner }
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn child_metric(&self) -> Self {
         match self {
@@ -112,15 +126,9 @@ impl<K: 'static + ExtraKeys + Send + Sync> Event for EventMetric<K> {
         }
     }
 
-    pub fn test_get_num_recorded_errors<'a, S: Into<Option<&'a str>>>(
-        &self,
-        error: glean::ErrorType,
-        ping_name: S,
-    ) -> i32 {
+    pub fn test_get_num_recorded_errors(&self, error: glean::ErrorType) -> i32 {
         match self {
-            EventMetric::Parent { inner, .. } => {
-                inner.test_get_num_recorded_errors(error, ping_name)
-            }
+            EventMetric::Parent { inner, .. } => inner.test_get_num_recorded_errors(error),
             EventMetric::Child(c) => panic!(
                 "Cannot get the number of recorded errors for {:?} in non-parent process!",
                 c.0

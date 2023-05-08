@@ -180,6 +180,12 @@ scheme host and port.""")
                                  help="Number of times to run the tests, restarting between each run")
     debugging_group.add_argument("--repeat-until-unexpected", action="store_true", default=None,
                                  help="Run tests in a loop until one returns an unexpected result")
+    debugging_group.add_argument('--retry-unexpected', type=int, default=0,
+                                 help=('Maximum number of times to retry '
+                                       'each test that consistently runs '
+                                       'unexpectedly in the initial repeat '
+                                       'loop. A retried test takes any '
+                                       'expected status as its final result.'))
     debugging_group.add_argument('--pause-after-test', action="store_true", default=None,
                                  help="Halt the test runner after each test (this happens by default if only a single test is run)")
     debugging_group.add_argument('--no-pause-after-test', dest="pause_after_test", action="store_false",
@@ -646,6 +652,12 @@ def check_args_metadata_update(kwargs):
             print("Log file %s is a directory" % item, file=sys.stderr)
             sys.exit(1)
 
+    if kwargs["properties_file"] is None and not kwargs["no_properties_file"]:
+        default_file = os.path.join(kwargs["test_paths"]["/"]["metadata_path"],
+                                    "update_properties.json")
+        if os.path.exists(default_file):
+            kwargs["properties_file"] = default_file
+
     return kwargs
 
 
@@ -668,8 +680,9 @@ def create_parser_metadata_update(product_choices=None):
 
     parser = argparse.ArgumentParser("web-platform-tests-update",
                                      description="Update script for web-platform-tests tests.")
+    # This will be removed once all consumers are updated to the properties-file based system
     parser.add_argument("--product", action="store", choices=product_choices,
-                        default=None, help="Browser for which metadata is being updated")
+                        default=None, help=argparse.SUPPRESS)
     parser.add_argument("--config", action="store", type=abs_path, help="Path to config file")
     parser.add_argument("--metadata", action="store", type=abs_path, dest="metadata_root",
                         help="Path to the folder containing test metadata"),
@@ -688,8 +701,14 @@ def create_parser_metadata_update(product_choices=None):
                         help="Remove obsolete intermittent statuses from expected statuses.")
     parser.add_argument("--no-remove-obsolete", action="store_false", dest="remove_obsolete", default=True,
                         help="Don't remove metadata files that no longer correspond to a test file")
+    parser.add_argument("--properties-file",
+                        help="""Path to a JSON file containing run_info properties to use in update. This must be of the form
+                        {"properties": [<name>], "dependents": {<property name>: [<name>]}}""")
+    parser.add_argument("--no-properties-file", action="store_true",
+                        help="Don't use the default properties file at "
+                        "${metadata_root}/update_properties.json, even if it exists.")
     parser.add_argument("--extra-property", action="append", default=[],
-                        help="Extra property from run_info.json to use in metadata update")
+                        help="Extra property from run_info.json to use in metadata update.")
     # TODO: Should make this required iff run=logfile
     parser.add_argument("run_log", nargs="*", type=abs_path,
                         help="Log file from run of tests")

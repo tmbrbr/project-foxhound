@@ -14,8 +14,12 @@ var EXPORTED_SYMBOLS = [
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { JSONFile } = ChromeUtils.import("resource://gre/modules/JSONFile.jsm");
-const { Log } = ChromeUtils.import("resource://gre/modules/Log.jsm");
+const { JSONFile } = ChromeUtils.importESModule(
+  "resource://gre/modules/JSONFile.sys.mjs"
+);
+const { Log } = ChromeUtils.importESModule(
+  "resource://gre/modules/Log.sys.mjs"
+);
 const { Async } = ChromeUtils.import("resource://services-common/async.js");
 const { Observers } = ChromeUtils.import(
   "resource://services-common/observers.js"
@@ -42,14 +46,9 @@ ChromeUtils.defineESModuleGetters(lazy, {
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
 });
 
-XPCOMUtils.defineLazyModuleGetters(lazy, {
-  OS: "resource://gre/modules/osfile.jsm",
-});
-
 function ensureDirectory(path) {
-  let basename = lazy.OS.Path.dirname(path);
-  return lazy.OS.File.makeDir(basename, {
-    from: lazy.OS.Constants.Path.profileDir,
+  return IOUtils.makeDirectory(PathUtils.parent(path), {
+    createAncestors: true,
   });
 }
 
@@ -1309,7 +1308,7 @@ SyncEngine.prototype = {
       // Filtering out already downloaded IDs here isn't necessary. We only do
       // that in case the Sync server doesn't support `older` (bug 1316110).
       let remainingIDs = guids.obj.filter(id => !downloadedIDs.has(id));
-      if (remainingIDs.length > 0) {
+      if (remainingIDs.length) {
         this.toFetch = Utils.setAddAll(this.toFetch, remainingIDs);
       }
     }
@@ -1944,7 +1943,7 @@ SyncEngine.prototype = {
         await doDelete(key, val);
       } else {
         // For many ids, split into chunks of at most 100
-        while (val.length > 0) {
+        while (val.length) {
           await doDelete(key, val.slice(0, 100));
           val = val.slice(100);
         }

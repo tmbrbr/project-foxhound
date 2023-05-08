@@ -18,11 +18,9 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
 const lazy = {};
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "OSKeyStore",
-  "resource://gre/modules/OSKeyStore.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  OSKeyStore: "resource://gre/modules/OSKeyStore.sys.mjs",
+});
 
 /**
  * A helper class to deal with CSV import rows.
@@ -648,12 +646,22 @@ const LoginHelper = {
   getLoginOrigin(uriString, allowJS = false) {
     let realm = "";
     try {
+      const mozProxyRegex = /^moz-proxy:\/\//i;
+      const isMozProxy = !!uriString.match(mozProxyRegex);
+      if (isMozProxy) {
+        // Special handling because uri.displayHostPort throws on moz-proxy://
+        return (
+          "moz-proxy://" +
+          Services.io.newURI(uriString.replace(mozProxyRegex, "https://"))
+            .displayHostPort
+        );
+      }
+
       let uri = Services.io.newURI(uriString);
 
       if (allowJS && uri.scheme == "javascript") {
         return "javascript:";
       }
-      // TODO: Bug 1559205 - Add support for moz-proxy
 
       // Build this manually instead of using prePath to avoid including the userPass portion.
       realm = uri.scheme + "://" + uri.displayHostPort;
@@ -1310,7 +1318,8 @@ const LoginHelper = {
         fieldType == "email" ||
         fieldType == "url" ||
         fieldType == "tel" ||
-        fieldType == "number"
+        fieldType == "number" ||
+        fieldType == "search"
       )
     ) {
       return false;
@@ -1413,7 +1422,7 @@ const LoginHelper = {
    * @returns {boolean} True if any of the rules matches
    */
   isInferredEmailField(element) {
-    const expr = /email/i;
+    const expr = /email|邮箱/i;
 
     if (element.type == "email") {
       return true;

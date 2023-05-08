@@ -34,10 +34,12 @@
 #include "MotionEvent.h"
 #include "ScopedGLHelpers.h"
 #include "ScreenHelperAndroid.h"
+#include "SurfaceViewWrapperSupport.h"
 #include "TouchResampler.h"
 #include "WidgetUtils.h"
 #include "WindowRenderer.h"
 
+#include "mozilla/EventForwards.h"
 #include "nsAppShell.h"
 #include "nsContentUtils.h"
 #include "nsFocusManager.h"
@@ -396,7 +398,7 @@ class NPZCSupport final
       return INPUT_RESULT_IGNORED;
     }
 
-    PostInputEvent([input, result](nsWindow* window) {
+    PostInputEvent([input = std::move(input), result](nsWindow* window) {
       WidgetWheelEvent wheelEvent = input.ToWidgetEvent(window);
       window->ProcessUntransformedAPZEvent(&wheelEvent, result);
     });
@@ -573,7 +575,7 @@ class NPZCSupport final
       return INPUT_RESULT_IGNORED;
     }
 
-    PostInputEvent([input, result](nsWindow* window) {
+    PostInputEvent([input = std::move(input), result](nsWindow* window) {
       WidgetMouseEvent mouseEvent = input.ToWidgetEvent(window);
       window->ProcessUntransformedAPZEvent(&mouseEvent, result);
     });
@@ -844,43 +846,37 @@ class NPZCSupport final
     }
 
     // Dispatch APZ input event on Gecko thread.
-    PostInputEvent([aInput, result](nsWindow* window) {
-      WidgetTouchEvent touchEvent = aInput.ToWidgetEvent(window);
+    PostInputEvent([input = std::move(aInput), result](nsWindow* window) {
+      WidgetTouchEvent touchEvent = input.ToWidgetEvent(window);
       window->ProcessUntransformedAPZEvent(&touchEvent, result);
       window->DispatchHitTest(touchEvent);
     });
 
+    if (result.GetStatus() == nsEventStatus_eIgnore) {
+      if (aReturnResult) {
+        aReturnResult->Complete(java::PanZoomController::InputResultDetail::New(
+            INPUT_RESULT_UNHANDLED,
+            java::PanZoomController::SCROLLABLE_FLAG_NONE,
+            java::PanZoomController::OVERSCROLL_FLAG_NONE));
+      }
+      return;
+    }
+
+    MOZ_ASSERT(result.GetStatus() == nsEventStatus_eConsumeDoDefault);
+
     if (aReturnResult && result.GetHandledResult() != Nothing()) {
       // We know conclusively that the root APZ handled this or not and
       // don't need to do any more work.
-      switch (result.GetStatus()) {
-        case nsEventStatus_eIgnore:
-          aReturnResult->Complete(
-              java::PanZoomController::InputResultDetail::New(
-                  INPUT_RESULT_UNHANDLED,
-                  java::PanZoomController::SCROLLABLE_FLAG_NONE,
-                  java::PanZoomController::OVERSCROLL_FLAG_NONE));
-          break;
-        case nsEventStatus_eConsumeDoDefault:
-          aReturnResult->Complete(
-              ConvertAPZHandledResult(result.GetHandledResult().value()));
-          break;
-        default:
-          MOZ_ASSERT_UNREACHABLE("Unexpected nsEventStatus");
-          aReturnResult->Complete(
-              java::PanZoomController::InputResultDetail::New(
-                  INPUT_RESULT_UNHANDLED,
-                  java::PanZoomController::SCROLLABLE_FLAG_NONE,
-                  java::PanZoomController::OVERSCROLL_FLAG_NONE));
-          break;
-      }
+      aReturnResult->Complete(
+          ConvertAPZHandledResult(result.GetHandledResult().value()));
     }
   }
 };
 
 NS_IMPL_ISUPPORTS(AndroidView, nsIAndroidEventDispatcher, nsIAndroidView)
 
-nsresult AndroidView::GetInitData(JSContext* aCx, JS::MutableHandleValue aOut) {
+nsresult AndroidView::GetInitData(JSContext* aCx,
+                                  JS::MutableHandle<JS::Value> aOut) {
   if (!mInitData) {
     aOut.setNull();
     return NS_OK;
@@ -900,6 +896,8 @@ class LayerViewSupport final
   Atomic<bool, ReleaseAcquire> mCompositorPaused;
   java::sdk::Surface::GlobalRef mSurface;
   java::sdk::SurfaceControl::GlobalRef mSurfaceControl;
+  int32_t mX;
+  int32_t mY;
   int32_t mWidth;
   int32_t mHeight;
   // Used to communicate with the gecko compositor from the UI thread.
@@ -1043,7 +1041,7 @@ class LayerViewSupport final
         }
       }
 
-      mUiCompositorControllerChild->Resume();
+      mUiCompositorControllerChild->ResumeAndResize(mX, mY, mWidth, mHeight);
     }
   }
 
@@ -1234,6 +1232,15 @@ class LayerViewSupport final
       jni::Object::Param aSurfaceControl) {
     MOZ_ASSERT(AndroidBridge::IsJavaUiThread());
 
+    // If our Surface is in an abandoned state then we will never succesfully
+    // create an EGL Surface, and will eventually crash. Better to explicitly
+    // crash now.
+    if (SurfaceViewWrapperSupport::IsSurfaceAbandoned(aSurface)) {
+      MOZ_CRASH("Compositor resumed with abandoned Surface");
+    }
+
+    mX = aX;
+    mY = aY;
     mWidth = aWidth;
     mHeight = aHeight;
     mSurfaceControl =
@@ -1312,6 +1319,10 @@ class LayerViewSupport final
     // Use priority queue for timing-sensitive event.
     nsAppShell::PostEvent(
         MakeUnique<LayerViewEvent>(MakeUnique<OnResumedEvent>(aObj)));
+  }
+
+  mozilla::jni::Object::LocalRef GetMagnifiableSurface() {
+    return mozilla::jni::Object::LocalRef::From(GetSurface());
   }
 
   void SyncInvalidateAndScheduleComposite() {
@@ -1809,17 +1820,15 @@ void GeckoViewSupport::PrintToPdf(
   RefPtr<CanonicalBrowsingContext::PrintPromise> print =
       cbc->Print(printSettings);
 
+  geckoResult->Complete(stream);
   print->Then(
       mozilla::GetCurrentSerialEventTarget(), __func__,
       [result = java::GeckoResult::GlobalRef(geckoResult), stream, pdfErrorMsg](
           const CanonicalBrowsingContext::PrintPromise::ResolveOrRejectValue&
               aValue) {
         if (aValue.IsReject()) {
-          result->CompleteExceptionally(
-              IllegalStateException::New(pdfErrorMsg).Cast<jni::Throwable>());
-          GVS_LOG("Could not print.");
-        } else {
-          result->Complete(stream);
+          GVS_LOG("Could not print. %s", pdfErrorMsg);
+          stream->SendError();
         }
       });
 }

@@ -17,20 +17,14 @@ ChromeUtils.defineModuleGetter(
   "BrowserWindowTracker",
   "resource:///modules/BrowserWindowTracker.jsm"
 );
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "UrlbarUtils",
-  "resource:///modules/UrlbarUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  UrlbarUtils: "resource:///modules/UrlbarUtils.sys.mjs",
+  ClickHandlerParent: "resource:///actors/ClickHandlerParent.sys.mjs",
+});
 ChromeUtils.defineModuleGetter(
   lazy,
   "WebNavigationFrames",
   "resource://gre/modules/WebNavigationFrames.jsm"
-);
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "ClickHandlerParent",
-  "resource:///actors/ClickHandlerParent.jsm"
 );
 
 // Maximum amount of time that can be passed and still consider

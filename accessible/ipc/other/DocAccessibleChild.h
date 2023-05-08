@@ -82,9 +82,6 @@ class DocAccessibleChild : public DocAccessibleChildBase {
   virtual mozilla::ipc::IPCResult RecvLandmarkRole(
       const uint64_t& aID, nsString* aLandmark) override;
 
-  virtual mozilla::ipc::IPCResult RecvARIARoleAtom(const uint64_t& aID,
-                                                   nsString* aRole) override;
-
   virtual mozilla::ipc::IPCResult RecvGroupPosition(
       const uint64_t& aID, int32_t* aLevel, int32_t* aSimilarItemsInGroup,
       int32_t* aPositionInGroup) override;
@@ -97,7 +94,7 @@ class DocAccessibleChild : public DocAccessibleChildBase {
                                                     const int32_t& aY) override;
 
   virtual mozilla::ipc::IPCResult RecvAnnounce(
-      const uint64_t& aID, const nsString& aAnnouncement,
+      const uint64_t& aID, const nsAString& aAnnouncement,
       const uint16_t& aPriority) override;
 
   virtual mozilla::ipc::IPCResult RecvCaretLineNumber(
@@ -183,10 +180,10 @@ class DocAccessibleChild : public DocAccessibleChildBase {
                                            nsString* aText) override;
 
   virtual mozilla::ipc::IPCResult RecvReplaceText(
-      const uint64_t& aID, const nsString& aText) override;
+      const uint64_t& aID, const nsAString& aText) override;
 
   virtual mozilla::ipc::IPCResult RecvInsertText(const uint64_t& aID,
-                                                 const nsString& aText,
+                                                 const nsAString& aText,
                                                  const int32_t& aPosition,
                                                  bool* aValid) override;
 
@@ -416,10 +413,6 @@ class DocAccessibleChild : public DocAccessibleChildBase {
 
   virtual mozilla::ipc::IPCResult RecvStep(const uint64_t& aID,
                                            double* aStep) override;
-
-  virtual mozilla::ipc::IPCResult RecvFocusedChild(
-      const uint64_t& aID, PDocAccessibleChild** aResultDoc,
-      uint64_t* aResultID) override;
 
   virtual mozilla::ipc::IPCResult RecvLanguage(const uint64_t& aID,
                                                nsString* aLocale) override;

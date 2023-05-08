@@ -4,9 +4,7 @@
 
 "use strict";
 
-const { Cu } = require("chrome");
-const ChromeUtils = require("ChromeUtils");
-var { Front } = require("devtools/shared/protocol/Front");
+var { Front } = require("resource://devtools/shared/protocol/Front.js");
 
 /**
  * Generates request methods as described by the given actor specification on

@@ -15,6 +15,7 @@
 #include "mozilla/dom/InternalRequest.h"
 #include "mozilla/dom/Request.h"
 #include "mozilla/dom/Response.h"
+#include "mozilla/dom/RootedDictionary.h"
 #include "mozilla/dom/cache/CacheTypes.h"
 #include "mozilla/dom/cache/ReadStream.h"
 #include "mozilla/ipc/BackgroundChild.h"
@@ -189,7 +190,7 @@ void TypeUtils::ToCacheResponseWithoutBody(CacheResponse& aOut,
   }
   aOut.headers() = ToHeadersEntryList(headers);
   aOut.headersGuard() = headers->Guard();
-  aOut.channelInfo() = aIn.GetChannelInfo().AsIPCChannelInfo();
+  aOut.securityInfo() = aIn.GetChannelInfo().SecurityInfo();
   if (aIn.GetPrincipalInfo()) {
     aOut.principalInfo() = Some(*aIn.GetPrincipalInfo());
   } else {
@@ -276,7 +277,7 @@ already_AddRefed<Response> TypeUtils::ToResponse(const CacheResponse& aIn) {
   ir->Headers()->SetGuard(aIn.headersGuard(), result);
   MOZ_DIAGNOSTIC_ASSERT(!result.Failed());
 
-  ir->InitChannelInfo(aIn.channelInfo());
+  ir->InitChannelInfo(aIn.securityInfo());
   if (aIn.principalInfo().isSome()) {
     UniquePtr<mozilla::ipc::PrincipalInfo> info(
         new mozilla::ipc::PrincipalInfo(aIn.principalInfo().ref()));

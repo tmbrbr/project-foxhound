@@ -13,6 +13,7 @@ import {
 import { actionCreators as ac, actionTypes as at } from "common/Actions.jsm";
 import { DSLinkMenu } from "content-src/components/DiscoveryStreamComponents/DSLinkMenu/DSLinkMenu";
 import React from "react";
+import { INITIAL_STATE } from "common/Reducers.jsm";
 import { SafeAnchor } from "content-src/components/DiscoveryStreamComponents/SafeAnchor/SafeAnchor";
 import { shallow, mount } from "enzyme";
 import { FluentOrText } from "content-src/components/FluentOrText/FluentOrText";
@@ -23,6 +24,7 @@ const DEFAULT_PROPS = {
   App: {
     isForStartupCache: false,
   },
+  DiscoveryStream: INITIAL_STATE.DiscoveryStream,
 };
 
 describe("<DSCard>", () => {
@@ -111,14 +113,49 @@ describe("<DSCard>", () => {
     assert.equal(contextFooter.find(".story-sponsored-label").text(), context);
   });
 
-  it("should render Sponsored Context for a spoc element", () => {
+  it("should render time to read", () => {
+    const discoveryStream = {
+      ...INITIAL_STATE.DiscoveryStream,
+      readTime: true,
+    };
     wrapper = mount(
-      <DSCard displayReadTime={true} time_to_read={4} {...DEFAULT_PROPS} />
+      <DSCard
+        time_to_read={4}
+        {...DEFAULT_PROPS}
+        DiscoveryStream={discoveryStream}
+      />
     );
     wrapper.setState({ isSeen: true });
     const defaultMeta = wrapper.find(DefaultMeta);
     assert.lengthOf(defaultMeta, 1);
     assert.equal(defaultMeta.props().timeToRead, 4);
+  });
+
+  it("should not show save to pocket button for spocs", () => {
+    wrapper.setProps({
+      id: "fooidx",
+      pos: 1,
+      type: "foo",
+      flightId: 12345,
+      saveToPocketCard: true,
+    });
+
+    let stpButton = wrapper.find(".card-stp-button");
+
+    assert.lengthOf(stpButton, 0);
+  });
+
+  it("should show save to pocket button for non-spocs", () => {
+    wrapper.setProps({
+      id: "fooidx",
+      pos: 1,
+      type: "foo",
+      saveToPocketCard: true,
+    });
+
+    let stpButton = wrapper.find(".card-stp-button");
+
+    assert.lengthOf(stpButton, 1);
   });
 
   describe("onLinkClick", () => {
@@ -144,7 +181,7 @@ describe("<DSCard>", () => {
       assert.calledTwice(dispatch);
       assert.calledWith(
         dispatch,
-        ac.UserEvent({
+        ac.DiscoveryStreamUserEvent({
           event: "CLICK",
           source: "FOO",
           action_position: 1,
@@ -156,7 +193,7 @@ describe("<DSCard>", () => {
         ac.ImpressionStats({
           click: 0,
           source: "FOO",
-          tiles: [{ id: "fooidx", pos: 1 }],
+          tiles: [{ id: "fooidx", pos: 1, type: "organic" }],
           window_inner_width: 1000,
           window_inner_height: 900,
         })
@@ -171,7 +208,7 @@ describe("<DSCard>", () => {
       assert.calledTwice(dispatch);
       assert.calledWith(
         dispatch,
-        ac.UserEvent({
+        ac.DiscoveryStreamUserEvent({
           event: "CLICK",
           source: "FOO",
           action_position: 1,
@@ -183,7 +220,7 @@ describe("<DSCard>", () => {
         ac.ImpressionStats({
           click: 0,
           source: "FOO",
-          tiles: [{ id: "fooidx", pos: 1 }],
+          tiles: [{ id: "fooidx", pos: 1, type: "spoc" }],
           window_inner_width: 1000,
           window_inner_height: 900,
         })
@@ -205,7 +242,7 @@ describe("<DSCard>", () => {
       assert.calledTwice(dispatch);
       assert.calledWith(
         dispatch,
-        ac.UserEvent({
+        ac.DiscoveryStreamUserEvent({
           event: "CLICK",
           source: "FOO",
           action_position: 1,
@@ -217,7 +254,9 @@ describe("<DSCard>", () => {
         ac.ImpressionStats({
           click: 0,
           source: "FOO",
-          tiles: [{ id: "fooidx", pos: 1, shim: "click shim" }],
+          tiles: [
+            { id: "fooidx", pos: 1, shim: "click shim", type: "organic" },
+          ],
           window_inner_width: 1000,
           window_inner_height: 900,
         })
@@ -301,6 +340,7 @@ describe("<DSCard>", () => {
         App: {
           isForStartupCache: true,
         },
+        DiscoveryStream: INITIAL_STATE.DiscoveryStream,
       };
       wrapper = mount(<DSCard {...props} />);
     });
@@ -325,10 +365,11 @@ describe("<DSCard>", () => {
       );
       assert.calledWith(
         dispatch,
-        ac.UserEvent({
+        ac.DiscoveryStreamUserEvent({
           event: "SAVE_TO_POCKET",
           source: "CARDGRID_HOVER",
           action_position: 1,
+          value: { card_type: "organic" },
         })
       );
       assert.calledWith(

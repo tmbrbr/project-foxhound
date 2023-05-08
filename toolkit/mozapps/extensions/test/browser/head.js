@@ -13,7 +13,7 @@ const { TelemetryTestUtils } = ChromeUtils.import(
 let { AddonManager, AddonManagerPrivate } = ChromeUtils.import(
   "resource://gre/modules/AddonManager.jsm"
 );
-let { Log } = ChromeUtils.import("resource://gre/modules/Log.jsm");
+let { Log } = ChromeUtils.importESModule("resource://gre/modules/Log.sys.mjs");
 
 var pathParts = gTestPath.split("/");
 // Drop the test filename
@@ -589,16 +589,14 @@ CategoryUtilities.prototype = {
 
 // Returns a promise that will resolve when the certificate error override has been added, or reject
 // if there is some failure.
-function addCertOverride(host, bits) {
+function addCertOverride(host) {
   return new Promise((resolve, reject) => {
     let req = new XMLHttpRequest();
     req.open("GET", "https://" + host + "/");
     req.onload = reject;
     req.onerror = () => {
       if (req.channel && req.channel.securityInfo) {
-        let securityInfo = req.channel.securityInfo.QueryInterface(
-          Ci.nsITransportSecurityInfo
-        );
+        let securityInfo = req.channel.securityInfo;
         if (securityInfo.serverCert) {
           let cos = Cc["@mozilla.org/security/certoverride;1"].getService(
             Ci.nsICertOverrideService
@@ -608,7 +606,6 @@ function addCertOverride(host, bits) {
             -1,
             {},
             securityInfo.serverCert,
-            bits,
             false
           );
           resolve();
@@ -624,31 +621,19 @@ function addCertOverride(host, bits) {
 // Returns a promise that will resolve when the necessary certificate overrides have been added.
 function addCertOverrides() {
   return Promise.all([
-    addCertOverride(
-      "nocert.example.com",
-      Ci.nsICertOverrideService.ERROR_MISMATCH
-    ),
-    addCertOverride(
-      "self-signed.example.com",
-      Ci.nsICertOverrideService.ERROR_UNTRUSTED
-    ),
-    addCertOverride(
-      "untrusted.example.com",
-      Ci.nsICertOverrideService.ERROR_UNTRUSTED
-    ),
-    addCertOverride(
-      "expired.example.com",
-      Ci.nsICertOverrideService.ERROR_TIME
-    ),
+    addCertOverride("nocert.example.com"),
+    addCertOverride("self-signed.example.com"),
+    addCertOverride("untrusted.example.com"),
+    addCertOverride("expired.example.com"),
   ]);
 }
 
 /** *** Mock Provider *****/
 
-function MockProvider() {
+function MockProvider(addonTypes) {
   this.addons = [];
   this.installs = [];
-  this.addonTypes = ["extension"];
+  this.addonTypes = addonTypes ?? ["extension"];
 
   var self = this;
   registerCleanupFunction(function() {
@@ -1478,8 +1463,8 @@ function waitAppMenuNotificationShown(
   accept = false,
   win = window
 ) {
-  const { AppMenuNotifications } = ChromeUtils.import(
-    "resource://gre/modules/AppMenuNotifications.jsm"
+  const { AppMenuNotifications } = ChromeUtils.importESModule(
+    "resource://gre/modules/AppMenuNotifications.sys.mjs"
   );
   return new Promise(resolve => {
     let { document, PanelUI } = win;

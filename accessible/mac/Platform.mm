@@ -133,7 +133,7 @@ void ProxyCaretMoveEvent(RemoteAccessible* aTarget, int32_t aOffset,
   }
 }
 
-void ProxyTextChangeEvent(RemoteAccessible* aTarget, const nsString& aStr,
+void ProxyTextChangeEvent(RemoteAccessible* aTarget, const nsAString& aStr,
                           int32_t aStart, uint32_t aLen, bool aIsInsert,
                           bool aFromUser) {
   RemoteAccessible* acc = aTarget;
@@ -181,7 +181,8 @@ void ProxyTextSelectionChangeEvent(RemoteAccessible* aTarget,
   }
 }
 
-void ProxyRoleChangedEvent(RemoteAccessible* aTarget, const a11y::role& aRole) {
+void ProxyRoleChangedEvent(RemoteAccessible* aTarget, const a11y::role& aRole,
+                           uint8_t aRoleMapEntryIndex) {
   if (mozAccessible* wrapper = GetNativeFromGeckoAccessible(aTarget)) {
     [wrapper handleRoleChanged:aRole];
   }

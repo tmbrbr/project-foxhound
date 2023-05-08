@@ -42,11 +42,11 @@ namespace js {
 namespace jit {
 
 // IonCacheIRCompiler compiles CacheIR to IonIC native code.
-IonCacheIRCompiler::IonCacheIRCompiler(JSContext* cx,
+IonCacheIRCompiler::IonCacheIRCompiler(JSContext* cx, TempAllocator& alloc,
                                        const CacheIRWriter& writer, IonIC* ic,
                                        IonScript* ionScript,
                                        uint32_t stubDataOffset)
-    : CacheIRCompiler(cx, writer, stubDataOffset, Mode::Ion,
+    : CacheIRCompiler(cx, alloc, writer, stubDataOffset, Mode::Ion,
                       StubFieldPolicy::Constant),
       writer_(writer),
       ic_(ic),
@@ -1120,51 +1120,6 @@ bool IonCacheIRCompiler::emitFrameIsConstructingResult() {
   MOZ_CRASH("Baseline-specific op");
 }
 
-bool IonCacheIRCompiler::emitLoadEnvironmentFixedSlotResult(
-    ObjOperandId objId, uint32_t offsetOffset) {
-  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
-  AutoOutputRegister output(*this);
-  Register obj = allocator.useRegister(masm, objId);
-  int32_t offset = int32StubField(offsetOffset);
-
-  FailurePath* failure;
-  if (!addFailurePath(&failure)) {
-    return false;
-  }
-
-  // Check for uninitialized lexicals.
-  Address slot(obj, offset);
-  masm.branchTestMagic(Assembler::Equal, slot, failure->label());
-
-  // Load the value.
-  masm.loadTypedOrValue(slot, output);
-  return true;
-}
-
-bool IonCacheIRCompiler::emitLoadEnvironmentDynamicSlotResult(
-    ObjOperandId objId, uint32_t offsetOffset) {
-  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
-  AutoOutputRegister output(*this);
-  Register obj = allocator.useRegister(masm, objId);
-  int32_t offset = int32StubField(offsetOffset);
-  AutoScratchRegisterMaybeOutput scratch(allocator, masm, output);
-
-  FailurePath* failure;
-  if (!addFailurePath(&failure)) {
-    return false;
-  }
-
-  masm.loadPtr(Address(obj, NativeObject::offsetOfSlots()), scratch);
-
-  // Check for uninitialized lexicals.
-  Address slot(scratch, offset);
-  masm.branchTestMagic(Assembler::Equal, slot, failure->label());
-
-  // Load the value.
-  masm.loadTypedOrValue(slot, output);
-  return true;
-}
-
 bool IonCacheIRCompiler::emitLoadConstantStringResult(uint32_t strOffset) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
   MOZ_CRASH("not used in ion");
@@ -1293,7 +1248,7 @@ bool IonCacheIRCompiler::emitAddAndStoreSlotShared(
     masm.move32(Imm32(numNewSlots), scratch2.ref());
     masm.passABIArg(scratch2.ref());
     masm.callWithABI<Fn, NativeObject::growSlotsPure>();
-    masm.mov(ReturnReg, scratch1);
+    masm.storeCallPointerResult(scratch1);
 
     LiveRegisterSet ignore;
     ignore.add(scratch1);
@@ -1364,7 +1319,8 @@ bool IonCacheIRCompiler::emitLoadStringCharResult(StringOperandId strId,
   Register str = allocator.useRegister(masm, strId);
   Register index = allocator.useRegister(masm, indexId);
   AutoScratchRegisterMaybeOutput scratch1(allocator, masm, output);
-  AutoScratchRegister scratch2(allocator, masm);
+  AutoScratchRegisterMaybeOutputType scratch2(allocator, masm, output);
+  AutoScratchRegister scratch3(allocator, masm);
 
   FailurePath* failure;
   if (!addFailurePath(&failure)) {
@@ -1381,7 +1337,8 @@ bool IonCacheIRCompiler::emitLoadStringCharResult(StringOperandId strId,
                  ImmPtr(nullptr),
                  failure->label());
 
-  masm.loadStringChar(str, index, scratch1, scratch2, failure->label());
+  masm.loadStringChar(str, index, scratch1, scratch2, scratch3,
+                      failure->label());
 
   // Load StaticString for this char. For larger code units perform a VM call.
   Label vmCall;
@@ -1405,6 +1362,7 @@ bool IonCacheIRCompiler::emitLoadStringCharResult(StringOperandId strId,
                                  liveVolatileFloatRegs());
     volatileRegs.takeUnchecked(scratch1);
     volatileRegs.takeUnchecked(scratch2);
+    volatileRegs.takeUnchecked(scratch3);
     volatileRegs.takeUnchecked(output);
     masm.PushRegsInMask(volatileRegs);
 
@@ -1660,7 +1618,7 @@ bool IonCacheIRCompiler::emitCallAddOrUpdateSparseElementHelper(
   masm.Push(id);
   masm.Push(obj);
 
-  using Fn = bool (*)(JSContext * cx, Handle<ArrayObject*> obj, int32_t int_id,
+  using Fn = bool (*)(JSContext * cx, Handle<NativeObject*> obj, int32_t int_id,
                       HandleValue v, bool strict);
   callVM<Fn, AddOrUpdateSparseElementHelper>(masm);
   return true;
@@ -1688,7 +1646,7 @@ bool IonCacheIRCompiler::emitMegamorphicSetElement(ObjOperandId objId,
 
   using Fn = bool (*)(JSContext*, HandleObject, HandleValue, HandleValue,
                       HandleValue, bool);
-  callVM<Fn, SetObjectElementWithReceiver>(masm);
+  callVM<Fn, SetElementMegamorphic>(masm);
   return true;
 }
 
@@ -1886,8 +1844,10 @@ void IonIC::attachCacheIRStub(JSContext* cx, const CacheIRWriter& writer,
       new (newStubMem) IonICStub(fallbackAddr(ionScript), stubInfo);
   writer.copyStubData(newStub->stubDataStart());
 
-  JitContext jctx(cx, nullptr);
-  IonCacheIRCompiler compiler(cx, writer, this, ionScript, stubDataOffset);
+  TempAllocator temp(&cx->tempLifoAlloc());
+  JitContext jctx(cx);
+  IonCacheIRCompiler compiler(cx, temp, writer, this, ionScript,
+                              stubDataOffset);
   if (!compiler.init()) {
     return;
   }
@@ -2010,15 +1970,14 @@ bool IonCacheIRCompiler::emitGuardFunctionScript(ObjOperandId funId,
 
 bool IonCacheIRCompiler::emitCallScriptedFunction(ObjOperandId calleeId,
                                                   Int32OperandId argcId,
-                                                  CallFlags flags) {
+                                                  CallFlags flags,
+                                                  uint32_t argcFixed) {
   MOZ_CRASH("Call ICs not used in ion");
 }
 
-bool IonCacheIRCompiler::emitCallWasmFunction(ObjOperandId calleeId,
-                                              Int32OperandId argcId,
-                                              CallFlags flags,
-                                              uint32_t funcExportOffset,
-                                              uint32_t instanceOffset) {
+bool IonCacheIRCompiler::emitCallWasmFunction(
+    ObjOperandId calleeId, Int32OperandId argcId, CallFlags flags,
+    uint32_t argcFixed, uint32_t funcExportOffset, uint32_t instanceOffset) {
   MOZ_CRASH("Call ICs not used in ion");
 }
 
@@ -2026,21 +1985,21 @@ bool IonCacheIRCompiler::emitCallWasmFunction(ObjOperandId calleeId,
 bool IonCacheIRCompiler::emitCallNativeFunction(ObjOperandId calleeId,
                                                 Int32OperandId argcId,
                                                 CallFlags flags,
+                                                uint32_t argcFixed,
                                                 uint32_t targetOffset) {
   MOZ_CRASH("Call ICs not used in ion");
 }
 
-bool IonCacheIRCompiler::emitCallDOMFunction(ObjOperandId calleeId,
-                                             Int32OperandId argcId,
-                                             ObjOperandId thisObjId,
-                                             CallFlags flags,
-                                             uint32_t targetOffset) {
+bool IonCacheIRCompiler::emitCallDOMFunction(
+    ObjOperandId calleeId, Int32OperandId argcId, ObjOperandId thisObjId,
+    CallFlags flags, uint32_t argcFixed, uint32_t targetOffset) {
   MOZ_CRASH("Call ICs not used in ion");
 }
 #else
 bool IonCacheIRCompiler::emitCallNativeFunction(ObjOperandId calleeId,
                                                 Int32OperandId argcId,
                                                 CallFlags flags,
+                                                uint32_t argcFixed,
                                                 bool ignoresReturnValue) {
   MOZ_CRASH("Call ICs not used in ion");
 }
@@ -2048,14 +2007,15 @@ bool IonCacheIRCompiler::emitCallNativeFunction(ObjOperandId calleeId,
 bool IonCacheIRCompiler::emitCallDOMFunction(ObjOperandId calleeId,
                                              Int32OperandId argcId,
                                              ObjOperandId thisObjId,
-                                             CallFlags flags) {
+                                             CallFlags flags,
+                                             uint32_t argcFixed) {
   MOZ_CRASH("Call ICs not used in ion");
 }
 #endif
 
 bool IonCacheIRCompiler::emitCallClassHook(ObjOperandId calleeId,
                                            Int32OperandId argcId,
-                                           CallFlags flags,
+                                           CallFlags flags, uint32_t argcFixed,
                                            uint32_t targetOffset) {
   MOZ_CRASH("Call ICs not used in ion");
 }
@@ -2063,7 +2023,8 @@ bool IonCacheIRCompiler::emitCallClassHook(ObjOperandId calleeId,
 bool IonCacheIRCompiler::emitCallInlinedFunction(ObjOperandId calleeId,
                                                  Int32OperandId argcId,
                                                  uint32_t icScriptOffset,
-                                                 CallFlags flags) {
+                                                 CallFlags flags,
+                                                 uint32_t argcFixed) {
   MOZ_CRASH("Call ICs not used in ion");
 }
 

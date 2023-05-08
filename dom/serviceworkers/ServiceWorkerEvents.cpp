@@ -226,10 +226,10 @@ class BodyCopyHandle final : public nsIInterceptedBodyCallback {
 
     nsCOMPtr<nsIRunnable> event;
     if (NS_WARN_IF(NS_FAILED(aRv))) {
-      AsyncLog(mClosure->mInterceptedChannel, mClosure->mRespondWithScriptSpec,
-               mClosure->mRespondWithLineNumber,
-               mClosure->mRespondWithColumnNumber,
-               "InterceptionFailedWithURL"_ns, mClosure->mRequestURL);
+      ::AsyncLog(
+          mClosure->mInterceptedChannel, mClosure->mRespondWithScriptSpec,
+          mClosure->mRespondWithLineNumber, mClosure->mRespondWithColumnNumber,
+          "InterceptionFailedWithURL"_ns, mClosure->mRequestURL);
       event = new CancelChannelRunnable(mClosure->mInterceptedChannel,
                                         mClosure->mRegistration,
                                         NS_ERROR_INTERCEPTION_FAILED);
@@ -1250,7 +1250,7 @@ void ExtendableMessageEvent::GetPorts(nsTArray<RefPtr<MessagePort>>& aPorts) {
   aPorts = mPorts.Clone();
 }
 
-NS_IMPL_CYCLE_COLLECTION_MULTI_ZONE_JSHOLDER_CLASS(ExtendableMessageEvent)
+NS_IMPL_CYCLE_COLLECTION_CLASS(ExtendableMessageEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(ExtendableMessageEvent, Event)
   tmp->mData.setUndefined();

@@ -18,6 +18,16 @@ treeherder:
         'Btime-cache': 'Browsertime performance tests on Firefox with populated bytecode cache.'
         'Btime-1proc': 'Browsertime performance tests on Firefox without e10s'
         'Btime-fis': 'Browsertime performance tests on Firefox with fission enabled'
+        'Btime-nofis': 'Browsertime tests on Firefox without fission enabled'
+        'Btime-P-nofis': 'Browsertime power tests on Firefox without fission enabled'
+        'Btime-Prof-nofis': 'Browsertime tests on Firefox with profiling and without fission enabled'
+        'Btime-P-nofis-refbrow': 'Browsertime Power Usage Tests on reference browser without fission enabled'
+        'Btime-P-nofis-fenix': 'Browsertime Power Usage Tests on Fenix without fission enabled'
+        'Btime-live-nofis-fenix': 'Browsertime tests on Fenix without fission enabled using live sites'
+        'Btime-nofis-fenix': 'Browsertime tests on Fenix without fission enabled'
+        'Btime-live-nofis': 'Browsertime tests on Firefox without fission enabled using live sites'
+        'Btime-nofis-refbrow': 'Browsertime tests on reference browser without fission enabled'
+        'Btime-live-nofis-ChR': 'Browsertime tests on Chrome without fission enabled using live sites'
         'Btime-Prof': 'Browsertime performance tests on Firefox with Gecko Profiling'
         'Btime-Prof-fis': 'Browsertime performance tests on Firefox with Gecko Profiling, fission enabled'
         'Btime-Prof-1proc': 'Browsertime performance tests on Firefox with Gecko Profiling and without e10s'
@@ -27,6 +37,7 @@ treeherder:
         'Btime-live-ChR': 'Browsertime performance tests on Firefox'
         'Btime-live-Cr': 'Browsertime performance tests on Google Chromium'
         'Btime-ChR': 'Browsertime performance tests on Google Chrome Release'
+        'Btime-nofis-ChR': 'Browsertime performance tests on Google Chrome Release without fission enabled'
         'Btime-Cr': 'Browsertime performance tests on Google Chromium'
         'Btime-P': 'Browsertime power tests on Firefox/Geckoview'
         'Btime-P-fenix': 'Browsertime power tests on Fenix'
@@ -66,6 +77,7 @@ treeherder:
         'M-swr-wayland': 'Mochitests with software webrender and Wayland backend enabled'
         'M-wayland': 'Mochitests with Wayland backend enabled'
         'M-wayland-1proc': 'Mochitests with Wayland backend enabled without e10s'
+        'M-wmfme': 'Mochitests with Windows Media Foundation media engine enabled'
         'M-f': 'Mochitest failures'
         'M-dt-no-eft-nofis': 'DevTools Mochitests with EFT without fission enabled'
         'MSI': 'Repack installers into MSIs'
@@ -325,6 +337,16 @@ merge-automation:
             from-branch: 'central'
             to-repo: 'https://hg.mozilla.org/releases/mozilla-beta'
             to-branch: 'beta'
+        early-to-late-beta:
+            fetch-version-from: "browser/config/version.txt"
+            version-files: []
+            replacements:
+                - - build/defines.sh
+                  - EARLY_BETA_OR_EARLIER=1
+                  - EARLY_BETA_OR_EARLIER=
+            merge-old-head: false
+            to-repo: 'https://hg.mozilla.org/releases/mozilla-beta'
+            to-branch: 'beta'
         beta-to-release:
             fetch-version-from: "browser/config/version.txt"
             version-files:
@@ -361,9 +383,6 @@ merge-automation:
                   version-bump: "major"
                   new-suffix: 'a1'
             replacements:
-                - - "xpcom/components/Module.h"
-                  - "static const unsigned int kVersion = {current_major_version};"
-                  - "static const unsigned int kVersion = {next_major_version};"
                 - - "services/sync/modules/constants.js"
                   - 'WEAVE_VERSION: "1.{current_weave_version}.0"'
                   - 'WEAVE_VERSION: "1.{next_weave_version}.0"'
@@ -371,19 +390,6 @@ merge-automation:
             end-tag: 'FIREFOX_NIGHTLY_{major_version}_END'
             to-repo: 'https://hg.mozilla.org/mozilla-central'
             to-branch: 'central'
-        bump-esr91:
-            fetch-version-from: "browser/config/version.txt"
-            version-files:
-                - filename: "config/milestone.txt"
-                  version-bump: "minor"
-                - filename: "browser/config/version.txt"
-                  version-bump: "minor"
-                - filename: "browser/config/version_display.txt"
-                  version-bump: "minor"
-            replacements: []
-            merge-old-head: false
-            to-repo: 'https://hg.mozilla.org/releases/mozilla-esr91'
-            to-branch: 'esr91'
         bump-esr102:
             fetch-version-from: "browser/config/version.txt"
             version-files:
@@ -537,7 +543,10 @@ workers:
             worker-type:
                 by-release-level:
                     production: '{trust-domain}-3-tree'
-                    staging: '{trust-domain}-1-tree'
+                    staging:
+                        by-project:
+                            autoland: '{trust-domain}-3-tree'
+                            default: '{trust-domain}-1-tree'
         tree-dev:
             provisioner: scriptworker-k8s
             implementation: treescript
@@ -553,11 +562,16 @@ workers:
             implementation: docker-worker
             os: linux
             worker-type: '{alias}-gcp'
-        t-linux-metal:
+        t-linux-kvm:
             provisioner: '{trust-domain}-t'
             implementation: docker-worker
             os: linux
-            worker-type: '{alias}'
+            worker-type: 't-linux-kvm-gcp'
+        t-linux-kvm-aws:
+            provisioner: '{trust-domain}-t'
+            implementation: docker-worker
+            os: linux
+            worker-type: 't-linux-metal'
         t-linux-talos:
             provisioner: releng-hardware
             implementation: generic-worker
@@ -660,3 +674,19 @@ mac-notarization:
         by-platform:
             macosx64.*: build/package/mac_osx/requirements.plist
             default: ''
+
+expiration-policy:
+    by-project:
+        try:
+            default: 1 month
+            medium: 1 month
+            long: 1 month
+        autoland:
+            default: 1 year
+            medium: 1 year
+            # To avoid keeping shippable builds for over a year
+            long: 1 year
+        default:
+            default: 3 months
+            medium: 1 year
+            long: 1 year

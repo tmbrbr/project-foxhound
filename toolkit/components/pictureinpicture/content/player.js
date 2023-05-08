@@ -2,8 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const { PictureInPicture } = ChromeUtils.import(
-  "resource://gre/modules/PictureInPicture.jsm"
+const { PictureInPicture } = ChromeUtils.importESModule(
+  "resource://gre/modules/PictureInPicture.sys.mjs"
+);
+const { ShortcutUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/ShortcutUtils.sys.mjs"
 );
 const { DeferredTask } = ChromeUtils.import(
   "resource://gre/modules/DeferredTask.jsm"
@@ -20,6 +23,8 @@ const CAPTIONS_TOGGLE_ENABLED_PREF =
   "media.videocontrols.picture-in-picture.display-text-tracks.toggle.enabled";
 const TEXT_TRACK_FONT_SIZE_PREF =
   "media.videocontrols.picture-in-picture.display-text-tracks.size";
+const IMPROVED_CONTROLS_ENABLED_PREF =
+  "media.videocontrols.picture-in-picture.improved-video-controls.enabled";
 
 // Time to fade the Picture-in-Picture video controls after first opening.
 const CONTROLS_FADE_TIMEOUT_MS = 3000;
@@ -107,11 +112,8 @@ let Player = {
    */
   resizeDebouncer: null,
   /**
-   * Used for window movement Telemetry to determine if the player window has
-   * moved since the last time we checked.
+   * Used for Telemetry to identify the window.
    */
-  lastScreenX: -1,
-  lastScreenY: -1,
   id: -1,
 
   /**
@@ -155,6 +157,12 @@ let Player = {
 
     let playPauseBtn = document.getElementById("playpause");
     playPauseBtn.focus({ focusVisible: false });
+
+    let closeButton = document.getElementById("close");
+    let closeShortcut = document.getElementById("closeShortcut");
+    document.l10n.setAttributes(closeButton, "pictureinpicture-close-cmd", {
+      shortcut: ShortcutUtils.prettifyShortcut(closeShortcut),
+    });
 
     // Set the specific remoteType and browsingContextGroupID to use for the
     // initial about:blank load. The combination of these two properties will
@@ -213,15 +221,26 @@ let Player = {
       audioButton.previousElementSibling.hidden = false;
     }
 
+    if (Services.prefs.getBoolPref(IMPROVED_CONTROLS_ENABLED_PREF, false)) {
+      const fullscreenButton = document.getElementById("fullscreen");
+      fullscreenButton.hidden = false;
+      fullscreenButton.previousElementSibling.hidden = false;
+
+      const seekBackwardButton = document.getElementById("seekBackward");
+      seekBackwardButton.hidden = false;
+      seekBackwardButton.nextElementSibling.hidden = false;
+
+      const seekForwardButton = document.getElementById("seekForward");
+      seekForwardButton.hidden = false;
+      seekForwardButton.previousElementSibling.hidden = false;
+    }
+
     this.resizeDebouncer = new DeferredTask(() => {
       this.recordEvent("resize", {
         width: window.outerWidth.toString(),
         height: window.outerHeight.toString(),
       });
     }, RESIZE_DEBOUNCE_RATE_MS);
-
-    this.lastScreenX = window.screenX;
-    this.lastScreenY = window.screenY;
 
     this.computeAndSetMinimumSize(window.outerWidth, window.outerHeight);
 
@@ -330,6 +349,14 @@ let Player = {
             Services.obs.notifyObservers(window, "fullscreen-painted");
           }
         });
+
+        // Sets the title for fullscreen button when PIP is in Enter Fullscreen mode and Exit Fullscreen mode
+        const fullscreenButton = document.getElementById("fullscreen");
+        let strId = this.isFullscreen
+          ? `pictureinpicture-exit-fullscreen-cmd`
+          : `pictureinpicture-fullscreen-cmd`;
+        document.l10n.setAttributes(fullscreenButton, strId);
+
         if (this.isFullscreen) {
           window.focus();
           this.actor.sendAsyncMessage("PictureInPicture:EnterFullscreen", {
@@ -396,11 +423,7 @@ let Player = {
 
   onDblClick(event) {
     if (event.target.id == "controls") {
-      if (this.isFullscreen) {
-        document.exitFullscreen();
-      } else {
-        document.body.requestFullscreen();
-      }
+      this.fullscreenModeToggle();
       event.preventDefault();
     }
   },
@@ -433,6 +456,16 @@ let Player = {
         break;
       }
 
+      case "seekBackward": {
+        this.actor.sendAsyncMessage("PictureInPicture:SeekBackward");
+        break;
+      }
+
+      case "seekForward": {
+        this.actor.sendAsyncMessage("PictureInPicture:SeekForward");
+        break;
+      }
+
       case "unpip": {
         PictureInPicture.focusTabAndClosePip(window, this.actor);
         break;
@@ -451,6 +484,11 @@ let Player = {
         // Early return to prevent hiding the panel below
         return;
       }
+
+      case "fullscreen": {
+        this.fullscreenModeToggle();
+        break;
+      }
     }
     // If the click came from a element that is not inside the subtitles settings panel
     // then we want to hide the panel
@@ -465,6 +503,14 @@ let Player = {
       reason: "pip-closed",
     });
     this.closePipWindow({ reason: "close-button" });
+  },
+
+  fullscreenModeToggle() {
+    if (this.isFullscreen) {
+      document.exitFullscreen();
+    } else {
+      document.body.requestFullscreen();
+    }
   },
 
   onKeyDown(event) {
@@ -604,9 +650,6 @@ let Player = {
    *  Event context details
    */
   onMouseUp(event) {
-    this.lastScreenX = window.screenX;
-    this.lastScreenY = window.screenY;
-
     // Corner snapping changes start here.
     // Check if metakey pressed and macOS
     let quadrant = this.determineCurrentQuadrant();
@@ -790,7 +833,9 @@ let Player = {
     this._isPlaying = isPlaying;
     this.controls.classList.toggle("playing", isPlaying);
     const playButton = document.getElementById("playpause");
-    let strId = "pictureinpicture-" + (isPlaying ? "pause" : "play");
+    let strId = isPlaying
+      ? `pictureinpicture-pause-cmd`
+      : `pictureinpicture-play-cmd`;
     document.l10n.setAttributes(playButton, strId);
   },
 
@@ -811,8 +856,14 @@ let Player = {
     this._isMuted = isMuted;
     this.controls.classList.toggle("muted", isMuted);
     const audioButton = document.getElementById("audio");
-    let strId = "pictureinpicture-" + (isMuted ? "unmute" : "mute");
-    document.l10n.setAttributes(audioButton, strId);
+    let strId = isMuted
+      ? `pictureinpicture-unmute-cmd`
+      : `pictureinpicture-mute-cmd`;
+    let shortcutId = isMuted ? "unMuteShortcut" : "muteShortcut";
+    let shortcut = document.getElementById(shortcutId);
+    document.l10n.setAttributes(audioButton, strId, {
+      shortcut: ShortcutUtils.prettifyShortcut(shortcut),
+    });
   },
 
   /**

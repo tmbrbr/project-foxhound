@@ -9,9 +9,7 @@
 
 "use strict";
 
-ChromeUtils.defineModuleGetter(
-  this,
-  "ContentTaskUtils",
+const { ContentTaskUtils } = ChromeUtils.import(
   "resource://testing-common/ContentTaskUtils.jsm"
 );
 
@@ -57,7 +55,7 @@ async function expectNoSuchActorIDs(client, actors) {
 function waitForObjectInspector(panelDoc, waitForNodeWithType = "object") {
   const selector = `.object-inspector .objectBox-${waitForNodeWithType}`;
   return ContentTaskUtils.waitForCondition(() => {
-    return panelDoc.querySelectorAll(selector).length > 0;
+    return !!panelDoc.querySelectorAll(selector).length;
   }, `Wait for objectInspector's node type "${waitForNodeWithType}" to be loaded`);
 }
 

@@ -26,11 +26,14 @@ const { FormAutofillUtils } = ChromeUtils.import(
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  CreditCard: "resource://gre/modules/CreditCard.sys.mjs",
+  FormLikeFactory: "resource://gre/modules/FormLikeFactory.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
-  CreditCard: "resource://gre/modules/CreditCard.jsm",
   CreditCardTelemetry: "resource://autofill/FormAutofillTelemetryUtils.jsm",
   FormAutofillHeuristics: "resource://autofill/FormAutofillHeuristics.jsm",
-  FormLikeFactory: "resource://gre/modules/FormLikeFactory.jsm",
 });
 
 const formFillController = Cc[
@@ -1016,42 +1019,98 @@ class FormAutofillCreditCardSection extends FormAutofillSection {
     this.handler.onFormSubmitted();
   }
 
+  /**
+   * Determine whether a set of cc fields identified by our heuristics form a
+   * valid credit card section.
+   * There are 4 different cases when a field is considered a credit card field
+   * 1. Identified by autocomplete attribute. ex <input autocomplete="cc-number">
+   * 2. Identified by fathom and fathom is pretty confident (when confidence
+   *    value is higher than `highConfidenceThreshold`)
+   * 3. Identified by fathom. Confidence value is between `fathom.confidenceThreshold`
+   *    and `fathom.highConfidenceThreshold`
+   * 4. Identified by regex-based heurstic. There is no confidence value in thise case.
+   *
+   * A form is considered a valid credit card form when one of the following condition
+   * is met:
+   * A. One of the cc field is identified by autocomplete (case 1)
+   * B. One of the cc field is identified by fathom (case 2 or 3), and there is also
+   *    another cc field found by any of our heuristic (case 2, 3, or 4)
+   * C. Only one cc field is found in the section, but fathom is very confident (Case 2).
+   *    Currently we add an extra restriction to this rule to decrease the false-positive
+   *    rate. See comments below for details.
+   *
+   * @returns {boolean} True for a valid section, otherwise false
+   */
   isValidSection() {
-    // TODO: Bug 1783013 - Re-enable this feature in release
-    if (AppConstants.EARLY_BETA_OR_EARLIER) {
-      // A valid cc section must contain a cc-number field
-      return this.fieldDetails.some(detail => detail.fieldName == "cc-number");
-    }
-
-    let ccNumberReason = "";
-    let hasCCNumber = false;
-    let hasExpiryDate = false;
-    let hasCCName = false;
+    let ccNumberDetail = null;
+    let ccNameDetail = null;
+    let ccExpiryDetail = null;
 
     for (let detail of this.fieldDetails) {
       switch (detail.fieldName) {
         case "cc-number":
-          hasCCNumber = true;
-          ccNumberReason = detail._reason;
+          ccNumberDetail = detail;
           break;
         case "cc-name":
         case "cc-given-name":
         case "cc-additional-name":
         case "cc-family-name":
-          hasCCName = true;
+          ccNameDetail = detail;
           break;
         case "cc-exp":
         case "cc-exp-month":
         case "cc-exp-year":
-          hasExpiryDate = true;
+          ccExpiryDetail = detail;
           break;
       }
     }
 
-    return (
-      hasCCNumber &&
-      (ccNumberReason == "autocomplete" || hasExpiryDate || hasCCName)
-    );
+    // Condition A. Always trust autocomplete attribute. A section is considered a valid
+    // cc section as long as a field has autocomplete=cc-number, cc-name or cc-exp*
+    if (
+      ccNumberDetail?._reason == "autocomplete" ||
+      ccNameDetail?._reason == "autocomplete" ||
+      ccExpiryDetail?._reason == "autocomplete"
+    ) {
+      return true;
+    }
+
+    // Condition B. One of the field is identified by fathom, if this section also
+    // contains another cc field found by our heuristic (Case 2, 3, or 4), we consider
+    // this section a valid credit card seciton
+    if (ccNumberDetail?.confidence > 0) {
+      if (ccNameDetail || ccExpiryDetail) {
+        return true;
+      }
+    } else if (ccNameDetail?.confidence > 0) {
+      if (ccNumberDetail || ccExpiryDetail) {
+        return true;
+      }
+    }
+
+    // Condition C.
+    let highConfidenceThreshold =
+      FormAutofillUtils.ccFathomHighConfidenceThreshold;
+    let highConfidenceField;
+    if (ccNumberDetail?.confidence > highConfidenceThreshold) {
+      highConfidenceField = ccNumberDetail;
+    } else if (ccNameDetail?.confidence > highConfidenceThreshold) {
+      highConfidenceField = ccNameDetail;
+    }
+    if (highConfidenceField) {
+      // Temporarily add an addtional "the field is the only visible input" constraint
+      // when determining whether a form has only a high-confidence cc-* field a valid
+      // credit card section. We can remove this restriction once we are confident
+      // about only using fathom.
+      const element = highConfidenceField.elementWeakRef.get();
+      const root = element.form || element.ownerDocument;
+      const inputs = root.querySelectorAll("input:not([type=hidden])");
+      if (inputs.length == 1 && inputs[0] == element) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   isEnabled() {

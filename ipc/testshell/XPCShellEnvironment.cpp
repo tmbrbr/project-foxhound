@@ -38,7 +38,6 @@
 
 #include "TestShellChild.h"
 
-using mozilla::AutoSafeJSContext;
 using mozilla::dom::AutoEntryScript;
 using mozilla::dom::AutoJSAPI;
 using mozilla::ipc::XPCShellEnvironment;
@@ -66,9 +65,9 @@ static bool Print(JSContext* cx, unsigned argc, JS::Value* vp) {
   JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
 
   for (unsigned i = 0; i < args.length(); i++) {
-    JSString* str = JS::ToString(cx, args[i]);
+    JS::Rooted<JSString*> str(cx, JS::ToString(cx, args[i]));
     if (!str) return false;
-    JS::UniqueChars bytes = JS_EncodeStringToLatin1(cx, str);
+    JS::UniqueChars bytes = JS_EncodeStringToUTF8(cx, str);
     if (!bytes) return false;
     fprintf(stdout, "%s%s", i ? " " : "", bytes.get());
     fflush(stdout);
@@ -92,9 +91,9 @@ static bool Dump(JSContext* cx, unsigned argc, JS::Value* vp) {
 
   if (!args.length()) return true;
 
-  JSString* str = JS::ToString(cx, args[0]);
+  JS::Rooted<JSString*> str(cx, JS::ToString(cx, args[0]));
   if (!str) return false;
-  JS::UniqueChars bytes = JS_EncodeStringToLatin1(cx, str);
+  JS::UniqueChars bytes = JS_EncodeStringToUTF8(cx, str);
   if (!bytes) return false;
 
   fputs(bytes.get(), stdout);
@@ -398,7 +397,7 @@ bool XPCShellEnvironment::Init() {
   return true;
 }
 
-bool XPCShellEnvironment::EvaluateString(const nsString& aString,
+bool XPCShellEnvironment::EvaluateString(const nsAString& aString,
                                          nsString* aResult) {
   AutoEntryScript aes(GetGlobalObject(),
                       "ipc XPCShellEnvironment::EvaluateString");
@@ -408,7 +407,7 @@ bool XPCShellEnvironment::EvaluateString(const nsString& aString,
   options.setFileAndLine("typein", 0);
 
   JS::SourceText<char16_t> srcBuf;
-  if (!srcBuf.init(cx, aString.get(), aString.Length(),
+  if (!srcBuf.init(cx, aString.BeginReading(), aString.Length(),
                    JS::SourceOwnership::Borrowed)) {
     return false;
   }

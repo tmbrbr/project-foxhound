@@ -4,16 +4,19 @@
 
 "use strict";
 
-const Services = require("Services");
-const { angleUtils } = require("devtools/client/shared/css-angle");
-const { colorUtils } = require("devtools/shared/css/color");
-const { getCSSLexer } = require("devtools/shared/css/lexer");
-const EventEmitter = require("devtools/shared/event-emitter");
-const { appendText } = require("devtools/client/inspector/shared/utils");
+const {
+  angleUtils,
+} = require("resource://devtools/client/shared/css-angle.js");
+const { colorUtils } = require("resource://devtools/shared/css/color.js");
+const { getCSSLexer } = require("resource://devtools/shared/css/lexer.js");
+const EventEmitter = require("resource://devtools/shared/event-emitter.js");
+const {
+  appendText,
+} = require("resource://devtools/client/inspector/shared/utils.js");
 
 const STYLE_INSPECTOR_PROPERTIES =
   "devtools/shared/locales/styleinspector.properties";
-const { LocalizationHelper } = require("devtools/shared/l10n");
+const { LocalizationHelper } = require("resource://devtools/shared/l10n.js");
 const STYLE_INSPECTOR_L10N = new LocalizationHelper(STYLE_INSPECTOR_PROPERTIES);
 
 // Functions that accept an angle argument.
@@ -122,7 +125,7 @@ OutputParser.prototype = {
    * @return {DocumentFragment}
    *         A document fragment containing color swatches etc.
    */
-  parseCssProperty: function(name, value, options = {}) {
+  parseCssProperty(name, value, options = {}) {
     options = this._mergeOptions(options);
 
     options.expectCubicBezier = this.supportsType(name, "timing-function");
@@ -174,7 +177,7 @@ OutputParser.prototype = {
    *         |sawComma| is true if the stop was due to a comma, or false otherwise.
    *         |sawVariable| is true if a variable was seen while parsing the text.
    */
-  _parseMatchingParens: function(text, tokenStream, options, stopAtComma) {
+  _parseMatchingParens(text, tokenStream, options, stopAtComma) {
     let depth = 1;
     const functionData = [];
     const tokens = [];
@@ -248,7 +251,7 @@ OutputParser.prototype = {
    *           "--var1 is not set".
    *         - value: The value for the variable.
    */
-  _parseVariable: function(initialToken, text, tokenStream, options) {
+  _parseVariable(initialToken, text, tokenStream, options) {
     // Handle the "var(".
     const varText = text.substring(
       initialToken.startOffset,
@@ -341,7 +344,7 @@ OutputParser.prototype = {
    *         A document fragment.
    */
   // eslint-disable-next-line complexity
-  _doParse: function(text, options, tokenStream, stopAtCloseParen) {
+  _doParse(text, options, tokenStream, stopAtCloseParen) {
     let parenDepth = stopAtCloseParen ? 1 : 0;
     let outerMostFunctionTakesColor = false;
     const colorFunctions = [];
@@ -634,7 +637,7 @@ OutputParser.prototype = {
    * @return {DocumentFragment}
    *         A document fragment.
    */
-  _parse: function(text, options = {}) {
+  _parse(text, options = {}) {
     text = text.trim();
     this.parsed.length = 0;
 
@@ -652,7 +655,7 @@ OutputParser.prototype = {
    * @param  {Object} options
    *         The options given to _parse.
    */
-  _isDisplayFlex: function(text, token, options) {
+  _isDisplayFlex(text, token, options) {
     return (
       options.expectDisplay &&
       (token.text === "flex" || token.text === "inline-flex")
@@ -669,7 +672,7 @@ OutputParser.prototype = {
    * @param  {Object} options
    *         The options given to _parse.
    */
-  _isDisplayGrid: function(text, token, options) {
+  _isDisplayGrid(text, token, options) {
     return (
       options.expectDisplay &&
       (token.text === "grid" || token.text === "inline-grid")
@@ -685,7 +688,7 @@ OutputParser.prototype = {
    *        Options object. For valid options and default values see
    *        _mergeOptions()
    */
-  _appendCubicBezier: function(bezier, options) {
+  _appendCubicBezier(bezier, options) {
     const container = this._createNode("span", {
       "data-bezier": bezier,
     });
@@ -720,7 +723,7 @@ OutputParser.prototype = {
    * @param {String} className
    *        The class name for the toggle span
    */
-  _appendHighlighterToggle: function(text, className) {
+  _appendHighlighterToggle(text, className) {
     const container = this._createNode("span", {});
 
     const toggle = this._createNode("span", {
@@ -745,7 +748,7 @@ OutputParser.prototype = {
    *        Options object. For valid options and default values see
    *        _mergeOptions()
    */
-  _appendShape: function(shape, options) {
+  _appendShape(shape, options) {
     const shapeTypes = [
       {
         prefix: "polygon(",
@@ -807,7 +810,7 @@ OutputParser.prototype = {
    * @returns {Node} The container to which spans have been added.
    */
   // eslint-disable-next-line complexity
-  _addPolygonPointNodes: function(coords, container) {
+  _addPolygonPointNodes(coords, container) {
     const tokenStream = getCSSLexer(coords);
     let token = tokenStream.nextToken();
     let coord = "";
@@ -957,7 +960,7 @@ OutputParser.prototype = {
    * @returns {Node} The container to which the definition has been added.
    */
   // eslint-disable-next-line complexity
-  _addCirclePointNodes: function(coords, container) {
+  _addCirclePointNodes(coords, container) {
     const tokenStream = getCSSLexer(coords);
     let token = tokenStream.nextToken();
     let depth = 0;
@@ -1118,7 +1121,7 @@ OutputParser.prototype = {
    * @returns {Node} The container to which the definition has been added.
    */
   // eslint-disable-next-line complexity
-  _addEllipsePointNodes: function(coords, container) {
+  _addEllipsePointNodes(coords, container) {
     const tokenStream = getCSSLexer(coords);
     let token = tokenStream.nextToken();
     let depth = 0;
@@ -1288,7 +1291,7 @@ OutputParser.prototype = {
    * @returns {Node} The container to which the definition has been added.
    */
   // eslint-disable-next-line complexity
-  _addInsetPointNodes: function(coords, container) {
+  _addInsetPointNodes(coords, container) {
     const insetPoints = ["top", "right", "bottom", "left"];
     const tokenStream = getCSSLexer(coords);
     let token = tokenStream.nextToken();
@@ -1432,7 +1435,7 @@ OutputParser.prototype = {
    *        Options object. For valid options and default values see
    *        _mergeOptions()
    */
-  _appendAngle: function(angle, options) {
+  _appendAngle(angle, options) {
     const angleObj = new angleUtils.CssAngle(angle);
     const container = this._createNode("span", {
       "data-angle": angle,
@@ -1480,7 +1483,7 @@ OutputParser.prototype = {
    * @param  {String} value
    *         CSS Property value to check
    */
-  _cssPropertySupportsValue: function(name, value) {
+  _cssPropertySupportsValue(name, value) {
     // Checking pair as a CSS declaration string to account for "!important" in value.
     const declaration = `${name}:${value}`;
     return this.doc.defaultView.CSS.supports(declaration);
@@ -1491,7 +1494,7 @@ OutputParser.prototype = {
    * Valid means it's really a color, not any of the CssColor SPECIAL_VALUES
    * except transparent
    */
-  _isValidColor: function(colorObj) {
+  _isValidColor(colorObj) {
     return (
       colorObj.valid &&
       (!colorObj.specialValue || colorObj.specialValue === "transparent")
@@ -1507,7 +1510,7 @@ OutputParser.prototype = {
    *         Options object. For valid options and default values see
    *         _mergeOptions().
    */
-  _appendColor: function(color, options = {}) {
+  _appendColor(color, options = {}) {
     const colorObj = new colorUtils.CssColor(color, this.cssColor4);
 
     if (this._isValidColor(colorObj)) {
@@ -1591,7 +1594,7 @@ OutputParser.prototype = {
    * @returns {object}
    *        A new node that supplies a filter swatch and that wraps |nodes|.
    */
-  _wrapFilter: function(filters, options, nodes) {
+  _wrapFilter(filters, options, nodes) {
     const container = this._createNode("span", {
       "data-filters": filters,
     });
@@ -1614,7 +1617,7 @@ OutputParser.prototype = {
     return container;
   },
 
-  _onColorSwatchMouseDown: function(event) {
+  _onColorSwatchMouseDown(event) {
     if (!event.shiftKey) {
       return;
     }
@@ -1631,7 +1634,7 @@ OutputParser.prototype = {
     swatch.emit("unit-change", val);
   },
 
-  _onAngleSwatchMouseDown: function(event) {
+  _onAngleSwatchMouseDown(event) {
     if (!event.shiftKey) {
       return;
     }
@@ -1649,7 +1652,7 @@ OutputParser.prototype = {
   /**
    * A helper function that sanitizes a possibly-unterminated URL.
    */
-  _sanitizeURL: function(url) {
+  _sanitizeURL(url) {
     // Re-lex the URL and add any needed termination characters.
     const urlTokenizer = getCSSLexer(url);
     // Just read until EOF; there will only be a single token.
@@ -1671,7 +1674,7 @@ OutputParser.prototype = {
    *         Options object. For valid options and default values see
    *         _mergeOptions().
    */
-  _appendURL: function(match, url, options) {
+  _appendURL(match, url, options) {
     if (options.urlClass) {
       // Sanitize the URL.  Note that if we modify the URL, we just
       // leave the termination characters.  This isn't strictly
@@ -1711,7 +1714,7 @@ OutputParser.prototype = {
         {
           target: "_blank",
           class: options.urlClass,
-          href: href,
+          href,
         },
         body
       );
@@ -1731,7 +1734,7 @@ OutputParser.prototype = {
    *         Options object. For valid options and default values see
    *         _mergeOptions().
    */
-  _appendFontFamily: function(fontFamily, options) {
+  _appendFontFamily(fontFamily, options) {
     let spanContents = fontFamily;
     let quoteChar = null;
     let trailingWhitespace = false;
@@ -1790,7 +1793,7 @@ OutputParser.prototype = {
    *         the tag. This is useful e.g. for span tags.
    * @return {Node} Newly created Node.
    */
-  _createNode: function(tagName, attributes, value = "") {
+  _createNode(tagName, attributes, value = "") {
     const node = this.doc.createElementNS(HTML_NS, tagName);
     const attrs = Object.getOwnPropertyNames(attributes);
 
@@ -1819,7 +1822,7 @@ OutputParser.prototype = {
    *         If a value is included it will be appended as a text node inside
    *         the tag. This is useful e.g. for span tags.
    */
-  _appendNode: function(tagName, attributes, value = "") {
+  _appendNode(tagName, attributes, value = "") {
     const node = this._createNode(tagName, attributes, value);
     this.parsed.push(node);
   },
@@ -1831,7 +1834,7 @@ OutputParser.prototype = {
    * @param  {String} text
    *         Text to append
    */
-  _appendTextNode: function(text) {
+  _appendTextNode(text) {
     const lastItem = this.parsed[this.parsed.length - 1];
     if (typeof lastItem === "string") {
       this.parsed[this.parsed.length - 1] = lastItem + text;
@@ -1846,7 +1849,7 @@ OutputParser.prototype = {
    * @return {DocumentFragment}
    *         Document Fragment
    */
-  _toDOM: function() {
+  _toDOM() {
     const frag = this.doc.createDocumentFragment();
 
     for (const item of this.parsed) {
@@ -1905,7 +1908,7 @@ OutputParser.prototype = {
    * @return {Object}
    *         Overridden options object
    */
-  _mergeOptions: function(overrides) {
+  _mergeOptions(overrides) {
     const defaults = {
       defaultColorType: true,
       angleClass: "",

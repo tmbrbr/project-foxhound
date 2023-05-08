@@ -18,7 +18,9 @@ const { CollectionProblemData, CollectionValidator } = ChromeUtils.import(
   "resource://services-sync/collection_validator.js"
 );
 const { Async } = ChromeUtils.import("resource://services-common/async.js");
-const { Log } = ChromeUtils.import("resource://gre/modules/Log.jsm");
+const { Log } = ChromeUtils.importESModule(
+  "resource://gre/modules/Log.sys.mjs"
+);
 const lazy = {};
 ChromeUtils.defineModuleGetter(
   lazy,
@@ -92,7 +94,7 @@ var FormWrapper = {
   async hasGUID(guid) {
     // We could probably use a count function here, but search exists...
     let results = await this._search(this._guidCols, { guid });
-    return results.length != 0;
+    return !!results.length;
   },
 
   async replaceGUID(oldGUID, newGUID) {

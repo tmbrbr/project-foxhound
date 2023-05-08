@@ -182,8 +182,7 @@ void UtilityProcessHost::InitAfterConnect(bool aSucceeded) {
   }
 
   mUtilityProcessParent = MakeRefPtr<UtilityProcessParent>(this);
-  DebugOnly<bool> rv = mUtilityProcessParent->Open(
-      TakeInitialPort(), base::GetProcId(GetChildProcessHandle()));
+  DebugOnly<bool> rv = TakeInitialEndpoint().Bind(mUtilityProcessParent.get());
   MOZ_ASSERT(rv);
 
   // Only clear mPrefSerializer in the success case to avoid a
@@ -198,7 +197,6 @@ void UtilityProcessHost::InitAfterConnect(bool aSucceeded) {
   UniquePtr<SandboxBroker::Policy> policy;
   switch (mSandbox) {
     case SandboxingKind::GENERIC_UTILITY:
-    case SandboxingKind::UTILITY_AUDIO_DECODING:  // TODO: NEW POLICY?
       policy = SandboxBrokerPolicyFactory::GetUtilityProcessPolicy(
           GetActor()->OtherPid());
       break;
@@ -239,7 +237,7 @@ void UtilityProcessHost::Shutdown() {
     mShutdownRequested = true;
 
     // The channel might already be closed if we got here unexpectedly.
-    if (!mChannelClosed) {
+    if (mUtilityProcessParent->CanSend()) {
       mUtilityProcessParent->Close();
     }
 
@@ -264,7 +262,6 @@ void UtilityProcessHost::Shutdown() {
 void UtilityProcessHost::OnChannelClosed() {
   MOZ_ASSERT(NS_IsMainThread());
 
-  mChannelClosed = true;
   RejectPromise();
 
   if (!mShutdownRequested && mListener) {

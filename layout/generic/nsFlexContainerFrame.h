@@ -14,6 +14,7 @@
 #include "mozilla/dom/FlexBinding.h"
 #include "mozilla/UniquePtr.h"
 #include "nsContainerFrame.h"
+#include "nsILineIterator.h"
 
 namespace mozilla {
 class LogicalPoint;
@@ -118,7 +119,8 @@ class MOZ_STACK_CLASS FlexboxAxisInfo final {
  * layout here as well (since that's what the -webkit versions are aliased to)
  * -- but only inside of a "display:-webkit-{inline-}box" container.)
  */
-class nsFlexContainerFrame final : public nsContainerFrame {
+class nsFlexContainerFrame final : public nsContainerFrame,
+                                   public nsILineIterator {
  public:
   NS_DECL_FRAMEARENA_HELPERS(nsFlexContainerFrame)
   NS_DECL_QUERYFRAME
@@ -182,14 +184,6 @@ class nsFlexContainerFrame final : public nsContainerFrame {
                      : mLastBaselineFromLastReflow;
     return true;
   }
-
-  /**
-   * Returns the effective value of -webkit-line-clamp for this flex container.
-   *
-   * This will be 0 if the property is 'none', or if the element is not
-   * display:-webkit-(inline-)box and -webkit-box-orient:vertical.
-   */
-  uint32_t GetLineClampValue() const;
 
   // nsContainerFrame overrides
   bool DrainSelfOverflowList() override;
@@ -282,6 +276,19 @@ class nsFlexContainerFrame final : public nsContainerFrame {
    */
   static void MarkCachedFlexMeasurementsDirty(nsIFrame* aItemFrame);
 
+  bool CanProvideLineIterator() const final { return true; }
+  nsILineIterator* GetLineIterator() final { return this; }
+  int32_t GetNumLines() const final;
+  bool IsLineIteratorFlowRTL() final;
+  mozilla::Result<LineInfo, nsresult> GetLine(int32_t aLineNumber) final;
+  int32_t FindLineContaining(nsIFrame* aFrame, int32_t aStartLine = 0) final;
+  NS_IMETHOD FindFrameAt(int32_t aLineNumber, nsPoint aPos,
+                         nsIFrame** aFrameFound, bool* aPosIsBeforeFirstFrame,
+                         bool* aPosIsAfterLastFrame) final;
+  NS_IMETHOD CheckLineOrder(int32_t aLine, bool* aIsReordered,
+                            nsIFrame** aFirstVisual,
+                            nsIFrame** aLastVisual) final;
+
  protected:
   // Protected constructor & destructor
   explicit nsFlexContainerFrame(ComputedStyle* aStyle,
@@ -318,6 +325,8 @@ class nsFlexContainerFrame final : public nsContainerFrame {
     // The absolutely-positioned flex children.
     nsTArray<nsIFrame*> mPlaceholders;
 
+    bool mHasCollapsedItems = false;
+
     // The final content-box main-size of the flex container as if there's no
     // fragmentation.
     nscoord mContentBoxMainSize = NS_UNCONSTRAINEDSIZE;
@@ -335,8 +344,7 @@ class nsFlexContainerFrame final : public nsContainerFrame {
       const nscoord aTentativeContentBoxMainSize,
       const nscoord aTentativeContentBoxCrossSize,
       const FlexboxAxisTracker& aAxisTracker, nscoord aMainGapSize,
-      nscoord aCrossGapSize, bool aHasLineClampEllipsis,
-      nsTArray<StrutInfo>& aStruts,
+      nscoord aCrossGapSize, nsTArray<StrutInfo>& aStruts,
       ComputedFlexContainerInfo* const aContainerInfo);
 
   /**
@@ -389,7 +397,7 @@ class nsFlexContainerFrame final : public nsContainerFrame {
       FlexLine& aLine, nsIFrame* aChildFrame,
       const ReflowInput& aParentReflowInput,
       const FlexboxAxisTracker& aAxisTracker,
-      const nscoord aTentativeContentBoxCrossSize, bool aHasLineClampEllipsis);
+      const nscoord aTentativeContentBoxCrossSize);
 
   /**
    * This method looks up cached block-axis measurements for a flex item, or
@@ -409,7 +417,6 @@ class nsFlexContainerFrame final : public nsContainerFrame {
    */
   nscoord MeasureFlexItemContentBSize(FlexItem& aFlexItem,
                                       bool aForceBResizeForMeasuringReflow,
-                                      bool aHasLineClampEllipsis,
                                       const ReflowInput& aParentReflowInput);
 
   /**
@@ -419,19 +426,7 @@ class nsFlexContainerFrame final : public nsContainerFrame {
    */
   void ResolveAutoFlexBasisAndMinSize(FlexItem& aFlexItem,
                                       const ReflowInput& aItemReflowInput,
-                                      const FlexboxAxisTracker& aAxisTracker,
-                                      bool aHasLineClampEllipsis);
-
-  /**
-   * Returns true if "this" is the nsFlexContainerFrame for a -moz-box or
-   * a -moz-inline-box -- these boxes have special behavior for flex items with
-   * "visibility:collapse".
-   *
-   * @param aFlexStyleDisp This frame's StyleDisplay(). (Just an optimization to
-   *                       avoid repeated lookup; some callers already have it.)
-   * @return true if "this" is the nsFlexContainerFrame for a -moz-{inline}box.
-   */
-  bool ShouldUseMozBoxCollapseBehavior(const nsStyleDisplay* aFlexStyleDisp);
+                                      const FlexboxAxisTracker& aAxisTracker);
 
   /**
    * This method:
@@ -451,9 +446,10 @@ class nsFlexContainerFrame final : public nsContainerFrame {
                          const nscoord aTentativeContentBoxCrossSize,
                          const nsTArray<StrutInfo>& aStruts,
                          const FlexboxAxisTracker& aAxisTracker,
-                         nscoord aMainGapSize, bool aHasLineClampEllipsis,
+                         nscoord aMainGapSize,
                          nsTArray<nsIFrame*>& aPlaceholders,
-                         nsTArray<FlexLine>& aLines);
+                         nsTArray<FlexLine>& aLines,
+                         bool& aHasCollapsedItems);
 
   /**
    * Generates and returns a FlexLayoutResult that contains the FlexLines and
@@ -579,8 +575,7 @@ class nsFlexContainerFrame final : public nsContainerFrame {
       const mozilla::LogicalSize& aAvailableSizeForItems,
       const mozilla::LogicalMargin& aBorderPadding,
       const nscoord aSumOfPrevInFlowsChildrenBlockSize,
-      const FlexboxAxisTracker& aAxisTracker, bool aHasLineClampEllipsis,
-      FlexLayoutResult& aFlr);
+      const FlexboxAxisTracker& aAxisTracker, FlexLayoutResult& aFlr);
 
   /**
    * Moves the given flex item's frame to the given LogicalPosition (modulo any
@@ -597,7 +592,7 @@ class nsFlexContainerFrame final : public nsContainerFrame {
    *                        that we call, to interpret aFramePos correctly).
    */
   void MoveFlexItemToFinalPosition(const FlexItem& aItem,
-                                   mozilla::LogicalPoint& aFramePos,
+                                   const mozilla::LogicalPoint& aFramePos,
                                    const nsSize& aContainerSize);
   /**
    * Helper-function to reflow a child frame, at its final position determined
@@ -617,10 +612,9 @@ class nsFlexContainerFrame final : public nsContainerFrame {
   nsReflowStatus ReflowFlexItem(const FlexboxAxisTracker& aAxisTracker,
                                 const ReflowInput& aReflowInput,
                                 const FlexItem& aItem,
-                                mozilla::LogicalPoint& aFramePos,
+                                const mozilla::LogicalPoint& aFramePos,
                                 const mozilla::LogicalSize& aAvailableSize,
-                                const nsSize& aContainerSize,
-                                bool aHasLineClampEllipsis);
+                                const nsSize& aContainerSize);
 
   /**
    * Helper-function to perform a "dummy reflow" on all our nsPlaceholderFrame

@@ -4,8 +4,6 @@
 
 "use strict";
 
-const Services = require("Services");
-
 const {
   ADD_BLOCKED_URL,
   TOGGLE_BLOCKING_ENABLED,
@@ -20,7 +18,7 @@ const {
   OPEN_ACTION_BAR,
   SELECT_ACTION_BAR_TAB,
   PANELS,
-} = require("devtools/client/netmonitor/src/constants");
+} = require("resource://devtools/client/netmonitor/src/constants.js");
 
 function toggleRequestBlockingPanel() {
   return async ({ dispatch, getState }) => {

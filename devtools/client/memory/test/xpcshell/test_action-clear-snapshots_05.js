@@ -8,8 +8,11 @@
 const {
   takeSnapshotAndCensus,
   clearSnapshots,
-} = require("devtools/client/memory/actions/snapshot");
-const { actions, treeMapState } = require("devtools/client/memory/constants");
+} = require("resource://devtools/client/memory/actions/snapshot.js");
+const {
+  actions,
+  treeMapState,
+} = require("resource://devtools/client/memory/constants.js");
 
 add_task(async function() {
   const front = new StubbedMemoryFront();
@@ -28,7 +31,7 @@ add_task(async function() {
   ]);
 
   const errorHeapWorker = {
-    deleteHeapSnapshot: function() {
+    deleteHeapSnapshot() {
       return Promise.reject("_");
     },
   };

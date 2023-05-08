@@ -12,7 +12,7 @@ const {
   getGroupsById,
   getMutableMessagesById,
   getVisibleMessages,
-} = require("devtools/client/webconsole/selectors/messages");
+} = require("resource://devtools/client/webconsole/selectors/messages.js");
 
 const {
   clonePacket,
@@ -21,18 +21,18 @@ const {
   getMessageAt,
   setupActions,
   setupStore,
-} = require("devtools/client/webconsole/test/node/helpers");
+} = require("resource://devtools/client/webconsole/test/node/helpers.js");
 const {
   stubPackets,
   stubPreparedMessages,
-} = require("devtools/client/webconsole/test/node/fixtures/stubs/index");
+} = require("resource://devtools/client/webconsole/test/node/fixtures/stubs/index.js");
 const {
   MESSAGE_TYPE,
   CSS_MESSAGE_ADD_MATCHING_ELEMENTS,
-} = require("devtools/client/webconsole/constants");
+} = require("resource://devtools/client/webconsole/constants.js");
 const {
   createWarningGroupMessage,
-} = require("devtools/client/webconsole/utils/messages");
+} = require("resource://devtools/client/webconsole/utils/messages.js");
 
 const expect = require("expect");
 
@@ -1023,7 +1023,7 @@ describe("Message reducer:", () => {
       dispatch(actions.networkMessageUpdates([updatePacket], null));
 
       let networkUpdates = getAllNetworkMessagesUpdateById(getState());
-      expect(Object.keys(networkUpdates).length > 0).toBe(true);
+      expect(!!Object.keys(networkUpdates).length).toBe(true);
 
       dispatch(actions.messagesClear());
 

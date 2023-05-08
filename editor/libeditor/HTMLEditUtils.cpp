@@ -5,6 +5,7 @@
 
 #include "HTMLEditUtils.h"
 
+#include "AutoRangeArray.h"  // for AutoRangeArray
 #include "CSSEditUtils.h"    // for CSSEditUtils
 #include "EditAction.h"      // for EditAction
 #include "EditorBase.h"      // for EditorBase, EditorType
@@ -15,9 +16,11 @@
 
 #include "mozilla/ArrayUtils.h"   // for ArrayLength
 #include "mozilla/Assertions.h"   // for MOZ_ASSERT, etc.
+#include "mozilla/RangeUtils.h"   // for RangeUtils
 #include "mozilla/dom/Element.h"  // for Element, nsINode
 #include "mozilla/dom/HTMLAnchorElement.h"
 #include "mozilla/dom/HTMLInputElement.h"
+#include "mozilla/dom/StaticRange.h"
 #include "mozilla/dom/Text.h"  // for Text
 
 #include "nsAString.h"  // for nsAString::IsEmpty
@@ -96,6 +99,19 @@ template EditorRawDOMPoint HTMLEditUtils::GetBetterInsertionPointFor(
     const nsIContent& aContentToInsert, const EditorDOMPoint& aPointToInsert,
     const Element& aEditingHost);
 
+template Result<EditorDOMPoint, nsresult>
+HTMLEditUtils::ComputePointToPutCaretInElementIfOutside(
+    const Element& aElement, const EditorDOMPoint& aCurrentPoint);
+template Result<EditorRawDOMPoint, nsresult>
+HTMLEditUtils::ComputePointToPutCaretInElementIfOutside(
+    const Element& aElement, const EditorDOMPoint& aCurrentPoint);
+template Result<EditorDOMPoint, nsresult>
+HTMLEditUtils::ComputePointToPutCaretInElementIfOutside(
+    const Element& aElement, const EditorRawDOMPoint& aCurrentPoint);
+template Result<EditorRawDOMPoint, nsresult>
+HTMLEditUtils::ComputePointToPutCaretInElementIfOutside(
+    const Element& aElement, const EditorRawDOMPoint& aCurrentPoint);
+
 bool HTMLEditUtils::CanContentsBeJoined(const nsIContent& aLeftContent,
                                         const nsIContent& aRightContent,
                                         StyleDifference aStyleDifference) {
@@ -147,6 +163,31 @@ bool HTMLEditUtils::IsBlockElement(const nsIContent& aContent) {
 
   return nsHTMLElement::IsBlock(
       nsHTMLTags::AtomTagToId(aContent.NodeInfo()->NameAtom()));
+}
+
+bool HTMLEditUtils::IsVisibleElementEvenIfLeafNode(const nsIContent& aContent) {
+  if (!aContent.IsElement()) {
+    return false;
+  }
+  // Assume non-HTML element is visible.
+  if (!aContent.IsHTMLElement()) {
+    return true;
+  }
+  if (HTMLEditUtils::IsBlockElement(aContent)) {
+    return true;
+  }
+  if (aContent.IsAnyOfHTMLElements(nsGkAtoms::applet, nsGkAtoms::iframe,
+                                   nsGkAtoms::img, nsGkAtoms::meter,
+                                   nsGkAtoms::progress, nsGkAtoms::select,
+                                   nsGkAtoms::textarea)) {
+    return true;
+  }
+  if (const HTMLInputElement* inputElement =
+          HTMLInputElement::FromNode(&aContent)) {
+    return inputElement->ControlType() != FormControlType::InputHidden;
+  }
+  // Maybe, empty inline element such as <span>.
+  return false;
 }
 
 /**
@@ -490,10 +531,7 @@ Element* HTMLEditUtils::GetElementOfImmediateBlockBoundary(
 
       // If there is a visible content which generates something visible,
       // stop scanning.
-      if (nextContent->IsAnyOfHTMLElements(
-              nsGkAtoms::applet, nsGkAtoms::iframe, nsGkAtoms::img,
-              nsGkAtoms::meter, nsGkAtoms::progress, nsGkAtoms::select,
-              nsGkAtoms::textarea)) {
+      if (HTMLEditUtils::IsVisibleElementEvenIfLeafNode(*nextContent)) {
         return nullptr;
       }
 
@@ -514,15 +552,6 @@ Element* HTMLEditUtils::GetElementOfImmediateBlockBoundary(
         // start of the text node are invisible.  In this case, we return
         // the found <br> element.
         return nextContent->AsElement();
-      }
-
-      if (HTMLInputElement* inputElement =
-              HTMLInputElement::FromNode(nextContent)) {
-        if (inputElement->ControlType() == FormControlType::InputHidden) {
-          continue;  // Keep scanning next one due to invisible form control.
-        }
-        return nullptr;  // Followed by a visible form control so that visible
-                         // <br>.
       }
 
       continue;
@@ -565,6 +594,159 @@ Element* HTMLEditUtils::GetElementOfImmediateBlockBoundary(
   // the <br> element is the last content in the block and invisible.
   // XXX Should we treat it visible if it's the only child of a block?
   return maybeNonEditableAncestorBlock;
+}
+
+nsIContent* HTMLEditUtils::GetUnnecessaryLineBreakContent(
+    const Element& aBlockElement, ScanLineBreak aScanLineBreak) {
+  auto* lastLineBreakContent = [&]() -> nsIContent* {
+    const LeafNodeTypes leafNodeOrNonEditableNode{
+        LeafNodeType::LeafNodeOrNonEditableNode};
+    const WalkTreeOptions onlyPrecedingLine{
+        WalkTreeOption::StopAtBlockBoundary};
+    for (nsIContent* content =
+             aScanLineBreak == ScanLineBreak::AtEndOfBlock
+                 ? HTMLEditUtils::GetLastLeafContent(aBlockElement,
+                                                     leafNodeOrNonEditableNode)
+                 : HTMLEditUtils::GetPreviousContent(
+                       aBlockElement, onlyPrecedingLine,
+                       aBlockElement.GetParentElement());
+         content;
+         content =
+             aScanLineBreak == ScanLineBreak::AtEndOfBlock
+                 ? HTMLEditUtils::GetPreviousLeafContentOrPreviousBlockElement(
+                       *content, aBlockElement, leafNodeOrNonEditableNode)
+                 : HTMLEditUtils::GetPreviousContent(
+                       *content, onlyPrecedingLine,
+                       aBlockElement.GetParentElement())) {
+      // If we're scanning preceding <br> element of aBlockElement, we don't
+      // need to look for a line break in another block because the caller
+      // needs to handle only preceding <br> element of aBlockElement.
+      if (aScanLineBreak == ScanLineBreak::BeforeBlock &&
+          HTMLEditUtils::IsBlockElement(*content)) {
+        return nullptr;
+      }
+      if (Text* textNode = Text::FromNode(content)) {
+        if (!textNode->TextLength()) {
+          continue;  // ignore empty text node
+        }
+        const nsTextFragment& textFragment = textNode->TextFragment();
+        if (EditorUtils::IsNewLinePreformatted(*textNode) &&
+            textFragment.CharAt(textFragment.GetLength() - 1u) ==
+                HTMLEditUtils::kNewLine) {
+          // If the text node ends with a preserved line break, it's unnecessary
+          // unless it follows another preformatted line break.
+          if (textFragment.GetLength() == 1u) {
+            return textNode;  // Need to scan previous leaf.
+          }
+          return textFragment.CharAt(textFragment.GetLength() - 2u) ==
+                         HTMLEditUtils::kNewLine
+                     ? nullptr
+                     : textNode;
+        }
+        if (HTMLEditUtils::IsVisibleTextNode(*textNode)) {
+          return nullptr;
+        }
+        continue;
+      }
+      if (content->IsCharacterData()) {
+        continue;  // ignore hidden character data nodes like comment
+      }
+      if (content->IsHTMLElement(nsGkAtoms::br)) {
+        return content;
+      }
+      // If found element is empty block or visible element, there is no
+      // unnecessary line break.
+      if (HTMLEditUtils::IsVisibleElementEvenIfLeafNode(*content)) {
+        return nullptr;
+      }
+      // Otherwise, e.g., empty <b>, we should keep scanning.
+    }
+    return nullptr;
+  }();
+  if (!lastLineBreakContent) {
+    return nullptr;
+  }
+
+  // If the found node is a text node and contains only one preformatted new
+  // line break, we need to keep scanning previous one, but if it has 2 or more
+  // characters, we know it has redundant line break.
+  Text* lastLineBreakText = Text::FromNode(lastLineBreakContent);
+  if (lastLineBreakText && lastLineBreakText->TextDataLength() != 1u) {
+    return lastLineBreakText;
+  }
+
+  // Scan previous leaf content, but now, we can stop at child block boundary.
+  const LeafNodeTypes leafNodeOrNonEditableNodeOrChildBlock{
+      LeafNodeType::LeafNodeOrNonEditableNode,
+      LeafNodeType::LeafNodeOrChildBlock};
+  const Element* blockElement = HTMLEditUtils::GetAncestorElement(
+      *lastLineBreakContent, HTMLEditUtils::ClosestBlockElement);
+  for (nsIContent* content =
+           HTMLEditUtils::GetPreviousLeafContentOrPreviousBlockElement(
+               *lastLineBreakContent, *blockElement,
+               leafNodeOrNonEditableNodeOrChildBlock);
+       content;
+       content = HTMLEditUtils::GetPreviousLeafContentOrPreviousBlockElement(
+           *content, *blockElement, leafNodeOrNonEditableNodeOrChildBlock)) {
+    if (HTMLEditUtils::IsBlockElement(*content) ||
+        (content->IsElement() && !content->IsHTMLElement())) {
+      // Now, must found <div>...<div>...</div><br></div>
+      //                                       ^^^^
+      // In this case, the <br> element is necessary to make a following empty
+      // line of the inner <div> visible.
+      return nullptr;
+    }
+    if (Text* textNode = Text::FromNode(content)) {
+      if (!textNode->TextLength()) {
+        continue;  // ignore empty text node
+      }
+      const nsTextFragment& textFragment = textNode->TextFragment();
+      if (EditorUtils::IsNewLinePreformatted(*textNode) &&
+          textFragment.CharAt(textFragment.GetLength() - 1u) ==
+              HTMLEditUtils::kNewLine) {
+        // So, we are here because the preformatted line break is followed by
+        // lastLineBreakContent which is <br> or a text node containing only
+        // one.  In this case, even if their parents are different,
+        // lastLineBreakContent is necessary to make the last line visible.
+        return nullptr;
+      }
+      if (!HTMLEditUtils::IsVisibleTextNode(*textNode)) {
+        continue;
+      }
+      if (EditorUtils::IsWhiteSpacePreformatted(*textNode)) {
+        // If the white-space is preserved, neither following <br> nor a
+        // preformatted line break is not necessary.
+        return lastLineBreakContent;
+      }
+      // Otherwise, only if the last character is a collapsible white-space,
+      // we need lastLineBreakContent to make the trailing white-space visible.
+      switch (textFragment.CharAt(textFragment.GetLength() - 1u)) {
+        case HTMLEditUtils::kSpace:
+        case HTMLEditUtils::kCarriageReturn:
+        case HTMLEditUtils::kTab:
+        case HTMLEditUtils::kNBSP:
+          return nullptr;
+        default:
+          return lastLineBreakContent;
+      }
+    }
+    if (content->IsCharacterData()) {
+      continue;  // ignore hidden character data nodes like comment
+    }
+    // If lastLineBreakContent follows a <br> element in same block, it's
+    // necessary to make the empty last line visible.
+    if (content->IsHTMLElement(nsGkAtoms::br)) {
+      return nullptr;
+    }
+    // If it follows a visible element, it's unnecessary line break.
+    if (HTMLEditUtils::IsVisibleElementEvenIfLeafNode(*content)) {
+      return lastLineBreakContent;
+    }
+    // Otherwise, ignore empty inline elements such as <b>.
+  }
+  // If the block is empty except invisible data nodes and lastLineBreakContent,
+  // lastLineBreakContent is necessary to make the block visible.
+  return nullptr;
 }
 
 bool HTMLEditUtils::IsEmptyNode(nsPresContext* aPresContext,
@@ -687,7 +869,7 @@ bool HTMLEditUtils::ShouldInsertLinefeedCharacter(
   // element.
   Element* closestEditableBlockElement =
       HTMLEditUtils::GetInclusiveAncestorElement(
-          *aPointToInsert.ContainerAsContent(),
+          *aPointToInsert.ContainerAs<nsIContent>(),
           HTMLEditUtils::ClosestEditableBlockElement);
 
   // If and only if the nearest block is the editing host or its parent,
@@ -697,7 +879,7 @@ bool HTMLEditUtils::ShouldInsertLinefeedCharacter(
           closestEditableBlockElement == &aEditingHost) &&
          HTMLEditUtils::IsDisplayOutsideInline(aEditingHost) &&
          EditorUtils::IsNewLinePreformatted(
-             *aPointToInsert.ContainerAsContent());
+             *aPointToInsert.ContainerAs<nsIContent>());
 }
 
 // We use bitmasks to test containment of elements. Elements are marked to be
@@ -1070,7 +1252,8 @@ nsIContent* HTMLEditUtils::GetPreviousContent(
   if (aPoint.IsStartOfContainer() || aPoint.IsInTextNode()) {
     if (aOptions.contains(WalkTreeOption::StopAtBlockBoundary) &&
         aPoint.IsInContentNode() &&
-        HTMLEditUtils::IsBlockElement(*aPoint.ContainerAsContent())) {
+        HTMLEditUtils::IsBlockElement(
+            *aPoint.template ContainerAs<nsIContent>())) {
       // If we aren't allowed to cross blocks, don't look before this block.
       return nullptr;
     }
@@ -1161,7 +1344,8 @@ nsIContent* HTMLEditUtils::GetNextContent(
   // and want the next one.
   if (aOptions.contains(WalkTreeOption::StopAtBlockBoundary) &&
       point.IsInContentNode() &&
-      HTMLEditUtils::IsBlockElement(*point.ContainerAsContent())) {
+      HTMLEditUtils::IsBlockElement(
+          *point.template ContainerAs<nsIContent>())) {
     // don't cross out of parent block
     return nullptr;
   }
@@ -1794,6 +1978,69 @@ EditorDOMPointType HTMLEditUtils::GetBetterInsertionPointFor(
       .template PointAfterContent<EditorDOMPointType>();
 }
 
+//  static
+template <typename EditorDOMPointType, typename EditorDOMPointTypeInput>
+Result<EditorDOMPointType, nsresult>
+HTMLEditUtils::ComputePointToPutCaretInElementIfOutside(
+    const Element& aElement, const EditorDOMPointTypeInput& aCurrentPoint) {
+  MOZ_ASSERT(aCurrentPoint.IsSet());
+
+  // FYI: This was moved from
+  // https://searchfox.org/mozilla-central/rev/d3c2f51d89c3ca008ff0cb5a057e77ccd973443e/editor/libeditor/HTMLEditSubActionHandler.cpp#9193
+
+  // Use ranges and RangeUtils::CompareNodeToRange() to compare selection
+  // start to new block.
+  RefPtr<StaticRange> staticRange =
+      StaticRange::Create(aCurrentPoint.ToRawRangeBoundary(),
+                          aCurrentPoint.ToRawRangeBoundary(), IgnoreErrors());
+  if (MOZ_UNLIKELY(!staticRange)) {
+    NS_WARNING("StaticRange::Create() failed");
+    return Err(NS_ERROR_FAILURE);
+  }
+
+  bool nodeBefore, nodeAfter;
+  nsresult rv = RangeUtils::CompareNodeToRange(
+      const_cast<Element*>(&aElement), staticRange, &nodeBefore, &nodeAfter);
+  if (NS_FAILED(rv)) {
+    NS_WARNING("RangeUtils::CompareNodeToRange() failed");
+    return Err(rv);
+  }
+
+  if (nodeBefore && nodeAfter) {
+    return EditorDOMPointType();  // aCurrentPoint is in aElement
+  }
+
+  if (nodeBefore) {
+    // selection is after block.  put at end of block.
+    const nsIContent* lastEditableContent = HTMLEditUtils::GetLastChild(
+        aElement, {WalkTreeOption::IgnoreNonEditableNode});
+    if (!lastEditableContent) {
+      lastEditableContent = &aElement;
+    }
+    if (lastEditableContent->IsText() ||
+        HTMLEditUtils::IsContainerNode(*lastEditableContent)) {
+      return EditorDOMPointType::AtEndOf(*lastEditableContent);
+    }
+    MOZ_ASSERT(lastEditableContent->GetParentNode());
+    return EditorDOMPointType::After(*lastEditableContent);
+  }
+
+  // selection is before block.  put at start of block.
+  const nsIContent* firstEditableContent = HTMLEditUtils::GetFirstChild(
+      aElement, {WalkTreeOption::IgnoreNonEditableNode});
+  if (!firstEditableContent) {
+    firstEditableContent = &aElement;
+  }
+  if (firstEditableContent->IsText() ||
+      HTMLEditUtils::IsContainerNode(*firstEditableContent)) {
+    MOZ_ASSERT(firstEditableContent->GetParentNode());
+    // XXX Shouldn't this be EditorDOMPointType(firstEditableContent, 0u)?
+    return EditorDOMPointType(firstEditableContent);
+  }
+  // XXX And shouldn't this be EditorDOMPointType(firstEditableContent)?
+  return EditorDOMPointType(firstEditableContent, 0u);
+}
+
 // static
 size_t HTMLEditUtils::CollectChildren(
     nsINode& aNode, nsTArray<OwningNonNull<nsIContent>>& aOutArrayOfContents,
@@ -1821,6 +2068,71 @@ size_t HTMLEditUtils::CollectChildren(
     }
   }
   return numberOfFoundChildren;
+}
+
+// static
+size_t HTMLEditUtils::CollectEmptyInlineContainerDescendants(
+    const nsINode& aNode,
+    nsTArray<OwningNonNull<nsIContent>>& aOutArrayOfContents,
+    const EmptyCheckOptions& aOptions) {
+  size_t numberOfFoundElements = 0;
+  for (Element* element = aNode.GetFirstElementChild(); element;) {
+    if (HTMLEditUtils::IsEmptyInlineContainer(*element, aOptions)) {
+      aOutArrayOfContents.AppendElement(*element);
+      numberOfFoundElements++;
+      nsIContent* nextContent = element->GetNextNonChildNode(&aNode);
+      element = nullptr;
+      for (; nextContent; nextContent = nextContent->GetNextNode(&aNode)) {
+        if (nextContent->IsElement()) {
+          element = nextContent->AsElement();
+          break;
+        }
+      }
+      continue;
+    }
+
+    nsIContent* nextContent = element->GetNextNode(&aNode);
+    element = nullptr;
+    for (; nextContent; nextContent = nextContent->GetNextNode(&aNode)) {
+      if (nextContent->IsElement()) {
+        element = nextContent->AsElement();
+        break;
+      }
+    }
+  }
+  return numberOfFoundElements;
+}
+
+/******************************************************************************
+ * SelectedTableCellScanner
+ ******************************************************************************/
+
+SelectedTableCellScanner::SelectedTableCellScanner(
+    const AutoRangeArray& aRanges) {
+  if (aRanges.Ranges().IsEmpty()) {
+    return;
+  }
+  Element* firstSelectedCellElement =
+      HTMLEditUtils::GetTableCellElementIfOnlyOneSelected(
+          aRanges.FirstRangeRef());
+  if (!firstSelectedCellElement) {
+    return;  // We're not in table cell selection mode.
+  }
+  mSelectedCellElements.SetCapacity(aRanges.Ranges().Length());
+  mSelectedCellElements.AppendElement(*firstSelectedCellElement);
+  for (uint32_t i = 1; i < aRanges.Ranges().Length(); i++) {
+    nsRange* range = aRanges.Ranges()[i];
+    if (NS_WARN_IF(!range) || NS_WARN_IF(!range->IsPositioned())) {
+      continue;  // Shouldn't occur in normal conditions.
+    }
+    // Just ignore selection ranges which do not select only one table
+    // cell element.  This is possible case if web apps sets multiple
+    // selections and first range selects a table cell element.
+    if (Element* selectedCellElement =
+            HTMLEditUtils::GetTableCellElementIfOnlyOneSelected(*range)) {
+      mSelectedCellElements.AppendElement(*selectedCellElement);
+    }
+  }
 }
 
 }  // namespace mozilla

@@ -4,26 +4,30 @@
 
 "use strict";
 
-const Services = require("Services");
-const { Actor, ActorClassWithSpec } = require("devtools/shared/protocol");
-const { accessibilitySpec } = require("devtools/shared/specs/accessibility");
+const {
+  Actor,
+  ActorClassWithSpec,
+} = require("resource://devtools/shared/protocol.js");
+const {
+  accessibilitySpec,
+} = require("resource://devtools/shared/specs/accessibility.js");
 
 loader.lazyRequireGetter(
   this,
   "AccessibleWalkerActor",
-  "devtools/server/actors/accessibility/walker",
+  "resource://devtools/server/actors/accessibility/walker.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "SimulatorActor",
-  "devtools/server/actors/accessibility/simulator",
+  "resource://devtools/server/actors/accessibility/simulator.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "isWebRenderEnabled",
-  "devtools/server/actors/utils/accessibility",
+  "resource://devtools/server/actors/utils/accessibility.js",
   true
 );
 
@@ -43,7 +47,7 @@ const AccessibilityActor = ActorClassWithSpec(accessibilitySpec, {
     this.targetActor = targetActor;
   },
 
-  getTraits: function() {
+  getTraits() {
     // The traits are used to know if accessibility actors support particular
     // API on the server side.
     return {

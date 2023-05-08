@@ -108,8 +108,6 @@ const SecurityInfo = {
       return info;
     }
 
-    securityInfo.QueryInterface(Ci.nsITransportSecurityInfo);
-
     if (lazy.NSSErrorsService.isNSSErrorCode(securityInfo.errorCode)) {
       // The connection failed.
       info.state = "broken";
@@ -162,10 +160,26 @@ const SecurityInfo = {
       info.signatureSchemeName = securityInfo.signatureSchemeName;
     }
 
-    info.isDomainMismatch = securityInfo.isDomainMismatch;
+    if (
+      securityInfo.overridableErrorCategory ==
+      Ci.nsITransportSecurityInfo.ERROR_TRUST
+    ) {
+      info.overridableErrorCategory = "trust_error";
+      info.isUntrusted = true;
+    } else if (
+      securityInfo.overridableErrorCategory ==
+      Ci.nsITransportSecurityInfo.ERROR_DOMAIN
+    ) {
+      info.overridableErrorCategory = "domain_mismatch";
+      info.isDomainMismatch = true;
+    } else if (
+      securityInfo.overridableErrorCategory ==
+      Ci.nsITransportSecurityInfo.ERROR_TIME
+    ) {
+      info.overridableErrorCategory = "expired_or_not_yet_valid";
+      info.isNotValidAtThisTime = true;
+    }
     info.isExtendedValidation = securityInfo.isExtendedValidation;
-    info.isNotValidAtThisTime = securityInfo.isNotValidAtThisTime;
-    info.isUntrusted = securityInfo.isUntrusted;
 
     info.certificateTransparencyStatus = this.getTransparencyStatus(
       securityInfo.certificateTransparencyStatus
