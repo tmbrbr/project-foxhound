@@ -27,8 +27,9 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIPipe.h"
 #include "nsIAsyncOutputStream.h"
-#include "nsISSLSocketControl.h"
+#include "nsITLSSocketControl.h"
 #include "nsITimer.h"
+#include "nsIWebTransport.h"
 #include "nsTHashMap.h"
 #include "nsThreadUtils.h"
 
@@ -90,6 +91,11 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   void EnableKeepAlive() { mCaps |= NS_HTTP_ALLOW_KEEPALIVE; }
   void MakeSticky() { mCaps |= NS_HTTP_STICKY_CONNECTION; }
   void MakeNonSticky() override { mCaps &= ~NS_HTTP_STICKY_CONNECTION; }
+  void MakeRestartable() override { mCaps |= NS_HTTP_CONNECTION_RESTARTABLE; }
+  void MakeNonRestartable() { mCaps &= ~NS_HTTP_CONNECTION_RESTARTABLE; }
+
+  void SetIsHttp2Websocket(bool h2ws) override { mIsHttp2Websocket = h2ws; }
+  bool IsHttp2Websocket() override { return mIsHttp2Websocket; }
 
   bool WaitingForHTTPSRR() const { return mCaps & NS_HTTP_FORCE_WAIT_HTTP_RR; }
   void MakeDontWaitHTTPSRR() { mCaps &= ~NS_HTTP_FORCE_WAIT_HTTP_RR; }
@@ -165,7 +171,6 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   void SetHttpTrailers(nsCString& aTrailers);
 
   bool IsWebsocketUpgrade();
-  void SetH2WSTransaction(Http2ConnectTransaction*);
 
   void OnProxyConnectComplete(int32_t aResponseCode) override;
   void SetFlat407Headers(const nsACString& aHeaders);
@@ -184,6 +189,8 @@ class nsHttpTransaction final : public nsAHttpTransaction,
       nsISVCBRecord* aHighestPriorityRecord) override;
 
   void GetHashKeyOfConnectionEntry(nsACString& aResult);
+
+  bool IsForWebTransport() { return mIsForWebTransport; }
 
  private:
   friend class DeleteHttpTransaction;
@@ -316,9 +323,9 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
   nsCOMPtr<nsITransportEventSink> mTransportSink;
   nsCOMPtr<nsIEventTarget> mConsumerTarget;
-  nsCOMPtr<nsISSLSocketControl> mTLSSocketControl;
+  nsCOMPtr<nsITransportSecurityInfo> mSecurityInfo;
   // TaintFox: reference to pipe added for SetTaint()
-  nsCOMPtr<nsIPipe>   mPipe;
+  nsCOMPtr<nsIPipe> mPipe;
   nsCOMPtr<nsIAsyncInputStream> mPipeIn;
   nsCOMPtr<nsIAsyncOutputStream> mPipeOut;
   nsCOMPtr<nsIRequestContext> mRequestContext;
@@ -437,6 +444,7 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   bool mDeferredSendProgress{false};
   bool mWaitingOnPipeOut{false};
   bool mDoNotRemoveAltSvc{false};
+  bool mIsHttp2Websocket{false};
 
   // mClosed           := transaction has been explicitly closed
   // mTransactionDone  := transaction ran to completion or was interrupted
@@ -527,9 +535,6 @@ class nsHttpTransaction final : public nsAHttpTransaction,
     EARLY_425
   } mEarlyDataDisposition{EARLY_NONE};
 
-  // H2 websocket support
-  RefPtr<Http2ConnectTransaction> mH2WSTransaction;
-
   HttpTrafficCategory mTrafficCategory{HttpTrafficCategory::eInvalid};
   bool mThroughCaptivePortal;
   Atomic<int32_t> mProxyConnectResponseCode{0};
@@ -555,6 +560,7 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   nsTHashMap<nsUint32HashKey, uint32_t> mEchRetryCounterMap;
 
   bool mSupportsHTTP3 = false;
+  Atomic<bool, Relaxed> mIsForWebTransport{false};
 
   bool mEarlyDataWasAvailable = false;
   bool ShouldRestartOn0RttError(nsresult reason);
@@ -566,6 +572,8 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   // be associated with the connection entry whose hash key is not the same as
   // this transaction's.
   nsCString mHashKeyOfConnectionEntry;
+
+  nsCOMPtr<WebTransportSessionEventListener> mWebTransportSessionEventListener;
 };
 
 }  // namespace mozilla::net

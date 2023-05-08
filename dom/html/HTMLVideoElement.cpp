@@ -39,6 +39,11 @@
 #include <algorithm>
 #include <limits>
 
+extern mozilla::LazyLogModule gMediaElementLog;
+#define LOG(msg, ...)                        \
+  MOZ_LOG(gMediaElementLog, LogLevel::Debug, \
+          ("HTMLVideoElement=%p, " msg, this, ##__VA_ARGS__))
+
 nsGenericHTMLElement* NS_NewHTMLVideoElement(
     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
     mozilla::dom::FromParser aFromParser) {
@@ -259,7 +264,7 @@ uint32_t HTMLVideoElement::MozParsedFrames() const {
     return 0;
   }
 
-  if (nsContentUtils::ShouldResistFingerprinting(OwnerDoc())) {
+  if (OwnerDoc()->ShouldResistFingerprinting()) {
     return nsRFPService::GetSpoofedTotalFrames(TotalPlayTime());
   }
 
@@ -272,7 +277,7 @@ uint32_t HTMLVideoElement::MozDecodedFrames() const {
     return 0;
   }
 
-  if (nsContentUtils::ShouldResistFingerprinting(OwnerDoc())) {
+  if (OwnerDoc()->ShouldResistFingerprinting()) {
     return nsRFPService::GetSpoofedTotalFrames(TotalPlayTime());
   }
 
@@ -285,7 +290,7 @@ uint32_t HTMLVideoElement::MozPresentedFrames() {
     return 0;
   }
 
-  if (nsContentUtils::ShouldResistFingerprinting(OwnerDoc())) {
+  if (OwnerDoc()->ShouldResistFingerprinting()) {
     return nsRFPService::GetSpoofedPresentedFrames(TotalPlayTime(),
                                                    VideoWidth(), VideoHeight());
   }
@@ -299,7 +304,7 @@ uint32_t HTMLVideoElement::MozPaintedFrames() {
     return 0;
   }
 
-  if (nsContentUtils::ShouldResistFingerprinting(OwnerDoc())) {
+  if (OwnerDoc()->ShouldResistFingerprinting()) {
     return nsRFPService::GetSpoofedPresentedFrames(TotalPlayTime(),
                                                    VideoWidth(), VideoHeight());
   }
@@ -311,8 +316,7 @@ uint32_t HTMLVideoElement::MozPaintedFrames() {
 double HTMLVideoElement::MozFrameDelay() {
   MOZ_ASSERT(NS_IsMainThread(), "Should be on main thread.");
 
-  if (!IsVideoStatsEnabled() ||
-      nsContentUtils::ShouldResistFingerprinting(OwnerDoc())) {
+  if (!IsVideoStatsEnabled() || OwnerDoc()->ShouldResistFingerprinting()) {
     return 0.0;
   }
 
@@ -349,7 +353,7 @@ HTMLVideoElement::GetVideoPlaybackQuality() {
     }
 
     if (mDecoder) {
-      if (nsContentUtils::ShouldResistFingerprinting(OwnerDoc())) {
+      if (OwnerDoc()->ShouldResistFingerprinting()) {
         totalFrames = nsRFPService::GetSpoofedTotalFrames(TotalPlayTime());
         droppedFrames = nsRFPService::GetSpoofedDroppedFrames(
             TotalPlayTime(), VideoWidth(), VideoHeight());
@@ -638,4 +642,37 @@ void HTMLVideoElement::OnSecondaryVideoOutputFirstFrameRendered() {
       mVisualCloneTarget->GetVideoFrameContainer());
 }
 
+void HTMLVideoElement::OnVisibilityChange(Visibility aNewVisibility) {
+  HTMLMediaElement::OnVisibilityChange(aNewVisibility);
+
+  // See the alternative part after step 4, but we only pause/resume invisible
+  // autoplay for non-audible video, which is different from the spec. This
+  // behavior seems aiming to reduce the power consumption without interering
+  // users, and Chrome and Safari also chose to do that only for non-audible
+  // video, so we want to match them in order to reduce webcompat issue.
+  // https://html.spec.whatwg.org/multipage/media.html#ready-states:eligible-for-autoplay-2
+  if (!HasAttr(nsGkAtoms::autoplay) || IsAudible()) {
+    return;
+  }
+
+  if (aNewVisibility == Visibility::ApproximatelyVisible && mPaused &&
+      IsEligibleForAutoplay() && AllowedToPlay()) {
+    LOG("resume invisible paused autoplay video");
+    RunAutoplay();
+  }
+
+  // We need to consider the Pip window as well, which won't reflect in the
+  // visibility event.
+  if ((aNewVisibility == Visibility::ApproximatelyNonVisible &&
+       !IsCloningElementVisually()) &&
+      mCanAutoplayFlag) {
+    LOG("pause non-audible autoplay video when it's invisible");
+    PauseInternal();
+    mCanAutoplayFlag = true;
+    return;
+  }
+}
+
 }  // namespace mozilla::dom
+
+#undef LOG

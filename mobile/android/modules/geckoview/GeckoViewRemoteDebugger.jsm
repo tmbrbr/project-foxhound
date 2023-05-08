@@ -9,8 +9,8 @@ var EXPORTED_SYMBOLS = ["GeckoViewRemoteDebugger"];
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { GeckoViewUtils } = ChromeUtils.import(
-  "resource://gre/modules/GeckoViewUtils.jsm"
+const { GeckoViewUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/GeckoViewUtils.sys.mjs"
 );
 
 const lazy = {};
@@ -77,10 +77,7 @@ var GeckoViewRemoteDebugger = {
     //
     // If package name isn't available, it will be "@firefox-debugger-socket".
 
-    const env = Cc["@mozilla.org/process/environment;1"].getService(
-      Ci.nsIEnvironment
-    );
-    let packageName = env.get("MOZ_ANDROID_PACKAGE_NAME");
+    let packageName = Services.env.get("MOZ_ANDROID_PACKAGE_NAME");
     if (packageName) {
       packageName = packageName + "/";
     } else {

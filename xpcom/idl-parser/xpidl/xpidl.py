@@ -7,23 +7,16 @@
 
 """A parser for cross-platform IDL (XPIDL) files."""
 
-# Note that this file is used by the searchfox indexer in ways that are
-# not tested in Firefox's CI. Please try to keep this file py2-compatible
-# if the burden for that is low. If you are making changes you know to be
-# incompatible with py2, please give a searchfox maintainer a heads-up so
-# that any necessary changes can be made on the searchfox side.
+from __future__ import absolute_import, print_function
 
-from __future__ import absolute_import
-from __future__ import print_function
-
-import sys
 import os.path
 import re
-from ply import lex
-from ply import yacc
-import six
+import sys
 import textwrap
 from collections import namedtuple
+
+import six
+from ply import lex, yacc
 
 """A type conforms to the following pattern:
 
@@ -197,6 +190,12 @@ builtinNames = [
     Builtin("string", "char *", "*const libc::c_char", False, False),
     Builtin("wchar", "char16_t", "u16", False, False),
     Builtin("wstring", "char16_t *", "*const u16", False, False),
+    # As seen in mfbt/RefCountType.h, this type has special handling to
+    # maintain binary compatibility with MSCOM's IUnknown that cannot be
+    # expressed in XPIDL.
+    Builtin(
+        "MozExternalRefCountType", "MozExternalRefCountType", "MozExternalRefCountType"
+    ),
 ]
 
 builtinMap = {}
@@ -1633,13 +1632,13 @@ class IDLParser(object):
     t_ignore = " \t"
 
     def t_multilinecomment(self, t):
-        r"/\*(?s).*?\*/"
+        r"/\*(\n|.)*?\*/"
         t.lexer.lineno += t.value.count("\n")
         if t.value.startswith("/**"):
             self._doccomments.append(t.value)
 
     def t_singlelinecomment(self, t):
-        r"(?m)//.*?$"
+        r"//[^\n]*"
 
     def t_IID(self, t):
         return t
@@ -1652,7 +1651,7 @@ class IDLParser(object):
         return t
 
     def t_LCDATA(self, t):
-        r"(?s)%\{[ ]*C\+\+[ ]*\n(?P<cdata>.*?\n?)%\}[ ]*(C\+\+)?"
+        r"%\{[ ]*C\+\+[ ]*\n(?P<cdata>(\n|.)*?\n?)%\}[ ]*(C\+\+)?"
         t.type = "CDATA"
         t.value = t.lexer.lexmatch.group("cdata")
         t.lexer.lineno += t.value.count("\n")

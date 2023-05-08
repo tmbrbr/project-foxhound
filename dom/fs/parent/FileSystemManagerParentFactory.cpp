@@ -6,8 +6,10 @@
 
 #include "FileSystemManagerParentFactory.h"
 
+#include "mozilla/OriginAttributes.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/dom/FileSystemDataManager.h"
+#include "mozilla/dom/FileSystemLog.h"
 #include "mozilla/dom/FileSystemManagerParent.h"
 #include "mozilla/dom/FileSystemTypes.h"
 #include "mozilla/dom/quota/QuotaCommon.h"
@@ -16,15 +18,6 @@
 #include "mozilla/ipc/Endpoint.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsString.h"
-
-namespace mozilla {
-extern LazyLogModule gOPFSLog;
-}
-
-#define LOG(args) MOZ_LOG(mozilla::gOPFSLog, mozilla::LogLevel::Verbose, args)
-
-#define LOG_DEBUG(args) \
-  MOZ_LOG(mozilla::gOPFSLog, mozilla::LogLevel::Debug, args)
 
 namespace mozilla::dom {
 mozilla::ipc::IPCResult CreateFileSystemManagerParent(
@@ -43,6 +36,11 @@ mozilla::ipc::IPCResult CreateFileSystemManagerParent(
   quota::OriginMetadata originMetadata(
       quota::QuotaManager::GetInfoFromValidatedPrincipalInfo(aPrincipalInfo),
       quota::PERSISTENCE_TYPE_DEFAULT);
+
+  // Block use for now in PrivateBrowsing
+  QM_TRY(OkIf(!OriginAttributes::IsPrivateBrowsing(originMetadata.mOrigin)),
+         IPC_OK(),
+         [aResolver](const auto&) { aResolver(NS_ERROR_DOM_NOT_ALLOWED_ERR); });
 
   LOG(("CreateFileSystemManagerParent, origin: %s",
        originMetadata.mOrigin.get()));
@@ -70,6 +68,7 @@ mozilla::ipc::IPCResult CreateFileSystemManagerParent(
                       new FileSystemManagerParent(std::move(dataManager),
                                                   rootId);
 
+                  LOG(("Binding parent endpoint"));
                   if (!parentEndpoint.Bind(parent)) {
                     return CreateActorPromise::CreateAndReject(NS_ERROR_FAILURE,
                                                                __func__);

@@ -10,14 +10,18 @@
 //
 // If we want to track DevTools module loader we should ensure loading Loader.sys.mjs within
 // the `testScript` Function. i.e. after having calling startRecordingAllocations.
-let tracker;
+let tracker, releaseTrackerLoader;
 {
-  const { DevToolsLoader } = ChromeUtils.importESModule(
-    "resource://devtools/shared/loader/Loader.sys.mjs"
+  const {
+    useDistinctSystemPrincipalLoader,
+    releaseDistinctSystemPrincipalLoader,
+  } = ChromeUtils.importESModule(
+    "resource://devtools/shared/loader/DistinctSystemPrincipalLoader.sys.mjs"
   );
-  const loader = new DevToolsLoader({
-    invisibleToDebugger: true,
-  });
+
+  const requester = {};
+  const loader = useDistinctSystemPrincipalLoader(requester);
+  releaseTrackerLoader = () => releaseDistinctSystemPrincipalLoader(requester);
   const { allocationTracker } = loader.require(
     "chrome://mochitests/content/browser/devtools/shared/test-helpers/allocation-tracker.js"
   );
@@ -53,10 +57,7 @@ SpecialPowers.pushPrefEnv({
 });
 
 // Set DEBUG_DEVTOOLS_ALLOCATIONS=allocations|leaks in order print debug informations.
-const env = Cc["@mozilla.org/process/environment;1"].getService(
-  Ci.nsIEnvironment
-);
-const DEBUG_ALLOCATIONS = env.get("DEBUG_DEVTOOLS_ALLOCATIONS");
+const DEBUG_ALLOCATIONS = Services.env.get("DEBUG_DEVTOOLS_ALLOCATIONS");
 
 async function addTab(url) {
   const tab = BrowserTestUtils.addTab(gBrowser, url);
@@ -89,9 +90,16 @@ async function startRecordingAllocations({
         const { DevToolsLoader } = ChromeUtils.importESModule(
           "resource://devtools/shared/loader/Loader.sys.mjs"
         );
-        const loader = new DevToolsLoader({
-          invisibleToDebugger: true,
-        });
+
+        const {
+          useDistinctSystemPrincipalLoader,
+          releaseDistinctSystemPrincipalLoader,
+        } = ChromeUtils.importESModule(
+          "resource://devtools/shared/loader/DistinctSystemPrincipalLoader.sys.mjs"
+        );
+
+        const requester = {};
+        const loader = useDistinctSystemPrincipalLoader(requester);
         const { allocationTracker } = loader.require(
           "chrome://mochitests/content/browser/devtools/shared/test-helpers/allocation-tracker.js"
         );
@@ -99,9 +107,11 @@ async function startRecordingAllocations({
         // because we may easily leak web page objects, which aren't in DevTools global.
         const tracker = allocationTracker({ watchAllGlobals: true });
 
-        // /!\ HACK: save tracker and doGC on DevToolsLoader in order to be able to reuse
-        // them in a following call to SpecialPowers.spawn
+        // /!\ HACK: store tracker and releaseTrackerLoader on DevToolsLoader in order
+        // to be able to reuse them in a following call to SpecialPowers.spawn
         DevToolsLoader.tracker = tracker;
+        DevToolsLoader.releaseTrackerLoader = () =>
+          releaseDistinctSystemPrincipalLoader(requester);
 
         await tracker.startRecordingAllocations(debug_allocations);
       }
@@ -232,7 +242,19 @@ async function stopRecordingAllocations(
         },
       ],
     });
+
+    // Finally release the tracker loader in content process.
+    await SpecialPowers.spawn(gBrowser.selectedBrowser, [], () => {
+      const { DevToolsLoader } = ChromeUtils.importESModule(
+        "resource://devtools/shared/loader/Loader.sys.mjs"
+      );
+      DevToolsLoader.releaseTrackerLoader();
+    });
   }
+
+  // And release the tracker loader in the parent process
+  releaseTrackerLoader();
+
   // Log it to stdout so that perfherder can collect this data.
   // This only works if we called `SimpleTest.requestCompleteLog()`!
   info("PERFHERDER_DATA: " + JSON.stringify(PERFHERDER_DATA));

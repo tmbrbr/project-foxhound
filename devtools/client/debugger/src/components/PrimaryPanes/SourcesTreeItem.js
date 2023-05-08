@@ -14,7 +14,7 @@ import AccessibleImage from "../shared/AccessibleImage";
 import {
   getGeneratedSourceByURL,
   getContext,
-  getSourceContent,
+  getFirstSourceActorForGeneratedSource,
 } from "../../selectors";
 import actions from "../../actions";
 
@@ -22,7 +22,6 @@ import { shouldBlackbox, sourceTypes } from "../../utils/source";
 import { copyToTheClipboard } from "../../utils/clipboard";
 import { features } from "../../utils/prefs";
 import { downloadFile } from "../../utils/utils";
-import { isFulfilled } from "../../utils/async-value";
 
 class SourceTreeItem extends Component {
   static get propTypes() {
@@ -39,11 +38,11 @@ class SourceTreeItem extends Component {
       hasMatchingGeneratedSource: PropTypes.bool.isRequired,
       item: PropTypes.object.isRequired,
       loadSourceText: PropTypes.func.isRequired,
+      getFirstSourceActorForGeneratedSource: PropTypes.func.isRequired,
       projectRoot: PropTypes.string.isRequired,
       selectSourceItem: PropTypes.func.isRequired,
       setExpanded: PropTypes.func.isRequired,
       setProjectDirectoryRoot: PropTypes.func.isRequired,
-      sourceContent: PropTypes.object,
       toggleBlackBox: PropTypes.func.isRequired,
       isSourceBlackBoxed: PropTypes.bool.isRequired,
       getParent: PropTypes.func.isRequired,
@@ -81,7 +80,6 @@ class SourceTreeItem extends Component {
     const { item } = this.props;
     if (item.type == "source") {
       const { source } = item;
-
       const copySourceUri2 = {
         id: "node-menu-copy-source",
         label: copySourceUri2Label,
@@ -153,14 +151,11 @@ class SourceTreeItem extends Component {
       return;
     }
 
-    if (!this.props.sourceContent) {
-      await this.props.loadSourceText({ cx, source });
-    }
-    const data = this.props.sourceContent;
+    const data = await this.props.loadSourceText(cx, source);
     if (!data) {
       return;
     }
-    downloadFile(data, source.displayURL.filename);
+    downloadFile(data.value, source.displayURL.filename);
   };
 
   addBlackboxAllOption = (menuOptions, item) => {
@@ -380,11 +375,6 @@ function getHasMatchingGeneratedSource(state, source) {
   return !!getGeneratedSourceByURL(state, source.url);
 }
 
-function getSourceContentValue(state, source) {
-  const content = getSourceContent(state, source.id);
-  return content && isFulfilled(content) ? content.value : null;
-}
-
 const mapStateToProps = (state, props) => {
   const { item } = props;
   if (item.type == "source") {
@@ -392,11 +382,14 @@ const mapStateToProps = (state, props) => {
     return {
       cx: getContext(state),
       hasMatchingGeneratedSource: getHasMatchingGeneratedSource(state, source),
-      sourceContent: getSourceContentValue(state, source),
+      getFirstSourceActorForGeneratedSource: (sourceId, threadId) =>
+        getFirstSourceActorForGeneratedSource(state, sourceId, threadId),
     };
   }
   return {
     cx: getContext(state),
+    getFirstSourceActorForGeneratedSource: (sourceId, threadId) =>
+      getFirstSourceActorForGeneratedSource(state, sourceId, threadId),
   };
 };
 

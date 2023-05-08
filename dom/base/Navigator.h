@@ -99,11 +99,6 @@ class Navigator final : public nsISupports, public nsWrapperCache {
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
   /**
-   * For use during document.write where our inner window changes.
-   */
-  void SetWindow(nsPIDOMWindowInner* aInnerWindow);
-
-  /**
    * Called when the inner window navigates to a new page.
    */
   void OnNavigation();
@@ -180,13 +175,13 @@ class Navigator final : public nsISupports, public nsWrapperCache {
   MediaDevices* GetExtantMediaDevices() const { return mMediaDevices; };
 
   void GetGamepads(nsTArray<RefPtr<Gamepad>>& aGamepads, ErrorResult& aRv);
-  GamepadServiceTest* RequestGamepadServiceTest();
+  GamepadServiceTest* RequestGamepadServiceTest(ErrorResult& aRv);
   already_AddRefed<Promise> GetVRDisplays(ErrorResult& aRv);
   void FinishGetVRDisplays(bool isWebVRSupportedInwindow, Promise* p);
   void GetActiveVRDisplays(nsTArray<RefPtr<VRDisplay>>& aDisplays) const;
   void OnXRPermissionRequestAllow();
   void OnXRPermissionRequestCancel();
-  VRServiceTest* RequestVRServiceTest();
+  VRServiceTest* RequestVRServiceTest(ErrorResult& aRv);
   bool IsWebVRContentDetected() const;
   bool IsWebVRContentPresenting() const;
   void RequestVRPresentation(VRDisplay& aDisplay);

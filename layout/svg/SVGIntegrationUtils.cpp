@@ -10,7 +10,6 @@
 // Keep others in (case-insensitive) order:
 #include "gfxDrawable.h"
 
-#include "Layers.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSRendering.h"
 #include "nsDisplayList.h"
@@ -18,7 +17,6 @@
 #include "gfxContext.h"
 #include "SVGPaintServerFrame.h"
 #include "mozilla/gfx/Point.h"
-#include "mozilla/gfx/gfxVars.h"
 #include "mozilla/CSSClipPathInstance.h"
 #include "mozilla/FilterInstance.h"
 #include "mozilla/StaticPrefs_layers.h"
@@ -64,7 +62,7 @@ class PreEffectsInkOverflowCollector : public nsLayoutUtils::BoxCallback {
                  "We want the first continuation here");
   }
 
-  virtual void AddBox(nsIFrame* aFrame) override {
+  void AddBox(nsIFrame* aFrame) override {
     nsRect overflow = (aFrame == mCurrentFrame)
                           ? mCurrentFrameOverflowArea
                           : PreEffectsInkOverflowRect(aFrame, mInReflow);
@@ -1101,13 +1099,8 @@ bool SVGIntegrationUtils::CanCreateWebRenderFiltersForFrame(nsIFrame* aFrame) {
 bool SVGIntegrationUtils::UsesSVGEffectsNotSupportedInCompositor(
     nsIFrame* aFrame) {
   // WebRender supports masks / clip-paths and some filters in the compositor.
-  // Non-WebRender doesn't support any SVG effects in the compositor.
   if (aFrame->StyleEffects()->HasFilters()) {
-    return !gfx::gfxVars::UseWebRender() ||
-           !SVGIntegrationUtils::CanCreateWebRenderFiltersForFrame(aFrame);
-  }
-  if (SVGIntegrationUtils::UsingMaskOrClipPathForFrame(aFrame)) {
-    return !gfx::gfxVars::UseWebRender();
+    return !SVGIntegrationUtils::CanCreateWebRenderFiltersForFrame(aFrame);
   }
   return false;
 }

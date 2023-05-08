@@ -69,6 +69,8 @@ union Utf8Unit;
 
 namespace JS {
 
+class JS_PUBLIC_API AutoStableStringChars;
+
 namespace detail {
 
 MOZ_COLD extern JS_PUBLIC_API void ReportSourceTooLong(JSContext* cx);
@@ -217,7 +219,7 @@ class SourceText final : public TaintableString {
                                std::is_same<Char, CharT>::value &&
                                !std::is_same<Char, Unit>::value>::type>
   [[nodiscard]] MOZ_IS_CLASS_INIT bool init(JSContext* cx, const Char* chars,
-                                           size_t charsLength, StringTaint taint,
+                                           size_t charsLength, const StringTaint& taint,
                                            SourceOwnership ownership) {
     setTaint(taint);
     return init(cx, chars, charsLength, ownership);
@@ -249,6 +251,17 @@ class SourceText final : public TaintableString {
                           size_t dataLength) {
     return init(cx, data.release(), dataLength, SourceOwnership::TakeOwnership);
   }
+
+  /**
+   * Initialize this using an AutoStableStringChars. Transfers the code units if
+   * they are owned by the AutoStableStringChars, otherwise borrow directly from
+   * the underlying JSString. The AutoStableStringChars must outlive this
+   * SourceText and must be explicitly configured to the same unit type as this
+   * SourceText.
+   */
+  [[nodiscard]] bool initMaybeBorrowed(JSContext* cx,
+                                       AutoStableStringChars& linearChars,
+                                       const StringTaint& taint);
 
   /**
    * Access the encapsulated data using a code unit type.

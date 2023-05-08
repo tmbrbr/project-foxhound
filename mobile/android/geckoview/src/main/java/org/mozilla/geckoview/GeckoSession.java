@@ -2684,6 +2684,16 @@ public class GeckoSession {
     mEventDispatcher.dispatch("GeckoView:RestoreState", state.mState);
   }
 
+  /**
+   * Get whether this GeckoSession has form data.
+   *
+   * @return a {@link GeckoResult} result of if there is existing form data.
+   */
+  @AnyThread
+  public @NonNull GeckoResult<Boolean> containsFormData() {
+    return mEventDispatcher.queryBoolean("GeckoView:ContainsFormData");
+  }
+
   // This is the GeckoDisplay acquired via acquireDisplay(), if any.
   private GeckoDisplay mDisplay;
 
@@ -3484,8 +3494,15 @@ public class GeckoSession {
       /**
        * The bounds of the current selection in client coordinates. Use {@link
        * GeckoSession#getClientToScreenMatrix} to perform transformation to screen coordinates.
+       *
+       * @deprecated Use {@link #screenRect}.
        */
+      @Deprecated
+      @DeprecationSchedule(id = "selection-fission", version = 112)
       public final @Nullable RectF clientRect;
+
+      /** The bounds of the current selection in screen coordinates. */
+      public final @Nullable RectF screenRect;
 
       /** Set of valid actions available through {@link Selection#execute(String)} */
       public final @NonNull @SelectionActionDelegateAction Collection<String> availableActions;
@@ -3504,6 +3521,7 @@ public class GeckoSession {
                 | (bundle.getBoolean("password") ? SelectionActionDelegate.FLAG_IS_PASSWORD : 0);
         text = bundle.getString("selection");
         clientRect = bundle.getRectF("clientRect");
+        screenRect = bundle.getRectF("screenRect");
         availableActions = actions;
         mActionId = bundle.getString("actionId");
         mEventDispatcher = new WeakReference<>(eventDispatcher);
@@ -3514,6 +3532,7 @@ public class GeckoSession {
         flags = 0;
         text = "";
         clientRect = null;
+        screenRect = null;
         availableActions = new HashSet<>();
         mActionId = null;
         mEventDispatcher = null;
@@ -6623,7 +6642,9 @@ public class GeckoSession {
   /**
    * Saves a PDF of the currently displayed page.
    *
-   * @return A GeckoResult with an InputStream containing the PDF
+   * @return A GeckoResult with an InputStream containing the PDF. The result could
+   *     CompleteExceptionally with a {@link GeckoPrintException}s, if there are any issues while
+   *     generating the PDF.
    */
   @AnyThread
   public @NonNull GeckoResult<InputStream> saveAsPdf() {
@@ -6669,5 +6690,42 @@ public class GeckoSession {
     }
 
     return request.mUri.length() <= DATA_URI_MAX_LENGTH;
+  }
+
+  /** Thrown when failure occurs when printing from a website. */
+  @WrapForJNI
+  public static class GeckoPrintException extends Exception {
+    /** The print service was not available. */
+    public static final int ERROR_PRINT_SETTINGS_SERVICE_NOT_AVAILABLE = -1;
+    /** The print service was not created due to an initialization error. */
+    public static final int ERROR_UNABLE_TO_CREATE_PRINT_SETTINGS = -2;
+    /** An error happened while trying to find the canonical browing context */
+    public static final int ERROR_UNABLE_TO_RETRIEVE_CANONICAL_BROWSING_CONTEXT = -3;
+
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(
+        value = {
+          ERROR_PRINT_SETTINGS_SERVICE_NOT_AVAILABLE,
+          ERROR_UNABLE_TO_CREATE_PRINT_SETTINGS,
+          ERROR_UNABLE_TO_RETRIEVE_CANONICAL_BROWSING_CONTEXT,
+        })
+    public @interface Codes {}
+
+    /** One of {@link Codes} that provides more information about this exception. */
+    public final @Codes int code;
+
+    @Override
+    public String toString() {
+      return "GeckoPrintException: " + code;
+    }
+
+    /* package */ GeckoPrintException(final @Codes int code) {
+      this.code = code;
+    }
+
+    /** For testing. */
+    protected GeckoPrintException() {
+      code = ERROR_PRINT_SETTINGS_SERVICE_NOT_AVAILABLE;
+    }
   }
 }

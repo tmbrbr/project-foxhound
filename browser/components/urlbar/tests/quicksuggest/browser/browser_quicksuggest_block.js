@@ -10,12 +10,13 @@
 
 "use strict";
 
-XPCOMUtils.defineLazyModuleGetters(this, {
+ChromeUtils.defineESModuleGetters(this, {
   CONTEXTUAL_SERVICES_PING_TYPES:
-    "resource:///modules/PartnerLinkAttribution.jsm",
+    "resource:///modules/PartnerLinkAttribution.sys.mjs",
 });
 
-const { timestampTemplate } = UrlbarProviderQuickSuggest;
+const { TELEMETRY_SCALARS } = UrlbarProviderQuickSuggest;
+const { TIMESTAMP_TEMPLATE } = QuickSuggest;
 
 // Include the timestamp template in the suggestion URLs so we can make sure
 // their original URLs with the unreplaced templates are blocked and not their
@@ -23,21 +24,21 @@ const { timestampTemplate } = UrlbarProviderQuickSuggest;
 const SUGGESTIONS = [
   {
     id: 1,
-    url: `http://example.com/sponsored?t=${timestampTemplate}`,
+    url: `https://example.com/sponsored?t=${TIMESTAMP_TEMPLATE}`,
     title: "Sponsored suggestion",
     keywords: ["sponsored"],
-    click_url: "http://example.com/click",
-    impression_url: "http://example.com/impression",
+    click_url: "https://example.com/click",
+    impression_url: "https://example.com/impression",
     advertiser: "TestAdvertiser",
     iab_category: "22 - Shopping",
   },
   {
     id: 2,
-    url: `http://example.com/nonsponsored?t=${timestampTemplate}`,
+    url: `https://example.com/nonsponsored?t=${TIMESTAMP_TEMPLATE}`,
     title: "Non-sponsored suggestion",
     keywords: ["nonsponsored"],
-    click_url: "http://example.com/click",
-    impression_url: "http://example.com/impression",
+    click_url: "https://example.com/click",
+    impression_url: "https://example.com/impression",
     advertiser: "TestAdvertiser",
     iab_category: "5 - Education",
   },
@@ -60,8 +61,8 @@ add_setup(async function() {
   await PlacesUtils.bookmarks.eraseEverything();
   await UrlbarTestUtils.formHistory.clear();
 
-  await UrlbarProviderQuickSuggest._blockTaskQueue.emptyPromise;
-  await UrlbarProviderQuickSuggest.clearBlockedSuggestions();
+  await QuickSuggest.blockedSuggestions._test_readyPromise;
+  await QuickSuggest.blockedSuggestions.clear();
 
   Services.telemetry.clearScalars();
   Services.telemetry.clearEvents();
@@ -76,7 +77,7 @@ add_setup(async function() {
  * - Best match disabled and enabled
  * - Each suggestion in `SUGGESTIONS`
  *
- * @param {function} fn
+ * @param {Function} fn
  *   The callback function. It's passed: `{ isBestMatch, suggestion }`
  */
 function add_combo_task(fn) {
@@ -174,33 +175,32 @@ async function doBasicBlockTest({ suggestion, isBestMatch, block }) {
 
   // The URL should be blocked.
   Assert.ok(
-    await UrlbarProviderQuickSuggest.isSuggestionBlocked(suggestion.url),
+    await QuickSuggest.blockedSuggestions.has(suggestion.url),
     "Suggestion is blocked"
   );
 
   // Check telemetry scalars.
   let index = 2;
-  let scalars = {
-    [QuickSuggestTestUtils.SCALARS.IMPRESSION]: index,
-  };
+  let scalars = {};
   if (isSponsored) {
-    scalars[QuickSuggestTestUtils.SCALARS.BLOCK_SPONSORED] = index;
+    scalars[TELEMETRY_SCALARS.IMPRESSION_SPONSORED] = index;
+    scalars[TELEMETRY_SCALARS.BLOCK_SPONSORED] = index;
   } else {
-    scalars[QuickSuggestTestUtils.SCALARS.BLOCK_NONSPONSORED] = index;
+    scalars[TELEMETRY_SCALARS.IMPRESSION_NONSPONSORED] = index;
+    scalars[TELEMETRY_SCALARS.BLOCK_NONSPONSORED] = index;
   }
   if (isBestMatch) {
     if (isSponsored) {
       scalars = {
         ...scalars,
-        [QuickSuggestTestUtils.SCALARS.IMPRESSION_SPONSORED_BEST_MATCH]: index,
-        [QuickSuggestTestUtils.SCALARS.BLOCK_SPONSORED_BEST_MATCH]: index,
+        [TELEMETRY_SCALARS.IMPRESSION_SPONSORED_BEST_MATCH]: index,
+        [TELEMETRY_SCALARS.BLOCK_SPONSORED_BEST_MATCH]: index,
       };
     } else {
       scalars = {
         ...scalars,
-        [QuickSuggestTestUtils.SCALARS
-          .IMPRESSION_NONSPONSORED_BEST_MATCH]: index,
-        [QuickSuggestTestUtils.SCALARS.BLOCK_NONSPONSORED_BEST_MATCH]: index,
+        [TELEMETRY_SCALARS.IMPRESSION_NONSPONSORED_BEST_MATCH]: index,
+        [TELEMETRY_SCALARS.BLOCK_NONSPONSORED_BEST_MATCH]: index,
       };
     }
   }
@@ -210,7 +210,7 @@ async function doBasicBlockTest({ suggestion, isBestMatch, block }) {
   let match_type = isBestMatch ? "best-match" : "firefox-suggest";
   QuickSuggestTestUtils.assertEvents([
     {
-      category: QuickSuggestTestUtils.TELEMETRY_EVENT_CATEGORY,
+      category: QuickSuggest.TELEMETRY_EVENT_CATEGORY,
       method: "engagement",
       object: "block",
       extra: {
@@ -244,7 +244,7 @@ async function doBasicBlockTest({ suggestion, isBestMatch, block }) {
   ]);
 
   await UrlbarTestUtils.promisePopupClose(window);
-  await UrlbarProviderQuickSuggest.clearBlockedSuggestions();
+  await QuickSuggest.blockedSuggestions.clear();
 }
 
 // Blocks multiple suggestions one after the other.
@@ -271,7 +271,7 @@ add_task(async function blockMultiple() {
       EventUtils.synthesizeKey("KEY_ArrowDown", { repeat: 2 });
       EventUtils.synthesizeKey("KEY_Enter");
       Assert.ok(
-        await UrlbarProviderQuickSuggest.isSuggestionBlocked(url),
+        await QuickSuggest.blockedSuggestions.has(url),
         "Suggestion is blocked after picking block button"
       );
 
@@ -279,9 +279,7 @@ add_task(async function blockMultiple() {
       // suggestions are blocked yet.
       for (let j = 0; j < SUGGESTIONS.length; j++) {
         Assert.equal(
-          await UrlbarProviderQuickSuggest.isSuggestionBlocked(
-            SUGGESTIONS[j].url
-          ),
+          await QuickSuggest.blockedSuggestions.has(SUGGESTIONS[j].url),
           j <= i,
           `Suggestion at index ${j} is blocked or not as expected`
         );
@@ -289,7 +287,7 @@ add_task(async function blockMultiple() {
     }
 
     await UrlbarTestUtils.promisePopupClose(window);
-    await UrlbarProviderQuickSuggest.clearBlockedSuggestions();
+    await QuickSuggest.blockedSuggestions.clear();
     UrlbarPrefs.clear("bestMatch.enabled");
   }
 });
@@ -388,7 +386,7 @@ async function doDisabledTest({
       isSponsored: suggestion.keywords[0] == "sponsored",
     });
     Assert.ok(
-      !(await UrlbarProviderQuickSuggest.isSuggestionBlocked(suggestion.url)),
+      !(await QuickSuggest.blockedSuggestions.has(suggestion.url)),
       "Suggestion is not blocked"
     );
   } else {
@@ -401,10 +399,10 @@ async function doDisabledTest({
     );
     await QuickSuggestTestUtils.assertNoQuickSuggestResults(window);
     Assert.ok(
-      await UrlbarProviderQuickSuggest.isSuggestionBlocked(suggestion.url),
+      await QuickSuggest.blockedSuggestions.has(suggestion.url),
       "Suggestion is blocked"
     );
-    await UrlbarProviderQuickSuggest.clearBlockedSuggestions();
+    await QuickSuggest.blockedSuggestions.clear();
   }
 
   await UrlbarTestUtils.promisePopupClose(window);

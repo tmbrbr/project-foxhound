@@ -28,7 +28,6 @@
 #include "mozilla/dom/ImageTracker.h"
 #include "mozilla/dom/Selection.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/gfxVars.h"
 #include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "mozilla/Maybe.h"
@@ -50,6 +49,7 @@
 #include "nsCOMPtr.h"
 #include "nsFieldSetFrame.h"
 #include "nsFlexContainerFrame.h"
+#include "nsFocusManager.h"
 #include "nsFrameList.h"
 #include "nsPlaceholderFrame.h"
 #include "nsIBaseWindow.h"
@@ -385,7 +385,12 @@ bool nsIFrame::IsVisibleConsideringAncestors(uint32_t aFlags) const {
       return false;
     }
 
-    if (this != frame && frame->HidesContent()) {
+    // This method is used to determine if a frame is focusable, because it's
+    // called by nsIFrame::IsFocusable. `content-visibility: auto` should not
+    // force this frame to be unfocusable, so we only take into account
+    // `content-visibility: hidden` here.
+    if (this != frame &&
+        frame->HidesContent(IncludeContentVisibility::Hidden)) {
       return false;
     }
 
@@ -599,7 +604,8 @@ static void MaybeScheduleReflowSVGNonDisplayText(nsIFrame* aFrame) {
     return;
   }
 
-  svgTextFrame->ScheduleReflowSVGNonDisplayText(IntrinsicDirty::StyleChange);
+  svgTextFrame->ScheduleReflowSVGNonDisplayText(
+      IntrinsicDirty::FrameAncestorsAndDescendants);
 }
 
 bool nsIFrame::IsPrimaryFrameOfRootOrBodyElement() const {
@@ -724,7 +730,7 @@ void nsIFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
     AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED);
   }
 
-  if (disp->mContainerType) {
+  if (disp->mContainerType != StyleContainerType::Normal) {
     PresContext()->RegisterContainerQueryFrame(this);
   }
 
@@ -784,6 +790,16 @@ void nsIFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
     UpdateVisibleDescendantsState();
   }
 
+  if (disp->IsContentVisibilityAuto() &&
+      IsContentVisibilityPropertyApplicable()) {
+    PresShell()->RegisterContentVisibilityAutoFrame(this);
+    auto* element = Element::FromNodeOrNull(GetContent());
+    MOZ_ASSERT(element);
+    PresContext()->Document()->ObserveForContentVisibility(*element);
+  } else if (auto* element = Element::FromNodeOrNull(GetContent())) {
+    element->ClearContentRelevancy();
+  }
+
   // TODO(mrobinson): Once bug 1765615 is fixed, this should be called on
   // layout changes. In addition, when `content-visibility: auto` is implemented
   // this should also be called when scrolling or focus causes content to be
@@ -814,7 +830,7 @@ void nsIFrame::DestroyFrom(nsIFrame* aDestructRoot,
     }
   }
 
-  if (disp->mContainerType) {
+  if (disp->mContainerType != StyleContainerType::Normal) {
     PresContext()->UnregisterContainerQueryFrame(this);
   }
 
@@ -856,6 +872,13 @@ void nsIFrame::DestroyFrom(nsIFrame* aDestructRoot,
     // AnimationsWithDestroyedFrame only lives during the restyling process.
     if (adf) {
       adf->Put(mContent, mComputedStyle);
+    }
+  }
+
+  if (disp->IsContentVisibilityAuto() &&
+      IsContentVisibilityPropertyApplicable()) {
+    if (auto* element = Element::FromNodeOrNull(GetContent())) {
+      PresContext()->Document()->UnobserveForContentVisibility(*element);
     }
   }
 
@@ -1450,16 +1473,12 @@ void nsIFrame::HandleLastRememberedSize() {
   if (!canRememberISize) {
     element->RemoveLastRememberedISize();
   }
-  if (canRememberBSize || canRememberISize) {
-    const auto containAxes = GetContainSizeAxes();
-    if ((canRememberBSize && !containAxes.mBContained) ||
-        (canRememberISize && !containAxes.mIContained)) {
-      bool isNonReplacedInline = IsFrameOfType(nsIFrame::eLineParticipant) &&
-                                 !IsFrameOfType(nsIFrame::eReplaced);
-      if (!isNonReplacedInline) {
-        PresContext()->Document()->ObserveForLastRememberedSize(*element);
-        return;
-      }
+  if ((canRememberBSize || canRememberISize) && !HidesContent()) {
+    bool isNonReplacedInline = IsFrameOfType(nsIFrame::eLineParticipant) &&
+                               !IsFrameOfType(nsIFrame::eReplaced);
+    if (!isNonReplacedInline) {
+      PresContext()->Document()->ObserveForLastRememberedSize(*element);
+      return;
     }
   }
   PresContext()->Document()->UnobserveForLastRememberedSize(*element);
@@ -1576,27 +1595,6 @@ void nsIFrame::CreateView() {
   NS_FRAME_LOG(NS_FRAME_TRACE_CALLS,
                ("nsIFrame::CreateView: frame=%p view=%p", this, view));
 }
-
-// MSVC fails with link error "one or more multiply defined symbols found",
-// gcc fails with "hidden symbol `nsIFrame::kPrincipalList' isn't defined"
-// etc if they are not defined.
-#ifndef _MSC_VER
-// static nsIFrame constants; initialized in the header file.
-const nsIFrame::ChildListID nsIFrame::kPrincipalList;
-const nsIFrame::ChildListID nsIFrame::kAbsoluteList;
-const nsIFrame::ChildListID nsIFrame::kBulletList;
-const nsIFrame::ChildListID nsIFrame::kCaptionList;
-const nsIFrame::ChildListID nsIFrame::kColGroupList;
-const nsIFrame::ChildListID nsIFrame::kExcessOverflowContainersList;
-const nsIFrame::ChildListID nsIFrame::kFixedList;
-const nsIFrame::ChildListID nsIFrame::kFloatList;
-const nsIFrame::ChildListID nsIFrame::kOverflowContainersList;
-const nsIFrame::ChildListID nsIFrame::kOverflowList;
-const nsIFrame::ChildListID nsIFrame::kOverflowOutOfFlowList;
-const nsIFrame::ChildListID nsIFrame::kPopupList;
-const nsIFrame::ChildListID nsIFrame::kPushedFloatsList;
-const nsIFrame::ChildListID nsIFrame::kNoReflowPrincipalList;
-#endif
 
 /* virtual */
 nsMargin nsIFrame::GetUsedMargin() const {
@@ -1747,7 +1745,7 @@ WritingMode nsIFrame::WritingModeForLine(WritingMode aSelfWM,
   MOZ_ASSERT(aSelfWM == GetWritingMode());
   WritingMode writingMode = aSelfWM;
 
-  if (StyleTextReset()->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
+  if (StyleTextReset()->mUnicodeBidi == StyleUnicodeBidi::Plaintext) {
     mozilla::intl::BidiEmbeddingLevel frameLevel =
         nsBidiPresUtils::GetFrameBaseLevel(aSubFrame);
     writingMode.SetDirectionFromBidiLevel(frameLevel);
@@ -2125,7 +2123,8 @@ const nsFrameList& nsIFrame::GetChildList(ChildListID aListID) const {
 
 void nsIFrame::GetChildLists(nsTArray<ChildList>* aLists) const {
   if (IsAbsoluteContainer()) {
-    nsFrameList absoluteList = GetAbsoluteContainingBlock()->GetChildList();
+    const nsFrameList& absoluteList =
+        GetAbsoluteContainingBlock()->GetChildList();
     absoluteList.AppendIfNonempty(aLists, GetAbsoluteListID());
   }
 }
@@ -2139,12 +2138,40 @@ AutoTArray<nsIFrame::ChildList, 4> nsIFrame::CrossDocChildLists() {
     if (root) {
       childLists.EmplaceBack(
           nsFrameList(root, nsLayoutUtils::GetLastSibling(root)),
-          nsIFrame::kPrincipalList);
+          FrameChildListID::Principal);
     }
   }
 
   GetChildLists(&childLists);
   return childLists;
+}
+
+const nsAtom* nsIFrame::ComputePageValue() const {
+  if (!StaticPrefs::layout_css_named_pages_enabled()) {
+    return nsGkAtoms::_empty;
+  }
+  const nsAtom* value = nsGkAtoms::_empty;
+  const nsIFrame* frame = this;
+  do {
+    // If this has a non-auto start value, track that instead.
+    if (const nsAtom* const startValue = frame->GetStartPageValue()) {
+      value = startValue;
+    }
+    MOZ_ASSERT(value, "Should not have a NULL page value.");
+    // Get the next frame to read from.
+    const nsIFrame* firstNonPlaceholderFrame = nullptr;
+    // If this is a container frame, inspect its in-flow children.
+    if (const nsContainerFrame* containerFrame = do_QueryFrame(frame)) {
+      for (const nsIFrame* childFrame : containerFrame->PrincipalChildList()) {
+        if (!childFrame->IsPlaceholderFrame()) {
+          firstNonPlaceholderFrame = childFrame;
+          break;
+        }
+      }
+    }
+    frame = firstNonPlaceholderFrame;
+  } while (frame);
+  return value;
 }
 
 Visibility nsIFrame::GetVisibility() const {
@@ -3766,15 +3793,6 @@ void nsIFrame::BuildDisplayListForStackingContext(
     createdContainer = true;
   }
 
-  bool createdOwnLayer = false;
-  CreateOwnLayerIfNeeded(aBuilder, &resultList,
-                         nsDisplayOwnLayer::OwnLayerForStackingContext,
-                         &createdOwnLayer);
-
-  if (createdOwnLayer) {
-    createdContainer = true;
-  }
-
   if (aBuilder->IsReusingStackingContextItems()) {
     if (resultList.IsEmpty()) {
       return;
@@ -3969,12 +3987,6 @@ void nsIFrame::BuildDisplayListForSimpleChild(nsDisplayListBuilder* aBuilder,
   aChild->SetBuiltDisplayList(true);
   aBuilder->Check();
   aBuilder->DisplayCaret(aChild, aLists.Outlines());
-}
-
-nsIFrame::DisplayChildFlag nsIFrame::DisplayFlagForFlexOrGridItem() const {
-  MOZ_ASSERT(IsFlexOrGridItem(),
-             "Should only be called on flex or grid items!");
-  return DisplayChildFlag::ForcePseudoStackingContext;
 }
 
 static bool ShouldSkipFrame(nsDisplayListBuilder* aBuilder,
@@ -5002,6 +5014,9 @@ nsresult nsIFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
       nsFrameSelection::FocusMode::kExtendSelection, CARET_ASSOCIATE_BEFORE);
   if (NS_FAILED(rv)) {
     return rv;
+  }
+  if (aAmountBack == eSelectWord) {
+    frameSelection->SetIsDoubleClickSelection(true);
   }
 
   // maintain selection
@@ -6767,8 +6782,7 @@ void nsIFrame::DidReflow(nsPresContext* aPresContext,
   aPresContext->ReflowedFrame();
 
 #ifdef ACCESSIBILITY
-  if (nsAccessibilityService* accService =
-          PresShell::GetAccessibilityService()) {
+  if (nsAccessibilityService* accService = GetAccService()) {
     accService->NotifyOfPossibleBoundsChange(PresShell(), mContent);
   }
 #endif
@@ -6845,12 +6859,53 @@ bool nsIFrame::IsContentDisabled() const {
   return element && element->IsDisabled();
 }
 
-bool nsIFrame::HidesContent() const {
-  if (!StyleDisplay()->IsContentVisibilityHidden()) {
+bool nsIFrame::IsContentVisibilityPropertyApplicable() const {
+  return GetContent() && GetContent()->IsElement() &&
+         (!StyleDisplay()->IsInlineFlow() ||
+          IsFrameOfType(nsIFrame::eReplaced));
+}
+
+bool nsIFrame::IsContentRelevant() const {
+  MOZ_ASSERT(IsContentVisibilityPropertyApplicable());
+  MOZ_ASSERT(StyleDisplay()->IsContentVisibilityAuto());
+
+  auto* element = Element::FromNodeOrNull(GetContent());
+  MOZ_ASSERT(element);
+
+  Maybe<ContentRelevancy> relevancy = element->GetContentRelevancy();
+  if (relevancy.isSome()) {
+    return !relevancy->isEmpty();
+  }
+
+  // If there is no relevancy set, then this frame still has not received had
+  // the initial visibility callback call. In that case, only rely on whether
+  // or not it is inside a top layer element which will never change for this
+  // frame and allows proper rendering of the top layer.
+  return IsDescendantOfTopLayerElement();
+}
+
+bool nsIFrame::HidesContent(
+    const EnumSet<IncludeContentVisibility>& aInclude) const {
+  const auto& disp = *StyleDisplay();
+  if (disp.IsContentVisibilityVisible()) {
+    return false;
+  };
+
+  if (!IsContentVisibilityPropertyApplicable()) {
     return false;
   }
 
-  return IsFrameOfType(nsIFrame::eReplaced) || !StyleDisplay()->IsInlineFlow();
+  if (aInclude.contains(IncludeContentVisibility::Hidden) &&
+      disp.IsContentVisibilityHidden()) {
+    return true;
+  }
+
+  if (aInclude.contains(IncludeContentVisibility::Auto) &&
+      disp.IsContentVisibilityAuto()) {
+    return !IsContentRelevant();
+  }
+
+  return false;
 }
 
 bool nsIFrame::HidesContentForLayout() const {
@@ -6863,7 +6918,8 @@ bool nsIFrame::IsHiddenByContentVisibilityOfInFlowParentForLayout() const {
          !(Style()->IsAnonBox() && !IsFrameOfType(nsIFrame::eLineParticipant));
 }
 
-bool nsIFrame::IsHiddenByContentVisibilityOnAnyAncestor() const {
+bool nsIFrame::IsHiddenByContentVisibilityOnAnyAncestor(
+    const EnumSet<IncludeContentVisibility>& aInclude) const {
   if (!StaticPrefs::layout_css_content_visibility_enabled()) {
     return false;
   }
@@ -6871,7 +6927,7 @@ bool nsIFrame::IsHiddenByContentVisibilityOnAnyAncestor() const {
   bool isAnonymousBlock =
       Style()->IsAnonBox() && !IsFrameOfType(nsIFrame::eLineParticipant);
   for (nsIFrame* cur = GetInFlowParent(); cur; cur = cur->GetInFlowParent()) {
-    if (!isAnonymousBlock && cur->HidesContent()) {
+    if (!isAnonymousBlock && cur->HidesContent(aInclude)) {
       return true;
     }
 
@@ -6882,6 +6938,111 @@ bool nsIFrame::IsHiddenByContentVisibilityOnAnyAncestor() const {
   }
 
   return false;
+}
+
+bool nsIFrame::HasSelectionInSubtree() {
+  if (IsSelected()) {
+    return true;
+  }
+
+  RefPtr<nsFrameSelection> frameSelection = GetFrameSelection();
+  const Selection* selection =
+      frameSelection->GetSelection(SelectionType::eNormal);
+  if (!selection) {
+    return false;
+  }
+
+  for (uint32_t i = 0; i < selection->RangeCount(); i++) {
+    auto* range = selection->GetRangeAt(i);
+    MOZ_ASSERT(range);
+
+    const auto* commonAncestorNode =
+        range->GetRegisteredClosestCommonInclusiveAncestor();
+    if (commonAncestorNode->IsInclusiveDescendantOf(GetContent())) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool nsIFrame::IsDescendantOfTopLayerElement() const {
+  if (!GetContent()) {
+    return false;
+  }
+
+  nsTArray<dom::Element*> topLayer = PresContext()->Document()->GetTopLayer();
+  for (auto* element : topLayer) {
+    if (GetContent()->IsInclusiveFlatTreeDescendantOf(element)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void nsIFrame::UpdateIsRelevantContent(
+    const ContentRelevancy& aRelevancyToUpdate) {
+  MOZ_ASSERT(IsContentVisibilityPropertyApplicable());
+  MOZ_ASSERT(StyleDisplay()->IsContentVisibilityAuto());
+
+  auto* element = Element::FromNodeOrNull(GetContent());
+  MOZ_ASSERT(element);
+
+  ContentRelevancy newRelevancy;
+  Maybe<ContentRelevancy> oldRelevancy = element->GetContentRelevancy();
+  if (oldRelevancy.isSome()) {
+    newRelevancy = *oldRelevancy;
+  }
+
+  auto setRelevancyValue = [&](ContentRelevancyReason reason, bool value) {
+    if (value) {
+      newRelevancy += reason;
+    } else {
+      newRelevancy -= reason;
+    }
+  };
+
+  if (!oldRelevancy ||
+      aRelevancyToUpdate.contains(ContentRelevancyReason::Visible)) {
+    Maybe<bool> visible = element->GetVisibleForContentVisibility();
+    if (visible.isSome()) {
+      setRelevancyValue(ContentRelevancyReason::Visible, *visible);
+    }
+  }
+
+  if (!oldRelevancy ||
+      aRelevancyToUpdate.contains(ContentRelevancyReason::FocusInSubtree)) {
+    setRelevancyValue(ContentRelevancyReason::FocusInSubtree,
+                      element->State().HasAtLeastOneOfStates(
+                          ElementState::FOCUS_WITHIN | ElementState::FOCUS));
+  }
+
+  if (!oldRelevancy ||
+      aRelevancyToUpdate.contains(ContentRelevancyReason::Selected)) {
+    setRelevancyValue(ContentRelevancyReason::Selected,
+                      HasSelectionInSubtree());
+  }
+
+  if (!oldRelevancy ||
+      aRelevancyToUpdate.contains(
+          ContentRelevancyReason::DescendantOfTopLayerElement)) {
+    setRelevancyValue(ContentRelevancyReason::DescendantOfTopLayerElement,
+                      IsDescendantOfTopLayerElement());
+  }
+
+  bool overallRelevancyChanged =
+      !oldRelevancy || oldRelevancy->isEmpty() != newRelevancy.isEmpty();
+  if (!oldRelevancy || *oldRelevancy != newRelevancy) {
+    element->SetContentRelevancy(newRelevancy);
+  }
+
+  if (overallRelevancyChanged) {
+    HandleLastRememberedSize();
+    PresShell()->FrameNeedsReflow(
+        this, IntrinsicDirty::FrameAncestorsAndDescendants, NS_FRAME_IS_DIRTY);
+    InvalidateFrame();
+  }
 }
 
 nsresult nsIFrame::CharacterDataChanged(const CharacterDataChangeInfo&) {
@@ -7203,48 +7364,6 @@ Matrix4x4Flagged nsIFrame::GetTransformMatrix(ViewportType aViewportType,
     }
 
     return result;
-  }
-
-  if (nsLayoutUtils::IsPopup(this) && IsListControlFrame()) {
-    nsPresContext* presContext = PresContext();
-    nsIFrame* docRootFrame = presContext->PresShell()->GetRootFrame();
-
-    // Compute a matrix that transforms from the popup widget to the toplevel
-    // widget. We use the widgets because they're the simplest and most
-    // accurate approach --- this should work no matter how the widget position
-    // was chosen.
-    nsIWidget* widget = GetView()->GetWidget();
-    nsPresContext* rootPresContext = PresContext()->GetRootPresContext();
-    // Maybe the widget hasn't been created yet? Popups without widgets are
-    // treated as regular frames. That should work since they'll be rendered
-    // as part of the page if they're rendered at all.
-    if (widget && rootPresContext) {
-      nsIWidget* toplevel = rootPresContext->GetNearestWidget();
-      if (toplevel) {
-        LayoutDeviceIntRect screenBounds = widget->GetClientBounds();
-        LayoutDeviceIntRect toplevelScreenBounds = toplevel->GetClientBounds();
-        LayoutDeviceIntPoint translation =
-            screenBounds.TopLeft() - toplevelScreenBounds.TopLeft();
-
-        Matrix4x4 transformToTop;
-        transformToTop._41 = translation.x;
-        transformToTop._42 = translation.y;
-
-        *aOutAncestor = docRootFrame;
-        Matrix4x4 docRootTransformToTop =
-            nsLayoutUtils::GetTransformToAncestor(RelativeTo{docRootFrame},
-                                                  RelativeTo{nullptr})
-                .GetMatrix();
-        if (docRootTransformToTop.IsSingular()) {
-          NS_WARNING(
-              "Containing document is invisible, we can't compute a valid "
-              "transform");
-        } else {
-          docRootTransformToTop.Invert();
-          return transformToTop * docRootTransformToTop;
-        }
-      }
-    }
   }
 
   *aOutAncestor = nsLayoutUtils::GetCrossDocParentFrameInProcess(this);
@@ -7859,6 +7978,11 @@ bool nsIFrame::IsImageFrameOrSubclass() const {
   return !!asImage;
 }
 
+bool nsIFrame::IsSubgrid() const {
+  return IsGridContainerFrame() &&
+         static_cast<const nsGridContainerFrame*>(this)->IsSubgrid();
+}
+
 static nsIFrame* GetNearestBlockContainer(nsIFrame* frame) {
   // The block wrappers we use to wrap blocks inside inlines aren't
   // described in the CSS spec.  We need to make them not be containing
@@ -7870,7 +7994,7 @@ static nsIFrame* GetNearestBlockContainer(nsIFrame* frame) {
   // If we ever start skipping table row groups from being containing blocks,
   // you need to remove the StickyScrollContainer hack referencing bug 1421660.
   while (frame->IsFrameOfType(nsIFrame::eLineParticipant) ||
-         frame->IsBlockWrapper() ||
+         frame->IsBlockWrapper() || frame->IsSubgrid() ||
          // Table rows are not containing blocks either
          frame->IsTableRowFrame()) {
     frame = frame->GetParent();
@@ -8606,8 +8730,7 @@ static nsContentAndOffset FindLineBreakingFrame(nsIFrame* aFrame,
 
   // Iterate over children and call ourselves recursively
   if (aDirection == eDirPrevious) {
-    nsIFrame* child =
-        aFrame->GetChildList(nsIFrame::kPrincipalList).LastChild();
+    nsIFrame* child = aFrame->PrincipalChildList().LastChild();
     while (child && !result.mContent) {
       result = FindLineBreakingFrame(child, aDirection);
       child = child->GetPrevSibling();
@@ -9205,11 +9328,6 @@ bool nsIFrame::BreakWordBetweenPunctuation(const PeekWordState* aState,
   return aState->mSeenNonPunctuationSinceWhitespace;
 }
 
-nsresult nsIFrame::CheckVisibility(nsPresContext*, int32_t, int32_t, bool,
-                                   bool*, bool*) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 std::pair<nsIFrame*, nsIFrame*> nsIFrame::GetContainingBlockForLine(
     bool aLockScroll) const {
   const nsIFrame* parentFrame = this;
@@ -9571,9 +9689,10 @@ static nsRect ComputeOutlineInnerRect(
 
   // Iterate over all children except pop-up, absolutely-positioned,
   // float, and overflow ones.
-  const nsIFrame::ChildListIDs skip = {
-      nsIFrame::kPopupList, nsIFrame::kAbsoluteList, nsIFrame::kFixedList,
-      nsIFrame::kFloatList, nsIFrame::kOverflowList};
+  const FrameChildListIDs skip = {
+      FrameChildListID::Popup, FrameChildListID::Absolute,
+      FrameChildListID::Fixed, FrameChildListID::Float,
+      FrameChildListID::Overflow};
   for (const auto& [list, listID] : aFrame->ChildLists()) {
     if (skip.contains(listID)) {
       continue;
@@ -11159,21 +11278,6 @@ void nsIFrame::SetParent(nsContainerFrame* aParent) {
   }
 }
 
-void nsIFrame::CreateOwnLayerIfNeeded(nsDisplayListBuilder* aBuilder,
-                                      nsDisplayList* aList, uint16_t aType,
-                                      bool* aCreatedContainerItem) {
-  if (GetContent() && GetContent()->IsXULElement() &&
-      GetContent()->AsElement()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer)) {
-    aList->AppendNewToTopWithIndex<nsDisplayOwnLayer>(
-        aBuilder, this, /* aIndex = */ aType, aList,
-        aBuilder->CurrentActiveScrolledRoot(), nsDisplayOwnLayerFlags::None,
-        ScrollbarData{}, true, false);
-    if (aCreatedContainerItem) {
-      *aCreatedContainerItem = true;
-    }
-  }
-}
-
 bool nsIFrame::IsStackingContext(const nsStyleDisplay* aStyleDisplay,
                                  const nsStyleEffects* aStyleEffects) {
   // Properties that influence the output of this function should be handled in
@@ -11312,33 +11416,6 @@ gfx::Matrix nsIFrame::ComputeWidgetTransform() {
   }
 
   return result2d;
-}
-
-ContainSizeAxes nsIFrame::GetContainSizeAxes() const {
-  auto contain = StyleDisplay()->EffectiveContainment();
-  // Short circuit for no containment whatsoever
-  if (MOZ_LIKELY(!contain)) {
-    return ContainSizeAxes(false, false);
-  }
-
-  // Note: The spec for size containment says it should have no effect on
-  // non-atomic, inline-level boxes.
-  bool isNonReplacedInline = IsFrameOfType(nsIFrame::eLineParticipant) &&
-                             !IsFrameOfType(nsIFrame::eReplaced);
-  if (isNonReplacedInline || StyleDisplay()->PrecludesSizeContainment()) {
-    return ContainSizeAxes(false, false);
-  }
-
-  // https://drafts.csswg.org/css-contain-2/#content-visibility
-  // If this content skips its content via content-visibility, it always has
-  // size containment.
-  if (MOZ_LIKELY(!(contain & StyleContain::SIZE)) &&
-      MOZ_UNLIKELY(HidesContent())) {
-    contain |= StyleContain::SIZE;
-  }
-
-  return ContainSizeAxes(static_cast<bool>(contain & StyleContain::INLINE_SIZE),
-                         static_cast<bool>(contain & StyleContain::BLOCK_SIZE));
 }
 
 void nsIFrame::DoUpdateStyleOfOwnedAnonBoxes(ServoRestyleState& aRestyleState) {
@@ -11491,8 +11568,7 @@ CompositorHitTestInfo nsIFrame::GetCompositorHitTestInfo(
     // If WebRender is enabled, simple clip-paths can be converted into WR
     // clips that WR knows how to hit-test against, so we don't need to mark
     // it as an irregular area.
-    if (!gfxVars::UseWebRender() ||
-        !SVGIntegrationUtils::UsingSimpleClipPathForFrame(this)) {
+    if (!SVGIntegrationUtils::UsingSimpleClipPathForFrame(this)) {
       result += CompositorHitTestFlags::eIrregularArea;
     }
   }
@@ -12275,7 +12351,6 @@ void DR_State::InitFrameTypeTable() {
   AddFrameTypeInfo(LayoutFrameType::Viewport, "VP", "viewport");
   AddFrameTypeInfo(LayoutFrameType::Box, "Box", "Box");
   AddFrameTypeInfo(LayoutFrameType::Slider, "Slider", "Slider");
-  AddFrameTypeInfo(LayoutFrameType::PopupSet, "PopupSet", "PopupSet");
   AddFrameTypeInfo(LayoutFrameType::None, "unknown", "unknown");
 }
 

@@ -9,6 +9,7 @@
 
 #include "mozilla/RestyleManager.h"
 
+#include "mozilla/Assertions.h"
 #include "mozilla/AutoRestyleTimelineMarker.h"
 #include "mozilla/AutoTimelineMarker.h"
 #include "mozilla/ComputedStyle.h"
@@ -37,7 +38,6 @@
 #include "mozilla/dom/ElementInlines.h"
 #include "mozilla/dom/HTMLBodyElement.h"
 
-#include "Layers.h"
 #include "ScrollSnap.h"
 #include "nsAnimationManager.h"
 #include "nsBlockFrame.h"
@@ -977,8 +977,11 @@ static bool ContainingBlockChangeAffectsDescendants(
         // they ignore their position style ... but they can't.
         NS_ASSERTION(!SVGUtils::IsInSVGTextSubtree(outOfFlow),
                      "SVG text frames can't be out of flow");
+        // Top-layer frames don't change containing block based on direct
+        // ancestors.
         auto* display = outOfFlow->StyleDisplay();
-        if (display->IsAbsolutelyPositionedStyle()) {
+        if (display->IsAbsolutelyPositionedStyle() &&
+            display->mTopLayer == StyleTopLayer::None) {
           const bool isContainingBlock =
               aIsFixedPosContainingBlock ||
               (aIsAbsPosContainingBlock &&
@@ -1175,7 +1178,7 @@ static void SyncViewsAndInvalidateDescendants(nsIFrame* aFrame,
           nsIFrame* outOfFlowFrame =
               nsPlaceholderFrame::GetRealFrameForPlaceholder(child);
           DoApplyRenderingChangeToTree(outOfFlowFrame, aChange);
-        } else if (listID == nsIFrame::kPopupList) {
+        } else if (listID == FrameChildListID::Popup) {
           DoApplyRenderingChangeToTree(child, aChange);
         } else {  // regular frame
           SyncViewsAndInvalidateDescendants(child, aChange);
@@ -1250,20 +1253,20 @@ static void StyleChangeReflow(nsIFrame* aFrame, nsChangeHint aHint) {
                  "Please read the comments in nsChangeHint.h");
     NS_ASSERTION(aHint & nsChangeHint_NeedDirtyReflow,
                  "ClearDescendantIntrinsics requires NeedDirtyReflow");
-    dirtyType = IntrinsicDirty::StyleChange;
+    dirtyType = IntrinsicDirty::FrameAncestorsAndDescendants;
   } else if ((aHint & nsChangeHint_UpdateComputedBSize) &&
              aFrame->HasAnyStateBits(
                  NS_FRAME_DESCENDANT_INTRINSIC_ISIZE_DEPENDS_ON_BSIZE)) {
-    dirtyType = IntrinsicDirty::StyleChange;
+    dirtyType = IntrinsicDirty::FrameAncestorsAndDescendants;
   } else if (aHint & nsChangeHint_ClearAncestorIntrinsics) {
-    dirtyType = IntrinsicDirty::TreeChange;
+    dirtyType = IntrinsicDirty::FrameAndAncestors;
   } else if ((aHint & nsChangeHint_UpdateComputedBSize) &&
              HasBoxAncestor(aFrame)) {
     // The frame's computed BSize is changing, and we have a box ancestor
     // whose cached intrinsic height may need to be updated.
-    dirtyType = IntrinsicDirty::TreeChange;
+    dirtyType = IntrinsicDirty::FrameAndAncestors;
   } else {
-    dirtyType = IntrinsicDirty::Resize;
+    dirtyType = IntrinsicDirty::None;
   }
 
   if (aHint & nsChangeHint_UpdateComputedBSize) {
@@ -1274,7 +1277,7 @@ static void StyleChangeReflow(nsIFrame* aFrame, nsChangeHint aHint) {
   if (aFrame->HasAnyStateBits(NS_FRAME_FIRST_REFLOW)) {
     dirtyBits = nsFrameState(0);
   } else if ((aHint & nsChangeHint_NeedDirtyReflow) ||
-             dirtyType == IntrinsicDirty::StyleChange) {
+             dirtyType == IntrinsicDirty::FrameAncestorsAndDescendants) {
     dirtyBits = NS_FRAME_IS_DIRTY;
   } else {
     dirtyBits = NS_FRAME_HAS_DIRTY_CHILDREN;
@@ -1282,7 +1285,7 @@ static void StyleChangeReflow(nsIFrame* aFrame, nsChangeHint aHint) {
 
   // If we're not going to clear any intrinsic sizes on the frames, and
   // there are no dirty bits to set, then there's nothing to do.
-  if (dirtyType == IntrinsicDirty::Resize && !dirtyBits) return;
+  if (dirtyType == IntrinsicDirty::None && !dirtyBits) return;
 
   ReflowRootHandling rootHandling;
   if (aHint & nsChangeHint_ReflowChangesSizeOrPosition) {
@@ -2501,7 +2504,7 @@ static void UpdateBackdropIfNeeded(nsIFrame* aFrame, ServoStyleSet& aStyleSet,
   MOZ_ASSERT(display->IsAbsolutelyPositionedStyle());
 
   nsIFrame* backdropPlaceholder =
-      aFrame->GetChildList(nsIFrame::kBackdropList).FirstChild();
+      aFrame->GetChildList(FrameChildListID::Backdrop).FirstChild();
   if (!backdropPlaceholder) {
     return;
   }
@@ -3273,7 +3276,13 @@ void RestyleManager::UpdateOnlyAnimationStyles() {
 
 void RestyleManager::ElementStateChanged(Element* aElement,
                                          ElementState aChangedBits) {
-  MOZ_DIAGNOSTIC_ASSERT(!mInStyleRefresh);
+#ifdef EARLY_BETA_OR_EARLIER
+  if (MOZ_UNLIKELY(mInStyleRefresh)) {
+    MOZ_CRASH_UNSAFE_PRINTF(
+        "Element state change during style refresh (%" PRIu64 ")",
+        aChangedBits.GetInternalValue());
+  }
+#endif
 
   const ElementState kVisitedAndUnvisited =
       ElementState::VISITED | ElementState::UNVISITED;

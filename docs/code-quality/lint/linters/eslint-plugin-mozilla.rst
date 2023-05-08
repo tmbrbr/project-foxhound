@@ -40,6 +40,7 @@ The plugin implements the following rules:
    eslint-plugin-mozilla/no-addtask-setup
    eslint-plugin-mozilla/no-arbitrary-setTimeout
    eslint-plugin-mozilla/no-compare-against-boolean-literals
+   eslint-plugin-mozilla/no-cu-reportError
    eslint-plugin-mozilla/no-define-cc-etc
    eslint-plugin-mozilla/no-throw-cr-literal
    eslint-plugin-mozilla/no-useless-parameters
@@ -72,6 +73,7 @@ The plugin implements the following rules:
    eslint-plugin-mozilla/use-ownerGlobal
    eslint-plugin-mozilla/use-returnValue
    eslint-plugin-mozilla/use-services
+   eslint-plugin-mozilla/use-static-import
    eslint-plugin-mozilla/valid-ci-uses
    eslint-plugin-mozilla/valid-lazy
    eslint-plugin-mozilla/valid-services

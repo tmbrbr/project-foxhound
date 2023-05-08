@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const { FormHistory } = ChromeUtils.import(
-  "resource://gre/modules/FormHistory.jsm"
+const { FormHistory } = ChromeUtils.importESModule(
+  "resource://gre/modules/FormHistory.sys.mjs"
 );
 
 add_task(async function test() {
@@ -20,11 +20,7 @@ add_task(async function test() {
       { op: "add", fieldname: "field1", value: "value4" },
     ];
 
-    await new Promise(resolve =>
-      FormHistory.update([{ op: "remove" }, ...mockHistory], {
-        handleCompletion: resolve,
-      })
-    );
+    await FormHistory.update([{ op: "remove" }, ...mockHistory]);
     await SpecialPowers.spawn(browser, [], async function() {
       const input = content.document.querySelector("input");
 

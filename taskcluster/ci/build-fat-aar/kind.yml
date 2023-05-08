@@ -14,6 +14,7 @@ transforms:
     - gecko_taskgraph.transforms.build_lints:transforms
     - gecko_taskgraph.transforms.build_fat_aar:transforms
     - gecko_taskgraph.transforms.job:transforms
+    - gecko_taskgraph.transforms.artifact:transforms
     - gecko_taskgraph.transforms.task:transforms
 
 job-defaults:
@@ -21,7 +22,7 @@ job-defaults:
         artifact_map: taskcluster/gecko_taskgraph/manifests/fennec_geckoview.yml
     index:
         product: mobile
-    worker-type: b-linux
+    worker-type: b-linux-gcp
     worker:
         docker-image: {in-tree: android-build}
         max-run-time: 7200

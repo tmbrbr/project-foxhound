@@ -13,12 +13,16 @@ const NETWORK_TRR_MODE_PREF = "network.trr.mode";
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  MigrationUtils: "resource:///modules/MigrationUtils.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   AddonManager: "resource://gre/modules/AddonManager.jsm",
   UITour: "resource:///modules/UITour.jsm",
   FxAccounts: "resource://gre/modules/FxAccounts.jsm",
-  MigrationUtils: "resource:///modules/MigrationUtils.jsm",
   Spotlight: "resource://activity-stream/lib/Spotlight.jsm",
+  ColorwayClosetOpener: "resource:///modules/ColorwayClosetOpener.jsm",
 });
 
 const SpecialMessageActions = {
@@ -185,6 +189,7 @@ const SpecialMessageActions = {
       "browser.startup.homepage",
       "browser.privateWindowSeparation.enabled",
       "browser.firefox-view.feature-tour",
+      "browser.pdfjs.feature-tour",
     ];
 
     if (!allowedPrefs.includes(pref.name)) {
@@ -228,7 +233,7 @@ const SpecialMessageActions = {
       case "SHOW_MIGRATION_WIZARD":
         Services.tm.dispatchToMainThread(() =>
           lazy.MigrationUtils.showMigrationWizard(window, [
-            lazy.MigrationUtils.MIGRATION_ENTRYPOINT_NEWTAB,
+            lazy.MigrationUtils.MIGRATION_ENTRYPOINTS.NEWTAB,
             action.data?.source,
           ])
         );
@@ -302,8 +307,8 @@ const SpecialMessageActions = {
       case "PIN_CURRENT_TAB":
         let tab = window.gBrowser.selectedTab;
         window.gBrowser.pinTab(tab);
-        window.ConfirmationHint.show(tab, "pinTab", {
-          showDescription: true,
+        window.ConfirmationHint.show(tab, "confirmation-hint-pin-tab", {
+          descriptionId: "confirmation-hint-pin-tab-description",
         });
         break;
       case "SHOW_FIREFOX_ACCOUNTS":
@@ -358,22 +363,6 @@ const SpecialMessageActions = {
       case "CONFIGURE_HOMEPAGE":
         this.configureHomepage(action.data);
         break;
-      case "ENABLE_TOTAL_COOKIE_PROTECTION":
-        Services.prefs.setBoolPref(
-          "privacy.restrict3rdpartystorage.rollout.enabledByDefault",
-          true
-        );
-        break;
-      case "ENABLE_TOTAL_COOKIE_PROTECTION_SECTION_AND_OPT_OUT":
-        Services.prefs.setBoolPref(
-          "privacy.restrict3rdpartystorage.rollout.enabledByDefault",
-          false
-        );
-        Services.prefs.setBoolPref(
-          "privacy.restrict3rdpartystorage.rollout.preferences.TCPToggleInStandard",
-          true
-        );
-        break;
       case "SHOW_SPOTLIGHT":
         lazy.Spotlight.showSpotlightDialog(browser, action.data);
         break;
@@ -403,6 +392,12 @@ const SpecialMessageActions = {
           action.data.selector
         );
         clickElement?.click();
+        break;
+      case "OPEN_FIREFOX_VIEW_AND_COLORWAYS_MODAL":
+        window.FirefoxViewHandler.openTab();
+        lazy.ColorwayClosetOpener.openModal({
+          source: "firefoxview",
+        });
         break;
     }
   },

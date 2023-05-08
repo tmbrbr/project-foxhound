@@ -74,8 +74,10 @@
   <link rel="localization" href="browser/browserSets.ftl"/>
   <link rel="localization" href="browser/menubar.ftl"/>
   <link rel="localization" href="browser/protectionsPanel.ftl"/>
+  <link rel="localization" href="preview/protectionsPanel.ftl"/>
   <link rel="localization" href="browser/appmenu.ftl"/>
   <link rel="localization" href="browser/panelUI.ftl"/>
+  <link rel="localization" href="preview/identityCredentialNotification.ftl"/>
   <link rel="localization" href="preview/interventions.ftl"/>
   <link rel="localization" href="browser/sidebarMenu.ftl"/>
   <link rel="localization" href="browser/allTabsMenu.ftl"/>
@@ -87,6 +89,8 @@
   <link rel="localization" href="browser/screenshots.ftl"/>
   <link rel="localization" href="browser/firefoxView.ftl"/>
   <link rel="localization" href="browser/webrtcIndicator.ftl"/>
+  <link rel="localization" href="browser/originControls.ftl"/>
+  <link rel="localization" href="browser/unifiedExtensions.ftl"/>
 
   <title data-l10n-id="browser-main-window-title"></title>
 
@@ -108,6 +112,7 @@
   Services.scriptloader.loadSubScript("chrome://browser/content/browser-pageActions.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/browser-sidebar.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/browser-tabsintitlebar.js", this);
+  Services.scriptloader.loadSubScript("chrome://browser/content/browser-unified-extensions.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/tabbrowser.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/tabbrowser-tab.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/tabbrowser-tabs.js", this);
@@ -161,10 +166,6 @@
   </html:template>
 
 #include fullscreen-and-pointerlock.inc.xhtml
-
-  <vbox id="browser-bottombox" layer="true">
-    <!-- gNotificationBox will be added here lazily. -->
-  </vbox>
 
   <html:div id="a11y-announcement" role="alert"/>
 

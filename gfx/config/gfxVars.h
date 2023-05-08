@@ -38,7 +38,6 @@ class gfxVarReceiver;
   _(DXNV12Blocked, bool, false)                                    \
   _(DXP010Blocked, bool, false)                                    \
   _(DXP016Blocked, bool, false)                                    \
-  _(UseWebRender, bool, false)                                     \
   _(UseWebRenderANGLE, bool, false)                                \
   _(UseWebRenderFlipSequentialWin, bool, false)                    \
   _(UseWebRenderDCompWin, bool, false)                             \
@@ -94,7 +93,8 @@ class gfxVarReceiver;
   _(UseDMABufSurfaceExport, bool, true)                            \
   _(ReuseDecoderDevice, bool, false)                               \
   _(UseCanvasRenderThread, bool, false)                            \
-  _(AllowBackdropFilter, bool, true)
+  _(AllowBackdropFilter, bool, true)                               \
+  _(WebglOopAsyncPresentForceSync, bool, true)
 
 /* Add new entries above this line. */
 

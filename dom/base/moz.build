@@ -530,7 +530,7 @@ if CONFIG["CPU_ARCH"].startswith("ppc"):
 EXTRA_JS_MODULES += [
     "ContentAreaDropListener.jsm",
     "DOMRequestHelper.jsm",
-    "IndexedDBHelper.jsm",
+    "IndexedDBHelper.sys.mjs",
     "LocationHelper.jsm",
     "ProcessSelector.jsm",
     "SlowScriptDebug.jsm",
@@ -569,6 +569,7 @@ LOCAL_INCLUDES += [
     "/layout/style",
     "/layout/xul",
     "/netwerk/base",
+    "/netwerk/protocol/http",
     "/netwerk/url-classifier",
     "/parser/htmlparser",
     "/security/manager/ssl",

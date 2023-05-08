@@ -8,7 +8,6 @@ const XHTML_NS = "http://www.w3.org/1999/xhtml";
 
 const DEBUG_CONTRACTID = "@mozilla.org/xpcom/debug;1";
 const PRINTSETTINGS_CONTRACTID = "@mozilla.org/gfx/printsettings-service;1";
-const ENVIRONMENT_CONTRACTID = "@mozilla.org/process/environment;1";
 const NS_OBSERVER_SERVICE_CONTRACTID = "@mozilla.org/observer-service;1";
 const NS_GFXINFO_CONTRACTID = "@mozilla.org/gfx/info;1";
 const IO_SERVICE_CONTRACTID = "@mozilla.org/network/io-service;1"
@@ -16,8 +15,8 @@ const IO_SERVICE_CONTRACTID = "@mozilla.org/network/io-service;1"
 // "<!--CLEAR-->"
 const BLANK_URL_FOR_CLEARING = "data:text/html;charset=UTF-8,%3C%21%2D%2DCLEAR%2D%2D%3E";
 
-const { setTimeout, clearTimeout } = ChromeUtils.import(
-    "resource://gre/modules/Timer.jsm"
+const { setTimeout, clearTimeout } = ChromeUtils.importESModule(
+    "resource://gre/modules/Timer.sys.mjs"
 );
 const { onSpellCheck } = ChromeUtils.import(
     "resource://reftest/AsyncSpellCheckTestHelper.jsm"
@@ -108,8 +107,7 @@ function OnInitialLoad()
     if (gDebug.isDebugBuild) {
         gAssertionCount = gDebug.assertionCount;
     }
-    var env = Cc[ENVIRONMENT_CONTRACTID].getService(Ci.nsIEnvironment);
-    gVerbose = !!env.get("MOZ_REFTEST_VERBOSE");
+    gVerbose = !!Services.env.get("MOZ_REFTEST_VERBOSE");
 
     RegisterMessageListeners();
 

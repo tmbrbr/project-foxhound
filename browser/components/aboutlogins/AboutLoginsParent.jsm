@@ -7,17 +7,17 @@
 // _AboutLogins is only exported for testing
 var EXPORTED_SYMBOLS = ["AboutLoginsParent", "_AboutLogins"];
 
-const { setTimeout, clearTimeout } = ChromeUtils.import(
-  "resource://gre/modules/Timer.jsm"
+const { setTimeout, clearTimeout } = ChromeUtils.importESModule(
+  "resource://gre/modules/Timer.sys.mjs"
 );
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
-const { E10SUtils } = ChromeUtils.import(
-  "resource://gre/modules/E10SUtils.jsm"
+const { E10SUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/E10SUtils.sys.mjs"
 );
 
 const lazy = {};
@@ -196,7 +196,7 @@ class AboutLoginsParent extends JSWindowActorParent {
     // Remove the path from the origin, if it was provided.
     let origin = lazy.LoginHelper.getLoginOrigin(newLogin.origin);
     if (!origin) {
-      Cu.reportError(
+      console.error(
         "AboutLogins:CreateLogin: Unable to get an origin from the login details."
       );
       return;
@@ -235,10 +235,10 @@ class AboutLoginsParent extends JSWindowActorParent {
   #importFromBrowser() {
     try {
       lazy.MigrationUtils.showMigrationWizard(this.#ownerGlobal, [
-        lazy.MigrationUtils.MIGRATION_ENTRYPOINT_PASSWORDS,
+        lazy.MigrationUtils.MIGRATION_ENTRYPOINTS.PASSWORDS,
       ]);
     } catch (ex) {
-      Cu.reportError(ex);
+      console.error(ex);
     }
   }
 
@@ -492,7 +492,7 @@ class AboutLoginsParent extends JSWindowActorParent {
       try {
         summary = await lazy.LoginCSVImport.importFromCSV(path);
       } catch (e) {
-        Cu.reportError(e);
+        console.error(e);
         this.sendAsyncMessage(
           "AboutLogins:ImportPasswordsErrorDialog",
           e.errorType

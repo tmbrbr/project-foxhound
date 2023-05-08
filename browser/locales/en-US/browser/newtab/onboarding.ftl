@@ -23,6 +23,12 @@ return-to-amo-addon-title = Now let’s get you <img data-l10n-name="icon"/> <b>
 return-to-amo-add-extension-label = Add the Extension
 return-to-amo-add-theme-label = Add the Theme
 
+##  Variables: $addon-name (String) - Name of the add-on to be installed
+
+mr1-return-to-amo-subtitle = Say hello to { -brand-short-name }
+mr1-return-to-amo-addon-title = You’ve got a fast, private browser at your fingertips. Now you can add <b>{ $addon-name }</b> and do even more with { -brand-short-name }.
+mr1-return-to-amo-add-extension-label = Add { $addon-name }
+
 ## Multistage onboarding strings (about:welcome pages)
 
 # Aria-label to make the "steps" of multistage onboarding visible to screen readers.
@@ -108,25 +114,8 @@ mr1-onboarding-import-primary-button-label-attribution = Import from { $previous
 mr1-onboarding-import-primary-button-label-no-attribution = Import from previous browser
 mr1-onboarding-import-secondary-button-label = Not now
 
-mr2-onboarding-colorway-header = Life in color
-mr2-onboarding-colorway-subtitle = Vibrant new colorways. Available for a limited time.
-mr2-onboarding-colorway-primary-button-label = Save colorway
-mr2-onboarding-colorway-secondary-button-label = Not now
-mr2-onboarding-colorway-label-soft = Soft
-mr2-onboarding-colorway-label-balanced = Balanced
-# "Bold" is used in the sense of bravery or courage, not in the sense of
-# emphasized text.
-mr2-onboarding-colorway-label-bold = Bold
-
-# Automatic theme uses operating system color settings
-mr2-onboarding-theme-label-auto = Auto
-
-# This string will be used for Default theme
-mr2-onboarding-theme-label-default = Default
-
 mr1-onboarding-theme-header = Make it your own
 mr1-onboarding-theme-subtitle = Personalize { -brand-short-name } with a theme.
-mr1-onboarding-theme-primary-button-label = Save theme
 mr1-onboarding-theme-secondary-button-label = Not now
 
 # System theme uses operating system color settings
@@ -191,31 +180,6 @@ mr1-onboarding-theme-description-alpenglow =
   .aria-description =
     Use a dynamic, colorful theme for buttons,
     menus, and windows.
-
-# Tooltip displayed on hover of non-default colorway theme
-# variations e.g. soft, balanced, bold
-mr2-onboarding-theme-tooltip =
-  .title = Use this colorway.
-
-# Selector description for non-default colorway theme
-# variations e.g. soft, balanced, bold
-mr2-onboarding-theme-description =
-  .aria-description = Use this colorway.
-
-# Tooltip displayed on hover of colorway
-# Variables:
-#   $colorwayName (String) - Name of colorway
-mr2-onboarding-colorway-tooltip =
-  .title = Explore { $colorwayName } colorways.
-
-# Selector description for colorway
-# Variables:
-#   $colorwayName (String) - Name of colorway
-mr2-onboarding-colorway-label = Explore { $colorwayName } colorways.
-
-# Tooltip displayed on hover of default themes
-mr2-onboarding-default-theme-tooltip =
-  .title = Explore default themes.
 
 # Selector description for default themes
 mr2-onboarding-default-theme-label = Explore default themes.
@@ -416,3 +380,23 @@ mr2022-onboarding-gratitude-secondary-button-label = Start browsing
 onboarding-infrequent-import-title = Make yourself at home
 onboarding-infrequent-import-subtitle = Whether you’re settling in or just stopping by, remember you can import your bookmarks, passwords, and more.
 onboarding-infrequent-import-primary-button = Import to { -brand-short-name }
+
+## MR2022 Illustration alt tags
+## Descriptive tags for illustrations used by screen readers and other assistive tech
+
+mr2022-onboarding-pin-image-alt =
+  .aria-label = Person working on a laptop surrounded by stars and flowers
+mr2022-onboarding-default-image-alt =
+  .aria-label = Person hugging the { -brand-product-name } logo
+mr2022-onboarding-import-image-alt =
+  .aria-label = Person riding a skateboard with a box of software icons
+mr2022-onboarding-mobile-download-image-alt =
+  .aria-label = Frogs hopping across lily pads with a QR code to download { -brand-product-name } for mobile in the center
+mr2022-onboarding-pin-private-image-alt =
+  .aria-label = Magic wand makes { -brand-product-name } private browsing logo appear out of a hat
+mr2022-onboarding-privacy-segmentation-image-alt =
+  .aria-label = Light-skinned and dark-skinned hands high five
+mr2022-onboarding-gratitude-image-alt =
+  .aria-label = View of a sunset through a window with a fox and a house plant on a windowsill
+mr2022-onboarding-colorways-image-alt =
+  .aria-label = A hand spray paints a colorful collage of a green eye, orange shoe, red basketball, purple headphones, blue heart, and yellow crown

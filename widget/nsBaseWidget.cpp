@@ -59,6 +59,7 @@
 #include "mozilla/layers/InputAPZContext.h"
 #include "mozilla/layers/WebRenderLayerManager.h"
 #include "mozilla/webrender/WebRenderTypes.h"
+#include "mozilla/widget/ScreenManager.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
@@ -1349,20 +1350,13 @@ already_AddRefed<WebRenderLayerManager> nsBaseWidget::CreateCompositorSession(
     gpu->EnsureGPUReady();
 
     // If widget type does not supports acceleration, we may be allowed to use
-    // software WebRender instead. If not, then we use ClientLayerManager even
-    // when gfxVars::UseWebRender() is true. WebRender could coexist only with
-    // BasicCompositor.
+    // software WebRender instead.
     bool supportsAcceleration = WidgetTypeSupportsAcceleration();
-    bool enableWR;
-    bool enableSWWR;
+    bool enableSWWR = true;
     if (supportsAcceleration ||
         StaticPrefs::gfx_webrender_unaccelerated_widget_force()) {
-      enableWR = gfx::gfxVars::UseWebRender();
       enableSWWR = gfx::gfxVars::UseSoftwareWebRender();
-    } else {
-      enableWR = enableSWWR = gfx::gfxVars::UseWebRender();
     }
-    MOZ_RELEASE_ASSERT(enableWR);
     bool enableAPZ = UseAPZ();
     CompositorOptions options(enableAPZ, enableSWWR);
 
@@ -1606,7 +1600,8 @@ void nsBaseWidget::MoveClient(const DesktopPoint& aOffset) {
     Move(aOffset.x - desktopOffset.x, aOffset.y - desktopOffset.y);
   } else {
     LayoutDevicePoint layoutOffset = aOffset * GetDesktopToDeviceScale();
-    Move(layoutOffset.x - clientOffset.x, layoutOffset.y - clientOffset.y);
+    Move(layoutOffset.x - LayoutDeviceCoord(clientOffset.x),
+         layoutOffset.y - LayoutDeviceCoord(clientOffset.y));
   }
 }
 
@@ -2111,6 +2106,17 @@ void nsIWidget::OnLongTapTimerCallback(nsITimer* aTimer, void* aClosure) {
   self->mLongTapTouchPoint = nullptr;
 }
 
+float nsIWidget::GetFallbackDPI() {
+  RefPtr<const Screen> primaryScreen =
+      ScreenManager::GetSingleton().GetPrimaryScreen();
+  return primaryScreen->GetDPI();
+}
+
+CSSToLayoutDeviceScale nsIWidget::GetFallbackDefaultScale() {
+  RefPtr<const Screen> s = ScreenManager::GetSingleton().GetPrimaryScreen();
+  return s->GetCSSToLayoutDeviceScale(Screen::IncludeOSZoom::No);
+}
+
 nsresult nsIWidget::ClearNativeTouchSequence(nsIObserver* aObserver) {
   AutoObserverNotifier notifier(aObserver, "cleartouch");
 
@@ -2227,10 +2233,15 @@ void nsBaseWidget::ReportSwipeStarted(uint64_t aInputBlockId,
   if (mSwipeEventQueue && mSwipeEventQueue->inputBlockId == aInputBlockId) {
     if (aStartSwipe) {
       PanGestureInput& startEvent = mSwipeEventQueue->queuedEvents[0];
-      TrackScrollEventAsSwipe(startEvent, mSwipeEventQueue->allowedDirections);
+      TrackScrollEventAsSwipe(startEvent, mSwipeEventQueue->allowedDirections,
+                              aInputBlockId);
       for (size_t i = 1; i < mSwipeEventQueue->queuedEvents.Length(); i++) {
         mSwipeTracker->ProcessEvent(mSwipeEventQueue->queuedEvents[i]);
       }
+    } else if (mAPZC) {
+      // If the event wasn't start swipe, we need to notify it to APZ.
+      mAPZC->SetBrowserGestureResponse(aInputBlockId,
+                                       BrowserGestureResponse::NotConsumed);
     }
     mSwipeEventQueue = nullptr;
   }
@@ -2238,7 +2249,7 @@ void nsBaseWidget::ReportSwipeStarted(uint64_t aInputBlockId,
 
 void nsBaseWidget::TrackScrollEventAsSwipe(
     const mozilla::PanGestureInput& aSwipeStartEvent,
-    uint32_t aAllowedDirections) {
+    uint32_t aAllowedDirections, uint64_t aInputBlockId) {
   // If a swipe is currently being tracked kill it -- it's been interrupted
   // by another gesture event.
   if (mSwipeTracker) {
@@ -2257,6 +2268,11 @@ void nsBaseWidget::TrackScrollEventAsSwipe(
 
   if (!mAPZC) {
     mCurrentPanGestureBelongsToSwipe = true;
+  } else {
+    // Now SwipeTracker has started consuming pan events, notify it to APZ so
+    // that APZ can discard queued events.
+    mAPZC->SetBrowserGestureResponse(aInputBlockId,
+                                     BrowserGestureResponse::Consumed);
   }
 }
 
@@ -2287,11 +2303,9 @@ nsBaseWidget::SwipeInfo nsBaseWidget::SendMayStartSwipe(
 }
 
 WidgetWheelEvent nsBaseWidget::MayStartSwipeForAPZ(
-    const PanGestureInput& aPanInput, const APZEventResult& aApzResult,
-    CanTriggerSwipe aCanTriggerSwipe) {
+    const PanGestureInput& aPanInput, const APZEventResult& aApzResult) {
   WidgetWheelEvent event = aPanInput.ToWidgetEvent(this);
-  if (aCanTriggerSwipe == CanTriggerSwipe::Yes &&
-      aPanInput.mOverscrollBehaviorAllowsSwipe) {
+  if (aPanInput.AllowsSwipe()) {
     SwipeInfo swipeInfo = SendMayStartSwipe(aPanInput);
     event.mCanTriggerSwipe = swipeInfo.wantsSwipe;
     if (swipeInfo.wantsSwipe) {
@@ -2301,7 +2315,8 @@ WidgetWheelEvent nsBaseWidget::MayStartSwipeForAPZ(
         // scrolling for the event.
         // We know now that MayStartSwipe wants a swipe, so we can start
         // the swipe now.
-        TrackScrollEventAsSwipe(aPanInput, swipeInfo.allowedDirections);
+        TrackScrollEventAsSwipe(aPanInput, swipeInfo.allowedDirections,
+                                aApzResult.mInputBlockId);
       } else {
         // We don't know whether this event can start a swipe, so we need
         // to queue up events and wait for a call to ReportSwipeStarted.
@@ -2312,6 +2327,12 @@ WidgetWheelEvent nsBaseWidget::MayStartSwipeForAPZ(
         mSwipeEventQueue = MakeUnique<SwipeEventQueue>(
             swipeInfo.allowedDirections, aApzResult.mInputBlockId);
       }
+    } else {
+      // Inform that the browser gesture didn't use the pan event (pan-start
+      // precisely), so that APZ can now start using the event for
+      // scrolling/overscrolling.
+      mAPZC->SetBrowserGestureResponse(aApzResult.mInputBlockId,
+                                       BrowserGestureResponse::NotConsumed);
     }
   }
 
@@ -2323,8 +2344,7 @@ WidgetWheelEvent nsBaseWidget::MayStartSwipeForAPZ(
   return event;
 }
 
-bool nsBaseWidget::MayStartSwipeForNonAPZ(const PanGestureInput& aPanInput,
-                                          CanTriggerSwipe aCanTriggerSwipe) {
+bool nsBaseWidget::MayStartSwipeForNonAPZ(const PanGestureInput& aPanInput) {
   if (aPanInput.mType == PanGestureInput::PANGESTURE_MAYSTART ||
       aPanInput.mType == PanGestureInput::PANGESTURE_START) {
     mCurrentPanGestureBelongsToSwipe = false;
@@ -2340,7 +2360,7 @@ bool nsBaseWidget::MayStartSwipeForNonAPZ(const PanGestureInput& aPanInput,
     return true;
   }
 
-  if (aCanTriggerSwipe == CanTriggerSwipe::No) {
+  if (!aPanInput.MayTriggerSwipe()) {
     return false;
   }
 
@@ -2350,7 +2370,8 @@ bool nsBaseWidget::MayStartSwipeForNonAPZ(const PanGestureInput& aPanInput,
   // the event was routed to a child process, so we use InputAPZContext
   // to get that piece of information.
   ScrollableLayerGuid guid;
-  InputAPZContext context(guid, 0, nsEventStatus_eIgnore);
+  uint64_t blockId = 0;
+  InputAPZContext context(guid, blockId, nsEventStatus_eIgnore);
 
   WidgetWheelEvent event = aPanInput.ToWidgetEvent(this);
   event.mCanTriggerSwipe = swipeInfo.wantsSwipe;
@@ -2361,9 +2382,9 @@ bool nsBaseWidget::MayStartSwipeForNonAPZ(const PanGestureInput& aPanInput,
       // We don't know whether this event can start a swipe, so we need
       // to queue up events and wait for a call to ReportSwipeStarted.
       mSwipeEventQueue =
-          MakeUnique<SwipeEventQueue>(swipeInfo.allowedDirections, 0);
+          MakeUnique<SwipeEventQueue>(swipeInfo.allowedDirections, blockId);
     } else if (event.TriggersSwipe()) {
-      TrackScrollEventAsSwipe(aPanInput, swipeInfo.allowedDirections);
+      TrackScrollEventAsSwipe(aPanInput, swipeInfo.allowedDirections, blockId);
     }
   }
 
@@ -3386,7 +3407,8 @@ void nsBaseWidget::debug_DumpEvent(FILE* aFileOut, nsIWidget* aWidget,
 
   fprintf(aFileOut, "%4d %-26s widget=%-8p name=%-12s id=0x%-6x refpt=%d,%d\n",
           _GetPrintCount(), tempString.get(), (void*)aWidget, aWidgetName,
-          aWindowID, aGuiEvent->mRefPoint.x, aGuiEvent->mRefPoint.y);
+          aWindowID, aGuiEvent->mRefPoint.x.value,
+          aGuiEvent->mRefPoint.y.value);
 }
 //////////////////////////////////////////////////////////////
 /* static */

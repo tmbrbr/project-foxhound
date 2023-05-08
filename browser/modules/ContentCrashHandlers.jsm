@@ -9,19 +9,22 @@ var EXPORTED_SYMBOLS = ["TabCrashHandler", "UnsubmittedCrashHandler"];
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  E10SUtils: "resource://gre/modules/E10SUtils.sys.mjs",
+  SessionStore: "resource:///modules/sessionstore/SessionStore.sys.mjs",
+  clearTimeout: "resource://gre/modules/Timer.sys.mjs",
+  setTimeout: "resource://gre/modules/Timer.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.jsm",
-  clearTimeout: "resource://gre/modules/Timer.jsm",
   CrashSubmit: "resource://gre/modules/CrashSubmit.jsm",
-  E10SUtils: "resource://gre/modules/E10SUtils.jsm",
-  SessionStore: "resource:///modules/sessionstore/SessionStore.jsm",
-  setTimeout: "resource://gre/modules/Timer.jsm",
 });
 
 // We don't process crash reports older than 28 days, so don't bother
@@ -164,10 +167,7 @@ var TabCrashHandler = {
         }
 
         // check for environment affecting crash reporting
-        let env = Cc["@mozilla.org/process/environment;1"].getService(
-          Ci.nsIEnvironment
-        );
-        let shutdown = env.exists("MOZ_CRASHREPORTER_SHUTDOWN");
+        let shutdown = Services.env.exists("MOZ_CRASHREPORTER_SHUTDOWN");
 
         if (shutdown) {
           dump(

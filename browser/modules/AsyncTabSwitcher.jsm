@@ -11,8 +11,8 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const lazy = {};
 
@@ -169,7 +169,7 @@ class AsyncTabSwitcher {
 
     let tabIsLoaded =
       !initialBrowser.isRemoteBrowser ||
-      initialBrowser.frameLoader.remoteTab.hasLayers;
+      initialBrowser.frameLoader.remoteTab?.hasLayers;
 
     // If we minimized the window before the switcher was activated,
     // we might have set  the preserveLayers flag for the current

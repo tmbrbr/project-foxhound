@@ -5,9 +5,11 @@
 "use strict";
 
 ChromeUtils.import("resource://gre/modules/NetUtil.jsm");
-var { setTimeout } = ChromeUtils.import("resource://gre/modules/Timer.jsm");
-const { TestUtils } = ChromeUtils.import(
-  "resource://testing-common/TestUtils.jsm"
+var { setTimeout } = ChromeUtils.importESModule(
+  "resource://gre/modules/Timer.sys.mjs"
+);
+const { TestUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/TestUtils.sys.mjs"
 );
 
 let h2Port;
@@ -21,10 +23,7 @@ function setup() {
   Services.prefs.setIntPref("network.max_socket_process_failed_count", 2);
   trr_test_setup();
 
-  let env = Cc["@mozilla.org/process/environment;1"].getService(
-    Ci.nsIEnvironment
-  );
-  h2Port = env.get("MOZHTTP2_PORT");
+  h2Port = Services.env.get("MOZHTTP2_PORT");
   Assert.notEqual(h2Port, null);
   Assert.notEqual(h2Port, "");
 

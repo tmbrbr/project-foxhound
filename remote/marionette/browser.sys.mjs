@@ -179,7 +179,10 @@ browser.Context = class {
    *     A promise which is resolved when the current window has been focused.
    */
   async focusWindow() {
-    return lazy.windowManager.focusWindow(this.window);
+    await lazy.windowManager.focusWindow(this.window);
+
+    // Also focus the currently selected tab if present.
+    this.contentBrowser?.focus();
   }
 
   /**
@@ -246,13 +249,13 @@ browser.Context = class {
   async openTab(focus = false) {
     let tab = null;
 
-    // Bug 1533058 - For Firefox the TabManager cannot be used yet. As such
+    // Bug 1795841 - For Firefox the TabManager cannot be used yet. As such
     // handle opening a tab differently for Android.
     if (lazy.AppInfo.isAndroid) {
       tab = await lazy.TabManager.addTab({ focus, window: this.window });
     } else if (lazy.AppInfo.isFirefox) {
       const opened = new lazy.EventPromise(this.window, "TabOpen");
-      this.window.BrowserOpenTab();
+      this.window.BrowserOpenTab({ url: "about:blank" });
       await opened;
 
       tab = this.tabBrowser.selectedTab;
@@ -260,7 +263,7 @@ browser.Context = class {
       // The new tab is always selected by default. If focus is not wanted,
       // the previously tab needs to be selected again.
       if (!focus) {
-        this.tabBrowser.selectedTab = this.tab;
+        await lazy.TabManager.selectTab(this.tab);
       }
     } else {
       throw new lazy.error.UnsupportedOperationError(
@@ -295,7 +298,7 @@ browser.Context = class {
       this.tabBrowser = lazy.TabManager.getTabBrowser(this.window);
     }
 
-    if (!this.tabBrowser) {
+    if (!this.tabBrowser || this.driver.isReftestBrowser(this.tabBrowser)) {
       return null;
     }
 

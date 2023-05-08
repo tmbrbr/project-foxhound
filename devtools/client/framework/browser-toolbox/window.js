@@ -4,8 +4,15 @@
 
 "use strict";
 
-var { loader, require, DevToolsLoader } = ChromeUtils.importESModule(
+var { loader, require } = ChromeUtils.importESModule(
   "resource://devtools/shared/loader/Loader.sys.mjs"
+);
+
+var {
+  useDistinctSystemPrincipalLoader,
+  releaseDistinctSystemPrincipalLoader,
+} = ChromeUtils.importESModule(
+  "resource://devtools/shared/loader/DistinctSystemPrincipalLoader.sys.mjs"
 );
 
 // Require this module to setup core modules
@@ -21,9 +28,6 @@ const KeyShortcuts = require("resource://devtools/client/shared/key-shortcuts.js
 const { LocalizationHelper } = require("resource://devtools/shared/l10n.js");
 const L10N = new LocalizationHelper(
   "devtools/client/locales/toolbox.properties"
-);
-const env = Cc["@mozilla.org/process/environment;1"].getService(
-  Ci.nsIEnvironment
 );
 
 const lazy = {};
@@ -80,19 +84,19 @@ var connect = async function() {
   // otherwise it is set to "0".
   Services.prefs.setBoolPref(
     "devtools.browsertoolbox.fission",
-    env.get("MOZ_BROWSER_TOOLBOX_FISSION_PREF") === "1"
+    Services.env.get("MOZ_BROWSER_TOOLBOX_FISSION_PREF") === "1"
   );
   // Similar, but for the WebConsole input context dropdown.
   Services.prefs.setBoolPref(
     "devtools.webconsole.input.context",
-    env.get("MOZ_BROWSER_TOOLBOX_INPUT_CONTEXT") === "1"
+    Services.env.get("MOZ_BROWSER_TOOLBOX_INPUT_CONTEXT") === "1"
   );
   // Similar, but for the Browser Toolbox mode
-  if (env.get("MOZ_BROWSER_TOOLBOX_FORCE_MULTIPROCESS") === "1") {
+  if (Services.env.get("MOZ_BROWSER_TOOLBOX_FORCE_MULTIPROCESS") === "1") {
     Services.prefs.setCharPref("devtools.browsertoolbox.scope", "everything");
   }
 
-  const port = env.get("MOZ_BROWSER_TOOLBOX_PORT");
+  const port = Services.env.get("MOZ_BROWSER_TOOLBOX_PORT");
 
   // A port needs to be passed in from the environment, for instance:
   //    MOZ_BROWSER_TOOLBOX_PORT=6080 ./mach run -chrome \
@@ -232,7 +236,6 @@ async function openToolbox(commands) {
   });
 
   bindToolboxHandlers();
-  gToolbox.raise();
 
   // Enable some testing features if the browser toolbox test pref is set.
   if (
@@ -245,8 +248,10 @@ async function openToolbox(commands) {
     installTestingServer();
   }
 
+  await gToolbox.raise();
+
   // Warn the user if we started recording this browser toolbox via MOZ_BROWSER_TOOLBOX_PROFILER_STARTUP=1
-  if (env.get("MOZ_PROFILER_STARTUP") === "1") {
+  if (Services.env.get("MOZ_PROFILER_STARTUP") === "1") {
     const notificationBox = gToolbox.getNotificationBox();
     const text =
       "The profiler started recording this toolbox, open another browser toolbox to open the profile via the performance panel";
@@ -259,15 +264,16 @@ async function openToolbox(commands) {
   }
 }
 
+let releaseTestLoader = null;
 function installTestingServer() {
   // Install a DevToolsServer in this process and inform the server of its
   // location. Tests operating on the browser toolbox run in the server
   // (the firefox parent process) and can connect to this new server using
   // initBrowserToolboxTask(), allowing them to evaluate scripts here.
 
-  const testLoader = new DevToolsLoader({
-    invisibleToDebugger: true,
-  });
+  const requester = {};
+  const testLoader = useDistinctSystemPrincipalLoader(requester);
+  releaseTestLoader = () => releaseDistinctSystemPrincipalLoader(requester);
   const { DevToolsServer } = testLoader.require(
     "resource://devtools/server/devtools-server.js"
   );
@@ -318,6 +324,10 @@ function updateBadgeText(paused) {
 function onUnload() {
   window.removeEventListener("unload", onUnload);
   gToolbox.destroy();
+  if (releaseTestLoader) {
+    releaseTestLoader();
+    releaseTestLoader = null;
+  }
 }
 
 function quitApp() {

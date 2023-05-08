@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # Frame class definitions, used to generate FrameIdList.h and FrameTypeList.h
 
-from FrameClass import Frame, AbstractFrame, LEAF, NOT_LEAF, DYNAMIC_LEAF
+from FrameClass import DYNAMIC_LEAF, LEAF, NOT_LEAF, AbstractFrame, Frame
 
 FRAME_CLASSES = [
     Frame("BRFrame", "Br", LEAF),
@@ -72,7 +72,6 @@ FRAME_CLASSES = [
     Frame("nsPageContentFrame", "PageContent", NOT_LEAF),
     Frame("nsPageFrame", "Page", NOT_LEAF),
     Frame("nsPlaceholderFrame", "Placeholder", LEAF),
-    Frame("nsPopupSetFrame", "PopupSet", NOT_LEAF),
     Frame("nsProgressFrame", "Progress", LEAF),
     Frame("nsRangeFrame", "Range", LEAF),
     Frame("nsRubyBaseContainerFrame", "RubyBaseContainer", NOT_LEAF),

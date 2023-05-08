@@ -5,28 +5,24 @@
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
-const { clearTimeout, setTimeout } = ChromeUtils.import(
-  "resource://gre/modules/Timer.jsm"
-);
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
-);
+import { clearTimeout, setTimeout } from "resource://gre/modules/Timer.sys.mjs";
+import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  MigrationUtils: "resource:///modules/MigrationUtils.sys.mjs",
   PlacesTransactions: "resource://gre/modules/PlacesTransactions.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   PromiseUtils: "resource://gre/modules/PromiseUtils.sys.mjs",
 });
 
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.jsm",
   CustomizableUI: "resource:///modules/CustomizableUI.jsm",
-  MigrationUtils: "resource:///modules/MigrationUtils.jsm",
   OpenInTabsUtils: "resource:///modules/OpenInTabsUtils.jsm",
   PluralForm: "resource://gre/modules/PluralForm.jsm",
-  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
   Weave: "resource://services-sync/main.js",
 });
 
@@ -52,10 +48,15 @@ let InternalFaviconLoader = {
    * Actually cancel the request, and clear the timeout for cancelling it.
    *
    * @param {object} options
-   * @param {string} options.uri
+   *   The options object containing:
+   * @param {object} options.uri
+   *   The URI of the favicon to cancel.
    * @param {number} options.innerWindowID
+   *   The inner window ID of the window. Unused.
    * @param {number} options.timerID
+   *   The timer ID of the timeout to be cancelled
    * @param {*} options.callback
+   *   The request callback
    * @param {string} reason
    *   The reason for cancelling the request.
    */
@@ -68,7 +69,7 @@ let InternalFaviconLoader = {
     try {
       request.cancel();
     } catch (ex) {
-      Cu.reportError(
+      console.error(
         "When cancelling a request for " +
           uri.spec +
           " because " +
@@ -126,12 +127,15 @@ let InternalFaviconLoader = {
    * load data per chrome window.
    *
    * @param {DOMWindow} win
-   *        the chrome window in which we should look for this load
-   * @param {object} filterData ({innerWindowID, uri, callback})
-   *        the data we should use to find this particular load to remove.
+   *   the chrome window in which we should look for this load
+   * @param {object} filterData
+   *   the data we should use to find this particular load to remove.
    * @param {number} filterData.innerWindowID
+   *   The inner window ID of the window.
    * @param {string} filterData.uri
-   * @param {Function} filterData.callback
+   *   The URI of the favicon to cancel.
+   * @param {*} filterData.callback
+   *   The request callback
    *
    * @returns {object|null}
    *   the loadData object we removed, or null if we didn't find any.
@@ -163,7 +167,9 @@ let InternalFaviconLoader = {
    * away) but that will be a no-op in such cases.
    *
    * @param {DOMWindow} win
+   *   The chrome window in which the request was made.
    * @param {number} id
+   *   The inner window ID of the window.
    * @returns {object}
    */
   _makeCompletionCallback(win, id) {
@@ -254,22 +260,37 @@ let InternalFaviconLoader = {
 
 /**
  * Collects all information for a bookmark and performs editmethods
- *
- * @param {object} info
- *    Either a result node or a node-like object representing the item to be edited.
- * @param {string} [tags]
- *     Tags (if any) for the bookmark in a comma separated string. Empty tags are
- * skipped
- * @param {string} [keyword]
- *    Existing (if there are any) keyword for bookmark
- * @returns {string} Guid
- *    BookamrkGuid
  */
 class BookmarkState {
-  constructor(info, tags = "", keyword = "") {
+  /**
+   * Construct a new BookmarkState.
+   *
+   * @param {object} options
+   *   The constructor options.
+   * @param {object} options.info
+   *   Either a result node or a node-like object representing the item to be edited.
+   * @param {string} [options.tags]
+   *   Tags (if any) for the bookmark in a comma separated string. Empty tags are
+   *   skipped
+   * @param {string} [options.keyword]
+   *   Existing (if there are any) keyword for bookmark
+   * @param {boolean} [options.isFolder]
+   *   If the item is a folder.
+   * @param {Array.<nsIURI>} [options.children]
+   *   The list of child URIs to bookmark within the folder.
+   */
+  constructor({
+    info,
+    tags = "",
+    keyword = "",
+    isFolder = false,
+    children = [],
+  }) {
     this._guid = info.itemGuid;
     this._postData = info.postData;
     this._isTagContainer = info.isTag;
+    this._isFolder = isFolder;
+    this._children = children;
 
     // Original Bookmark
     this._originalState = {
@@ -291,6 +312,7 @@ class BookmarkState {
    * Save edited title for the bookmark
    *
    * @param {string} title
+   *   The title of the bookmark
    */
   _titleChanged(title) {
     this._newState.title = title;
@@ -300,6 +322,7 @@ class BookmarkState {
    * Save edited location for the bookmark
    *
    * @param {string} location
+   *   The location of the bookmark
    */
   _locationChanged(location) {
     this._newState.uri = location;
@@ -319,6 +342,7 @@ class BookmarkState {
    * Save edited keyword for the bookmark
    *
    * @param {string} keyword
+   *   The keyword of the bookmark
    */
   _keywordChanged(keyword) {
     this._newState.keyword = keyword;
@@ -328,9 +352,51 @@ class BookmarkState {
    * Save edited parentGuid for the bookmark
    *
    * @param {string} parentGuid
+   *   The parentGuid of the bookmark
    */
   _parentGuidChanged(parentGuid) {
     this._newState.parentGuid = parentGuid;
+  }
+
+  /**
+   * Create a new bookmark.
+   *
+   * @returns {string} The bookmark's GUID.
+   */
+  async _createBookmark() {
+    await lazy.PlacesTransactions.batch(async () => {
+      this._guid = await lazy.PlacesTransactions.NewBookmark({
+        parentGuid: this._newState.parentGuid ?? this._originalState.parentGuid,
+        tags: this._newState.tags,
+        title: this._newState.title ?? this._originalState.title,
+        url: this._newState.uri ?? this._originalState.uri,
+      }).transact();
+      if (this._newState.keyword) {
+        await lazy.PlacesTransactions.EditKeyword({
+          guid: this._guid,
+          keyword: this._newState.keyword,
+          postData: this._postData,
+        }).transact();
+      }
+    });
+    return this._guid;
+  }
+
+  /**
+   * Create a new folder.
+   *
+   * @returns {string} The folder's GUID.
+   */
+  async _createFolder() {
+    this._guid = await lazy.PlacesTransactions.NewFolder({
+      parentGuid: this._newState.parentGuid ?? this._originalState.parentGuid,
+      title: this._newState.title ?? this._originalState.title,
+      children: this._children.map(item => ({
+        url: item.uri,
+        title: item.title,
+      })),
+    }).transact();
+    return this._guid;
   }
 
   /**
@@ -339,6 +405,10 @@ class BookmarkState {
    * @returns {string} bookmark.guid
    */
   async save() {
+    if (this._guid === lazy.PlacesUtils.bookmarks.unsavedGuid) {
+      return this._isFolder ? this._createFolder() : this._createBookmark();
+    }
+
     if (!Object.keys(this._newState).length) {
       return this._guid;
     }
@@ -514,7 +584,7 @@ export var PlacesUIUtils = {
     this.lastBookmarkDialogDeferred = lazy.PromiseUtils.defer();
 
     let dialogURL = "chrome://browser/content/places/bookmarkProperties.xhtml";
-    let features = "centerscreen,chrome,modal";
+    let features = "centerscreen,chrome,modal,resizable=no";
     let bookmarkGuid;
 
     if (
@@ -957,11 +1027,11 @@ export var PlacesUIUtils = {
 
     let browserWindow = getBrowserWindow(aWindow);
     var urls = [];
-    let skipMarking =
+    let isPrivate =
       browserWindow && lazy.PrivateBrowsingUtils.isWindowPrivate(browserWindow);
     for (let item of aItemsToOpen) {
       urls.push(item.uri);
-      if (skipMarking) {
+      if (isPrivate) {
         continue;
       }
 
@@ -988,11 +1058,16 @@ export var PlacesUIUtils = {
       );
       args.appendElement(stringsToLoad);
 
+      let features = "chrome,dialog=no,all";
+      if (isPrivate) {
+        features += ",private";
+      }
+
       browserWindow = Services.ww.openWindow(
         aWindow,
         AppConstants.BROWSER_CHROME_URL,
         null,
-        "chrome,dialog=no,all",
+        features,
         args
       );
       return;
@@ -1110,6 +1185,12 @@ export var PlacesUIUtils = {
         } else {
           this.markPageAsTyped(aNode.uri);
         }
+      } else {
+        // This is a targeted fix for bug 1792163, where it was discovered
+        // that if you open the Library from a Private Browsing window, and then
+        // use the "Open in New Window" context menu item to open a new window,
+        // that the window will open under the wrong icon on the Windows taskbar.
+        aPrivate = true;
       }
 
       const isJavaScriptURL = aNode.uri.startsWith("javascript:");
@@ -1226,8 +1307,12 @@ export var PlacesUIUtils = {
       type: Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER,
     };
 
+    let itemId =
+      aFetchInfo.guid === lazy.PlacesUtils.bookmarks.unsavedGuid
+        ? undefined
+        : await lazy.PlacesUtils.promiseItemId(aFetchInfo.guid);
     return Object.freeze({
-      itemId: await lazy.PlacesUtils.promiseItemId(aFetchInfo.guid),
+      itemId,
       bookmarkGuid: aFetchInfo.guid,
       title: aFetchInfo.title,
       uri: aFetchInfo.url !== undefined ? aFetchInfo.url.href : "",
@@ -1490,16 +1575,6 @@ export var PlacesUIUtils = {
           JSON.stringify([lazy.CustomizableUI.AREA_BOOKMARKS, "true"])
         );
       }
-    }
-  },
-
-  maybeToggleBookmarkToolbarVisibilityAfterMigration() {
-    if (
-      Services.prefs.getBoolPref(
-        "browser.migrate.showBookmarksToolbarAfterMigration"
-      )
-    ) {
-      this.maybeToggleBookmarkToolbarVisibility(true);
     }
   },
 
@@ -1769,7 +1844,7 @@ export var PlacesUIUtils = {
       }
     ).catch(e => {
       // We want to report errors, but we still want to add the button then:
-      Cu.reportError(e);
+      console.error(e);
       return 0;
     });
 
@@ -2101,7 +2176,7 @@ function getTransactionsForTransferItems(
       // Only log if this is one of "our" types as external items, e.g. drag from
       // url bar to toolbar, shouldn't complain.
       if (PlacesUIUtils.PLACES_FLAVORS.includes(item.type)) {
-        Cu.reportError(
+        console.error(
           "Tried to move an unmovable Places " +
             "node, reverting to a copy operation."
         );

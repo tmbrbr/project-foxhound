@@ -7,11 +7,9 @@ const { BackgroundUpdate } = ChromeUtils.import(
   "resource://gre/modules/BackgroundUpdate.jsm"
 );
 const { EXIT_CODE } = BackgroundUpdate;
-import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
-);
+import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
+import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 
 const lazy = {};
 
@@ -22,7 +20,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 });
 
 XPCOMUtils.defineLazyModuleGetters(lazy, {
-  AppUpdater: "resource:///modules/AppUpdater.jsm",
+  AppUpdater: "resource://gre/modules/AppUpdater.jsm",
   ExtensionUtils: "resource://gre/modules/ExtensionUtils.jsm",
 });
 
@@ -34,10 +32,12 @@ XPCOMUtils.defineLazyServiceGetter(
 );
 
 XPCOMUtils.defineLazyGetter(lazy, "log", () => {
-  let { ConsoleAPI } = ChromeUtils.import("resource://gre/modules/Console.jsm");
+  let { ConsoleAPI } = ChromeUtils.importESModule(
+    "resource://gre/modules/Console.sys.mjs"
+  );
   let consoleOptions = {
     // tip: set maxLogLevel to "debug" and use log.debug() to create detailed
-    // messages during development. See LOG_LEVELS in Console.jsm for details.
+    // messages during development. See LOG_LEVELS in Console.sys.mjs for details.
     maxLogLevel: "error",
     maxLogLevelPref: "app.update.background.loglevel",
     prefix: "BackgroundUpdate",
@@ -118,6 +118,7 @@ async function _attemptBackgroundUpdate() {
           `${SLUG}: background update transitioned to terminal status ${status}: ${stringStatus}`
         );
         appUpdater.removeListener(_appUpdaterListener);
+        appUpdater.stop();
         resolve(true);
       } else if (status == lazy.AppUpdater.STATUS.CHECKING) {
         // The usual initial flow for the Background Update Task is to kick off
@@ -154,6 +155,7 @@ async function _attemptBackgroundUpdate() {
           lazy.UpdateService.onlyDownloadUpdatesThisSession = true;
 
           appUpdater.removeListener(_appUpdaterListener);
+          appUpdater.stop();
           resolve(true);
         } else {
           lazy.log.debug(`${SLUG}: Download has completed!`);
@@ -186,7 +188,9 @@ export async function maybeSubmitBackgroundUpdatePing() {
   // It should be possible to turn AUSTLMY data into Glean data, but mapping histograms isn't
   // trivial, so we don't do it at this time.  Bug 1703313.
 
-  GleanPings.backgroundUpdate.submit();
+  // Including a reason allows to differentiate pings sent as part of the task
+  // and pings queued and sent by Glean on a different schedule.
+  GleanPings.backgroundUpdate.submit("backgroundupdate_task");
 
   lazy.log.info(`${SLUG}: submitted "background-update" ping`);
 }
@@ -196,7 +200,7 @@ export async function runBackgroundTask(commandLine) {
   lazy.log.error(`${SLUG}: backgroundupdate`);
 
   // Help debugging.  This is a pared down version of
-  // `dataProviders.application` in `Troubleshoot.jsm`.  When adding to this
+  // `dataProviders.application` in `Troubleshoot.sys.mjs`.  When adding to this
   // debugging data, try to follow the form from that module.
   let data = {
     name: Services.appinfo.name,
@@ -269,22 +273,10 @@ export async function runBackgroundTask(commandLine) {
       );
       Glean.backgroundUpdate.clientId.set(telemetryClientID);
 
-      try {
-        defaultProfileTargetingSnapshot = await lazy.BackgroundTasksUtils.readFirefoxMessagingSystemTargetingSnapshot(
-          lock
-        );
-      } catch (f) {
-        if (DOMException.isInstance(f) && f.name === "NotFoundError") {
-          lazy.log.info(
-            `${SLUG}: no default profile targeting snapshot exists`
-          );
-        } else {
-          lazy.log.warn(
-            `${SLUG}: ignoring exception reading default profile targeting snapshot`,
-            f
-          );
-        }
-      }
+      // Read targeting snapshot, collect background update specific telemetry.  Never throws.
+      defaultProfileTargetingSnapshot = await BackgroundUpdate.readFirefoxMessagingSystemTargetingSnapshot(
+        lock
+      );
     });
 
     for (let [name, value] of Object.entries(defaultProfilePrefs)) {

@@ -46,19 +46,7 @@ add_task(async function mouse_helpButton() {
 
 // Clicks inside a tip but not on any button.
 add_task(async function mouse_insideTipButNotOnButtons() {
-  let results = [
-    new UrlbarResult(
-      UrlbarUtils.RESULT_TYPE.TIP,
-      UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL,
-      {
-        type: "test",
-        text: "This is a test tip.",
-        buttonText: "Done",
-        helpUrl: HELP_URL,
-        buttonUrl: TIP_URL,
-      }
-    ),
-  ];
+  let results = [makeTipResult({ buttonUrl: TIP_URL, helpUrl: HELP_URL })];
   let provider = new UrlbarTestUtils.TestProvider({ results, priority: 1 });
   UrlbarProvidersManager.registerProvider(provider);
 
@@ -79,7 +67,7 @@ add_task(async function mouse_insideTipButNotOnButtons() {
   );
   Assert.equal(
     UrlbarTestUtils.getSelectedElement(window),
-    row._elements.get("tipButton"),
+    row._buttons.get("0"),
     "The main button element should be selected initially"
   );
   EventUtils.synthesizeMouseAtCenter(row, {});
@@ -93,7 +81,7 @@ add_task(async function mouse_insideTipButNotOnButtons() {
   );
   Assert.equal(
     UrlbarTestUtils.getSelectedElement(window),
-    row._elements.get("tipButton"),
+    row._buttons.get("0"),
     "The main button element should remain selected"
   );
 
@@ -104,13 +92,15 @@ add_task(async function mouse_insideTipButNotOnButtons() {
 /**
  * Runs this test's main checks.
  *
- * @param {boolean} click
+ * @param {object} options
+ *   Options for the test.
+ * @param {boolean} options.click
  *   Pass true to trigger a click, false to trigger an enter key.
- * @param {string} buttonUrl
+ * @param {string} [options.buttonUrl]
  *   Pass a URL if picking the main button should open a URL.  Pass nothing if
  *   picking it should call provider.pickResult instead, or if you want to pick
  *   the help button instead of the main button.
- * @param {string} helpUrl
+ * @param {string} [options.helpUrl]
  *   Pass a URL if you want to pick the help button.  Pass nothing if you want
  *   to pick the main button instead.
  */
@@ -126,19 +116,7 @@ async function doTest({ click, buttonUrl = undefined, helpUrl = undefined }) {
 
   // Add our test provider.
   let provider = new UrlbarTestUtils.TestProvider({
-    results: [
-      new UrlbarResult(
-        UrlbarUtils.RESULT_TYPE.TIP,
-        UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL,
-        {
-          type: "test",
-          text: "This is a test tip.",
-          buttonText: "Done",
-          buttonUrl,
-          helpUrl,
-        }
-      ),
-    ],
+    results: [makeTipResult({ buttonUrl, helpUrl })],
     priority: 1,
   });
   UrlbarProvidersManager.registerProvider(provider);
@@ -157,8 +135,8 @@ async function doTest({ click, buttonUrl = undefined, helpUrl = undefined }) {
     fireInputEvent: true,
   });
   let row = await UrlbarTestUtils.waitForAutocompleteResultAt(window, 0);
-  let mainButton = row._elements.get("tipButton");
-  let helpButton = row._elements.get("helpButton");
+  let mainButton = row._buttons.get("0");
+  let helpButton = row._buttons.get("help");
   let target = helpUrl ? helpButton : mainButton;
 
   // If we're picking the tip with the keyboard, arrow down to select the proper
@@ -210,4 +188,23 @@ async function doTest({ click, buttonUrl = undefined, helpUrl = undefined }) {
   if (tab) {
     BrowserTestUtils.removeTab(tab);
   }
+}
+
+function makeTipResult({ buttonUrl, helpUrl }) {
+  return new UrlbarResult(
+    UrlbarUtils.RESULT_TYPE.TIP,
+    UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL,
+    {
+      type: "test",
+      titleL10n: { id: "urlbar-search-tips-confirm" },
+      buttons: [
+        {
+          url: buttonUrl,
+          l10n: { id: "urlbar-search-tips-confirm" },
+        },
+      ],
+      helpUrl,
+      helpL10n: { id: "urlbar-search-tips-confirm" },
+    }
+  );
 }

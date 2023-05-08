@@ -17,7 +17,7 @@ import {
 import { getBreakpointsList } from "../../../selectors";
 import { isFulfilled, isRejected } from "../../../utils/async-value";
 
-describe("loadSourceText", () => {
+describe("loadGeneratedSourceText", () => {
   it("should load source text", async () => {
     const store = createStore(mockCommandClient);
     const { dispatch, getState, cx } = store;
@@ -25,9 +25,22 @@ describe("loadSourceText", () => {
     const foo1Source = await dispatch(
       actions.newGeneratedSource(makeSource("foo1"))
     );
-    await dispatch(actions.loadSourceText({ cx, source: foo1Source }));
+    const foo1SourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      foo1Source.id
+    );
+    await dispatch(
+      actions.loadGeneratedSourceText({
+        cx,
+        sourceActor: foo1SourceActor,
+      })
+    );
 
-    const foo1Content = selectors.getSourceContent(getState(), foo1Source.id);
+    const foo1Content = selectors.getSettledSourceTextContent(getState(), {
+      sourceId: foo1Source.id,
+      sourceActorId: foo1SourceActor.actor,
+    });
+
     expect(
       foo1Content &&
         isFulfilled(foo1Content) &&
@@ -39,9 +52,23 @@ describe("loadSourceText", () => {
     const foo2Source = await dispatch(
       actions.newGeneratedSource(makeSource("foo2"))
     );
-    await dispatch(actions.loadSourceText({ cx, source: foo2Source }));
+    const foo2SourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      foo2Source.id
+    );
 
-    const foo2Content = selectors.getSourceContent(getState(), foo2Source.id);
+    await dispatch(
+      actions.loadGeneratedSourceText({
+        cx,
+        sourceActor: foo2SourceActor,
+      })
+    );
+
+    const foo2Content = selectors.getSettledSourceTextContent(getState(), {
+      sourceId: foo2Source.id,
+      sourceActorId: foo2SourceActor.actor,
+    });
+
     expect(
       foo2Content &&
         isFulfilled(foo2Content) &&
@@ -68,22 +95,21 @@ describe("loadSourceText", () => {
     const { dispatch, getState, cx } = store;
 
     const testSource1 = await dispatch(
-      actions.newGeneratedSources(makeSource("testSource1"))
+      actions.newGeneratedSource(makeSource("testSource1"))
     );
 
     // Load the source text for the specific source actor
     // specified.
     await dispatch(
-      actions.loadSourceText({
+      actions.loadGeneratedSourceText({
         cx,
-        source: testSource1,
-        sourceActor: { actor: "testSource2-0-actor" },
+        sourceActor: { actor: "testSource2-0-actor", source: testSource1.id },
       })
     );
 
-    const testSource1Content = selectors.getSourceContent(
+    const testSource1Content = selectors.getSettledSourceTextContent(
       getState(),
-      testSource1.id
+      { sourceId: testSource1.id, sourceActorId: "testSource2-0-actor" }
     );
 
     expect(
@@ -96,42 +122,20 @@ describe("loadSourceText", () => {
         : -1
     ).not.toBe(-1);
 
-    // Load the source text which has been cached when the source
-    // actor is not specified.
-    await dispatch(
-      actions.loadSourceText({
-        cx,
-        source: testSource1,
-      })
-    );
-
-    const testSource1ContentAfterSecondLoad = selectors.getSourceContent(
-      getState(),
-      testSource1.id
-    );
-
-    expect(
-      testSource1ContentAfterSecondLoad &&
-        isFulfilled(testSource1ContentAfterSecondLoad) &&
-        testSource1ContentAfterSecondLoad.value.type === "text"
-        ? testSource1ContentAfterSecondLoad.value.value.indexOf(
-            mockContents["testSource2-0-actor"]
-          )
-        : -1
-    ).not.toBe(-1);
-
     // Load the new source text when a different source actor is specified
     await dispatch(
-      actions.loadSourceText({
+      actions.loadGeneratedSourceText({
         cx,
-        source: testSource1,
         sourceActor: { actor: "testSource1-0-actor" },
       })
     );
 
-    const testSource1ContentAfterThirdLoad = selectors.getSourceContent(
+    const testSource1ContentAfterThirdLoad = selectors.getSettledSourceTextContent(
       getState(),
-      testSource1.id
+      {
+        sourceId: testSource1.id,
+        sourceActorId: "testSource1-0-actor",
+      }
     );
 
     expect(
@@ -190,7 +194,12 @@ describe("loadSourceText", () => {
       actions.newOriginalSource(makeOriginalSource(fooGenSource2))
     );
 
-    await dispatch(actions.loadSourceText({ cx, source: fooOrigSource1 }));
+    await dispatch(
+      actions.loadOriginalSourceText({
+        cx,
+        source: fooOrigSource1,
+      })
+    );
 
     await dispatch(
       actions.addBreakpoint(
@@ -208,13 +217,33 @@ describe("loadSourceText", () => {
     expect(breakpoint1.text).toBe("");
     expect(breakpoint1.originalText).toBe("var fooOrig = 42;");
 
-    await dispatch(actions.loadSourceText({ cx, source: fooGenSource1 }));
+    const fooGenSource1SourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      fooGenSource1.id
+    );
+
+    await dispatch(
+      actions.loadGeneratedSourceText({
+        cx,
+        sourceActor: fooGenSource1SourceActor,
+      })
+    );
 
     const breakpoint2 = getBreakpointsList(getState())[0];
     expect(breakpoint2.text).toBe("var fooGen = 42;");
     expect(breakpoint2.originalText).toBe("var fooOrig = 42;");
 
-    await dispatch(actions.loadSourceText({ cx, source: fooGenSource2 }));
+    const fooGenSource2SourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      fooGenSource2.id
+    );
+
+    await dispatch(
+      actions.loadGeneratedSourceText({
+        cx,
+        sourceActor: fooGenSource2SourceActor,
+      })
+    );
 
     await dispatch(
       actions.addBreakpoint(
@@ -232,7 +261,12 @@ describe("loadSourceText", () => {
     expect(breakpoint3.text).toBe("var fooGen = 42;");
     expect(breakpoint3.originalText).toBe("");
 
-    await dispatch(actions.loadSourceText({ cx, source: fooOrigSource2 }));
+    await dispatch(
+      actions.loadOriginalSourceText({
+        cx,
+        source: fooOrigSource2,
+      })
+    );
 
     const breakpoint4 = getBreakpointsList(getState())[1];
     expect(breakpoint4.text).toBe("var fooGen = 42;");
@@ -256,10 +290,21 @@ describe("loadSourceText", () => {
     await dispatch(actions.newGeneratedSource(makeSource(id)));
 
     let source = selectors.getSourceFromId(getState(), id);
-    dispatch(actions.loadSourceText({ cx, source }));
+    let sourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      source.id
+    );
+
+    dispatch(actions.loadGeneratedSourceText({ cx, sourceActor }));
 
     source = selectors.getSourceFromId(getState(), id);
-    const loading = dispatch(actions.loadSourceText({ cx, source }));
+    sourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      source.id
+    );
+    const loading = dispatch(
+      actions.loadGeneratedSourceText({ cx, sourceActor })
+    );
 
     if (!resolve) {
       throw new Error("no resolve");
@@ -268,7 +313,10 @@ describe("loadSourceText", () => {
     await loading;
     expect(count).toEqual(1);
 
-    const content = selectors.getSourceContent(getState(), id);
+    const content = selectors.getSettledSourceTextContent(getState(), {
+      sourceId: id,
+      sourceActorId: sourceActor.actor,
+    });
     expect(
       content &&
         isFulfilled(content) &&
@@ -293,7 +341,13 @@ describe("loadSourceText", () => {
 
     await dispatch(actions.newGeneratedSource(makeSource(id)));
     let source = selectors.getSourceFromId(getState(), id);
-    const loading = dispatch(actions.loadSourceText({ cx, source }));
+    let sourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      source.id
+    );
+    const loading = dispatch(
+      actions.loadGeneratedSourceText({ cx, sourceActor })
+    );
 
     if (!resolve) {
       throw new Error("no resolve");
@@ -302,10 +356,17 @@ describe("loadSourceText", () => {
     await loading;
 
     source = selectors.getSourceFromId(getState(), id);
-    await dispatch(actions.loadSourceText({ cx, source }));
+    sourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      source.id
+    );
+    await dispatch(actions.loadGeneratedSourceText({ cx, sourceActor }));
     expect(count).toEqual(1);
 
-    const content = selectors.getSourceContent(getState(), id);
+    const content = selectors.getSettledSourceTextContent(getState(), {
+      sourceId: id,
+      sourceActorId: sourceActor.actor,
+    });
     expect(
       content &&
         isFulfilled(content) &&
@@ -320,10 +381,23 @@ describe("loadSourceText", () => {
     const source = await dispatch(
       actions.newGeneratedSource(makeSource("foo1"))
     );
-    await dispatch(actions.loadSourceText({ cx, source }));
-    const prevSource = selectors.getSourceFromId(getState(), "foo1");
+    const sourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      source.id
+    );
+    await dispatch(actions.loadGeneratedSourceText({ cx, sourceActor }));
 
-    await dispatch(actions.loadSourceText({ cx, source: prevSource }));
+    const prevSource = selectors.getSourceFromId(getState(), "foo1");
+    const prevSourceSourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      prevSource.id
+    );
+    await dispatch(
+      actions.loadGeneratedSourceText({
+        cx,
+        sourceActor: prevSourceSourceActor,
+      })
+    );
     const curSource = selectors.getSource(getState(), "foo1");
 
     expect(prevSource === curSource).toBeTruthy();
@@ -331,17 +405,24 @@ describe("loadSourceText", () => {
 
   it("should indicate a loading source", async () => {
     const store = createStore(mockCommandClient);
-    const { dispatch, cx } = store;
+    const { dispatch, cx, getState } = store;
 
     const source = await dispatch(
       actions.newGeneratedSource(makeSource("foo2"))
     );
 
-    const wasLoading = watchForState(store, state => {
-      return !selectors.getSourceContent(state, "foo2");
-    });
+    const sourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      source.id
+    );
 
-    await dispatch(actions.loadSourceText({ cx, source }));
+    const wasLoading = watchForState(store, state => {
+      return !selectors.getSettledSourceTextContent(state, {
+        sourceId: "foo2",
+        sourceActorId: sourceActor.actor,
+      });
+    });
+    await dispatch(actions.loadGeneratedSourceText({ cx, sourceActor }));
 
     expect(wasLoading()).toBe(true);
   });
@@ -352,15 +433,22 @@ describe("loadSourceText", () => {
     const source = await dispatch(
       actions.newGeneratedSource(makeSource("bad-id"))
     );
-    await dispatch(actions.loadSourceText({ cx, source }));
+    const sourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      source.id
+    );
+    await dispatch(actions.loadGeneratedSourceText({ cx, sourceActor }));
     const badSource = selectors.getSource(getState(), "bad-id");
 
     const content = badSource
-      ? selectors.getSourceContent(getState(), badSource.id)
+      ? selectors.getSettledSourceTextContent(getState(), {
+          sourceId: badSource.id,
+          sourceActorId: sourceActor.actor,
+        })
       : null;
     expect(
       content && isRejected(content) && typeof content.value === "string"
-        ? content.value.indexOf("Unknown source")
+        ? content.value.indexOf("sourceContents failed")
         : -1
     ).not.toBe(-1);
   });

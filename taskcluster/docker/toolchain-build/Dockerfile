@@ -19,7 +19,7 @@ RUN apt-get update && \
       bison \
       build-essential \
       curl \
-      clang-11 \
+      clang-13 \
       cmake \
       flex \
       gawk \
@@ -32,13 +32,13 @@ RUN apt-get update && \
       libtool \
       libucl-dev \
       libxml2-dev \
+      lld-13 \
       msitools \
       ninja-build \
       openssh-client \
       p7zip-full \
       pkg-config \
       procps \
-      python2 \
       python3-distutils-extra \
       python3-requests \
       python3-pytoml \

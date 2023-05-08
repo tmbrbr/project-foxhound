@@ -3,17 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /* eslint-env mozilla/browser-window */
 
-import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
-
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  DeferredTask: "resource://gre/modules/DeferredTask.sys.mjs",
   ScreenshotsOverlayChild:
     "resource:///modules/ScreenshotsOverlayChild.sys.mjs",
-});
-
-XPCOMUtils.defineLazyModuleGetters(lazy, {
-  DeferredTask: "resource://gre/modules/DeferredTask.jsm",
 });
 
 export class ScreenshotsComponentChild extends JSWindowActorChild {
@@ -23,10 +18,14 @@ export class ScreenshotsComponentChild extends JSWindowActorChild {
         return this.startScreenshotsOverlay();
       case "Screenshots:HideOverlay":
         return this.endScreenshotsOverlay();
+      case "Screenshots:isOverlayShowing":
+        return this._overlay?._initialized;
       case "Screenshots:getFullPageBounds":
         return this.getFullPageBounds();
       case "Screenshots:getVisibleBounds":
         return this.getVisibleBounds();
+      case "Screenshots:getDocumentTitle":
+        return this.getTitle();
     }
     return null;
   }
@@ -57,6 +56,14 @@ export class ScreenshotsComponentChild extends JSWindowActorChild {
         }
         this._scrollTask.arm();
         break;
+      case "visibilitychange":
+        if (
+          event.target.visibilityState === "hidden" &&
+          this._overlay?.stateHandler.getState() === "crosshairs"
+        ) {
+          this.requestCancelScreenshot();
+        }
+        break;
     }
   }
 
@@ -64,18 +71,33 @@ export class ScreenshotsComponentChild extends JSWindowActorChild {
    * Send a request to cancel the screenshot to the parent process
    */
   requestCancelScreenshot() {
-    this.sendAsyncMessage("Screenshots:CancelScreenshot", null);
+    this.sendAsyncMessage("Screenshots:CancelScreenshot", {
+      closeOverlay: false,
+    });
+    this.endScreenshotsOverlay();
   }
 
   requestCopyScreenshot(box) {
+    box.devicePixelRatio = this.contentWindow.devicePixelRatio;
     this.sendAsyncMessage("Screenshots:CopyScreenshot", box);
+    this.endScreenshotsOverlay();
   }
 
   requestDownloadScreenshot(box) {
+    box.devicePixelRatio = this.contentWindow.devicePixelRatio;
     this.sendAsyncMessage("Screenshots:DownloadScreenshot", {
       title: this.getTitle(),
       downloadBox: box,
     });
+    this.endScreenshotsOverlay();
+  }
+
+  showPanel() {
+    this.sendAsyncMessage("Screenshots:ShowPanel");
+  }
+
+  hidePanel() {
+    this.sendAsyncMessage("Screenshots:HidePanel");
   }
 
   getTitle() {
@@ -142,6 +164,7 @@ export class ScreenshotsComponentChild extends JSWindowActorChild {
     this.document.ownerGlobal.addEventListener("beforeunload", this);
     this.contentWindow.addEventListener("resize", this);
     this.contentWindow.addEventListener("scroll", this);
+    this.contentWindow.addEventListener("visibilitychange", this);
     overlay.initialize();
     return true;
   }
@@ -157,6 +180,7 @@ export class ScreenshotsComponentChild extends JSWindowActorChild {
     this.document.ownerGlobal.removeEventListener("beforeunload", this);
     this.contentWindow.removeEventListener("resize", this);
     this.contentWindow.removeEventListener("scroll", this);
+    this.contentWindow.removeEventListener("visibilitychange", this);
     this._overlay?.tearDown();
     this._resizeTask?.disarm();
     this._scrollTask?.disarm();
@@ -192,14 +216,14 @@ export class ScreenshotsComponentChild extends JSWindowActorChild {
    */
   getFullPageBounds() {
     let doc = this.document.documentElement;
-    let rect = new DOMRect(
-      doc.clientLeft,
-      doc.clientTop,
-      doc.scrollWidth,
-      doc.scrollHeight
-    );
-    let devicePixelRatio = this.document.ownerGlobal.devicePixelRatio;
-    return { devicePixelRatio, rect };
+    let rect = {
+      x1: doc.clientLeft,
+      y1: doc.clientTop,
+      width: doc.scrollWidth,
+      height: doc.scrollHeight,
+      devicePixelRatio: this.contentWindow.devicePixelRatio,
+    };
+    return rect;
   }
 
   /**
@@ -227,13 +251,13 @@ export class ScreenshotsComponentChild extends JSWindowActorChild {
    */
   getVisibleBounds() {
     let doc = this.document.documentElement;
-    let rect = new DOMRect(
-      doc.scrollLeft,
-      doc.scrollTop,
-      doc.clientWidth,
-      doc.clientHeight
-    );
-    let devicePixelRatio = this.document.ownerGlobal.devicePixelRatio;
-    return { devicePixelRatio, rect };
+    let rect = {
+      x1: doc.scrollLeft,
+      y1: doc.scrollTop,
+      width: doc.clientWidth,
+      height: doc.clientHeight,
+      devicePixelRatio: this.contentWindow.devicePixelRatio,
+    };
+    return rect;
   }
 }

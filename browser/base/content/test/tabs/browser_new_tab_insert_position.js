@@ -2,21 +2,11 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
-ChromeUtils.defineModuleGetter(
-  this,
-  "SessionStore",
-  "resource:///modules/sessionstore/SessionStore.jsm"
-);
-ChromeUtils.defineModuleGetter(
-  this,
-  "TabStateFlusher",
-  "resource:///modules/sessionstore/TabStateFlusher.jsm"
-);
-ChromeUtils.defineModuleGetter(
-  this,
-  "E10SUtils",
-  "resource://gre/modules/E10SUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(this, {
+  E10SUtils: "resource://gre/modules/E10SUtils.sys.mjs",
+  SessionStore: "resource:///modules/sessionstore/SessionStore.sys.mjs",
+  TabStateFlusher: "resource:///modules/sessionstore/TabStateFlusher.sys.mjs",
+});
 
 const triggeringPrincipal_base64 = E10SUtils.SERIALIZED_SYSTEMPRINCIPAL;
 

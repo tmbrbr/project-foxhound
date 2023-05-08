@@ -17,7 +17,8 @@ import {
   getQuickOpenQuery,
   getQuickOpenType,
   getSelectedSource,
-  getSourceContent,
+  getSelectedLocation,
+  getSettledSourceTextContent,
   getSymbols,
   getTabs,
   getContext,
@@ -332,7 +333,9 @@ export class QuickOpenModal extends Component {
       return;
     }
 
-    this.updateResults(e.target.value);
+    // Wait for the next tick so that reducer updates are complete.
+    const targetValue = e.target.value;
+    setTimeout(() => this.updateResults(targetValue), 0);
   };
 
   onKeyDown = e => {
@@ -487,6 +490,7 @@ function mapStateToProps(state) {
   const tabs = getTabs(state);
   const tabUrls = [...new Set(tabs.map(tab => tab.url))];
   const symbols = getSymbols(state, selectedSource);
+  const location = getSelectedLocation(state);
 
   return {
     cx: getContext(state),
@@ -495,8 +499,8 @@ function mapStateToProps(state) {
     blackBoxRanges: getBlackBoxRanges(state),
     projectDirectoryRoot: getProjectDirectoryRoot(state),
     selectedSource,
-    selectedContentLoaded: selectedSource
-      ? !!getSourceContent(state, selectedSource.id)
+    selectedContentLoaded: location
+      ? !!getSettledSourceTextContent(state, location)
       : undefined,
     symbols: formatSymbols(symbols, maxResults),
     symbolsLoading: !symbols,

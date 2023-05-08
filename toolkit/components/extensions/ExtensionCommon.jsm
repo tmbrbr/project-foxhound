@@ -18,15 +18,18 @@ var EXPORTED_SYMBOLS = ["ExtensionCommon"];
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  ConsoleAPI: "resource://gre/modules/Console.sys.mjs",
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
-  ConsoleAPI: "resource://gre/modules/Console.jsm",
-  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
   Schemas: "resource://gre/modules/Schemas.jsm",
   SchemaRoot: "resource://gre/modules/Schemas.jsm",
 });
@@ -126,9 +129,9 @@ function withHandlingUserInput(window, callable) {
  *
  * @param {object} object
  *        The prototype object on which to define the getter.
- * @param {string|Symbol} prop
+ * @param {string | symbol} prop
  *        The property name for which to define the getter.
- * @param {function} getter
+ * @param {Function} getter
  *        The function to call in order to generate the final property
  *        value.
  */
@@ -397,7 +400,7 @@ class ExtensionAPIPersistent extends ExtensionAPI {
   /**
    * Used when instantiating an EventManager instance to register the listener.
    *
-   * @param {Object}      options         Options used for event registration
+   * @param {object}      options         Options used for event registration
    * @param {BaseContext} options.context Extension Context passed when creating an EventManager instance.
    * @param {string}      options.event   The eAPI vent name.
    * @param {Function}    options.fire    The function passed to the listener to fire the event.
@@ -417,7 +420,7 @@ class ExtensionAPIPersistent extends ExtensionAPI {
    * @param {Function} fire The function passed to the listener to fire the event.
    * @param {Array} params Params passed to the event listener.
    * @param {boolean} isInStartup unused here but passed for subclass use.
-   * @returns {Object} the unregister and convert functions used in the EventManager.
+   * @returns {object} the unregister and convert functions used in the EventManager.
    */
   primeListener(event, fire, params, isInStartup) {
     const apiRegistar = this.getEventRegistrar(event);
@@ -430,6 +433,7 @@ class ExtensionAPIPersistent extends ExtensionAPI {
  * extension.  It is never instantiated directly, instead subclasses
  * for each type of process extend this class and add members that are
  * relevant for that process.
+ *
  * @abstract
  */
 class BaseContext {
@@ -500,6 +504,7 @@ class BaseContext {
   /**
    * Opens a conduit linked to this context, populating related address fields.
    * Only available in child contexts with an associated contentWindow.
+   *
    * @param {object} subject
    * @param {ConduitAddress} address
    * @returns {PointConduit}
@@ -647,7 +652,7 @@ class BaseContext {
    * Safely call JSON.stringify() on an object that comes from an
    * extension.
    *
-   * @param {array<any>} args Arguments for JSON.stringify()
+   * @param {Array<any>} args Arguments for JSON.stringify()
    * @returns {string} The stringified representation of obj
    */
   jsonStringify(...args) {
@@ -734,7 +739,7 @@ class BaseContext {
    * @param {SavedFrame?} caller
    *        The optional caller frame which triggered this callback, to be used
    *        in error reporting.
-   * @param {function} callback The callback to call.
+   * @param {Function} callback The callback to call.
    * @returns {*} The return value of callback.
    */
   withLastError(error, caller, callback) {
@@ -778,7 +783,7 @@ class BaseContext {
    *     resolution value is cloned into cloneScope prior to calling the
    *     `callback` function or resolving the wrapped promise.
    *
-   * @param {function} [callback] The callback function to wrap
+   * @param {Function} [callback] The callback function to wrap
    *
    * @returns {Promise|undefined} If callback is null, a promise object
    *     belonging to the target scope. Otherwise, undefined.
@@ -964,7 +969,7 @@ class SchemaAPIInterface {
    * Registers a `listener` to this as an event.
    *
    * @abstract
-   * @param {function} listener The callback to be called when the event fires.
+   * @param {Function} listener The callback to be called when the event fires.
    * @param {Array} args Extra parameters for EventManager.addListener.
    * @see EventManager.addListener
    */
@@ -976,7 +981,7 @@ class SchemaAPIInterface {
    * Checks whether `listener` is listening to this as an event.
    *
    * @abstract
-   * @param {function} listener The event listener.
+   * @param {Function} listener The event listener.
    * @returns {boolean} Whether `listener` is registered with this as an event.
    * @see EventManager.hasListener
    */
@@ -988,7 +993,7 @@ class SchemaAPIInterface {
    * Unregisters `listener` from this as an event.
    *
    * @abstract
-   * @param {function} listener The event listener.
+   * @param {Function} listener The event listener.
    * @see EventManager.removeListener
    */
   removeListener(listener) {
@@ -2754,6 +2759,7 @@ ExtensionCommon = {
   CanOfAPIs,
   EventManager,
   ExtensionAPI,
+  ExtensionAPIPersistent,
   EventEmitter,
   LocalAPIImplementation,
   LocaleData,

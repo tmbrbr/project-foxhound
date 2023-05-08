@@ -84,7 +84,8 @@ function check_PointerEvent(event, testNamePrefix) {
         ["readonly", "boolean", "isPrimary"],
         ["readonly", "long", "detail", 0],
         ["readonly", "object", "fromElement", null],
-        ["readonly", "object", "toElement", null]
+        ["readonly", "object", "toElement", null],
+        ["readonly", "boolean", "isTrusted", true]
     ].forEach(function (attr) {
         var readonly = attr[0];
         var type = attr[1];
@@ -116,6 +117,12 @@ function check_PointerEvent(event, testNamePrefix) {
         }
     });
 
+    // Check the composed value
+    // https://w3c.github.io/pointerevents/#attributes-and-default-actions
+    test(function () {
+        let expected = (event.type != 'pointerenter' && event.type != 'pointerleave');
+        assert_equals(event.composed, expected, "composed attribute value");
+    }, pointerTestName + ".composed value is valid");
 
     // Check the pressure value
     // TA: 1.6, 1.7, 1.8
@@ -136,7 +143,7 @@ function check_PointerEvent(event, testNamePrefix) {
         }
     }, pointerTestName + ".pressure value is valid");
 
-    // Check mouse-specific properties
+    // Check mouse-specific properties.
     if (event.pointerType === "mouse") {
         // TA: 1.9, 1.10, 1.13
         test(function () {
@@ -146,7 +153,14 @@ function check_PointerEvent(event, testNamePrefix) {
             assert_equals(event.tiltY, 0, event.type + ".tiltY is 0 for mouse");
             assert_true(event.isPrimary, event.type + ".isPrimary is true for mouse");
         }, pointerTestName + " properties for pointerType = mouse");
-        // Check properties for pointers other than mouse
+    }
+
+    // Check "pointerup" specific properties.
+    if (event.type == "pointerup") {
+        test(function () {
+            assert_equals(event.width, 1, "width of pointerup should be 1");
+            assert_equals(event.height, 1, "height of pointerup should be 1");
+        }, pointerTestName + " properties for pointerup");
     }
 }
 
@@ -229,8 +243,6 @@ function rPointerCapture(e) {
 var globalPointerEventTest = null;
 var expectedPointerType = null;
 const ALL_POINTERS = ['mouse', 'touch', 'pen'];
-const HOVERABLE_POINTERS = ['mouse', 'pen'];
-const NOHOVER_POINTERS = ['touch'];
 
 function MultiPointerTypeTest(testName, types) {
     this.testName = testName;

@@ -1021,18 +1021,22 @@ static const nsAttrValue::EnumTable kDivAlignTable[] = {
     {nullptr, 0}};
 
 static const nsAttrValue::EnumTable kFrameborderTable[] = {
-    {"yes", NS_STYLE_FRAME_YES},
-    {"no", NS_STYLE_FRAME_NO},
-    {"1", NS_STYLE_FRAME_1},
-    {"0", NS_STYLE_FRAME_0},
+    {"yes", FrameBorderProperty::Yes},
+    {"no", FrameBorderProperty::No},
+    {"1", FrameBorderProperty::One},
+    {"0", FrameBorderProperty::Zero},
     {nullptr, 0}};
 
 // TODO(emilio): Nobody uses the parsed attribute here.
 static const nsAttrValue::EnumTable kScrollingTable[] = {
-    {"yes", NS_STYLE_FRAME_YES},       {"no", NS_STYLE_FRAME_NO},
-    {"on", NS_STYLE_FRAME_ON},         {"off", NS_STYLE_FRAME_OFF},
-    {"scroll", NS_STYLE_FRAME_SCROLL}, {"noscroll", NS_STYLE_FRAME_NOSCROLL},
-    {"auto", NS_STYLE_FRAME_AUTO},     {nullptr, 0}};
+    {"yes", ScrollingAttribute::Yes},
+    {"no", ScrollingAttribute::No},
+    {"on", ScrollingAttribute::On},
+    {"off", ScrollingAttribute::Off},
+    {"scroll", ScrollingAttribute::Scroll},
+    {"noscroll", ScrollingAttribute::Noscroll},
+    {"auto", ScrollingAttribute::Auto},
+    {nullptr, 0}};
 
 static const nsAttrValue::EnumTable kTableVAlignTable[] = {
     {"top", StyleVerticalAlignKeyword::Top},
@@ -1196,13 +1200,13 @@ static inline void MapLangAttributeInto(const nsMappedAttributes* aAttributes,
     const nsAtom* lang = langValue->GetAtomValue();
     if (nsStyleUtil::MatchesLanguagePrefix(lang, u"zh")) {
       aDecls.SetKeywordValue(eCSSProperty_text_emphasis_position,
-                             StyleTextEmphasisPosition::DEFAULT_ZH.bits);
+                             StyleTextEmphasisPosition::UNDER.bits);
     } else if (nsStyleUtil::MatchesLanguagePrefix(lang, u"ja") ||
                nsStyleUtil::MatchesLanguagePrefix(lang, u"mn")) {
       // This branch is currently no part of the spec.
       // See bug 1040668 comment 69 and comment 75.
       aDecls.SetKeywordValue(eCSSProperty_text_emphasis_position,
-                             StyleTextEmphasisPosition::DEFAULT.bits);
+                             StyleTextEmphasisPosition::OVER.bits);
     }
   }
 }
@@ -1707,8 +1711,8 @@ void nsGenericHTMLFormElement::ClearForm(bool aRemoveFromForm,
 
   if (aRemoveFromForm) {
     nsAutoString nameVal, idVal;
-    GetAttr(kNameSpaceID_None, nsGkAtoms::name, nameVal);
-    GetAttr(kNameSpaceID_None, nsGkAtoms::id, idVal);
+    GetAttr(nsGkAtoms::name, nameVal);
+    GetAttr(nsGkAtoms::id, idVal);
 
     form->RemoveElement(this, true);
 
@@ -1723,8 +1727,8 @@ void nsGenericHTMLFormElement::ClearForm(bool aRemoveFromForm,
 
   UnsetFlags(ADDED_TO_FORM);
   SetFormInternal(nullptr, false);
-
   AfterClearForm(aUnbindOrDelete);
+  UpdateState(true);
 }
 
 nsresult nsGenericHTMLFormElement::BindToTree(BindContext& aContext,
@@ -1979,6 +1983,15 @@ bool nsGenericHTMLFormElement::IsElementDisabledForEvents(WidgetEvent* aEvent,
     case eLegacyMouseLineOrPageScroll:
     case eLegacyMousePixelScroll:
       return false;
+    case ePointerDown:
+    case ePointerUp:
+    case ePointerCancel:
+    case ePointerGotCapture:
+    case ePointerLostCapture:
+      if (StaticPrefs::dom_forms_always_allow_pointer_events_enabled()) {
+        return false;
+      }
+      [[fallthrough]];
     default:
       break;
   }

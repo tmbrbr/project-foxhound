@@ -30,13 +30,16 @@ XPCOMUtils.defineLazyGetter(lazy, "PasswordRulesManager", () => {
   return new PasswordRulesManagerParent();
 });
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  ChromeMigrationUtils: "resource:///modules/ChromeMigrationUtils.sys.mjs",
+  MigrationUtils: "resource:///modules/MigrationUtils.sys.mjs",
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
-  ChromeMigrationUtils: "resource:///modules/ChromeMigrationUtils.jsm",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.jsm",
   LoginHelper: "resource://gre/modules/LoginHelper.jsm",
-  MigrationUtils: "resource:///modules/MigrationUtils.jsm",
   PasswordGenerator: "resource://gre/modules/PasswordGenerator.jsm",
-  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
 });
 
 XPCOMUtils.defineLazyServiceGetter(
@@ -442,7 +445,7 @@ class LoginManagerParent extends JSWindowActorParent {
       // Open the migration wizard pre-selecting the appropriate browser.
       lazy.MigrationUtils.showMigrationWizard(
         this.getRootBrowser().ownerGlobal,
-        [lazy.MigrationUtils.MIGRATION_ENTRYPOINT_PASSWORDS, browserId]
+        [lazy.MigrationUtils.MIGRATION_ENTRYPOINTS.PASSWORDS, browserId]
       );
     }
   }

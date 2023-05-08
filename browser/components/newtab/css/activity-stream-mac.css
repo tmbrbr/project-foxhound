@@ -43,7 +43,7 @@ body {
   --newtab-text-primary-color: #15141a;
   --newtab-primary-action-background: #0061e0;
   --newtab-primary-action-background-pocket: #008078;
-  --newtab-text-secondary-color: color-mix(in srgb, var(--newtab-text-primary-color) 80%, transparent);
+  --newtab-text-secondary-color: color-mix(in srgb, var(--newtab-text-primary-color) 70%, transparent);
   --newtab-element-hover-color: color-mix(in srgb, var(--newtab-background-color) 90%, #000);
   --newtab-element-active-color: color-mix(in srgb, var(--newtab-background-color) 80%, #000);
   --newtab-element-secondary-color: color-mix(in srgb, currentColor 5%, transparent);
@@ -87,6 +87,11 @@ body[lwt-newtab-brighttext] {
   --newtab-status-success: #7C6;
 }
 
+@media (prefers-contrast) {
+  body {
+    --newtab-text-secondary-color: var(--newtab-text-primary-color);
+  }
+}
 .icon {
   background-position: center center;
   background-repeat: no-repeat;
@@ -3408,6 +3413,9 @@ main.has-snippet {
   font-size: 13px;
   color: var(--newtab-text-secondary-color);
 }
+.ds-card .meta .source span {
+  display: inline-block;
+}
 .ds-card .meta .new-sponsored-label {
   font-size: 13px;
   margin-bottom: 2px;
@@ -3458,6 +3466,9 @@ main.has-snippet {
   inset-inline-start: 0;
   margin-top: 12px;
   position: relative;
+}
+.story-footer .story-sponsored-label span {
+  display: inline-block;
 }
 .story-footer .story-sponsored-label,
 .story-footer .status-message {

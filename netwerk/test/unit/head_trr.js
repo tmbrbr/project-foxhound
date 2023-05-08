@@ -11,8 +11,8 @@
 /* globals require, __dirname, global, Buffer, process */
 
 const { NodeServer } = ChromeUtils.import("resource://testing-common/httpd.js");
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 let gDNS;
 
@@ -21,10 +21,7 @@ let gDNS;
 function trr_test_setup() {
   dump("start!\n");
 
-  let env = Cc["@mozilla.org/process/environment;1"].getService(
-    Ci.nsIEnvironment
-  );
-  let h2Port = env.get("MOZHTTP2_PORT");
+  let h2Port = Services.env.get("MOZHTTP2_PORT");
   Assert.notEqual(h2Port, null);
   Assert.notEqual(h2Port, "");
 

@@ -49,6 +49,21 @@ interface nsISearchEngine : nsISupports
   nsISearchSubmission getSubmission(in AString data,
                                     [optional] in AString responseType,
                                     [optional] in AString purpose);
+  /**
+   * Returns the search term of a possible search result URI if and only if:
+   * - The URI has the same scheme, host, and path as the engine.
+   * - All query parameters of the URI have a matching name and value in the engine.
+   * - An exception to the equality check is the engine's termsParameterName
+   *   value, which contains a placeholder, i.e. {searchTerms}.
+   * - If an engine has query parameters with "null" values, they will be ignored.
+   *
+   * @param  uri
+   *         A URI that may or may not be from a search result matching the engine.
+   *
+   * @returns A string representing the termsParameterName value of the URI,
+   *          or an empty string if the URI isn't matched to the engine.
+   */
+  AString searchTermFromResult(in nsIURI uri);
 
   /**
    * Returns the name of the parameter used for the search terms for a submission
@@ -144,6 +159,11 @@ interface nsISearchEngine : nsISupports
   readonly attribute AString name;
 
   /**
+   * The display of the search engine id. This is a unique identifier.
+   */
+  readonly attribute AString id;
+
+  /**
    * A URL string pointing to the engine's search form.
    */
   readonly attribute AString searchForm;
@@ -170,6 +190,16 @@ interface nsISearchEngine : nsISupports
    * in the list of configured search engines.
    */
   readonly attribute boolean isAppProvided;
+
+  /**
+   * Whether or not this engine is an in-memory only search engine.
+   * These engines are typically application provided or policy engines,
+   * where they are loaded every time on SearchService initialization
+   * using the policy JSON or the extension manifest. Minimal details of the
+   * in-memory engines are saved to disk, but they are never loaded
+   * from the user's saved settings file.
+   */
+  readonly attribute boolean inMemory;
 
   /**
    * Whether or not this engine is a "general" search engine, e.g. is it for
@@ -212,20 +242,6 @@ interface nsISearchParseSubmissionResult : nsISupports
    * The name of the query parameter used by `engine` for queries. E.g. "q".
    */
   readonly attribute AString termsParameterName;
-
-  /**
-   * The offset of the string |terms| in the URL passed in to
-   * nsISearchEngine::parseSubmissionURL, or -1 if the URL does not represent
-   * a search submission.
-   */
-  readonly attribute long termsOffset;
-
-  /**
-   * The length of the |terms| in the original encoding of the URL passed in to
-   * nsISearchEngine::parseSubmissionURL. If the search term in the original
-   * URL is encoded then this will be bigger than |terms.length|.
-   */
-  readonly attribute long termsLength;
 };
 
 [scriptable, uuid(0301834b-2630-440e-8b98-db8dc55f34b9)]
@@ -301,42 +317,6 @@ interface nsISearchService : nsISupports
   Promise addOpenSearchEngine(in AString engineURL, in AString iconURL);
 
   /**
-   * Adds a new search engine for enterprises.
-   *
-   * @param details
-   *        An object with the following details:
-   *
-   *        {iconURL} Optional. The icon to use for the engine.
-   *        {description} Optional. The description of the engine.
-   *        {name} The name of the engine
-   *        {encoding} Optional. The encoding of the engine.
-   *        {search_url} The search url for the engine.
-   *        {keyword} Optional. The keyword for the engine.
-   *        {search_url_post_params} Optional. Post parameters for the search
-   *          engine submission.
-   *        {suggest_url} The suggestion url for the engine.
-   */
-  Promise addPolicyEngine(in jsval details);
-
-  /**
-   * Updates an existing engine for enterprises.
-   *
-   * @param details
-   *        An object with the following details:
-   *
-   *        {iconURL} Optional. The icon to use for the engine.
-   *        {description} Optional. The description of the engine.
-   *        {name} The name of the engine
-   *        {encoding} Optional. The encoding of the engine.
-   *        {search_url} The search url for the engine.
-   *        {keyword} Optional. The keyword for the engine.
-   *        {search_url_post_params} Optional. Post parameters for the search
-   *          engine submission.
-   *        {suggest_url} The suggestion url for the engine.
-   */
-  Promise updatePolicyEngine(in jsval details);
-
-  /**
    * Adds a new search engine defined by the user.
    *
    * @param name
@@ -387,6 +367,17 @@ interface nsISearchService : nsISupports
    *          exist.
    */
   nsISearchEngine getEngineByName(in AString aEngineName);
+
+
+  /**
+   * Returns an engine with the specified Id.
+   *
+   * @param   aEngineId
+   *          The Id of the engine.
+   * @returns The corresponding nsISearchEngine object, or null if it doesn't
+   *          exist.
+   */
+  nsISearchEngine getEngineById(in AString aEngineId);
 
   /**
    * Returns an array of all installed search engines.

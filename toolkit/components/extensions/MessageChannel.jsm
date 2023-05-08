@@ -100,8 +100,8 @@
 const EXPORTED_SYMBOLS = ["MessageChannel"];
 let MessageChannel;
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const { ExtensionUtils } = ChromeUtils.import(
   "resource://gre/modules/ExtensionUtils.jsm"
@@ -185,7 +185,7 @@ class FilteringMessageManager {
   /**
    * @param {string} messageName
    *     The name of the native message this broker listens for.
-   * @param {function} callback
+   * @param {Function} callback
    *     A function which is called for each message after it has been
    *     mapped to its handler. The function receives two arguments:
    *
@@ -426,10 +426,10 @@ class FilteringMessageManagerMap extends Map {
   /**
    * @param {string} messageName
    *     The native message name passed to `FilteringMessageManager` constructors.
-   * @param {function} callback
+   * @param {Function} callback
    *     The message callback function passed to
    *     `FilteringMessageManager` constructors.
-   * @param {function} [constructor = FilteringMessageManager]
+   * @param {Function} [constructor = FilteringMessageManager]
    *     The constructor for the message manager class that we're
    *     mapping to.
    */

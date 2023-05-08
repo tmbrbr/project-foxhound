@@ -39,8 +39,8 @@ do_get_profile(); // must be called before getting nsIX509CertDB
 const { RemoteSecuritySettings } = ChromeUtils.import(
   "resource://gre/modules/psm/RemoteSecuritySettings.jsm"
 );
-const { TestUtils } = ChromeUtils.import(
-  "resource://testing-common/TestUtils.jsm"
+const { TestUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/TestUtils.sys.mjs"
 );
 
 const { CRLiteFiltersClient } = RemoteSecuritySettings.init();
@@ -98,7 +98,7 @@ function getFilenameForFilter(filter) {
  * fake records.
  *
  * @param {*} filters List of filters for which we will create records.
- * @param {Boolean} clear Whether or not to clear the local DB first. Defaults
+ * @param {boolean} clear Whether or not to clear the local DB first. Defaults
  *                        to true.
  */
 async function syncAndDownload(filters, clear = true) {

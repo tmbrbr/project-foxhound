@@ -212,6 +212,27 @@ addAccessibleTask(
   }
 );
 
+/**
+ * Test caching of the focused state in iframes.
+ */
+addAccessibleTask(
+  `
+  <button id="button">button</button>
+  `,
+  async function(browser, iframeDocAcc, topDocAcc) {
+    testStates(topDocAcc, STATE_FOCUSED);
+    const button = findAccessibleChildByID(iframeDocAcc, "button");
+    testStates(button, 0, 0, STATE_FOCUSED);
+    let focused = waitForEvent(EVENT_FOCUS, button);
+    info("Focusing button in iframe");
+    button.takeFocus();
+    await focused;
+    testStates(topDocAcc, 0, 0, STATE_FOCUSED);
+    testStates(button, STATE_FOCUSED);
+  },
+  { topLevel: false, iframe: true, remoteIframe: true }
+);
+
 function checkOpacity(acc, present) {
   // eslint-disable-next-line no-unused-vars
   let [_, extraState] = getStates(acc);
@@ -233,6 +254,7 @@ addAccessibleTask(
     await invokeContentTask(browser, [], () => {
       let elm = content.document.getElementById("div");
       elm.style = "opacity: 0.4;";
+      elm.offsetTop; // Flush layout.
     });
 
     await untilCacheOk(
@@ -243,6 +265,7 @@ addAccessibleTask(
     await invokeContentTask(browser, [], () => {
       let elm = content.document.getElementById("div");
       elm.style = "opacity: 1;";
+      elm.offsetTop; // Flush layout.
     });
 
     await untilCacheOk(() => checkOpacity(div, true), "Found opaque state");
@@ -353,4 +376,45 @@ addAccessibleTask(
     testStates(iframeDoc, 0, 0, STATE_BUSY, EXT_STATE_STALE);
   },
   { topLevel: true, chrome: true }
+);
+
+/**
+ * Test implicit selected state.
+ */
+addAccessibleTask(
+  `
+<div role="tablist">
+  <div id="noSel" role="tab" tabindex="0">noSel</div>
+  <div id="selFalse" role="tab" aria-selected="false" tabindex="0">selFalse</div>
+</div>
+<div role="listbox" aria-multiselectable="true">
+  <div id="multiNoSel" role="option" tabindex="0">multiNoSel</div>
+</div>
+  `,
+  async function(browser, docAcc) {
+    const noSel = findAccessibleChildByID(docAcc, "noSel");
+    testStates(noSel, 0, 0, STATE_FOCUSED | STATE_SELECTED, 0);
+    info("Focusing noSel");
+    let focused = waitForEvent(EVENT_FOCUS, noSel);
+    noSel.takeFocus();
+    await focused;
+    testStates(noSel, STATE_FOCUSED | STATE_SELECTED, 0, 0, 0);
+
+    const selFalse = findAccessibleChildByID(docAcc, "selFalse");
+    testStates(selFalse, 0, 0, STATE_FOCUSED | STATE_SELECTED, 0);
+    info("Focusing selFalse");
+    focused = waitForEvent(EVENT_FOCUS, selFalse);
+    selFalse.takeFocus();
+    await focused;
+    testStates(selFalse, STATE_FOCUSED, 0, STATE_SELECTED, 0);
+
+    const multiNoSel = findAccessibleChildByID(docAcc, "multiNoSel");
+    testStates(multiNoSel, 0, 0, STATE_FOCUSED | STATE_SELECTED, 0);
+    info("Focusing multiNoSel");
+    focused = waitForEvent(EVENT_FOCUS, multiNoSel);
+    multiNoSel.takeFocus();
+    await focused;
+    testStates(multiNoSel, STATE_FOCUSED, 0, STATE_SELECTED, 0);
+  },
+  { topLevel: true, iframe: true, remoteIframe: true, chrome: true }
 );

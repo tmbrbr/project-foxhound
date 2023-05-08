@@ -14,6 +14,7 @@
 #include "nsThreadUtils.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TouchEvents.h"
+#include "mozilla/SwipeTracker.h"
 #include "UnitTransforms.h"
 
 namespace mozilla {
@@ -422,10 +423,10 @@ PanGestureInput::PanGestureInput()
       mUserDeltaMultiplierX(1.0),
       mUserDeltaMultiplierY(1.0),
       mHandledByAPZ(false),
-      mRequiresContentResponseIfCannotScrollHorizontallyInStartDirection(false),
       mOverscrollBehaviorAllowsSwipe(false),
       mSimulateMomentum(false),
-      mIsNoLineOrPageDelta(true) {}
+      mIsNoLineOrPageDelta(true),
+      mMayTriggerSwipe(false) {}
 
 PanGestureInput::PanGestureInput(PanGestureType aType, uint32_t aTime,
                                  TimeStamp aTimeStamp,
@@ -441,10 +442,22 @@ PanGestureInput::PanGestureInput(PanGestureType aType, uint32_t aTime,
       mUserDeltaMultiplierX(1.0),
       mUserDeltaMultiplierY(1.0),
       mHandledByAPZ(false),
-      mRequiresContentResponseIfCannotScrollHorizontallyInStartDirection(false),
       mOverscrollBehaviorAllowsSwipe(false),
       mSimulateMomentum(false),
-      mIsNoLineOrPageDelta(true) {}
+      mIsNoLineOrPageDelta(true) {
+  mMayTriggerSwipe = SwipeTracker::CanTriggerSwipe(*this);
+}
+
+PanGestureInput::PanGestureInput(PanGestureType aType, uint32_t aTime,
+                                 TimeStamp aTimeStamp,
+                                 const ScreenPoint& aPanStartPoint,
+                                 const ScreenPoint& aPanDisplacement,
+                                 Modifiers aModifiers,
+                                 IsEligibleForSwipe aIsEligibleForSwipe)
+    : PanGestureInput(aType, aTime, aTimeStamp, aPanStartPoint,
+                      aPanDisplacement, aModifiers) {
+  mMayTriggerSwipe &= bool(aIsEligibleForSwipe);
+}
 
 void PanGestureInput::SetLineOrPageDeltas(int32_t aLineOrPageDeltaX,
                                           int32_t aLineOrPageDeltaY) {
@@ -509,8 +522,8 @@ bool PanGestureInput::TransformToLocal(
   if (mDeltaType == PanGestureInput::PANDELTA_PAGE) {
     // Skip transforming the pan displacement because we want
     // raw page proportion counts.
-    mLocalPanDisplacement.x = mPanDisplacement.x;
-    mLocalPanDisplacement.y = mPanDisplacement.y;
+    mLocalPanDisplacement = ViewAs<ParentLayerPixel>(
+        mPanDisplacement, PixelCastJustification::DeltaIsPageProportion);
     return true;
   }
 
@@ -533,9 +546,9 @@ ParentLayerPoint PanGestureInput::UserMultipliedLocalPanDisplacement() const {
                           mLocalPanDisplacement.y * mUserDeltaMultiplierY);
 }
 
-static int32_t TakeLargestInt(gfx::Float* aFloat) {
-  int32_t result(*aFloat);  // truncate towards zero
-  *aFloat -= result;
+static int32_t TakeLargestInt(gfx::Coord* aCoord) {
+  int32_t result(aCoord->value);  // truncate towards zero
+  aCoord->value -= result;
   return result;
 }
 

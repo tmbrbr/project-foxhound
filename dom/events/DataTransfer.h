@@ -42,6 +42,7 @@ class FileList;
 class Promise;
 template <typename T>
 class Optional;
+class WindowContext;
 
 #define NS_DATATRANSFER_IID                          \
   {                                                  \
@@ -253,6 +254,8 @@ class DataTransfer final : public nsISupports, public nsWrapperCache {
 
   already_AddRefed<nsINode> GetMozSourceNode();
 
+  already_AddRefed<WindowContext> GetSourceWindowContext();
+
   /*
    * Integer version of dropEffect, set to one of the constants in
    * nsIDragService.
@@ -392,6 +395,30 @@ class DataTransfer final : public nsISupports, public nsWrapperCache {
   static void GetExternalTransferableFormats(nsITransferable* aTransferable,
                                              bool aPlainTextOnly,
                                              nsTArray<nsCString>* aResult);
+
+  // Formats that are "known" and won't be converted to the kCustomTypesMime.
+  static inline const char* const kKnownFormats[] = {kTextMime,
+                                                     kHTMLMime,
+                                                     kNativeHTMLMime,
+                                                     kRTFMime,
+                                                     kURLMime,
+                                                     kURLDataMime,
+                                                     kURLDescriptionMime,
+                                                     kURLPrivateMime,
+                                                     kPNGImageMime,
+                                                     kJPEGImageMime,
+                                                     kGIFImageMime,
+                                                     kNativeImageMime,
+                                                     kFileMime,
+                                                     kFilePromiseMime,
+                                                     kFilePromiseURLMime,
+                                                     kFilePromiseDestFilename,
+                                                     kFilePromiseDirectoryMime,
+                                                     kMozTextInternal,
+                                                     kHTMLContext,
+                                                     kHTMLInfo,
+                                                     kImageRequestMime,
+                                                     kPDFJSMime};
 
  protected:
   // caches text and uri-list data formats that exist in the drag service or

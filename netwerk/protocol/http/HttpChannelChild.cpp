@@ -35,6 +35,7 @@
 #include "nsStringStream.h"
 #include "nsHttpChannel.h"
 #include "nsHttpHandler.h"
+#include "nsQueryObject.h"
 #include "nsNetUtil.h"
 #include "nsSerializationHelper.h"
 #include "mozilla/Attributes.h"
@@ -442,6 +443,8 @@ void HttpChannelChild::OnStartRequest(
 
   mCacheKey = aArgs.cacheKey();
 
+  StoreIsProxyUsed(aArgs.isProxyUsed());
+
   // replace our request headers with what actually got sent in the parent
   mRequestHead.SetHeaders(aRequestHeaders);
 
@@ -452,18 +455,18 @@ void HttpChannelChild::OnStartRequest(
 
   ResourceTimingStructArgsToTimingsStruct(aArgs.timing(), mTransactionTimings);
 
+  nsAutoCString cosString;
+  ClassOfService::ToString(mClassOfService, cosString);
   if (!mAsyncOpenTime.IsNull() &&
       !aArgs.timing().transactionPending().IsNull()) {
     Telemetry::AccumulateTimeDelta(
-        Telemetry::NETWORK_ASYNC_OPEN_CHILD_TO_TRANSACTION_PENDING_MS,
-        ClassOfService::ToString(mClassOfService), mAsyncOpenTime,
-        aArgs.timing().transactionPending());
+        Telemetry::NETWORK_ASYNC_OPEN_CHILD_TO_TRANSACTION_PENDING_EXP_MS,
+        cosString, mAsyncOpenTime, aArgs.timing().transactionPending());
   }
 
   if (!aArgs.timing().responseStart().IsNull()) {
     Telemetry::AccumulateTimeDelta(
-        Telemetry::NETWORK_RESPONSE_START_PARENT_TO_CONTENT_MS,
-        ClassOfService::ToString(mClassOfService),
+        Telemetry::NETWORK_RESPONSE_START_PARENT_TO_CONTENT_EXP_MS, cosString,
         aArgs.timing().responseStart(), TimeStamp::Now());
   }
 
@@ -907,6 +910,14 @@ void HttpChannelChild::OnStopRequest(
   }
   PerfStats::RecordMeasurement(PerfStats::Metric::HttpChannelCompletion,
                                channelCompletionDuration);
+
+  if (!aTiming.responseEnd().IsNull()) {
+    nsAutoCString cosString;
+    ClassOfService::ToString(mClassOfService, cosString);
+    Telemetry::AccumulateTimeDelta(
+        Telemetry::NETWORK_RESPONSE_END_PARENT_TO_CONTENT_MS, cosString,
+        aTiming.responseEnd(), TimeStamp::Now());
+  }
 
   mResponseTrailers = MakeUnique<nsHttpHeaderArray>(aResponseTrailers);
 
@@ -1457,6 +1468,36 @@ mozilla::ipc::IPCResult HttpChannelChild::RecvRedirect3Complete() {
   return IPC_OK();
 }
 
+mozilla::ipc::IPCResult HttpChannelChild::RecvRedirectFailed(
+    const nsresult& status) {
+  LOG(("HttpChannelChild::RecvRedirectFailed this=%p status=%X\n", this,
+       static_cast<uint32_t>(status)));
+  mEventQ->RunOrEnqueue(new NeckoTargetChannelFunctionEvent(
+      this, [self = UnsafePtr<HttpChannelChild>(this), status]() {
+        nsCOMPtr<nsIRedirectResultListener> vetoHook;
+        self->GetCallback(vetoHook);
+        if (vetoHook) {
+          vetoHook->OnRedirectResult(status);
+        }
+
+        if (RefPtr<HttpChannelChild> httpChannelChild =
+                do_QueryObject(self->mRedirectChannelChild)) {
+          // For sending an IPC message to parent channel so that the loading
+          // can be cancelled.
+          Unused << httpChannelChild->CancelWithReason(
+              status, "HttpChannelChild RecvRedirectFailed"_ns);
+
+          // The post-redirect channel could still get OnStart/StopRequest IPC
+          // messages from parent, but the mListener is still null. So, we
+          // call |DoNotifyListener| to pretend that OnStart/StopRequest are
+          // already called.
+          httpChannelChild->DoNotifyListener();
+        }
+      }));
+
+  return IPC_OK();
+}
+
 void HttpChannelChild::ProcessNotifyClassificationFlags(
     uint32_t aClassificationFlags, bool aIsThirdParty) {
   LOG(
@@ -1521,7 +1562,7 @@ void HttpChannelChild::Redirect3Complete() {
   nsCOMPtr<nsIRedirectResultListener> vetoHook;
   GetCallback(vetoHook);
   if (vetoHook) {
-    vetoHook->OnRedirectResult(true);
+    vetoHook->OnRedirectResult(NS_OK);
   }
 
   // Chrome channel has been AsyncOpen'd.  Reflect this in child.
@@ -2217,6 +2258,7 @@ nsresult HttpChannelChild::ContinueAsyncOpen() {
   openArgs.forceMainDocumentChannel() = LoadForceMainDocumentChannel();
 
   openArgs.navigationStartTimeStamp() = navigationStartTimeStamp;
+  openArgs.earlyHintPreloaderId() = mEarlyHintPreloaderId;
 
   // This must happen before the constructor message is sent. Otherwise messages
   // from the parent could arrive quickly and be delivered to the wrong event

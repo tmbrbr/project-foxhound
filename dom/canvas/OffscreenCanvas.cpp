@@ -82,10 +82,8 @@ void OffscreenCanvas::SetWidth(uint32_t aWidth, ErrorResult& aRv) {
     return;
   }
 
-  if (mWidth != aWidth) {
-    mWidth = aWidth;
-    CanvasAttrChanged();
-  }
+  mWidth = aWidth;
+  CanvasAttrChanged();
 }
 
 void OffscreenCanvas::SetHeight(uint32_t aHeight, ErrorResult& aRv) {
@@ -95,10 +93,8 @@ void OffscreenCanvas::SetHeight(uint32_t aHeight, ErrorResult& aRv) {
     return;
   }
 
-  if (mHeight != aHeight) {
-    mHeight = aHeight;
-    CanvasAttrChanged();
-  }
+  mHeight = aHeight;
+  CanvasAttrChanged();
 }
 
 void OffscreenCanvas::GetContext(
@@ -446,11 +442,7 @@ already_AddRefed<OffscreenCanvas> OffscreenCanvas::CreateFromCloneData(
 /* static */
 bool OffscreenCanvas::PrefEnabledOnWorkerThread(JSContext* aCx,
                                                 JSObject* aObj) {
-  if (NS_IsMainThread()) {
-    return true;
-  }
-
-  return CanvasUtils::IsOffscreenCanvasEnabled(aCx, aObj);
+  return NS_IsMainThread() || StaticPrefs::gfx_offscreencanvas_enabled();
 }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(OffscreenCanvas, DOMEventTargetHelper,

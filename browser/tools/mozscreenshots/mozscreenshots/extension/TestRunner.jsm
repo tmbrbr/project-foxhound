@@ -6,27 +6,24 @@
 
 var EXPORTED_SYMBOLS = ["TestRunner"];
 
-const env = Cc["@mozilla.org/process/environment;1"].getService(
-  Ci.nsIEnvironment
-);
 const APPLY_CONFIG_TIMEOUT_MS = 60 * 1000;
 const HOME_PAGE = "resource://mozscreenshots/lib/mozscreenshots.html";
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
-const { setTimeout } = ChromeUtils.import("resource://gre/modules/Timer.jsm");
+const { setTimeout } = ChromeUtils.importESModule(
+  "resource://gre/modules/Timer.sys.mjs"
+);
 const { Rect } = ChromeUtils.importESModule(
   "resource://gre/modules/Geometry.sys.mjs"
 );
 
 const lazy = {};
 
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "BrowserTestUtils",
-  "resource://testing-common/BrowserTestUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  BrowserTestUtils: "resource://testing-common/BrowserTestUtils.sys.mjs",
+});
 // Screenshot.jsm must be imported this way for xpcshell tests to work
 ChromeUtils.defineModuleGetter(
   lazy,
@@ -95,8 +92,8 @@ var TestRunner = {
     ];
     let screenshotPath = PathUtils.join(PathUtils.tempDir, ...subDirs);
 
-    const MOZ_UPLOAD_DIR = env.get("MOZ_UPLOAD_DIR");
-    const GECKO_HEAD_REPOSITORY = env.get("GECKO_HEAD_REPOSITORY");
+    const MOZ_UPLOAD_DIR = Services.env.get("MOZ_UPLOAD_DIR");
+    const GECKO_HEAD_REPOSITORY = Services.env.get("GECKO_HEAD_REPOSITORY");
     // We don't want to upload images (from MOZ_UPLOAD_DIR) on integration
     // branches in order to reduce bandwidth/storage.
     if (MOZ_UPLOAD_DIR && !GECKO_HEAD_REPOSITORY.includes("/integration/")) {
@@ -261,7 +258,7 @@ var TestRunner = {
    * Calculate the bounding box based on CSS selector from config for cropping
    *
    * @param {String[]} selectors - array of CSS selectors for relevant DOM element
-   * @return {Geometry.jsm Rect} Rect holding relevant x, y, width, height with padding
+   * @return {Geometry.sys.mjs Rect} Rect holding relevant x, y, width, height with padding
    **/
   _findBoundingBox(selectors, windowType) {
     if (!selectors.length) {

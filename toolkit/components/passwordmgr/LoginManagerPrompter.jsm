@@ -5,8 +5,8 @@
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { PrivateBrowsingUtils } = ChromeUtils.import(
-  "resource://gre/modules/PrivateBrowsingUtils.jsm"
+const { PrivateBrowsingUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/PrivateBrowsingUtils.sys.mjs"
 );
 
 const lazy = {};
@@ -162,7 +162,7 @@ class LoginManagerPrompter {
   }
 
   /**
-   * Displays the PopupNotifications.jsm doorhanger for password save or change.
+   * Displays the PopupNotifications.sys.mjs doorhanger for password save or change.
    *
    * @param {Element} browser
    *        The browser to show the doorhanger on.
@@ -271,7 +271,7 @@ class LoginManagerPrompter {
 
     let updateButtonLabel = () => {
       if (!currentNotification) {
-        Cu.reportError("updateButtonLabel, no currentNotification");
+        console.error("updateButtonLabel, no currentNotification");
       }
       let foundLogins = lazy.LoginHelper.searchLoginsWithObject({
         formActionOrigin: login.formActionOrigin,
@@ -604,7 +604,10 @@ class LoginManagerPrompter {
           // visible icon as the anchor.
           const anchor = browser.ownerDocument.getElementById("identity-icon");
           lazy.log.debug("Showing the ConfirmationHint");
-          anchor.ownerGlobal.ConfirmationHint.show(anchor, "loginRemoved");
+          anchor.ownerGlobal.ConfirmationHint.show(
+            anchor,
+            "confirmation-hint-login-removed"
+          );
         },
       });
     }
@@ -786,7 +789,10 @@ class LoginManagerPrompter {
     if (notifySaved) {
       let anchor = notification.anchorElement;
       lazy.log.debug("Showing the ConfirmationHint.");
-      anchor.ownerGlobal.ConfirmationHint.show(anchor, "passwordSaved");
+      anchor.ownerGlobal.ConfirmationHint.show(
+        anchor,
+        "confirmation-hint-password-saved"
+      );
     }
 
     return notification;

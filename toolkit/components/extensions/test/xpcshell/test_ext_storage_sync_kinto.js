@@ -261,7 +261,7 @@ class KintoServer {
   /**
    * Add a record to those that can be served by this server.
    *
-   * @param {Object} properties  An object describing the record that
+   * @param {object} properties  An object describing the record that
    *   should be served. The properties of this object are:
    * - collectionId {string} This record should only be served if a
    *   request is for this collection.
@@ -750,7 +750,7 @@ add_task(async function ensureCanSync_clearAll() {
     useAddonManager: "temporary",
     manifest: {
       permissions: ["storage"],
-      applications: { gecko: { id: extensionId } },
+      browser_specific_settings: { gecko: { id: extensionId } },
     },
   });
 
@@ -1730,7 +1730,7 @@ add_task(async function test_storage_sync_on_no_active_context() {
     useAddonManager: "temporary",
     manifest: {
       permissions: ["storage"],
-      applications: { gecko: { id: extensionId } },
+      browser_specific_settings: { gecko: { id: extensionId } },
     },
     files: {
       "ext-page.html": `<!DOCTYPE html>

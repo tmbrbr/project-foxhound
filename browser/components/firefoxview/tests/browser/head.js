@@ -2,13 +2,46 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 /* exported testVisibility */
-
+var { XPCOMUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/XPCOMUtils.sys.mjs"
+);
+const { ASRouter } = ChromeUtils.import(
+  "resource://activity-stream/lib/ASRouter.jsm"
+);
 const { UIState } = ChromeUtils.import("resource://services-sync/UIState.jsm");
 const { sinon } = ChromeUtils.import("resource://testing-common/Sinon.jsm");
-
+const { FeatureCalloutMessages } = ChromeUtils.import(
+  "resource://activity-stream/lib/FeatureCalloutMessages.jsm"
+);
 const { TelemetryTestUtils } = ChromeUtils.import(
   "resource://testing-common/TelemetryTestUtils.jsm"
 );
+
+XPCOMUtils.defineLazyModuleGetters(this, {
+  AboutWelcomeParent: "resource:///actors/AboutWelcomeParent.jsm",
+});
+
+const MOBILE_PROMO_DISMISSED_PREF =
+  "browser.tabs.firefox-view.mobilePromo.dismissed";
+const RECENTLY_CLOSED_STATE_PREF =
+  "browser.tabs.firefox-view.ui-state.recently-closed-tabs.open";
+const TAB_PICKUP_STATE_PREF =
+  "browser.tabs.firefox-view.ui-state.tab-pickup.open";
+
+const calloutId = "root";
+const calloutSelector = `#${calloutId}.featureCallout`;
+const primaryButtonSelector = `#${calloutId} .primary`;
+
+/**
+ * URLs used for browser_recently_closed_tabs_keyboard and
+ * browser_firefoxview_accessibility
+ */
+const URLs = [
+  "http://mochi.test:8888/browser/",
+  "https://www.example.com/",
+  "https://example.net/",
+  "https://example.org/",
+];
 
 const syncedTabsData1 = [
   {
@@ -59,12 +92,6 @@ const syncedTabsData1 = [
     ],
   },
 ];
-
-function promiseSyncReady() {
-  let service = Cc["@mozilla.org/weave/service;1"].getService(Ci.nsISupports)
-    .wrappedJSObject;
-  return service.whenLoaded();
-}
 
 async function clearAllParentTelemetryEvents() {
   // Clear everything.
@@ -236,15 +263,12 @@ function setupSyncFxAMocks({ fxaDevices = null, state, syncEnabled = true }) {
     return {
       status: gUIStateStatus,
       syncEnabled,
+      email:
+        gUIStateStatus === UIState.STATUS_NOT_CONFIGURED
+          ? undefined
+          : "email@example.com",
     };
   });
-  sandbox
-    .stub(Weave.Service.clientsEngine, "getClientByFxaDeviceId")
-    .callsFake(fxaDeviceId => {
-      let target = gMockFxaDevices.find(c => c.id == fxaDeviceId);
-      return target ? target.clientRecord : null;
-    });
-  sandbox.stub(Weave.Service.clientsEngine, "getClientType").returns("desktop");
 
   return sandbox;
 }
@@ -268,6 +292,7 @@ function setupRecentDeviceListMocks() {
   sandbox.stub(UIState, "get").returns({
     status: UIState.STATUS_SIGNED_IN,
     syncEnabled: true,
+    email: "email@example.com",
   });
 
   return sandbox;
@@ -307,10 +332,7 @@ async function setupListState(browser) {
   const tabsContainer = browser.contentWindow.document.querySelector(
     "#tabpickup-tabs-container"
   );
-  // fake a sync completion, as UIState.UI_UPDATE with a signed-in status will have
-  // triggered a sync when we have 0 tabs
-  Services.obs.notifyObservers(null, "weave:service:sync:finish");
-
+  await tabsContainer.tabListAdded;
   await BrowserTestUtils.waitForMutationCondition(
     tabsContainer,
     { attributeFilter: ["class"], attributes: true },
@@ -318,6 +340,7 @@ async function setupListState(browser) {
       return !tabsContainer.classList.contains("loading");
     }
   );
+  info("tabsContainer isn't loading anymore, returning");
 }
 
 function checkMobilePromo(browser, expected = {}) {
@@ -358,4 +381,219 @@ async function touchLastTabFetch() {
   Services.prefs.setIntPref("services.sync.lastTabFetch", nowSeconds);
   // wait so all pref observers can complete
   await TestUtils.waitForTick();
+}
+
+let gUIStateSyncEnabled;
+function setupMocks({ fxaDevices = null, state, syncEnabled = true }) {
+  gUIStateStatus = state || UIState.STATUS_SIGNED_IN;
+  gUIStateSyncEnabled = syncEnabled;
+  if (gSandbox) {
+    gSandbox.restore();
+  }
+  const sandbox = (gSandbox = sinon.createSandbox());
+  gMockFxaDevices = fxaDevices;
+  sandbox.stub(fxAccounts.device, "recentDeviceList").get(() => fxaDevices);
+  sandbox.stub(UIState, "get").callsFake(() => {
+    return {
+      status: gUIStateStatus,
+      // Sometimes syncEnabled is not present on UIState, for example when the user signs
+      // out the state is just { status: "not_configured" }
+      ...(gUIStateSyncEnabled != undefined && {
+        syncEnabled: gUIStateSyncEnabled,
+      }),
+    };
+  });
+  return sandbox;
+}
+
+async function tearDown(sandbox) {
+  sandbox?.restore();
+  Services.prefs.clearUserPref("services.sync.lastTabFetch");
+  Services.prefs.clearUserPref(MOBILE_PROMO_DISMISSED_PREF);
+}
+
+/**
+ * Returns a value that can be used to set
+ * `browser.firefox-view.feature-tour` to change the feature tour's
+ * UI state.
+ *
+ * @see FeatureCalloutMessages.jsm for valid values of "screen"
+ *
+ * @param {number} screen The full ID of the feature callout screen
+ * @return {string} JSON string used to set
+ * `browser.firefox-view.feature-tour`
+ */
+const getPrefValueByScreen = screen => {
+  return JSON.stringify({
+    screen: `FEATURE_CALLOUT_${screen}`,
+    complete: false,
+  });
+};
+
+/**
+ * Wait for a feature callout screen of given parameters to be shown
+ * @param {Document} doc the document where the callout appears.
+ * @param {String} screenPostfix The full ID of the feature callout screen.
+ */
+const waitForCalloutScreen = async (doc, screenPostfix) => {
+  await BrowserTestUtils.waitForCondition(() =>
+    doc.querySelector(`${calloutSelector}:not(.hidden) .${screenPostfix}`)
+  );
+};
+
+/**
+ * Waits for the feature callout screen to be removed.
+ *
+ * @param {Document} doc The document where the callout appears.
+ */
+const waitForCalloutRemoved = async doc => {
+  await BrowserTestUtils.waitForCondition(() => {
+    return !doc.body.querySelector(calloutSelector);
+  });
+};
+
+/**
+ * NOTE: Should be replaced with synthesizeMouseAtCenter for
+ * simulating user input. See Bug 1798322
+ *
+ * Clicks the primary button in the feature callout dialog
+ *
+ * @param {document} doc Firefox View document
+ */
+const clickPrimaryButton = async doc => {
+  doc.querySelector(primaryButtonSelector).click();
+};
+
+/**
+ * Closes a feature callout via a click to the dismiss button.
+ *
+ * @param {Document} doc The document where the callout appears.
+ */
+const closeCallout = async doc => {
+  // close the callout dialog
+  const dismissBtn = doc.querySelector(`${calloutSelector} .dismiss-button`);
+  if (!dismissBtn) {
+    return;
+  }
+  doc.querySelector(`${calloutSelector} .dismiss-button`).click();
+  await BrowserTestUtils.waitForCondition(() => {
+    return !document.querySelector(calloutSelector);
+  });
+};
+
+/**
+ * Get a Feature Callout message by id.
+ *
+ * @param {string} Message id
+ */
+const getCalloutMessageById = id => {
+  return {
+    message: FeatureCalloutMessages.getMessages().find(m => m.id === id),
+  };
+};
+
+/**
+ * Create a sinon sandbox with `sendTriggerMessage` stubbed
+ * to return a specified test message for featureCalloutCheck.
+ *
+ * @param {object} Test message
+ */
+const createSandboxWithCalloutTriggerStub = testMessage => {
+  const firefoxViewMatch = sinon.match({
+    id: "featureCalloutCheck",
+    context: { source: "firefoxview" },
+  });
+  const sandbox = sinon.createSandbox();
+  const sendTriggerStub = sandbox.stub(ASRouter, "sendTriggerMessage");
+  sendTriggerStub.withArgs(firefoxViewMatch).resolves(testMessage);
+  sendTriggerStub.callThrough();
+  return sandbox;
+};
+
+/**
+ * A helper to check that correct telemetry was sent by AWSendEventTelemetry.
+ * This is a wrapper around sinon's spy functionality.
+ *
+ * @example
+ *  let spy = new TelemetrySpy();
+ *  element.click();
+ *  spy.assertCalledWith({ event: "CLICK" });
+ *  spy.restore();
+ */
+class TelemetrySpy {
+  /**
+   * @param {object} [sandbox] A pre-existing sinon sandbox to build the spy in.
+   *                           If not provided, a new sandbox will be created.
+   */
+  constructor(sandbox = sinon.createSandbox()) {
+    this.sandbox = sandbox;
+    this.spy = this.sandbox
+      .spy(AboutWelcomeParent.prototype, "onContentMessage")
+      .withArgs("AWPage:TELEMETRY_EVENT");
+    registerCleanupFunction(() => this.restore());
+  }
+  /**
+   * Assert that AWSendEventTelemetry sent the expected telemetry object.
+   * @param {Object} expectedData
+   */
+  assertCalledWith(expectedData) {
+    let match = this.spy.calledWith("AWPage:TELEMETRY_EVENT", expectedData);
+    if (match) {
+      ok(true, "Expected telemetry sent");
+    } else if (this.spy.called) {
+      ok(
+        false,
+        "Wrong telemetry sent: " + JSON.stringify(this.spy.lastCall.args)
+      );
+    } else {
+      ok(false, "No telemetry sent");
+    }
+  }
+  reset() {
+    this.spy.resetHistory();
+  }
+  restore() {
+    this.sandbox.restore();
+  }
+}
+
+/**
+ * Helper function to open and close a tab so the recently
+ * closed tabs list can have data.
+ *
+ * @param {string} url
+ * @return {Promise} Promise that resolves when the session store
+ * has been updated after closing the tab.
+ */
+async function open_then_close(url) {
+  let { updatePromise } = await BrowserTestUtils.withNewTab(
+    url,
+    async browser => {
+      return {
+        updatePromise: BrowserTestUtils.waitForSessionStoreUpdate({
+          linkedBrowser: browser,
+        }),
+      };
+    }
+  );
+  await updatePromise;
+  return TestUtils.topicObserved("sessionstore-closed-objects-changed");
+}
+
+/**
+ * Clears session history. Used to clear out the recently closed tabs list.
+ *
+ */
+function clearHistory() {
+  Services.obs.notifyObservers(null, "browser:purge-session-history");
+}
+
+/**
+ * Cleanup function for tab pickup tests.
+ *
+ */
+function cleanup_tab_pickup() {
+  Services.prefs.clearUserPref("services.sync.engine.tabs");
+  Services.prefs.clearUserPref("services.sync.lastTabFetch");
+  Services.prefs.clearUserPref(TAB_PICKUP_STATE_PREF);
 }

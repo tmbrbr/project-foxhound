@@ -10,12 +10,13 @@
 import { isFulfilled } from "../utils/async-value";
 import { findSourceMatches } from "../workers/search";
 import {
-  getSource,
+  getFirstSourceActorForGeneratedSource,
   hasPrettySource,
   getSourceList,
-  getSourceContent,
+  getSettledSourceTextContent,
 } from "../selectors";
 import { isThirdParty } from "../utils/source";
+import { createLocation } from "../utils/location";
 import { loadSourceText } from "./sources/loadSourceText";
 import {
   getTextSearchOperation,
@@ -92,8 +93,13 @@ export function searchSources(cx, query) {
       if (cancelled) {
         return;
       }
-      await dispatch(loadSourceText({ cx, source }));
-      await dispatch(searchSource(cx, source.id, query));
+
+      const sourceActor = getFirstSourceActorForGeneratedSource(
+        getState(),
+        source.id
+      );
+      await dispatch(loadSourceText(cx, source, sourceActor));
+      await dispatch(searchSource(cx, source, sourceActor, query));
     }
     dispatch(updateSearchStatus(cx, statusType.done));
   };
@@ -105,14 +111,16 @@ export function searchSources(cx, query) {
   return search;
 }
 
-export function searchSource(cx, sourceId, query) {
+export function searchSource(cx, source, sourceActor, query) {
   return async ({ dispatch, getState }) => {
-    const source = getSource(getState(), sourceId);
     if (!source) {
       return;
     }
-
-    const content = getSourceContent(getState(), source.id);
+    const location = createLocation({
+      sourceId: source.id,
+      sourceActorId: sourceActor ? sourceActor.actor : null,
+    });
+    const content = getSettledSourceTextContent(getState(), location);
     let matches = [];
     if (content && isFulfilled(content) && content.value.type === "text") {
       matches = await findSourceMatches(source.id, content.value, query);

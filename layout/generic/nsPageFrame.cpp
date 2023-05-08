@@ -50,7 +50,11 @@ nsPageFrame::~nsPageFrame() = default;
 
 nsReflowStatus nsPageFrame::ReflowPageContent(
     nsPresContext* aPresContext, const ReflowInput& aPageReflowInput) {
-  nsIFrame* const frame = PageContentFrame();
+  nsPageContentFrame* const frame = PageContentFrame();
+  // If this is the first page, it won't have its page name and computed style
+  // set yet. Before reflow, make sure that page name and computed style have
+  // been applied.
+  frame->EnsurePageName();
   // XXX Pay attention to the page's border and padding...
   //
   // Reflow our ::-moz-page-content frame, allowing it only to be as big as we
@@ -590,26 +594,29 @@ nsPageContentFrame* nsPageFrame::PageContentFrame() const {
 }
 
 nsSize nsPageFrame::ComputePageSize() const {
-  const nsPageContentFrame* const pcf = PageContentFrame();
-  nsSize size = PresContext()->GetPageSize();
-
   // Compute the expected page-size.
-  const nsStylePage* const stylePage = pcf->StylePage();
-  const StylePageSize& pageSize = stylePage->mSize;
+  const nsPageFrame* const frame =
+      StaticPrefs::layout_css_allow_mixed_page_sizes()
+          ? this
+          : static_cast<nsPageFrame*>(FirstContinuation());
+  const StylePageSize& pageSize = frame->PageContentFrame()->StylePage()->mSize;
 
   if (pageSize.IsSize()) {
     // Use the specified size
     return nsSize{pageSize.AsSize().width.ToAppUnits(),
                   pageSize.AsSize().height.ToAppUnits()};
   }
+
+  nsSize size = PresContext()->GetPageSize();
   if (pageSize.IsOrientation()) {
     // Ensure the correct orientation is applied.
-    if (pageSize.AsOrientation() == StylePageOrientation::Portrait) {
+    if (pageSize.AsOrientation() == StylePageSizeOrientation::Portrait) {
       if (size.width > size.height) {
         std::swap(size.width, size.height);
       }
     } else {
-      MOZ_ASSERT(pageSize.AsOrientation() == StylePageOrientation::Landscape);
+      MOZ_ASSERT(pageSize.AsOrientation() ==
+                 StylePageSizeOrientation::Landscape);
       if (size.width < size.height) {
         std::swap(size.width, size.height);
       }
@@ -626,8 +633,16 @@ float nsPageFrame::ComputePageSizeScale(const nsSize aContentPageSize) const {
 
   // Check for the simplest case first, an auto page-size which requires no
   // scaling at all.
-  if (PageContentFrame()->StylePage()->mSize.IsAuto()) {
-    return 1.0f;
+  {
+    const nsPageFrame* const frame =
+        StaticPrefs::layout_css_allow_mixed_page_sizes()
+            ? this
+            : static_cast<nsPageFrame*>(FirstContinuation());
+    const StylePageSize& pageSize =
+        frame->PageContentFrame()->StylePage()->mSize;
+    if (pageSize.IsAuto()) {
+      return 1.0f;
+    }
   }
 
   // Compute scaling due to a possible mismatch in the paper size we are
@@ -649,6 +664,35 @@ float nsPageFrame::ComputePageSizeScale(const nsSize aContentPageSize) const {
       scale <= 1.0f,
       "Page-size mismatches should only have caused us to scale down, not up.");
   return scale;
+}
+
+nsIFrame* nsPageFrame::FirstContinuation() const {
+  // Walk up to our grandparent, and then to down the grandparent's first
+  // child, and then that frame's first child.
+  // At every step we assert the frames are the type we expect them to be.
+  const nsContainerFrame* const parent = GetParent();
+  MOZ_ASSERT(parent && parent->IsPrintedSheetFrame(),
+             "Parent of nsPageFrame should be PrintedSheetFrame");
+  const nsContainerFrame* const pageSequenceFrame = parent->GetParent();
+  MOZ_ASSERT(pageSequenceFrame && pageSequenceFrame->IsPageSequenceFrame(),
+             "Parent of PrintedSheetFrame should be nsPageSequenceFrame");
+  const nsIFrame* const firstPrintedSheetFrame =
+      pageSequenceFrame->PrincipalChildList().FirstChild();
+  MOZ_ASSERT(
+      firstPrintedSheetFrame && firstPrintedSheetFrame->IsPrintedSheetFrame(),
+      "Should have at least one child in nsPageSequenceFrame, and all "
+      "children of nsPageSequenceFrame should be PrintedSheetFrames");
+  nsIFrame* const firstPageFrame =
+      static_cast<const nsContainerFrame*>(firstPrintedSheetFrame)
+          ->PrincipalChildList()
+          .FirstChild();
+  MOZ_ASSERT(firstPageFrame && firstPageFrame->IsPageFrame(),
+             "Should have at least one child in PrintedSheetFrame, and all "
+             "children of PrintedSheetFrame should be nsPageFrames");
+  MOZ_ASSERT(!firstPageFrame->GetPrevContinuation(),
+             "First descendent of nsPageSequenceFrame should not have a "
+             "previous continuation");
+  return firstPageFrame;
 }
 
 void nsPageFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,

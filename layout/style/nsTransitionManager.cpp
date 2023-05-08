@@ -21,7 +21,6 @@
 #include "mozilla/dom/DocumentTimeline.h"
 #include "mozilla/dom/Element.h"
 #include "nsIFrame.h"
-#include "Layers.h"
 #include "nsCSSProps.h"
 #include "nsCSSPseudoElements.h"
 #include "nsDisplayList.h"
@@ -54,11 +53,12 @@ bool nsTransitionManager::UpdateTransitions(dom::Element* aElement,
                                             PseudoStyleType aPseudoType,
                                             const ComputedStyle& aOldStyle,
                                             const ComputedStyle& aNewStyle) {
-  if (!mPresContext->IsDynamic()) {
+  if (mPresContext->Medium() == nsGkAtoms::print) {
     // For print or print preview, ignore transitions.
     return false;
   }
 
+  MOZ_ASSERT(mPresContext->IsDynamic());
   if (aNewStyle.StyleDisplay()->mDisplay == StyleDisplay::None) {
     StopAnimationsForElement(aElement, aPseudoType);
     return false;

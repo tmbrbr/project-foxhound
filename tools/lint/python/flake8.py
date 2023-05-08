@@ -10,7 +10,6 @@ import sys
 
 import mozfile
 import mozpack.path as mozpath
-
 from mozlint import result
 from mozlint.pathutils import expand_exclusions
 
@@ -105,10 +104,20 @@ def lint(paths, config, **lintargs):
             "--recursive",
         ]
 
+        isort_cmd = [
+            os.path.join(virtualenv_bin_path or default_bindir(), "isort"),
+        ]
+
         if config.get("exclude"):
             fix_cmd.extend(["--exclude", ",".join(config["exclude"])])
+            isort_cmd.append("--filter-files")
+            for glob in config.get("exclude"):
+                isort_cmd.extend(["--skip", glob])
 
         subprocess.call(fix_cmd + paths)
+
+        subprocess.call(isort_cmd + paths)
+
         results = run(paths, config, **lintargs)
 
         fixed = fixed - len(results)
@@ -117,8 +126,8 @@ def lint(paths, config, **lintargs):
 
 
 def run(paths, config, **lintargs):
-    from flake8.main.application import Application
     from flake8 import __version__ as flake8_version
+    from flake8.main.application import Application
 
     log = lintargs["log"]
     root = lintargs["root"]
@@ -192,6 +201,8 @@ def run(paths, config, **lintargs):
 
     results = []
 
+    WARNING_RULES = set(config.get("warning-rules", []))
+
     def process_line(line):
         # Escape slashes otherwise JSON conversion will not work
         line = line.replace("\\", "\\\\")
@@ -203,6 +214,9 @@ def run(paths, config, **lintargs):
 
         if res.get("code") in LINE_OFFSETS:
             res["lineoffset"] = LINE_OFFSETS[res["code"]]
+
+        if res["rule"] in WARNING_RULES:
+            res["level"] = "warning"
 
         results.append(result.from_config(config, **res))
 

@@ -72,7 +72,7 @@ this.VideoControlsWidget = class {
       return;
     }
     if (this.impl) {
-      this.impl.destructor();
+      this.impl.teardown();
       this.shadowRoot.firstChild.remove();
     }
     if (newImpl) {
@@ -90,11 +90,11 @@ this.VideoControlsWidget = class {
     }
   }
 
-  destructor() {
+  teardown() {
     if (!this.impl) {
       return;
     }
-    this.impl.destructor();
+    this.impl.teardown();
     this.shadowRoot.firstChild.remove();
     delete this.impl;
   }
@@ -591,9 +591,12 @@ this.VideoControlsImplWidget = class {
           return;
         }
 
+        // We only want to show the toggle when the closed captions menu
+        // is closed, in order to avoid visual overlap.
         if (
           this.pipToggleEnabled &&
           !this.isShowingPictureInPictureMessage &&
+          this.textTrackListContainer.hidden &&
           VideoControlsWidget.shouldShowPictureInPictureToggle(
             this.prefs,
             this.video,
@@ -2171,11 +2174,13 @@ this.VideoControlsImplWidget = class {
       hideClosedCaptionMenu() {
         this.textTrackListContainer.hidden = true;
         this.closedCaptionButton.setAttribute("aria-expanded", "false");
+        this.updatePictureInPictureToggleDisplay();
       },
 
       showClosedCaptionMenu() {
         this.textTrackListContainer.hidden = false;
         this.closedCaptionButton.setAttribute("aria-expanded", "true");
+        this.updatePictureInPictureToggleDisplay();
       },
 
       toggleClosedCaption() {
@@ -2949,7 +2954,7 @@ this.VideoControlsImplWidget = class {
     return this.isShowingPictureInPictureMessage == elementInPiP;
   }
 
-  destructor() {
+  teardown() {
     this.Utils.terminate();
     this.TouchUtils.terminate();
     this.Utils.updateOrientationState(false);
@@ -3116,7 +3121,7 @@ this.NoControlsMobileImplWidget = class {
     return true;
   }
 
-  destructor() {
+  teardown() {
     this.Utils.terminate();
   }
 
@@ -3170,7 +3175,7 @@ this.NoControlsPictureInPictureImplWidget = class {
     return true;
   }
 
-  destructor() {}
+  teardown() {}
 
   onPrefChange(prefName, prefValue) {
     this.prefs[prefName] = prefValue;
@@ -3350,7 +3355,7 @@ this.NoControlsDesktopImplWidget = class {
     return true;
   }
 
-  destructor() {
+  teardown() {
     this.Utils.terminate();
   }
 

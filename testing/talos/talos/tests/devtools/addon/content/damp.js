@@ -13,16 +13,12 @@ const { AddonManager } = require("resource://gre/modules/AddonManager.jsm");
 const DampLoadParentModule = require("damp-test/actors/DampLoadParent.jsm");
 const DAMP_TESTS = require("damp-test/damp-tests.js");
 
-const env = Cc["@mozilla.org/process/environment;1"].getService(
-  Ci.nsIEnvironment
-);
-
 // Record allocation count in new subtests if DEBUG_DEVTOOLS_ALLOCATIONS is set to
 // "normal". Print allocation sites to stdout if DEBUG_DEVTOOLS_ALLOCATIONS is set to
 // "verbose".
-const DEBUG_ALLOCATIONS = env.get("DEBUG_DEVTOOLS_ALLOCATIONS");
+const DEBUG_ALLOCATIONS = Services.env.get("DEBUG_DEVTOOLS_ALLOCATIONS");
 
-const DEBUG_SCREENSHOTS = env.get("DEBUG_DEVTOOLS_SCREENSHOTS");
+const DEBUG_SCREENSHOTS = Services.env.get("DEBUG_DEVTOOLS_SCREENSHOTS");
 
 // Maximum time spent in one test, in milliseconds
 const TEST_TIMEOUT = 5 * 60000;
@@ -536,10 +532,12 @@ Damp.prototype = {
     ChromeUtils.registerWindowActor("DampLoad", {
       kind: "JSWindowActor",
       parent: {
-        moduleURI: "resource://damp-test/content/actors/DampLoadParent.jsm",
+        esModuleURI:
+          "resource://damp-test/content/actors/DampLoadParent.sys.mjs",
       },
       child: {
-        moduleURI: "resource://damp-test/content/actors/DampLoadChild.jsm",
+        esModuleURI:
+          "resource://damp-test/content/actors/DampLoadChild.sys.mjs",
         events: {
           pageshow: { mozSystemGroup: true },
         },

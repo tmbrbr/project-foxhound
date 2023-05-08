@@ -31,8 +31,8 @@ const {
     g,
 } = ChromeUtils.import("resource://reftest/globals.jsm");
 const { NetUtil } = ChromeUtils.import("resource://gre/modules/NetUtil.jsm");
-const { AppConstants } = ChromeUtils.import(
-    "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+    "resource://gre/modules/AppConstants.sys.mjs"
 );
 
 const NS_SCRIPTSECURITYMANAGER_CONTRACTID = "@mozilla.org/scriptsecuritymanager;1";
@@ -472,8 +472,6 @@ function BuildConditionSandbox(aURL) {
     sandbox.isCoverageBuild = g.isCoverageBuild;
     var prefs = Cc["@mozilla.org/preferences-service;1"].
                 getService(Ci.nsIPrefBranch);
-    var env = Cc["@mozilla.org/process/environment;1"].
-                getService(Ci.nsIEnvironment);
 
     sandbox.xulRuntime = Cu.cloneInto({widgetToolkit: xr.widgetToolkit, OS: xr.OS, XPCOMABI: xr.XPCOMABI}, sandbox);
 

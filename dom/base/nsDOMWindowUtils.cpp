@@ -80,10 +80,9 @@
 #  include <gdk/gdk.h>
 #  if defined(MOZ_X11)
 #    include <gdk/gdkx.h>
+#    include "X11UndefineNone.h"
 #  endif
 #endif
-
-#include "Layers.h"
 
 #include "mozilla/dom/AudioDeviceInfo.h"
 #include "mozilla/dom/Element.h"
@@ -101,7 +100,7 @@
 #include "nsPrintfCString.h"
 #include "nsViewportInfo.h"
 #include "nsIFormControl.h"
-//#include "nsWidgetsCID.h"
+// #include "nsWidgetsCID.h"
 #include "nsDisplayList.h"
 #include "nsROCSSPrimitiveValue.h"
 #include "nsIBaseWindow.h"
@@ -840,10 +839,13 @@ nsDOMWindowUtils::SendTouchEvent(
     const nsTArray<int32_t>& aXs, const nsTArray<int32_t>& aYs,
     const nsTArray<uint32_t>& aRxs, const nsTArray<uint32_t>& aRys,
     const nsTArray<float>& aRotationAngles, const nsTArray<float>& aForces,
-    int32_t aModifiers, bool aIgnoreRootScrollFrame, bool* aPreventDefault) {
+    const nsTArray<int32_t>& aTiltXs, const nsTArray<int32_t>& aTiltYs,
+    const nsTArray<int32_t>& aTwists, int32_t aModifiers,
+    bool aIgnoreRootScrollFrame, bool* aPreventDefault) {
   return SendTouchEventCommon(aType, aIdentifiers, aXs, aYs, aRxs, aRys,
-                              aRotationAngles, aForces, aModifiers,
-                              aIgnoreRootScrollFrame, false, aPreventDefault);
+                              aRotationAngles, aForces, aTiltXs, aTiltYs,
+                              aTwists, aModifiers, aIgnoreRootScrollFrame,
+                              false, aPreventDefault);
 }
 
 NS_IMETHODIMP
@@ -852,10 +854,13 @@ nsDOMWindowUtils::SendTouchEventToWindow(
     const nsTArray<int32_t>& aXs, const nsTArray<int32_t>& aYs,
     const nsTArray<uint32_t>& aRxs, const nsTArray<uint32_t>& aRys,
     const nsTArray<float>& aRotationAngles, const nsTArray<float>& aForces,
-    int32_t aModifiers, bool aIgnoreRootScrollFrame, bool* aPreventDefault) {
+    const nsTArray<int32_t>& aTiltXs, const nsTArray<int32_t>& aTiltYs,
+    const nsTArray<int32_t>& aTwists, int32_t aModifiers,
+    bool aIgnoreRootScrollFrame, bool* aPreventDefault) {
   return SendTouchEventCommon(aType, aIdentifiers, aXs, aYs, aRxs, aRys,
-                              aRotationAngles, aForces, aModifiers,
-                              aIgnoreRootScrollFrame, true, aPreventDefault);
+                              aRotationAngles, aForces, aTiltXs, aTiltYs,
+                              aTwists, aModifiers, aIgnoreRootScrollFrame, true,
+                              aPreventDefault);
 }
 
 nsresult nsDOMWindowUtils::SendTouchEventCommon(
@@ -863,8 +868,9 @@ nsresult nsDOMWindowUtils::SendTouchEventCommon(
     const nsTArray<int32_t>& aXs, const nsTArray<int32_t>& aYs,
     const nsTArray<uint32_t>& aRxs, const nsTArray<uint32_t>& aRys,
     const nsTArray<float>& aRotationAngles, const nsTArray<float>& aForces,
-    int32_t aModifiers, bool aIgnoreRootScrollFrame, bool aToWindow,
-    bool* aPreventDefault) {
+    const nsTArray<int32_t>& aTiltXs, const nsTArray<int32_t>& aTiltYs,
+    const nsTArray<int32_t>& aTwists, int32_t aModifiers,
+    bool aIgnoreRootScrollFrame, bool aToWindow, bool* aPreventDefault) {
   // get the widget to send the event to
   nsPoint offset;
   nsCOMPtr<nsIWidget> widget = GetWidget(&offset);
@@ -905,8 +911,8 @@ nsresult nsDOMWindowUtils::SendTouchEventCommon(
         CSSPoint::ToAppUnits(CSSPoint(aRxs[i], aRys[i])),
         presContext->AppUnitsPerDevPixel());
 
-    RefPtr<Touch> t =
-        new Touch(aIdentifiers[i], pt, radius, aRotationAngles[i], aForces[i]);
+    RefPtr<Touch> t = new Touch(aIdentifiers[i], pt, radius, aRotationAngles[i],
+                                aForces[i], aTiltXs[i], aTiltYs[i], aTwists[i]);
 
     event.mTouches.AppendElement(t);
   }
@@ -3075,8 +3081,8 @@ nsDOMWindowUtils::ZoomToFocusedInput() {
   // main-thread side knows to scroll the content into view before we get
   // the bounding content rect and ask APZ to adjust the visual viewport.
   presShell->ScrollContentIntoView(
-      element, ScrollAxis(kScrollMinimum, WhenToScroll::IfNotVisible),
-      ScrollAxis(kScrollMinimum, WhenToScroll::IfNotVisible),
+      element, ScrollAxis(WhereToScroll::Nearest, WhenToScroll::IfNotVisible),
+      ScrollAxis(WhereToScroll::Nearest, WhenToScroll::IfNotVisible),
       ScrollFlags::ScrollOverflowHidden);
 
   if (shouldSkip) {
@@ -4457,8 +4463,8 @@ nsDOMWindowUtils::EnsureDirtyRootFrame() {
     return NS_ERROR_FAILURE;
   }
 
-  presShell->FrameNeedsReflow(frame, IntrinsicDirty::StyleChange,
-                              NS_FRAME_IS_DIRTY);
+  presShell->FrameNeedsReflow(
+      frame, IntrinsicDirty::FrameAncestorsAndDescendants, NS_FRAME_IS_DIRTY);
   return NS_OK;
 }
 

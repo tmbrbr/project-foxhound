@@ -144,9 +144,21 @@ void HTMLTableCellAccessible::DOMAttributeChanged(int32_t aNameSpaceID,
       aAttribute == nsGkAtoms::scope) {
     mDoc->FireDelayedEvent(nsIAccessibleEvent::EVENT_OBJECT_ATTRIBUTE_CHANGED,
                            this);
+    if (TableAccessible* table = Table()) {
+      // Modifying these attributes can also modify our table's classification
+      // as either a layout or data table. Queue an update on the table itself
+      // to re-compute our "layout guess"
+      mDoc->QueueCacheUpdate(table->AsAccessible(), CacheDomain::Table);
+    }
     mDoc->QueueCacheUpdate(this, CacheDomain::Table);
   } else if (aAttribute == nsGkAtoms::rowspan ||
              aAttribute == nsGkAtoms::colspan) {
+    if (TableAccessible* table = Table()) {
+      // Modifying these attributes can also modify our table's classification
+      // as either a layout or data table. Queue an update on the table itself
+      // to re-compute our "layout guess"
+      mDoc->QueueCacheUpdate(table->AsAccessible(), CacheDomain::Table);
+    }
     mDoc->QueueCacheUpdate(this, CacheDomain::Table);
   }
 }
@@ -292,47 +304,7 @@ HTMLTableHeaderCellAccessible::HTMLTableHeaderCellAccessible(
 // HTMLTableHeaderCellAccessible: LocalAccessible implementation
 
 role HTMLTableHeaderCellAccessible::NativeRole() const {
-  // Check value of @scope attribute.
-  static Element::AttrValuesArray scopeValues[] = {
-      nsGkAtoms::col, nsGkAtoms::colgroup, nsGkAtoms::row, nsGkAtoms::rowgroup,
-      nullptr};
-  int32_t valueIdx = mContent->AsElement()->FindAttrValueIn(
-      kNameSpaceID_None, nsGkAtoms::scope, scopeValues, eCaseMatters);
-
-  switch (valueIdx) {
-    case 0:
-    case 1:
-      return roles::COLUMNHEADER;
-    case 2:
-    case 3:
-      return roles::ROWHEADER;
-  }
-
-  TableAccessible* table = Table();
-  if (!table) {
-    return roles::NOTHING;
-  }
-
-  // If the cell next to this one is not a header cell then assume this cell is
-  // a row header for it.
-  uint32_t rowIdx = RowIdx(), colIdx = ColIdx();
-  LocalAccessible* cell = table->CellAt(rowIdx, colIdx + ColExtent());
-  if (cell && !nsCoreUtils::IsHTMLTableHeader(cell->GetContent())) {
-    return roles::ROWHEADER;
-  }
-
-  // If the cell below this one is not a header cell then assume this cell is
-  // a column header for it.
-  uint32_t rowExtent = RowExtent();
-  cell = table->CellAt(rowIdx + rowExtent, colIdx);
-  if (cell && !nsCoreUtils::IsHTMLTableHeader(cell->GetContent())) {
-    return roles::COLUMNHEADER;
-  }
-
-  // Otherwise if this cell is surrounded by header cells only then make a guess
-  // based on its cell spanning. In other words if it is row spanned then assume
-  // it's a row header, otherwise it's a column header.
-  return rowExtent > 1 ? roles::ROWHEADER : roles::COLUMNHEADER;
+  return GetHeaderCellRole(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -431,6 +403,7 @@ void HTMLTableAccessible::DOMAttributeChanged(int32_t aNameSpaceID,
 
     mDoc->FireDelayedEvent(nsIAccessibleEvent::EVENT_OBJECT_ATTRIBUTE_CHANGED,
                            this);
+    mDoc->QueueCacheUpdate(this, CacheDomain::Table);
   }
 }
 
@@ -900,8 +873,7 @@ void HTMLTableAccessible::Description(nsString& aDescription) const {
 
 nsTableWrapperFrame* HTMLTableAccessible::GetTableWrapperFrame() const {
   nsTableWrapperFrame* tableFrame = do_QueryFrame(mContent->GetPrimaryFrame());
-  if (tableFrame &&
-      tableFrame->GetChildList(nsIFrame::kPrincipalList).FirstChild()) {
+  if (tableFrame && tableFrame->PrincipalChildList().FirstChild()) {
     return tableFrame;
   }
 

@@ -4,12 +4,11 @@
 
 // Note: This test may cause intermittents if run at exactly midnight.
 
-const { OS } = ChromeUtils.import("resource://gre/modules/osfile.jsm");
 const { Sqlite } = ChromeUtils.importESModule(
   "resource://gre/modules/Sqlite.sys.mjs"
 );
-const { AboutProtectionsParent } = ChromeUtils.import(
-  "resource:///actors/AboutProtectionsParent.jsm"
+const { AboutProtectionsParent } = ChromeUtils.importESModule(
+  "resource:///actors/AboutProtectionsParent.sys.mjs"
 );
 
 XPCOMUtils.defineLazyServiceGetter(
@@ -20,7 +19,7 @@ XPCOMUtils.defineLazyServiceGetter(
 );
 
 XPCOMUtils.defineLazyGetter(this, "DB_PATH", function() {
-  return OS.Path.join(OS.Constants.Path.profileDir, "protections.sqlite");
+  return PathUtils.join(PathUtils.profileDir, "protections.sqlite");
 });
 
 const SQL = {

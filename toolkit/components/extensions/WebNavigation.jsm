@@ -6,8 +6,8 @@
 
 const EXPORTED_SYMBOLS = ["WebNavigation", "WebNavigationManager"];
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 
 const lazy = {};
@@ -107,9 +107,9 @@ var WebNavigationManager = {
    * Observe webNavigation-createdNavigationTarget (to fire the onCreatedNavigationTarget
    * related to windows or tabs opened from the main process) topics.
    *
-   * @param {nsIAutoCompleteInput|Object} subject
+   * @param {nsIAutoCompleteInput | object} subject
    * @param {string} topic
-   * @param {string|undefined} data
+   * @param {string | undefined} data
    */
   observe: function(subject, topic, data) {
     if (topic == "urlbar-user-start-navigation") {

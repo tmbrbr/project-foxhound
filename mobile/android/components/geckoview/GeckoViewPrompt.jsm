@@ -5,8 +5,8 @@
 
 var EXPORTED_SYMBOLS = ["PromptFactory"];
 
-const { GeckoViewUtils } = ChromeUtils.import(
-  "resource://gre/modules/GeckoViewUtils.jsm"
+const { GeckoViewUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/GeckoViewUtils.sys.mjs"
 );
 
 const { XPCOMUtils } = ChromeUtils.importESModule(
@@ -19,11 +19,9 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
   GeckoViewPrompter: "resource://gre/modules/GeckoViewPrompter.jsm",
 });
 
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "DeferredTask",
-  "resource://gre/modules/DeferredTask.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  DeferredTask: "resource://gre/modules/DeferredTask.sys.mjs",
+});
 
 const { debug, warn } = GeckoViewUtils.initLogging("GeckoViewPrompt");
 
@@ -201,9 +199,7 @@ class PromptFactory {
             dispatchEvents = !elem.selected;
             elem.selected = true;
           } else {
-            Cu.reportError(
-              "Invalid id for select result: " + result.choices[0]
-            );
+            console.error("Invalid id for select result: " + result.choices[0]);
           }
         } else {
           for (let i = 0; i < id; i++) {
@@ -221,7 +217,7 @@ class PromptFactory {
           }
           for (let i = 0; i < result.choices.length; i++) {
             if (result.choices[i] !== undefined && result.choices[i] !== null) {
-              Cu.reportError(
+              console.error(
                 "Invalid id for select result: " + result.choices[i]
               );
               break;
@@ -341,7 +337,7 @@ class PromptFactory {
         ].getService(Ci.nsIPromptFactory);
         return pwmgr.getPrompt(aDOMWin, aIID);
       } catch (e) {
-        Cu.reportError("Delegation to password manager failed: " + e);
+        console.error("Delegation to password manager failed: " + e);
       }
     }
 

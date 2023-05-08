@@ -6,6 +6,7 @@
 /* exported clickUnifiedExtensionsItem,
             closeExtensionsPanel,
             createExtensions,
+            ensureMaximizedWindow,
             getUnifiedExtensionsItem,
             openExtensionsPanel,
             openUnifiedExtensionsContextMenu,
@@ -13,12 +14,12 @@
             promiseEnableUnifiedExtensions
 */
 
-const promiseEnableUnifiedExtensions = async () => {
+const promiseEnableUnifiedExtensions = async (options = {}) => {
   await SpecialPowers.pushPrefEnv({
     set: [["extensions.unifiedExtensions.enabled", true]],
   });
 
-  return BrowserTestUtils.openNewBrowserWindow();
+  return BrowserTestUtils.openNewBrowserWindow(options);
 };
 
 const promiseDisableUnifiedExtensions = async () => {
@@ -30,7 +31,9 @@ const promiseDisableUnifiedExtensions = async () => {
 };
 
 const getListView = win => {
-  return PanelMultiView.getViewNode(win.document, "unified-extensions-view");
+  const { panel } = win.gUnifiedExtensions;
+  ok(panel, "expected panel to be created");
+  return panel.querySelector("#unified-extensions-view");
 };
 
 const openExtensionsPanel = async win => {
@@ -50,7 +53,7 @@ const closeExtensionsPanel = async win => {
   ok(button, "expected button");
 
   const hidden = BrowserTestUtils.waitForEvent(
-    win.document,
+    win.gUnifiedExtensions.panel,
     "popuphidden",
     true
   );
@@ -59,16 +62,21 @@ const closeExtensionsPanel = async win => {
 };
 
 const getUnifiedExtensionsItem = (win, extensionId) => {
-  return getListView(win).querySelector(
-    `unified-extensions-item[extension-id="${extensionId}"]`
+  const view = getListView(win);
+
+  // First try to find a CUI widget, otherwise a custom element when the
+  // extension does not have a browser action.
+  return (
+    view.querySelector(`toolbaritem[data-extensionid="${extensionId}"]`) ||
+    view.querySelector(`unified-extensions-item[extension-id="${extensionId}"]`)
   );
 };
 
 const openUnifiedExtensionsContextMenu = async (win, extensionId) => {
-  const button = getUnifiedExtensionsItem(win, extensionId).querySelector(
-    ".unified-extensions-item-open-menu"
-  );
-  ok(button, "expected 'open menu' button");
+  const item = getUnifiedExtensionsItem(win, extensionId);
+  ok(item, `expected item for extensionId=${extensionId}`);
+  const button = item.querySelector(".unified-extensions-item-menu-button");
+  ok(button, "expected menu button");
   // Make sure the button is visible before clicking on it (below) since the
   // list of extensions can have a scrollbar (when there are many extensions
   // and/or the window is small-ish).
@@ -99,7 +107,9 @@ const clickUnifiedExtensionsItem = async (
   // The action button should be disabled when users aren't supposed to click
   // on it but it might still be useful to re-enable it for testing purposes.
   if (forceEnableButton) {
-    let actionButton = item.querySelector(".unified-extensions-item-action");
+    let actionButton = item.querySelector(
+      ".unified-extensions-item-action-button"
+    );
     actionButton.disabled = false;
     ok(!actionButton.disabled, "action button was force-enabled");
   }
@@ -117,21 +127,39 @@ const clickUnifiedExtensionsItem = async (
   await popupHidden;
 };
 
-let extensionsCreated = 0;
 const createExtensions = (
   arrayOfManifestData,
-  { useAddonManager = true } = {}
+  { useAddonManager = true, incognitoOverride } = {}
 ) => {
   return arrayOfManifestData.map(manifestData =>
     ExtensionTestUtils.loadExtension({
       manifest: {
         name: "default-extension-name",
-        applications: {
-          gecko: { id: `@ext-${extensionsCreated++}` },
-        },
         ...manifestData,
       },
       useAddonManager: useAddonManager ? "temporary" : undefined,
+      incognitoOverride,
     })
   );
+};
+
+/**
+ * Given a window, this test helper resizes it so that the window takes most of
+ * the available screen size (unless the window is already maximized).
+ */
+const ensureMaximizedWindow = async win => {
+  let resizeDone = Promise.resolve();
+
+  win.moveTo(0, 0);
+
+  const widthDiff = win.screen.availWidth - win.outerWidth;
+  const heightDiff = win.screen.availHeight - win.outerHeight;
+
+  if (widthDiff || heightDiff) {
+    resizeDone = BrowserTestUtils.waitForEvent(win, "resize", false);
+    win.windowUtils.ensureDirtyRootFrame();
+    win.resizeBy(widthDiff, heightDiff);
+  }
+
+  return resizeDone;
 };

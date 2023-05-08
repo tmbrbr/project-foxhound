@@ -49,7 +49,7 @@ Ensure you've checked the following items for installation:
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Install `MozillaBuild
-<https://ftp.mozilla.org/pub/mozilla.org/mozilla/libraries/win32/MozillaBuildSetup-Latest.exe>`_.
+<https://ftp.mozilla.org/pub/mozilla/libraries/win32/MozillaBuildSetup-Latest.exe>`_.
 
 Accept the default installation directory.
 Windows may prompt you to "reinstall with the correct settings", which you
@@ -133,15 +133,6 @@ Microsoft Defender Antivirus manually
 
     If you're already missing files (you'll see them listed in ``hg status``, you can have them
     brought back by reverting your source tree: ``hg update -C``).
-
-Cleanup
-~~~~~~~
-
-After finishing the bootstrap process, ``bootstrap.py`` can be removed.
-
-.. code-block:: shell
-
-    rm c:/mozilla-source/bootstrap.py
 
 3. Build
 --------

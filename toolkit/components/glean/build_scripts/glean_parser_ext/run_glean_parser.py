@@ -4,19 +4,19 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import cpp
-import jog
-import js
 import os
-import rust
 import sys
+from pathlib import Path
 
+import cpp
 import jinja2
-
-from util import generate_metric_ids
+import jog
+import rust
 from glean_parser import lint, parser, translate, util
 from mozbuild.util import FileAvoidWrite
-from pathlib import Path
+from util import generate_metric_ids
+
+import js
 
 
 class ParserError(Exception):
@@ -98,7 +98,7 @@ def parse_with_options(input_files, options):
 
 
 # Must be kept in sync with the length of `deps` in moz.build.
-DEPS_LEN = 16
+DEPS_LEN = 17
 
 
 def main(cpp_fd, *args):
@@ -202,10 +202,10 @@ def jog_factory(output_fd, *args):
     jog.output_factory(all_objs, output_fd, options)
 
 
-def jog_yaml(output_fd, *args):
+def jog_file(output_fd, *args):
     args = args[DEPS_LEN:]
     all_objs, options = parse(args)
-    jog.output_yaml(all_objs, output_fd, options)
+    jog.output_file(all_objs, output_fd, options)
 
 
 if __name__ == "__main__":

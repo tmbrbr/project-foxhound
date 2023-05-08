@@ -8,12 +8,12 @@ import os
 import pathlib
 import re
 
+from gecko_taskgraph.util.attributes import match_run_on_projects
 from manifestparser import TestManifest
 from mozperftest.script import ScriptInfo
-from perfdocs.utils import read_yaml
-from perfdocs.logger import PerfDocLogger
 from perfdocs.doc_helpers import TableBuilder
-from gecko_taskgraph.util.attributes import match_run_on_projects
+from perfdocs.logger import PerfDocLogger
+from perfdocs.utils import read_yaml
 
 logger = PerfDocLogger()
 
@@ -451,6 +451,11 @@ class TalosGatherer(FrameworkGatherer):
                         if isinstance(v, str) and "\\" in v:
                             value[k] = str(v).replace("\\", r"/")
                 result += r"   * " + key + r": " + str(value) + r"\n"
+
+        # Command
+        result += "   * Command\n"
+        result += "   .. code-block:: None\n\n"
+        result += f"      ./mach talos-test -a {title}\n"
 
         if self._task_list.get(title, []):
             result += "   * **Test Task**:\n\n"

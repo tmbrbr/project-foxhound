@@ -19,6 +19,7 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 const lazy = {};
 
 XPCOMUtils.defineLazyModuleGetters(lazy, {
+  ExtensionDNR: "resource://gre/modules/ExtensionDNR.jsm",
   ExtensionParent: "resource://gre/modules/ExtensionParent.jsm",
   ExtensionUtils: "resource://gre/modules/ExtensionUtils.jsm",
   WebRequestUpload: "resource://gre/modules/WebRequestUpload.jsm",
@@ -39,6 +40,16 @@ XPCOMUtils.defineLazyGetter(lazy, "getCookieStoreIdForOriginAttributes", () => {
 // scheme is not allowed by the specs and it is not expected by the service workers
 // internals neither, which would likely trigger unexpected behaviors).
 const ALLOWED_SERVICEWORKER_SCHEMES = ["https", "http", "moz-extension"];
+
+// Response HTTP Headers matching the following patterns are restricted for changes
+// applied by MV3 extensions.
+const MV3_RESTRICTED_HEADERS_PATTERNS = [
+  /^cross-origin-embedder-policy$/,
+  /^cross-origin-opener-policy$/,
+  /^cross-origin-resource-policy$/,
+  /^x-frame-options$/,
+  /^access-control-/,
+];
 
 // Classes of requests that should be sent immediately instead of batched.
 // Covers basically anything that can delay first paint or DOMContentLoaded:
@@ -269,12 +280,31 @@ class ResponseHeaderChanger extends HeaderChanger {
       }
 
       this.didModifyCSP = true;
+    } else if (
+      opts.policy.manifestVersion > 2 &&
+      this.isResponseHeaderRestricted(lowerCaseName)
+    ) {
+      // TODO (Bug 1787155 and Bug 1273281) open this up to MV3 extensions,
+      // locked behind manifest.json declarative permission and a separate
+      // explicit user-controlled permission (and ideally also check for
+      // changes that would lead to security downgrades).
+      Cu.reportError(
+        `Disallowed change restricted response header ${name} on ${this.channel.finalURL} from ${opts.policy.debugName}`
+      );
+      return;
     }
+
     try {
       this.channel.setResponseHeader(name, value, merge);
     } catch (e) {
       Cu.reportError(new Error(`Error setting response header ${name}: ${e}`));
     }
+  }
+
+  isResponseHeaderRestricted(lowerCaseHeaderName) {
+    return MV3_RESTRICTED_HEADERS_PATTERNS.some(regex =>
+      regex.test(lowerCaseHeaderName)
+    );
   }
 
   readHeaders() {
@@ -590,6 +620,9 @@ HttpObserverManager = {
     onErrorOccurred: new Map(),
     onCompleted: new Map(),
   },
+  // Whether there are any registered declarativeNetRequest rules. These DNR
+  // rules may match new requests and result in request modifications.
+  dnrActive: false,
 
   openingInitialized: false,
   beforeConnectInitialized: false,
@@ -631,10 +664,11 @@ HttpObserverManager = {
   // webRequest listeners and removing those that are no longer needed if
   // there are no more listeners for corresponding webRequest events.
   addOrRemove() {
-    let needOpening = this.listeners.onBeforeRequest.size;
+    let needOpening = this.listeners.onBeforeRequest.size || this.dnrActive;
     let needBeforeConnect =
       this.listeners.onBeforeSendHeaders.size ||
-      this.listeners.onSendHeaders.size;
+      this.listeners.onSendHeaders.size ||
+      this.dnrActive;
     if (needOpening && !this.openingInitialized) {
       this.openingInitialized = true;
       Services.obs.addObserver(this, "http-on-modify-request");
@@ -663,7 +697,8 @@ HttpObserverManager = {
     let needExamine =
       this.needTracing ||
       this.listeners.onHeadersReceived.size ||
-      this.listeners.onAuthRequired.size;
+      this.listeners.onAuthRequired.size ||
+      this.dnrActive;
 
     if (needExamine && !this.examineInitialized) {
       this.examineInitialized = true;
@@ -708,6 +743,11 @@ HttpObserverManager = {
 
   removeListener(kind, callback) {
     this.listeners[kind].delete(callback);
+    this.addOrRemove();
+  },
+
+  setDNRHandlingEnabled(dnrActive) {
+    this.dnrActive = dnrActive;
     this.addOrRemove();
   },
 
@@ -888,6 +928,10 @@ HttpObserverManager = {
       if (kind !== "onErrorOccurred" && channel.errorString) {
         return;
       }
+      if (this.dnrActive) {
+        // DNR may modify (but not cancel) the request at this stage.
+        lazy.ExtensionDNR.beforeWebRequestEvent(channel, kind);
+      }
 
       let registerFilter = this.FILTER_TYPES.has(kind);
       let commonData = null;
@@ -981,6 +1025,10 @@ HttpObserverManager = {
       });
     } catch (e) {
       Cu.reportError(e);
+    }
+
+    if (this.dnrActive && lazy.ExtensionDNR.handleRequest(channel, kind)) {
+      return;
     }
 
     return this.applyChanges(
@@ -1186,7 +1234,7 @@ HttpObserverManager = {
   },
 
   examine(channel, topic, data) {
-    if (this.listeners.onHeadersReceived.size) {
+    if (this.listeners.onHeadersReceived.size || this.dnrActive) {
       this.runChannelListener(channel, "onHeadersReceived");
     }
 
@@ -1258,6 +1306,18 @@ var onCompleted = new HttpEvent("onCompleted", ["responseHeaders"]);
 var onErrorOccurred = new HttpEvent("onErrorOccurred");
 
 var WebRequest = {
+  setDNRHandlingEnabled: dnrActive => {
+    HttpObserverManager.setDNRHandlingEnabled(dnrActive);
+  },
+  getTabIdForChannelWrapper: channel => {
+    // Warning: This method should only be called after the initialization of
+    // ExtensionParent.apiManager.global. Generally, this means that this method
+    // should only be used by implementations of extension API methods (which
+    // themselves are loaded in ExtensionParent.apiManager.global and therefore
+    // imply the initialization of ExtensionParent.apiManager.global).
+    return HttpObserverManager.getBrowserData(channel).tabId;
+  },
+
   onBeforeRequest,
   onBeforeSendHeaders,
   onSendHeaders,

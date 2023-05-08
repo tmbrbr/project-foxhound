@@ -512,10 +512,6 @@ function accessibleTask(doc, task, options = {}) {
         }
 
         await SimpleTest.promiseFocus(browser);
-        await loadContentScripts(browser, {
-          script: "Common.sys.mjs",
-          symbol: "CommonUtils",
-        });
 
         if (options.chrome) {
           ok(!browser.isRemoteBrowser, "Not remote browser");
@@ -550,6 +546,11 @@ function accessibleTask(doc, task, options = {}) {
                   .firstChild;
           }
         }
+
+        await loadContentScripts(browser, {
+          script: "Common.sys.mjs",
+          symbol: "CommonUtils",
+        });
 
         await task(
           browser,
@@ -794,8 +795,8 @@ async function waitForImageMap(browser, accDoc, id = "imgmap") {
   const onReorder = waitForEvent(EVENT_REORDER, id);
   // Wave over image map
   await invokeContentTask(browser, [id], contentId => {
-    const { ContentTaskUtils } = ChromeUtils.import(
-      "resource://testing-common/ContentTaskUtils.jsm"
+    const { ContentTaskUtils } = ChromeUtils.importESModule(
+      "resource://testing-common/ContentTaskUtils.sys.mjs"
     );
     const EventUtils = ContentTaskUtils.getEventUtils(content);
     EventUtils.synthesizeMouse(

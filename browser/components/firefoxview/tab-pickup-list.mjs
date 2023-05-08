@@ -26,7 +26,9 @@ class TabPickupList extends HTMLElement {
   constructor() {
     super();
     this.maxTabsLength = 3;
-    this.boundObserve = (...args) => this.getSyncedTabData(...args);
+    this.boundObserve = (...args) => {
+      this.getSyncedTabData(...args);
+    };
 
     // The recency timestamp update period is stored in a pref to allow tests to easily change it
     XPCOMUtils.defineLazyPreferenceGetter(
@@ -62,9 +64,10 @@ class TabPickupList extends HTMLElement {
     );
 
     this.addEventListener("click", this);
-    this.getSyncedTabData();
-
     Services.obs.addObserver(this.boundObserve, SYNCED_TABS_CHANGED);
+
+    // inform ancestor elements our getSyncedTabData method is available to fetch data
+    this.dispatchEvent(new CustomEvent("list-ready", { bubbles: true }));
   }
 
   handleEvent(event) {
@@ -85,6 +88,102 @@ class TabPickupList extends HTMLElement {
           deviceType,
         }
       );
+    }
+    if (event.type == "keydown") {
+      switch (event.key) {
+        case "ArrowRight": {
+          event.preventDefault();
+          this.moveFocusToSecondElement();
+          break;
+        }
+        case "ArrowLeft": {
+          event.preventDefault();
+          this.moveFocusToFirstElement();
+          break;
+        }
+        case "ArrowDown": {
+          event.preventDefault();
+          this.moveFocusToNextElement();
+          break;
+        }
+        case "ArrowUp": {
+          event.preventDefault();
+          this.moveFocusToPreviousElement();
+          break;
+        }
+        case "Tab": {
+          this.resetFocus(event);
+        }
+      }
+    }
+  }
+
+  /**
+   * Handles removing and setting tabindex on elements
+   * while moving focus to the next element
+   *
+   * @param {HTMLElement} currentElement currently focused element
+   * @param {HTMLElement} nextElement element that should receive focus next
+   * @memberof TabPickupList
+   * @private
+   */
+  #manageTabIndexAndFocus(currentElement, nextElement) {
+    currentElement.setAttribute("tabindex", "-1");
+    nextElement.removeAttribute("tabindex");
+    nextElement.focus();
+  }
+
+  moveFocusToFirstElement() {
+    let selectableElements = Array.from(this.tabsList.querySelectorAll("a"));
+    let firstElement = selectableElements[0];
+    let selectedElement = this.tabsList.querySelector("a:not([tabindex]");
+    this.#manageTabIndexAndFocus(selectedElement, firstElement);
+  }
+
+  moveFocusToSecondElement() {
+    let selectableElements = Array.from(this.tabsList.querySelectorAll("a"));
+    let secondElement = selectableElements[1];
+    if (secondElement) {
+      let selectedElement = this.tabsList.querySelector("a:not([tabindex]");
+      this.#manageTabIndexAndFocus(selectedElement, secondElement);
+    }
+  }
+
+  moveFocusToNextElement() {
+    let selectableElements = Array.from(this.tabsList.querySelectorAll("a"));
+    let selectedElement = this.tabsList.querySelector("a:not([tabindex]");
+    let nextElement =
+      selectableElements.findIndex(elem => elem == selectedElement) + 1;
+    if (nextElement < selectableElements.length) {
+      this.#manageTabIndexAndFocus(
+        selectedElement,
+        selectableElements[nextElement]
+      );
+    }
+  }
+  moveFocusToPreviousElement() {
+    let selectableElements = Array.from(this.tabsList.querySelectorAll("a"));
+    let selectedElement = this.tabsList.querySelector("a:not([tabindex]");
+    let previousElement =
+      selectableElements.findIndex(elem => elem == selectedElement) - 1;
+    if (previousElement >= 0) {
+      this.#manageTabIndexAndFocus(
+        selectedElement,
+        selectableElements[previousElement]
+      );
+    }
+  }
+  resetFocus(e) {
+    let selectableElements = Array.from(this.tabsList.querySelectorAll("a"));
+    let selectedElement = this.tabsList.querySelector("a:not([tabindex]");
+    selectedElement.setAttribute("tabindex", "-1");
+    selectableElements[0].removeAttribute("tabindex");
+    if (e.shiftKey) {
+      e.preventDefault();
+      document
+        .getElementById("tab-pickup-container")
+        .querySelector("summary")
+        .focus();
     }
   }
 
@@ -116,9 +215,6 @@ class TabPickupList extends HTMLElement {
 
   updateTabsList(syncedTabs) {
     // don't do anything while the loading state is active
-    if (this.tabPickupContainer.classList.contains("loading")) {
-      return;
-    }
 
     while (this.tabsList.firstChild) {
       this.tabsList.firstChild.remove();
@@ -181,6 +277,10 @@ class TabPickupList extends HTMLElement {
     a.classList.add("synced-tab-a");
     a.href = targetURI;
     a.target = "_blank";
+    if (index != 0) {
+      a.setAttribute("tabindex", "-1");
+    }
+    a.addEventListener("keydown", this);
     document.l10n.setAttributes(a, "firefoxview-tabs-list-tab-button", {
       targetURI,
     });
@@ -189,7 +289,7 @@ class TabPickupList extends HTMLElement {
     title.textContent = tab.title;
     title.classList.add("synced-tab-li-title");
 
-    const favicon = createFaviconElement(tab.icon);
+    const favicon = createFaviconElement(tab.icon, targetURI);
 
     const lastUsedMs = tab.lastUsed * 1000;
     const time = document.createElement("span");

@@ -26,6 +26,7 @@
 #include "mozilla/Telemetry.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Services.h"
+#include "mozilla/SpinEventLoopUntil.h"
 #include "mozilla/StaticPrefs_network.h"
 #include "mozilla/StoragePrincipalHelper.h"
 #include "nsDirectoryServiceUtils.h"
@@ -34,7 +35,11 @@
 #include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/Preferences.h"
 #include "nsNetUtil.h"
-#include "prproces.h"
+
+#ifdef MOZ_BACKGROUNDTASKS
+#  include "mozilla/BackgroundTasksRunner.h"
+#  include "nsIBackgroundTasks.h"
+#endif
 
 // include files for ftruncate (or equivalent)
 #if defined(XP_UNIX)
@@ -521,29 +526,48 @@ size_t CacheFileHandles::SizeOfExcludingThis(
 
 // Events
 
-class ShutdownEvent : public Runnable {
+class ShutdownEvent : public Runnable, nsITimerCallback {
+  NS_DECL_ISUPPORTS_INHERITED
  public:
-  ShutdownEvent()
-      : Runnable("net::ShutdownEvent"), mMonitor("ShutdownEvent.mMonitor") {}
+  ShutdownEvent() : Runnable("net::ShutdownEvent") {}
 
  protected:
   ~ShutdownEvent() = default;
 
  public:
   NS_IMETHOD Run() override {
-    MonitorAutoLock mon(mMonitor);
-
     CacheFileIOManager::gInstance->ShutdownInternal();
 
     mNotified = true;
-    mon.Notify();
+
+    NS_DispatchToMainThread(
+        NS_NewRunnableFunction("CacheFileIOManager::ShutdownEvent::Run", []() {
+          // This empty runnable is dispatched just in case the MT event loop
+          // becomes empty - we need to process a task to break out of
+          // SpinEventLoopUntil.
+        }));
 
     return NS_OK;
   }
 
-  void PostAndWait() {
-    MonitorAutoLock mon(mMonitor);
+  NS_IMETHOD Notify(nsITimer* timer) override {
+    if (mNotified) {
+      return NS_OK;
+    }
 
+    // If there is any IO blocking on the IO thread, this will
+    // try to cancel it.
+    CacheFileIOManager::gInstance->mIOThread->CancelBlockingIO();
+
+    // After this runs the first time, the browser_cache_max_shutdown_io_lag
+    // time has elapsed. The CacheIO thread may pick up more blocking IO tasks
+    // so we want to block those too if necessary.
+    mTimer->SetDelay(
+        StaticPrefs::browser_cache_shutdown_io_time_between_cancellations_ms());
+    return NS_OK;
+  }
+
+  void PostAndWait() {
     nsresult rv = CacheFileIOManager::gInstance->mIOThread->Dispatch(
         this,
         CacheIOThread::WRITE);  // When writes and closing of handles is done
@@ -556,22 +580,27 @@ class ShutdownEvent : public Runnable {
       return;
     }
 
-    TimeDuration waitTime = TimeDuration::FromSeconds(1);
-    while (!mNotified) {
-      mon.Wait(waitTime);
-      if (!mNotified) {
-        // If there is any IO blocking on the IO thread, this will
-        // try to cancel it.  Returns no later than after two seconds.
-        MonitorAutoUnlock unmon(mMonitor);  // Prevent delays
-        CacheFileIOManager::gInstance->mIOThread->CancelBlockingIO();
-      }
+    rv = NS_NewTimerWithCallback(
+        getter_AddRefs(mTimer), this,
+        StaticPrefs::browser_cache_max_shutdown_io_lag() * 1000,
+        nsITimer::TYPE_REPEATING_SLACK);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+
+    mozilla::SpinEventLoopUntil("CacheFileIOManager::ShutdownEvent"_ns,
+                                [&]() { return bool(mNotified); });
+
+    if (mTimer) {
+      mTimer->Cancel();
+      mTimer = nullptr;
     }
   }
 
  protected:
-  mozilla::Monitor mMonitor MOZ_UNANNOTATED;
-  bool mNotified{false};
+  Atomic<bool> mNotified{false};
+  nsCOMPtr<nsITimer> mTimer;
 };
+
+NS_IMPL_ISUPPORTS_INHERITED(ShutdownEvent, Runnable, nsITimerCallback)
 
 // Class responsible for reporting IO performance stats
 class IOPerfReportEvent {
@@ -1343,9 +1372,37 @@ nsresult CacheFileIOManager::OnProfile() {
   return NS_OK;
 }
 
+static bool inBackgroundTask() {
+  MOZ_ASSERT(NS_IsMainThread(), "backgroundtasks are main thread only");
+#if defined(MOZ_BACKGROUNDTASKS)
+  nsCOMPtr<nsIBackgroundTasks> backgroundTaskService =
+      do_GetService("@mozilla.org/backgroundtasks;1");
+  if (!backgroundTaskService) {
+    return false;
+  }
+  bool isBackgroundTask = false;
+  backgroundTaskService->GetIsBackgroundTaskMode(&isBackgroundTask);
+  return isBackgroundTask;
+#else
+  return false;
+#endif
+}
+
 // static
 nsresult CacheFileIOManager::OnDelayedStartupFinished() {
+  // If we don't clear the cache at shutdown, or we don't use a
+  // background task then there's no need to dispatch a cleanup task
+  // at startup
+  if (!CacheObserver::ClearCacheOnShutdown()) {
+    return NS_OK;
+  }
   if (!StaticPrefs::network_cache_shutdown_purge_in_background_task()) {
+    return NS_OK;
+  }
+
+  // If this is a background task already, there's no need to
+  // dispatch another one.
+  if (inBackgroundTask()) {
     return NS_OK;
   }
 
@@ -1357,11 +1414,9 @@ nsresult CacheFileIOManager::OnDelayedStartupFinished() {
 
   return target->Dispatch(
       NS_NewRunnableFunction("CacheFileIOManager::OnDelayedStartupFinished",
-                             [ioMan = RefPtr{ioMan}] {
-                               // TODO: Check if there are any old cache dirs.
-                               // Report telemetry.
-                               gInstance->DispatchPurgeTask(""_ns, "0"_ns,
-                                                            kPurgeExtension);
+                             [ioMan = std::move(ioMan)] {
+                               ioMan->DispatchPurgeTask(""_ns, "0"_ns,
+                                                        kPurgeExtension);
                              }),
       nsIEventTarget::DISPATCH_NORMAL);
 }
@@ -4052,15 +4107,12 @@ nsresult CacheFileIOManager::SyncRemoveDir(nsIFile* aFile, const char* aDir) {
 nsresult CacheFileIOManager::DispatchPurgeTask(
     const nsCString& aCacheDirName, const nsCString& aSecondsToWait,
     const nsCString& aPurgeExtension) {
-  nsresult rv;
-
 #if !defined(MOZ_BACKGROUNDTASKS)
   // If background tasks are disabled, then we should just bail out early.
   return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-
+#else
   nsCOMPtr<nsIFile> cacheDir;
-  rv = mCacheDirectory->Clone(getter_AddRefs(cacheDir));
+  nsresult rv = mCacheDirectory->Clone(getter_AddRefs(cacheDir));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIFile> profileDir;
@@ -4071,38 +4123,31 @@ nsresult CacheFileIOManager::DispatchPurgeTask(
   rv = XRE_GetBinaryPath(getter_AddRefs(lf));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString exePath;
-#if !defined(XP_WIN)
-  rv = lf->GetNativePath(exePath);
-#else
-  rv = lf->GetNativeTarget(exePath);
-#endif
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsAutoCString path;
-#if !defined(XP_WIN)
+#  if !defined(XP_WIN)
   rv = profileDir->GetNativePath(path);
-#else
+#  else
   rv = profileDir->GetNativeTarget(path);
-#endif
+#  endif
   NS_ENSURE_SUCCESS(rv, rv);
 
-  const char* const argv[] = {exePath.get(),         "--backgroundtask",
-                              "purgeHTTPCache",      path.get(),
-                              aCacheDirName.get(),   aSecondsToWait.get(),
-                              aPurgeExtension.get(), nullptr};
-  if (NS_WARN_IF(PR_FAILURE == PR_CreateProcessDetached(exePath.get(),
-                                                        (char* const*)argv,
-                                                        nullptr, nullptr))) {
-    return NS_ERROR_FAILURE;
-  }
+  nsCOMPtr<nsIBackgroundTasksRunner> runner =
+      do_GetService("@mozilla.org/backgroundtasksrunner;1");
 
-  return NS_OK;
+  return runner->RemoveDirectoryInDetachedProcess(
+      path, aCacheDirName, aSecondsToWait, aPurgeExtension);
+#endif
 }
 
 void CacheFileIOManager::SyncRemoveAllCacheFiles() {
   LOG(("CacheFileIOManager::SyncRemoveAllCacheFiles()"));
   nsresult rv;
+
+  // If we are already running in a background task, we
+  // don't want to spawn yet another one at shutdown.
+  if (inBackgroundTask()) {
+    return;
+  }
 
   if (StaticPrefs::network_cache_shutdown_purge_in_background_task()) {
     rv = [&]() -> nsresult {

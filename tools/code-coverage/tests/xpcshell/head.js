@@ -2,16 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+var { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 
 function getFiles() {
-  const env = Cc["@mozilla.org/process/environment;1"].getService(
-    Ci.nsIEnvironment
-  );
   // This is the directory where gcov is emitting the gcda files.
-  const jsCoveragePath = env.get("JS_CODE_COVERAGE_OUTPUT_DIR");
+  const jsCoveragePath = Services.env.get("JS_CODE_COVERAGE_OUTPUT_DIR");
 
   const jsCoverageDir = Cc["@mozilla.org/file/local;1"].createInstance(
     Ci.nsIFile

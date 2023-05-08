@@ -29,6 +29,13 @@ XPCOMUtils.defineLazyPreferenceGetter(
   false
 );
 
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "gUnifiedExtensionsEnabled",
+  "extensions.unifiedExtensions.enabled",
+  false
+);
+
 function parseColor(color, kind) {
   if (typeof color == "string") {
     let rgba = InspectorUtils.colorToRGBA(color);
@@ -91,7 +98,7 @@ class PanelActionBase {
    *        "popup", "badgeBackgroundColor", "badgeTextColor" or "enabled".
    * @param {string} value
    *        Value for prop.
-   * @returns {Object}
+   * @returns {object}
    *        The object to which the property has been set.
    */
   setProperty(target, prop, value) {
@@ -111,7 +118,7 @@ class PanelActionBase {
    *
    * @param {XULElement|ChromeWindow|null} target
    *        A XULElement tab, a ChromeWindow, or null for the global data.
-   * @returns {Object}
+   * @returns {object}
    *        The icon, title, badge, etc. associated with the target.
    */
   getContextData(target) {
@@ -185,14 +192,25 @@ class PanelActionBase {
    *
    * @param {XULElement} tab
    *        The tab the popup refers to.
+   * @param {boolean} strict
+   *        If errors should be thrown if a URL is not available.
    * @returns {string}
    *        The popup URL if a popup is present, undefined otherwise.
    */
-  getPopupUrl(tab) {
+  getPopupUrl(tab, strict = false) {
     if (!this.isShownForTab(tab)) {
+      if (strict) {
+        throw new ExtensionError("Popup is disabled");
+      }
+
       return undefined;
     }
     let popupUrl = this.getProperty(tab, "popup");
+
+    if (strict && !popupUrl) {
+      throw new ExtensionError("No popup URL is set");
+    }
+
     return popupUrl;
   }
 
@@ -340,8 +358,10 @@ class PanelActionBase {
    * Gets the target object corresponding to the `details` parameter of the various
    * get* and set* API methods.
    *
-   * @param {Object} details
+   * @param {object} details
    *        An object with optional `tabId` or `windowId` properties.
+   * @param {number} [details.tabId]
+   * @param {number} [details.windowId]
    * @throws if both `tabId` and `windowId` are specified, or if they are invalid.
    * @returns {XULElement|ChromeWindow|null}
    *        If a `tabId` was specified, the corresponding XULElement tab.
@@ -499,13 +519,16 @@ class BrowserActionBase extends PanelActionBase {
       extension.manifest.browser_action || extension.manifest.action;
     super(options, tabContext, extension);
 
+    let fallbackArea = lazy.gUnifiedExtensionsEnabled ? "menupanel" : "navbar";
+    let default_area = options.default_area || fallbackArea;
+
     this.defaults = {
       ...this.defaults,
       badgeText: "",
       badgeBackgroundColor: [0xd9, 0, 0, 255],
       badgeDefaultColor: [255, 255, 255, 255],
       badgeTextColor: null,
-      default_area: options.default_area || "navbar",
+      default_area,
     };
     this.globals = Object.create(this.defaults);
   }
@@ -557,7 +580,7 @@ class BrowserActionBase extends PanelActionBase {
   /**
    * Determines the text badge color to be used in a tab, window, or globally.
    *
-   * @param {Object} values
+   * @param {object} values
    *        The values associated with the tab or window, or global values.
    * @returns {ColorArray}
    */

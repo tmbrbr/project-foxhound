@@ -28,6 +28,12 @@ class TestFileSystemFileHandle : public ::testing::Test {
     mManager = MakeAndAddRef<FileSystemManager>(mGlobal, nullptr);
   }
 
+  void TearDown() override {
+    if (!mManager->IsShutdown()) {
+      mManager->Shutdown();
+    }
+  }
+
   nsIGlobalObject* mGlobal = GetGlobal();
   UniquePtr<MockFileSystemRequestHandler> mRequestHandler;
   FileSystemEntryMetadata mMetadata;
@@ -85,7 +91,12 @@ TEST_F(TestFileSystemFileHandle, isWritableReturned) {
   IgnoredErrorResult rv;
   RefPtr<Promise> promise = fileHandle->CreateWritable(options, rv);
 
+  // XXX This should be reverted back to check NS_OK once bug 1798513 is fixed.
+#if 0
   ASSERT_TRUE(rv.ErrorCodeIs(NS_OK));
+#else
+  ASSERT_TRUE(rv.ErrorCodeIs(NS_ERROR_NOT_IMPLEMENTED));
+#endif
 }
 
 TEST_F(TestFileSystemFileHandle, doesCreateWritableFailOnNullGlobal) {

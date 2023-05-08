@@ -191,14 +191,8 @@ if (AppConstants.MOZ_UPDATER) {
   }
 }
 
-XPCOMUtils.defineLazyGetter(this, "gHasWinPackageId", () => {
-  let hasWinPackageId = false;
-  try {
-    hasWinPackageId = Services.sysinfo.getProperty("hasWinPackageId");
-  } catch (_ex) {
-    // The hasWinPackageId property doesn't exist; assume it would be false.
-  }
-  return hasWinPackageId;
+XPCOMUtils.defineLazyGetter(this, "gIsPackagedApp", () => {
+  return Services.sysinfo.getProperty("isPackagedApp");
 });
 
 // A promise that resolves when the list of application handlers is loaded.
@@ -426,6 +420,9 @@ var gMainPane = {
       setEventListener("checkForUpdatesButton3", "command", function() {
         gAppUpdater.checkForUpdates();
       });
+      setEventListener("checkForUpdatesButton4", "command", function() {
+        gAppUpdater.checkForUpdates();
+      });
     }
 
     // Startup pref
@@ -636,7 +633,7 @@ var gMainPane = {
       let updateDisabled =
         Services.policies && !Services.policies.isAllowed("appUpdate");
 
-      if (gHasWinPackageId) {
+      if (gIsPackagedApp) {
         // When we're running inside an app package, there's no point in
         // displaying any update content here, and it would get confusing if we
         // did, because our updater is not enabled.
@@ -1342,7 +1339,7 @@ var gMainPane = {
       try {
         shellSvc.setDefaultBrowser(true, false);
       } catch (ex) {
-        Cu.reportError(ex);
+        console.error(ex);
         return;
       }
 
@@ -1873,7 +1870,7 @@ var gMainPane = {
     if (
       AppConstants.MOZ_UPDATER &&
       (!Services.policies || Services.policies.isAllowed("appUpdate")) &&
-      !gHasWinPackageId
+      !gIsPackagedApp
     ) {
       let radiogroup = document.getElementById("updateRadioGroup");
 
@@ -1893,7 +1890,7 @@ var gMainPane = {
     if (
       AppConstants.MOZ_UPDATER &&
       (!Services.policies || Services.policies.isAllowed("appUpdate")) &&
-      !gHasWinPackageId
+      !gIsPackagedApp
     ) {
       let radiogroup = document.getElementById("updateRadioGroup");
       let updateAutoValue = radiogroup.value == "true";
@@ -1906,7 +1903,7 @@ var gMainPane = {
         await _disableTimeOverPromise;
         radiogroup.disabled = false;
       } catch (error) {
-        Cu.reportError(error);
+        console.error(error);
         await Promise.all([
           this.readUpdateAutoPref(),
           this.reportUpdatePrefWriteError(),
@@ -1933,7 +1930,7 @@ var gMainPane = {
       // properly if per-installation prefs aren't supported.
       UpdateUtils.PER_INSTALLATION_PREFS_SUPPORTED &&
       (!Services.policies || Services.policies.isAllowed("appUpdate")) &&
-      !gHasWinPackageId &&
+      !gIsPackagedApp &&
       !UpdateUtils.appUpdateSettingIsLocked("app.update.background.enabled")
     );
   },
@@ -1989,7 +1986,7 @@ var gMainPane = {
           backgroundUpdateEnabled
         );
       } catch (error) {
-        Cu.reportError(error);
+        console.error(error);
         await this.readBackgroundUpdatePref();
         await this.reportUpdatePrefWriteError();
         return;
@@ -2560,7 +2557,7 @@ var gMainPane = {
           if (internalMenuItem) {
             menu.selectedItem = internalMenuItem;
           } else {
-            Cu.reportError("No menu item defined to set!");
+            console.error("No menu item defined to set!");
           }
           break;
         case Ci.nsIHandlerInfo.useSystemDefault:
@@ -2581,7 +2578,7 @@ var gMainPane = {
               let possible = possibleAppMenuItems
                 .map(v => v.handlerApp && v.handlerApp.name)
                 .join(", ");
-              Cu.reportError(
+              console.error(
                 new Error(
                   `Preferred handler for ${handlerInfo.type} not in list of possible handlers!? (List: ${possible})`
                 )
@@ -3314,7 +3311,7 @@ class HandlerListItem {
     ]);
     const selectedItem = this.node.querySelector("[selected=true]");
     if (!selectedItem) {
-      Cu.reportError("No selected item for " + this.handlerInfoWrapper.type);
+      console.error("No selected item for " + this.handlerInfoWrapper.type);
       return;
     }
     const { id, args } = document.l10n.getAttributes(selectedItem);

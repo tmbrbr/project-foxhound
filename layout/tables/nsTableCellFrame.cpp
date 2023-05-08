@@ -169,7 +169,7 @@ nsresult nsTableCellFrame::AttributeChanged(int32_t aNameSpaceID,
   // BasicTableLayoutStrategy
   if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::nowrap &&
       PresContext()->CompatibilityMode() == eCompatibility_NavQuirks) {
-    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::TreeChange,
+    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::FrameAndAncestors,
                                   NS_FRAME_IS_DIRTY);
   }
 
@@ -216,13 +216,13 @@ void nsTableCellFrame::DidSetComputedStyle(ComputedStyle* aOldComputedStyle) {
 
 #ifdef DEBUG
 void nsTableCellFrame::AppendFrames(ChildListID aListID,
-                                    nsFrameList& aFrameList) {
+                                    nsFrameList&& aFrameList) {
   MOZ_CRASH("unsupported operation");
 }
 
 void nsTableCellFrame::InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
                                     const nsLineList::iterator* aPrevFrameLine,
-                                    nsFrameList& aFrameList) {
+                                    nsFrameList&& aFrameList) {
   MOZ_CRASH("unsupported operation");
 }
 
@@ -684,7 +684,6 @@ void nsTableCellFrame::Reflow(nsPresContext* aPresContext,
       aReflowInput.ComputedLogicalPadding(wm) + GetBorderWidth(wm);
 
   ReflowOutput kidSize(wm);
-  kidSize.ClearSize();
   SetPriorAvailISize(aReflowInput.AvailableISize());
   nsIFrame* firstKid = mFrames.FirstChild();
   NS_ASSERTION(

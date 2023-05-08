@@ -10,8 +10,8 @@
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { setTimeout, clearTimeout } = ChromeUtils.import(
-  "resource://gre/modules/Timer.jsm"
+const { setTimeout, clearTimeout } = ChromeUtils.importESModule(
+  "resource://gre/modules/Timer.sys.mjs"
 );
 
 var EXPORTED_SYMBOLS = ["RemoteSettingsWorker"];
@@ -53,7 +53,7 @@ class RemoteSettingsWorkerError extends Error {
 class Worker {
   constructor(source) {
     if (gShutdown) {
-      Cu.reportError("Can't create worker once shutdown has started");
+      console.error("Can't create worker once shutdown has started");
     }
     this.source = source;
     this.worker = null;
@@ -232,10 +232,10 @@ try {
     }
   );
 } catch (ex) {
-  Cu.reportError(
+  console.error(
     "Couldn't add shutdown blocker, assuming shutdown has started."
   );
-  Cu.reportError(ex);
+  console.error(ex);
   // If AsyncShutdown throws, `profileBeforeChange` has already fired. Ignore it
   // and mark shutdown. Constructing the worker will report an error and do
   // nothing.

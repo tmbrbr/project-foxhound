@@ -4,16 +4,10 @@
 
 SimpleTest.requestCompleteLog();
 
-ChromeUtils.defineModuleGetter(
-  this,
-  "SessionStore",
-  "resource:///modules/sessionstore/SessionStore.jsm"
-);
-ChromeUtils.defineModuleGetter(
-  this,
-  "TabStateFlusher",
-  "resource:///modules/sessionstore/TabStateFlusher.jsm"
-);
+ChromeUtils.defineESModuleGetters(this, {
+  SessionStore: "resource:///modules/sessionstore/SessionStore.sys.mjs",
+  TabStateFlusher: "resource:///modules/sessionstore/TabStateFlusher.sys.mjs",
+});
 
 add_task(async function test_sessions_restore() {
   function background() {
@@ -200,7 +194,7 @@ add_task(async function test_sessions_event_page() {
   let extension = ExtensionTestUtils.loadExtension({
     useAddonManager: "permanent",
     manifest: {
-      applications: { gecko: { id: "eventpage@sessions" } },
+      browser_specific_settings: { gecko: { id: "eventpage@sessions" } },
       permissions: ["sessions", "tabs"],
       background: { persistent: false },
     },

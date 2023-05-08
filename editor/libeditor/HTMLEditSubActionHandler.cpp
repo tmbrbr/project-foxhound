@@ -6,6 +6,7 @@
 
 #include "HTMLEditor.h"
 #include "HTMLEditorInlines.h"
+#include "HTMLEditorNestedClasses.h"
 
 #include <algorithm>
 #include <utility>
@@ -259,7 +260,7 @@ void HTMLEditor::OnStartToHandleTopLevelEditSubAction(
       break;
   }
   if (cacheInlineStyles) {
-    nsCOMPtr<nsIContent> containerContent = nsIContent::FromNodeOrNull(
+    nsIContent* const containerContent = nsIContent::FromNodeOrNull(
         aDirectionOfTopLevelEditSubAction == nsIEditor::eNext
             ? TopLevelEditSubActionDataRef().mSelectedRange->mEndContainer
             : TopLevelEditSubActionDataRef().mSelectedRange->mStartContainer);
@@ -267,11 +268,14 @@ void HTMLEditor::OnStartToHandleTopLevelEditSubAction(
       aRv.Throw(NS_ERROR_FAILURE);
       return;
     }
-    nsresult rv = CacheInlineStyles(*containerContent);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("HTMLEditor::CacheInlineStyles() failed");
-      aRv.Throw(rv);
-      return;
+    if (const RefPtr<Element> element =
+            containerContent->GetAsElementOrParentElement()) {
+      nsresult rv = CacheInlineStyles(*element);
+      if (NS_FAILED(rv)) {
+        NS_WARNING("HTMLEditor::CacheInlineStyles() failed");
+        aRv.Throw(rv);
+        return;
+      }
     }
   }
 
@@ -708,8 +712,9 @@ nsresult HTMLEditor::OnEndHandlingTopLevelEditSubActionInternal() {
   return NS_OK;
 }
 
-Result<EditActionResult, nsresult> HTMLEditor::CanHandleHTMLEditSubAction()
-    const {
+Result<EditActionResult, nsresult> HTMLEditor::CanHandleHTMLEditSubAction(
+    CheckSelectionInReplacedElement aCheckSelectionInReplacedElement
+    /* = CheckSelectionInReplacedElement::Yes */) const {
   MOZ_ASSERT(IsEditActionDataAvailable());
 
   if (NS_WARN_IF(Destroyed())) {
@@ -727,8 +732,7 @@ Result<EditActionResult, nsresult> HTMLEditor::CanHandleHTMLEditSubAction()
     return Err(NS_ERROR_FAILURE);
   }
 
-  if (!HTMLEditUtils::IsSimplyEditableNode(*selStartNode) ||
-      HTMLEditUtils::IsNonEditableReplacedContent(*selStartNode->AsContent())) {
+  if (!HTMLEditUtils::IsSimplyEditableNode(*selStartNode)) {
     return EditActionResult::CanceledResult();
   }
 
@@ -738,11 +742,21 @@ Result<EditActionResult, nsresult> HTMLEditor::CanHandleHTMLEditSubAction()
   }
 
   if (selStartNode == selEndNode) {
+    if (aCheckSelectionInReplacedElement ==
+            CheckSelectionInReplacedElement::Yes &&
+        HTMLEditUtils::IsNonEditableReplacedContent(
+            *selStartNode->AsContent())) {
+      return EditActionResult::CanceledResult();
+    }
     return EditActionResult::IgnoredResult();
   }
 
-  if (!HTMLEditUtils::IsSimplyEditableNode(*selEndNode) ||
+  if (HTMLEditUtils::IsNonEditableReplacedContent(*selStartNode->AsContent()) ||
       HTMLEditUtils::IsNonEditableReplacedContent(*selEndNode->AsContent())) {
+    return EditActionResult::CanceledResult();
+  }
+
+  if (!HTMLEditUtils::IsSimplyEditableNode(*selEndNode)) {
     return EditActionResult::CanceledResult();
   }
 
@@ -1531,7 +1545,8 @@ HTMLEditor::InsertParagraphSeparatorAsSubAction(const Element& aEditingHost) {
   }
 
   {
-    Result<EditActionResult, nsresult> result = CanHandleHTMLEditSubAction();
+    Result<EditActionResult, nsresult> result = CanHandleHTMLEditSubAction(
+        CheckSelectionInReplacedElement::OnlyWhenNotInSameNode);
     if (MOZ_UNLIKELY(result.isErr())) {
       NS_WARNING("HTMLEditor::CanHandleHTMLEditSubAction() failed");
       return result;
@@ -1622,6 +1637,20 @@ HTMLEditor::InsertParagraphSeparatorAsSubAction(const Element& aEditingHost) {
   if (NS_WARN_IF(!pointToInsert.IsInContentNode())) {
     return Err(NS_ERROR_FAILURE);
   }
+  while (true) {
+    Element* element = pointToInsert.GetContainerOrContainerParentElement();
+    if (MOZ_UNLIKELY(!element)) {
+      return Err(NS_ERROR_FAILURE);
+    }
+    // If the element can have a <br> element (it means that the element or its
+    // container must be able to have <div> or <p> too), we can handle
+    // insertParagraph at the point.
+    if (HTMLEditUtils::CanNodeContain(*element, *nsGkAtoms::br)) {
+      break;
+    }
+    // Otherwise, try to insert paragraph at the parent.
+    pointToInsert = pointToInsert.ParentPoint();
+  }
 
   if (IsMailEditor()) {
     if (RefPtr<Element> mailCiteElement = GetMostDistantAncestorMailCiteElement(
@@ -1703,7 +1732,7 @@ HTMLEditor::InsertParagraphSeparatorAsSubAction(const Element& aEditingHost) {
              editableBlockAncestor;
              editableBlockAncestor = HTMLEditUtils::GetAncestorElement(
                  *editableBlockAncestor,
-                 HTMLEditUtils::ClosestEditableBlockElement)) {
+                 HTMLEditUtils::ClosestEditableBlockElementOrButtonElement)) {
           if (HTMLEditUtils::CanElementContainParagraph(
                   *editableBlockAncestor)) {
             return false;
@@ -1718,7 +1747,7 @@ HTMLEditor::InsertParagraphSeparatorAsSubAction(const Element& aEditingHost) {
   RefPtr<Element> editableBlockElement =
       HTMLEditUtils::GetInclusiveAncestorElement(
           *pointToInsert.ContainerAs<nsIContent>(),
-          HTMLEditUtils::ClosestEditableBlockElement);
+          HTMLEditUtils::ClosestEditableBlockElementOrButtonElement);
 
   // If we cannot insert a <p>/<div> element at the selection, we should insert
   // a <br> element or a linefeed instead.
@@ -1826,7 +1855,7 @@ HTMLEditor::InsertParagraphSeparatorAsSubAction(const Element& aEditingHost) {
 
     editableBlockElement = HTMLEditUtils::GetInclusiveAncestorElement(
         *pointToInsert.ContainerAs<nsIContent>(),
-        HTMLEditUtils::ClosestEditableBlockElement);
+        HTMLEditUtils::ClosestEditableBlockElementOrButtonElement);
     if (NS_WARN_IF(!editableBlockElement)) {
       return Err(NS_ERROR_UNEXPECTED);
     }
@@ -5218,10 +5247,9 @@ Result<EditActionResult, nsresult> HTMLEditor::HandleOutdentAtSelection(
   // at restoring Selection.
   Result<SplitRangeOffFromNodeResult, nsresult> outdentResult =
       HandleOutdentAtSelectionInternal(aEditingHost);
+  MOZ_ASSERT_IF(outdentResult.isOk(),
+                !outdentResult.inspect().HasCaretPointSuggestion());
   if (NS_WARN_IF(Destroyed())) {
-    if (outdentResult.isOk()) {
-      outdentResult.inspect().IgnoreCaretPointSuggestion();
-    }
     return Err(NS_ERROR_EDITOR_DESTROYED);
   }
   if (MOZ_UNLIKELY(outdentResult.isErr())) {
@@ -5732,9 +5760,15 @@ HTMLEditor::HandleOutdentAtSelectionInternal(const Element& aEditingHost) {
       OutdentPartOfBlock(*indentedParentElement, *firstContentToBeOutdented,
                          *lastContentToBeOutdented, indentedParentIndentedWith,
                          aEditingHost);
-  NS_WARNING_ASSERTION(outdentResult.isOk(),
-                       "HTMLEditor::OutdentPartOfBlock() failed");
-  return outdentResult;
+  if (MOZ_UNLIKELY(outdentResult.isErr())) {
+    NS_WARNING("HTMLEditor::OutdentPartOfBlock() failed");
+    return outdentResult;
+  }
+  // We will restore selection soon.  Therefore, callers do not need to restore
+  // the selection.
+  SplitRangeOffFromNodeResult unwrappedOutdentResult = outdentResult.unwrap();
+  unwrappedOutdentResult.ForgetCaretPointSuggestion();
+  return unwrappedOutdentResult;
 }
 
 Result<SplitRangeOffFromNodeResult, nsresult>
@@ -6045,8 +6079,7 @@ Result<EditorDOMPoint, nsresult> HTMLEditor::CreateStyleForInsertText(
       // MOZ_KnownLive because we own pendingStyle which guarantees the lifetime
       // of its members.
       Result<EditorDOMPoint, nsresult> pointToPutCaretOrError =
-          ClearStyleAt(pointToPutCaret, MOZ_KnownLive(pendingStyle->GetTag()),
-                       MOZ_KnownLive(pendingStyle->GetAttribute()),
+          ClearStyleAt(pointToPutCaret, pendingStyle->ToInlineStyle(),
                        pendingStyle->GetSpecifiedStyle());
       if (MOZ_UNLIKELY(pointToPutCaretOrError.isErr())) {
         NS_WARNING("HTMLEditor::ClearStyleAt() failed");
@@ -6129,22 +6162,25 @@ Result<EditorDOMPoint, nsresult> HTMLEditor::CreateStyleForInsertText(
     }
 
     while (pendingStyle) {
+      AutoInlineStyleSetter inlineStyleSetter(
+          pendingStyle->GetAttribute()
+              ? EditorInlineStyleAndValue(
+                    *pendingStyle->GetTag(), *pendingStyle->GetAttribute(),
+                    pendingStyle->AttributeValueOrCSSValueRef())
+              : EditorInlineStyleAndValue(*pendingStyle->GetTag()));
       // MOZ_KnownLive(...ContainerAs<nsIContent>()) because pointToPutCaret()
       // grabs the result.
-      // MOZ_KnownLive(pendingStyle->*) because we own pendingStyle which
-      // guarantees the lifetime of its members.
-      Result<EditorDOMPoint, nsresult> setStyleResult = SetInlinePropertyOnNode(
-          MOZ_KnownLive(*pointToPutCaret.ContainerAs<nsIContent>()),
-          MOZ_KnownLive(*pendingStyle->GetTag()),
-          MOZ_KnownLive(pendingStyle->GetAttribute()),
-          pendingStyle->AttributeValueOrCSSValueRef());
+      Result<CaretPoint, nsresult> setStyleResult =
+          inlineStyleSetter.ApplyStyleToNodeOrChildrenAndRemoveNestedSameStyle(
+              *this, MOZ_KnownLive(*pointToPutCaret.ContainerAs<nsIContent>()));
       if (MOZ_UNLIKELY(setStyleResult.isErr())) {
         NS_WARNING("HTMLEditor::SetInlinePropertyOnNode() failed");
-        return Err(setStyleResult.unwrapErr());
+        return setStyleResult.propagateErr();
       }
       // We don't need to update here because we'll suggest caret position which
       // is computed above.
       MOZ_ASSERT(pointToPutCaret.IsSet());
+      setStyleResult.unwrap().IgnoreCaretPointSuggestion();
       pendingStyle = mPendingStylesToApplyToNewContent->TakePreservedStyle();
     }
   }
@@ -6381,12 +6417,13 @@ nsresult HTMLEditor::AlignContentsAtRanges(AutoRangeArray& aRanges,
 
   if (createEmptyDivElement) {
     if (MOZ_UNLIKELY(!pointToPutCaret.IsSet() && !aRanges.IsInContent())) {
-      NS_WARNING("Mutaiton event listener might have changed the selection");
+      NS_WARNING("Mutation event listener might have changed the selection");
       return NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE;
     }
     const EditorDOMPoint pointToInsertDivElement =
-        pointToPutCaret.IsSet() ? pointToPutCaret
-                                : GetFirstSelectionStartPoint<EditorDOMPoint>();
+        pointToPutCaret.IsSet()
+            ? pointToPutCaret
+            : aRanges.GetFirstRangeStartPoint<EditorDOMPoint>();
     Result<CreateElementResult, nsresult> insertNewDivElementResult =
         InsertDivElementToAlignContents(pointToInsertDivElement, aAlignType,
                                         aEditingHost);
@@ -6573,42 +6610,48 @@ Result<CreateElementResult, nsresult> HTMLEditor::AlignNodesAndDescendants(
     if (HTMLEditUtils::IsListItem(content) ||
         HTMLEditUtils::IsAnyListElement(content)) {
       Element* listOrListItemElement = content->AsElement();
-      AutoEditorDOMPointOffsetInvalidator lockChild(atContent);
-      // MOZ_KnownLive(*listOrListItemElement): An element of aArrayOfContents
-      // which is array of OwningNonNull.
-      Result<EditorDOMPoint, nsresult> pointToPutCaretOrError =
-          RemoveAlignFromDescendants(MOZ_KnownLive(*listOrListItemElement),
-                                     aAlignType,
-                                     EditTarget::OnlyDescendantsExceptTable);
-      if (MOZ_UNLIKELY(pointToPutCaretOrError.isErr())) {
-        NS_WARNING(
-            "HTMLEditor::RemoveAlignFromDescendants(EditTarget::"
-            "OnlyDescendantsExceptTable) failed");
-        return pointToPutCaretOrError.propagateErr();
+      {
+        AutoEditorDOMPointOffsetInvalidator lockChild(atContent);
+        // MOZ_KnownLive(*listOrListItemElement): An element of aArrayOfContents
+        // which is array of OwningNonNull.
+        Result<EditorDOMPoint, nsresult> pointToPutCaretOrError =
+            RemoveAlignFromDescendants(MOZ_KnownLive(*listOrListItemElement),
+                                       aAlignType,
+                                       EditTarget::OnlyDescendantsExceptTable);
+        if (MOZ_UNLIKELY(pointToPutCaretOrError.isErr())) {
+          NS_WARNING(
+              "HTMLEditor::RemoveAlignFromDescendants(EditTarget::"
+              "OnlyDescendantsExceptTable) failed");
+          return pointToPutCaretOrError.propagateErr();
+        }
+        if (pointToPutCaretOrError.inspect().IsSet()) {
+          pointToPutCaret = pointToPutCaretOrError.unwrap();
+        }
       }
-      if (pointToPutCaretOrError.inspect().IsSet()) {
-        pointToPutCaret = pointToPutCaretOrError.unwrap();
+      if (NS_WARN_IF(!atContent.IsSetAndValid())) {
+        return Err(NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE);
       }
 
       if (useCSS) {
-        if (nsStyledElement* styledListOrListItemElement =
-                nsStyledElement::FromNode(listOrListItemElement)) {
+        nsStyledElement* styledListOrListItemElement =
+            nsStyledElement::FromNode(listOrListItemElement);
+        if (styledListOrListItemElement &&
+            EditorElementStyle::Align().IsCSSEditable(
+                *styledListOrListItemElement)) {
           // MOZ_KnownLive(*styledListOrListItemElement): An element of
           // aArrayOfContents which is array of OwningNonNull.
-          Result<int32_t, nsresult> result =
-              CSSEditUtils::SetCSSEquivalentToHTMLStyleWithTransaction(
-                  *this, MOZ_KnownLive(*styledListOrListItemElement), nullptr,
-                  nsGkAtoms::align, &aAlignType);
-          if (result.isErr()) {
-            if (result.inspectErr() == NS_ERROR_EDITOR_DESTROYED) {
-              NS_WARNING(
-                  "CSSEditUtils::SetCSSEquivalentToHTMLStyleWithTransaction("
-                  "nsGkAtoms::align) destroyed the editor");
+          Result<size_t, nsresult> result =
+              CSSEditUtils::SetCSSEquivalentToStyle(
+                  WithTransaction::Yes, *this,
+                  MOZ_KnownLive(*styledListOrListItemElement),
+                  EditorElementStyle::Align(), &aAlignType);
+          if (MOZ_UNLIKELY(result.isErr())) {
+            if (NS_WARN_IF(result.inspectErr() == NS_ERROR_EDITOR_DESTROYED)) {
               return result.propagateErr();
             }
             NS_WARNING(
-                "CSSEditUtils::SetCSSEquivalentToHTMLStyleWithTransaction("
-                "nsGkAtoms::align) failed, but ignored");
+                "CSSEditUtils::SetCSSEquivalentToStyle(EditorElementStyle::"
+                "Align()) failed, but ignored");
           }
         }
         createdDivElement = nullptr;
@@ -8976,18 +9019,18 @@ Element* HTMLEditor::GetMostDistantAncestorMailCiteElement(
   return mailCiteElement;
 }
 
-nsresult HTMLEditor::CacheInlineStyles(nsIContent& aContent) {
+nsresult HTMLEditor::CacheInlineStyles(Element& Element) {
   MOZ_ASSERT(IsTopLevelEditSubActionDataAvailable());
 
   nsresult rv = GetInlineStyles(
-      aContent, *TopLevelEditSubActionDataRef().mCachedPendingStyles);
+      Element, *TopLevelEditSubActionDataRef().mCachedPendingStyles);
   NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
                        "HTMLEditor::GetInlineStyles() failed");
   return rv;
 }
 
 nsresult HTMLEditor::GetInlineStyles(
-    nsIContent& aContent, AutoPendingStyleCacheArray& aPendingStyleCacheArray) {
+    Element& aElement, AutoPendingStyleCacheArray& aPendingStyleCacheArray) {
   MOZ_ASSERT(IsEditActionDataAvailable());
   MOZ_ASSERT(aPendingStyleCacheArray.IsEmpty());
 
@@ -9014,18 +9057,15 @@ nsresult HTMLEditor::GetInlineStyles(
                                  nsGkAtoms::backgroundColor,
                                  nsGkAtoms::sub,
                                  nsGkAtoms::sup}) {
-    nsStaticAtom *tag, *attribute;
-    if (property == nsGkAtoms::face || property == nsGkAtoms::size ||
-        property == nsGkAtoms::color) {
-      tag = nsGkAtoms::font;
-      attribute = property;
-    } else {
-      tag = property;
-      attribute = nullptr;
-    }
+    const EditorInlineStyle style =
+        property == nsGkAtoms::face || property == nsGkAtoms::size ||
+                property == nsGkAtoms::color
+            ? EditorInlineStyle(*nsGkAtoms::font, property)
+            : EditorInlineStyle(*property);
     // If type-in state is set, don't intervene
     const PendingStyleState styleState =
-        mPendingStylesToApplyToNewContent->GetStyleState(*tag, attribute);
+        mPendingStylesToApplyToNewContent->GetStyleState(*style.mHTMLProperty,
+                                                         style.mAttribute);
     if (styleState != PendingStyleState::NotUpdated) {
       continue;
     }
@@ -9034,23 +9074,21 @@ nsresult HTMLEditor::GetInlineStyles(
                      // at creating new PendingStyleCache instance.
     // Don't use CSS for <font size>, we don't support it usefully (bug 780035)
     if (!useCSS || (property == nsGkAtoms::size)) {
-      isSet = HTMLEditUtils::IsInlineStyleSetByElement(
-          aContent, *tag, attribute, nullptr, &value);
-    } else {
-      Result<bool, nsresult> isComputedCSSEquivalentToHTMLInlineStyleOrError =
-          CSSEditUtils::IsComputedCSSEquivalentToHTMLInlineStyleSet(
-              *this, aContent, MOZ_KnownLive(tag), MOZ_KnownLive(attribute),
-              value);
-      if (isComputedCSSEquivalentToHTMLInlineStyleOrError.isErr()) {
-        NS_WARNING(
-            "CSSEditUtils::IsComputedCSSEquivalentToHTMLInlineStyleSet failed");
-        return isComputedCSSEquivalentToHTMLInlineStyleOrError.unwrapErr();
+      isSet = HTMLEditUtils::IsInlineStyleSetByElement(aElement, style, nullptr,
+                                                       &value);
+    } else if (style.IsCSSEditable(aElement)) {
+      Result<bool, nsresult> isComputedCSSEquivalentToStyleOrError =
+          CSSEditUtils::IsComputedCSSEquivalentTo(*this, aElement, style,
+                                                  value);
+      if (MOZ_UNLIKELY(isComputedCSSEquivalentToStyleOrError.isErr())) {
+        NS_WARNING("CSSEditUtils::IsComputedCSSEquivalentTo() failed");
+        return isComputedCSSEquivalentToStyleOrError.unwrapErr();
       }
-      isSet = isComputedCSSEquivalentToHTMLInlineStyleOrError.unwrap();
+      isSet = isComputedCSSEquivalentToStyleOrError.unwrap();
     }
     if (isSet) {
       aPendingStyleCacheArray.AppendElement(
-          PendingStyleCache(*tag, attribute, value));
+          style.ToPendingStyleCache(std::move(value)));
     }
   }
   return NS_OK;
@@ -9069,22 +9107,22 @@ nsresult HTMLEditor::ReapplyCachedStyles() {
   }
 
   // remember if we are in css mode
-  bool useCSS = IsCSSEnabled();
+  const bool useCSS = IsCSSEnabled();
 
   const RangeBoundary& atStartOfSelection =
       SelectionRef().GetRangeAt(0)->StartRef();
-  nsCOMPtr<nsIContent> startContainerContent =
+  const RefPtr<Element> startContainerElement =
       atStartOfSelection.Container() &&
               atStartOfSelection.Container()->IsContent()
-          ? atStartOfSelection.Container()->AsContent()
+          ? atStartOfSelection.Container()->GetAsElementOrParentElement()
           : nullptr;
-  if (NS_WARN_IF(!startContainerContent)) {
+  if (NS_WARN_IF(!startContainerElement)) {
     return NS_OK;
   }
 
   AutoPendingStyleCacheArray styleCacheArrayAtInsertionPoint;
   nsresult rv =
-      GetInlineStyles(*startContainerContent, styleCacheArrayAtInsertionPoint);
+      GetInlineStyles(*startContainerElement, styleCacheArrayAtInsertionPoint);
   if (NS_WARN_IF(rv == NS_ERROR_EDITOR_DESTROYED)) {
     return NS_ERROR_EDITOR_DESTROYED;
   }
@@ -9097,32 +9135,25 @@ nsresult HTMLEditor::ReapplyCachedStyles() {
        *TopLevelEditSubActionDataRef().mCachedPendingStyles) {
     bool isFirst = false, isAny = false, isAll = false;
     nsAutoString currentValue;
-    if (useCSS) {
+    const EditorInlineStyle inlineStyle = styleCacheBeforeEdit.ToInlineStyle();
+    if (useCSS && inlineStyle.IsCSSEditable(*startContainerElement)) {
       // check computed style first in css case
       // MOZ_KnownLive(styleCacheBeforeEdit.*) because they are nsStaticAtom
       // and its instances are alive until shutting down.
-      Result<bool, nsresult> isComputedCSSEquivalentToHTMLInlineStyleOrError =
-          CSSEditUtils::IsComputedCSSEquivalentToHTMLInlineStyleSet(
-              *this, *startContainerContent,
-              MOZ_KnownLive(&styleCacheBeforeEdit.TagRef()),
-              MOZ_KnownLive(styleCacheBeforeEdit.GetAttribute()), currentValue);
-      if (isComputedCSSEquivalentToHTMLInlineStyleOrError.isErr()) {
-        NS_WARNING(
-            "CSSEditUtils::IsComputedCSSEquivalentToHTMLInlineStyleSet() "
-            "failed");
-        return isComputedCSSEquivalentToHTMLInlineStyleOrError.unwrapErr();
+      Result<bool, nsresult> isComputedCSSEquivalentToStyleOrError =
+          CSSEditUtils::IsComputedCSSEquivalentTo(*this, *startContainerElement,
+                                                  inlineStyle, currentValue);
+      if (MOZ_UNLIKELY(isComputedCSSEquivalentToStyleOrError.isErr())) {
+        NS_WARNING("CSSEditUtils::IsComputedCSSEquivalentTo() failed");
+        return isComputedCSSEquivalentToStyleOrError.unwrapErr();
       }
-      isAny = isComputedCSSEquivalentToHTMLInlineStyleOrError.unwrap();
+      isAny = isComputedCSSEquivalentToStyleOrError.unwrap();
     }
     if (!isAny) {
       // then check typeinstate and html style
-      // MOZ_KnownLive(styleCacheBeforeEdit.*) because they are nsStaticAtom
-      // and its instances are alive until shutting down.
       nsresult rv = GetInlinePropertyBase(
-          MOZ_KnownLive(styleCacheBeforeEdit.TagRef()),
-          MOZ_KnownLive(styleCacheBeforeEdit.GetAttribute()),
-          &styleCacheBeforeEdit.AttributeValueOrCSSValueRef(), &isFirst, &isAny,
-          &isAll, &currentValue);
+          inlineStyle, &styleCacheBeforeEdit.AttributeValueOrCSSValueRef(),
+          &isFirst, &isAny, &isAll, &currentValue);
       if (NS_FAILED(rv)) {
         NS_WARNING("HTMLEditor::GetInlinePropertyBase() failed");
         return rv;
@@ -9401,6 +9432,7 @@ nsresult HTMLEditor::AdjustCaretPositionAndEnsurePaddingBRElement(
       if (HTMLEditUtils::IsInvisibleBRElement(*previousEditableContent) &&
           !EditorUtils::IsPaddingBRElementForEmptyLastLine(
               *previousEditableContent)) {
+        AutoEditorDOMPointChildInvalidator lockOffset(point);
         Result<CreateElementResult, nsresult> insertPaddingBRElementResult =
             InsertPaddingBRElementForEmptyLastLineWithTransaction(point);
         if (MOZ_UNLIKELY(insertPaddingBRElementResult.isErr())) {

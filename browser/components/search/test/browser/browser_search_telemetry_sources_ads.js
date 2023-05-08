@@ -25,6 +25,15 @@ const TEST_PROVIDER_INFO = [
     extraAdServersRegexps: [/^https:\/\/example\.com\/ad2?/],
   },
   {
+    telemetryId: "example-data-attributes",
+    searchPageRegexp: /^http:\/\/mochi.test:.+\/browser\/browser\/components\/search\/test\/browser\/searchTelemetryAd_dataAttributes(?:_none|_href)?.html/,
+    queryParamName: "s",
+    codeParamName: "abc",
+    taggedCodes: ["ff"],
+    adServerAttributes: ["xyz"],
+    extraAdServersRegexps: [/^https:\/\/example\.com\/ad/],
+  },
+  {
     telemetryId: "slow-page-load",
     searchPageRegexp: /^http:\/\/mochi.test:.+\/browser\/browser\/components\/search\/test\/browser\/slow_loading_page_with_ads(_on_load_event)?.html/,
     queryParamName: "s",
@@ -84,7 +93,7 @@ add_task(async function test_simple_search_page_visit() {
     },
     async () => {
       await assertSearchSourcesTelemetry(
-        { "example.in-content:sap:ff": 1 },
+        {},
         {
           "browser.search.content.unknown": { "example:tagged:ff": 1 },
         }
@@ -129,10 +138,7 @@ add_task(async function test_follow_on_visit() {
     },
     async () => {
       await assertSearchSourcesTelemetry(
-        {
-          "example.in-content:sap:ff": 1,
-          "example.in-content:sap-follow-on:ff": 1,
-        },
+        {},
         {
           "browser.search.content.unknown": {
             "example:tagged:ff": 1,
@@ -154,11 +160,97 @@ add_task(async function test_track_ad() {
   );
 
   await assertSearchSourcesTelemetry(
-    { "example.in-content:sap:ff": 1 },
+    {},
     {
       "browser.search.content.unknown": { "example:tagged:ff": 1 },
-      "browser.search.with_ads": { "example:sap": 1 },
       "browser.search.withads.unknown": { "example:tagged": 1 },
+    }
+  );
+
+  BrowserTestUtils.removeTab(tab);
+});
+
+add_task(async function test_track_ad_on_data_attributes() {
+  Services.telemetry.clearScalars();
+  searchCounts.clear();
+
+  let url =
+    getRootDirectory(gTestPath).replace(
+      "chrome://mochitests/content",
+      "http://mochi.test:8888"
+    ) + "searchTelemetryAd_dataAttributes.html";
+
+  let tab = await BrowserTestUtils.openNewForegroundTab(
+    gBrowser,
+    getSERPUrl(url)
+  );
+
+  await assertSearchSourcesTelemetry(
+    {},
+    {
+      "browser.search.content.unknown": {
+        "example-data-attributes:tagged:ff": 1,
+      },
+      "browser.search.withads.unknown": {
+        "example-data-attributes:tagged": 1,
+      },
+    }
+  );
+
+  BrowserTestUtils.removeTab(tab);
+});
+
+add_task(async function test_track_ad_on_data_attributes_and_hrefs() {
+  Services.telemetry.clearScalars();
+  searchCounts.clear();
+
+  let url =
+    getRootDirectory(gTestPath).replace(
+      "chrome://mochitests/content",
+      "http://mochi.test:8888"
+    ) + "searchTelemetryAd_dataAttributes_href.html";
+
+  let tab = await BrowserTestUtils.openNewForegroundTab(
+    gBrowser,
+    getSERPUrl(url)
+  );
+
+  await assertSearchSourcesTelemetry(
+    {},
+    {
+      "browser.search.content.unknown": {
+        "example-data-attributes:tagged:ff": 1,
+      },
+      "browser.search.withads.unknown": {
+        "example-data-attributes:tagged": 1,
+      },
+    }
+  );
+
+  BrowserTestUtils.removeTab(tab);
+});
+
+add_task(async function test_track_no_ad_on_data_attributes_and_hrefs() {
+  Services.telemetry.clearScalars();
+  searchCounts.clear();
+
+  let url =
+    getRootDirectory(gTestPath).replace(
+      "chrome://mochitests/content",
+      "http://mochi.test:8888"
+    ) + "searchTelemetryAd_dataAttributes_none.html";
+
+  let tab = await BrowserTestUtils.openNewForegroundTab(
+    gBrowser,
+    getSERPUrl(url)
+  );
+
+  await assertSearchSourcesTelemetry(
+    {},
+    {
+      "browser.search.content.unknown": {
+        "example-data-attributes:tagged:ff": 1,
+      },
     }
   );
 
@@ -191,10 +283,9 @@ add_task(async function test_track_ad_on_DOMContentLoaded() {
   await observeAdPreviouslyRecorded;
 
   await assertSearchSourcesTelemetry(
-    { "slow-page-load.in-content:sap:ff": 1 },
+    {},
     {
       "browser.search.content.unknown": { "slow-page-load:tagged:ff": 1 },
-      "browser.search.with_ads": { "slow-page-load:sap": 1 },
       "browser.search.withads.unknown": { "slow-page-load:tagged": 1 },
     }
   );
@@ -218,10 +309,9 @@ add_task(async function test_track_ad_on_load_event() {
   );
 
   await assertSearchSourcesTelemetry(
-    { "slow-page-load.in-content:sap:ff": 1 },
+    {},
     {
       "browser.search.content.unknown": { "slow-page-load:tagged:ff": 1 },
-      "browser.search.with_ads": { "slow-page-load:sap": 1 },
       "browser.search.withads.unknown": { "slow-page-load:tagged": 1 },
     }
   );
@@ -239,10 +329,9 @@ add_task(async function test_track_ad_organic() {
   );
 
   await assertSearchSourcesTelemetry(
-    { "example.in-content:organic:none": 1 },
+    {},
     {
       "browser.search.content.unknown": { "example:organic:none": 1 },
-      "browser.search.with_ads": { "example:organic": 1 },
       "browser.search.withads.unknown": { "example:organic": 1 },
     }
   );
@@ -265,10 +354,9 @@ add_task(async function test_track_ad_new_window() {
   );
 
   await assertSearchSourcesTelemetry(
-    { "example.in-content:sap:ff": 1 },
+    {},
     {
       "browser.search.content.unknown": { "example:tagged:ff": 1 },
-      "browser.search.with_ads": { "example:sap": 1 },
       "browser.search.withads.unknown": { "example:tagged": 1 },
     }
   );
@@ -297,10 +385,9 @@ add_task(async function test_track_ad_pages_without_ads() {
   );
 
   await assertSearchSourcesTelemetry(
-    { "example.in-content:sap:ff": 2 },
+    {},
     {
       "browser.search.content.unknown": { "example:tagged:ff": 2 },
-      "browser.search.with_ads": { "example:sap": 1 },
       "browser.search.withads.unknown": { "example:tagged": 1 },
     }
   );
@@ -315,11 +402,7 @@ async function track_ad_click(testOrganic) {
   searchCounts.clear();
   Services.telemetry.clearScalars();
 
-  let expectedScalarKeyOld = `example:${testOrganic ? "organic" : "sap"}`;
   let expectedScalarKey = `example:${testOrganic ? "organic" : "tagged"}`;
-  let expectedHistogramKey = `example.in-content:${
-    testOrganic ? "organic:none" : "sap:ff"
-  }`;
   let expectedContentScalarKey = `example:${
     testOrganic ? "organic:none" : "tagged:ff"
   }`;
@@ -330,10 +413,9 @@ async function track_ad_click(testOrganic) {
   );
 
   await assertSearchSourcesTelemetry(
-    { [expectedHistogramKey]: 1 },
+    {},
     {
       "browser.search.content.unknown": { [expectedContentScalarKey]: 1 },
-      "browser.search.with_ads": { [expectedScalarKeyOld]: 1 },
       "browser.search.withads.unknown": {
         [expectedScalarKey.replace("sap", "tagged")]: 1,
       },
@@ -348,12 +430,10 @@ async function track_ad_click(testOrganic) {
   await promiseWaitForAdLinkCheck();
 
   await assertSearchSourcesTelemetry(
-    { [expectedHistogramKey]: 1 },
+    {},
     {
       "browser.search.content.unknown": { [expectedContentScalarKey]: 1 },
-      "browser.search.with_ads": { [expectedScalarKeyOld]: 1 },
       "browser.search.withads.unknown": { [expectedScalarKey]: 1 },
-      "browser.search.ad_clicks": { [expectedScalarKeyOld]: 1 },
       "browser.search.adclicks.unknown": { [expectedScalarKey]: 1 },
     }
   );
@@ -366,14 +446,12 @@ async function track_ad_click(testOrganic) {
 
   // We've gone back, so we register an extra display & if it is with ads or not.
   await assertSearchSourcesTelemetry(
-    { [expectedHistogramKey]: 2 },
+    {},
     {
       "browser.search.content.tabhistory": { [expectedContentScalarKey]: 1 },
       "browser.search.content.unknown": { [expectedContentScalarKey]: 1 },
-      "browser.search.with_ads": { [expectedScalarKeyOld]: 2 },
       "browser.search.withads.tabhistory": { [expectedScalarKey]: 1 },
       "browser.search.withads.unknown": { [expectedScalarKey]: 1 },
-      "browser.search.ad_clicks": { [expectedScalarKeyOld]: 1 },
       "browser.search.adclicks.unknown": { [expectedScalarKey]: 1 },
     }
   );
@@ -386,14 +464,12 @@ async function track_ad_click(testOrganic) {
   await promiseWaitForAdLinkCheck();
 
   await assertSearchSourcesTelemetry(
-    { [expectedHistogramKey]: 2 },
+    {},
     {
       "browser.search.content.tabhistory": { [expectedContentScalarKey]: 1 },
       "browser.search.content.unknown": { [expectedContentScalarKey]: 1 },
-      "browser.search.with_ads": { [expectedScalarKeyOld]: 2 },
       "browser.search.withads.tabhistory": { [expectedScalarKey]: 1 },
       "browser.search.withads.unknown": { [expectedScalarKey]: 1 },
-      "browser.search.ad_clicks": { [expectedScalarKeyOld]: 2 },
       "browser.search.adclicks.tabhistory": { [expectedScalarKey]: 1 },
       "browser.search.adclicks.unknown": { [expectedScalarKey]: 1 },
     }
@@ -417,10 +493,9 @@ add_task(async function test_track_ad_click_with_location_change_other_tab() {
   let tab = await BrowserTestUtils.openNewForegroundTab(gBrowser, url);
 
   await assertSearchSourcesTelemetry(
-    { "example.in-content:sap:ff": 1 },
+    {},
     {
       "browser.search.content.unknown": { "example:tagged:ff": 1 },
-      "browser.search.with_ads": { "example:sap": 1 },
       "browser.search.withads.unknown": { "example:tagged": 1 },
     }
   );
@@ -439,12 +514,10 @@ add_task(async function test_track_ad_click_with_location_change_other_tab() {
   await pageLoadPromise;
 
   await assertSearchSourcesTelemetry(
-    { "example.in-content:sap:ff": 1 },
+    {},
     {
       "browser.search.content.unknown": { "example:tagged:ff": 1 },
-      "browser.search.with_ads": { "example:sap": 1 },
       "browser.search.withads.unknown": { "example:tagged": 1 },
-      "browser.search.ad_clicks": { "example:sap": 1 },
       "browser.search.adclicks.unknown": { "example:tagged": 1 },
     }
   );

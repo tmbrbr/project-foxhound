@@ -12,6 +12,7 @@
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/Event.h"  // for Event
+#include "mozilla/dom/HTMLDataListElement.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "mozilla/dom/KeyboardEvent.h"
 #include "mozilla/dom/KeyboardEventBinding.h"
@@ -198,6 +199,12 @@ void nsFormFillController::NativeAnonymousChildListChange(nsIContent* aContent,
                                                           bool aIsRemove) {}
 
 void nsFormFillController::ParentChainChanged(nsIContent* aContent) {}
+
+void nsFormFillController::ARIAAttributeDefaultWillChange(
+    mozilla::dom::Element* aElement, nsAtom* aAttribute, int32_t aModType) {}
+
+void nsFormFillController::ARIAAttributeDefaultChanged(
+    mozilla::dom::Element* aElement, nsAtom* aAttribute, int32_t aModType) {}
 
 MOZ_CAN_RUN_SCRIPT_BOUNDARY
 void nsFormFillController::NodeWillBeDestroyed(nsINode* aNode) {
@@ -389,8 +396,9 @@ nsFormFillController::SetPopupOpen(bool aPopupOpen) {
       RefPtr<PresShell> presShell = docShell->GetPresShell();
       NS_ENSURE_STATE(presShell);
       presShell->ScrollContentIntoView(
-          content, ScrollAxis(kScrollMinimum, WhenToScroll::IfNotVisible),
-          ScrollAxis(kScrollMinimum, WhenToScroll::IfNotVisible),
+          content,
+          ScrollAxis(WhereToScroll::Nearest, WhenToScroll::IfNotVisible),
+          ScrollAxis(WhereToScroll::Nearest, WhenToScroll::IfNotVisible),
           ScrollFlags::ScrollOverflowHidden);
       // mFocusedPopup can be destroyed after ScrollContentIntoView, see bug
       // 420089
@@ -1009,13 +1017,17 @@ void nsFormFillController::MaybeStartControllingInput(
     return;
   }
 
+  bool hasList = !!aInput->GetList();
+
   if (!IsTextControl(aInput)) {
+    // Even if this is not a text control yet, it can become one in the future
+    if (hasList) {
+      StartControllingInput(aInput);
+    }
     return;
   }
 
   bool autocomplete = nsContentUtils::IsAutocompleteEnabled(aInput);
-
-  bool hasList = !!aInput->GetList();
 
   bool isPwmgrInput = false;
   if (mPwmgrInputs.Get(aInput) || aInput->HasBeenTypePassword()) {

@@ -378,7 +378,6 @@ void nsTableRowGroupFrame::ReflowChildren(
       nsRect oldKidInkOverflow = kidFrame->InkOverflowRect();
 
       ReflowOutput desiredSize(aReflowInput.reflowInput);
-      desiredSize.ClearSize();
 
       // Reflow the child into the available space, giving it as much bsize as
       // it wants. We'll deal with splitting later after we've computed the row
@@ -1064,7 +1063,7 @@ void nsTableRowGroupFrame::UndoContinuedRow(nsPresContext* aPresContext,
 
   // Put the overflow rows into our child list
   if (!overflows->IsEmpty()) {
-    mFrames.InsertFrames(nullptr, rowBefore, *overflows);
+    mFrames.InsertFrames(nullptr, rowBefore, std::move(*overflows));
   }
 }
 
@@ -1451,8 +1450,8 @@ void nsTableRowGroupFrame::DidSetComputedStyle(
 }
 
 void nsTableRowGroupFrame::AppendFrames(ChildListID aListID,
-                                        nsFrameList& aFrameList) {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
+                                        nsFrameList&& aFrameList) {
+  NS_ASSERTION(aListID == FrameChildListID::Principal, "unexpected child list");
 
   DrainSelfOverflowList();  // ensure the last frame is in mFrames
   ClearRowCursor();
@@ -1473,12 +1472,12 @@ void nsTableRowGroupFrame::AppendFrames(ChildListID aListID,
 
   int32_t rowIndex = GetRowCount();
   // Append the frames to the sibling chain
-  mFrames.AppendFrames(nullptr, aFrameList);
+  mFrames.AppendFrames(nullptr, std::move(aFrameList));
 
   if (rows.Length() > 0) {
     nsTableFrame* tableFrame = GetTableFrame();
     tableFrame->AppendRows(this, rowIndex, rows);
-    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::TreeChange,
+    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::FrameAndAncestors,
                                   NS_FRAME_HAS_DIRTY_CHILDREN);
     tableFrame->SetGeometryDirty();
   }
@@ -1486,8 +1485,8 @@ void nsTableRowGroupFrame::AppendFrames(ChildListID aListID,
 
 void nsTableRowGroupFrame::InsertFrames(
     ChildListID aListID, nsIFrame* aPrevFrame,
-    const nsLineList::iterator* aPrevFrameLine, nsFrameList& aFrameList) {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
+    const nsLineList::iterator* aPrevFrameLine, nsFrameList&& aFrameList) {
+  NS_ASSERTION(aListID == FrameChildListID::Principal, "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
 
@@ -1517,7 +1516,7 @@ void nsTableRowGroupFrame::InsertFrames(
 
   int32_t startRowIndex = GetStartRowIndex();
   // Insert the frames in the sibling chain
-  mFrames.InsertFrames(nullptr, aPrevFrame, aFrameList);
+  mFrames.InsertFrames(nullptr, aPrevFrame, std::move(aFrameList));
 
   int32_t numRows = rows.Length();
   if (numRows > 0) {
@@ -1527,7 +1526,7 @@ void nsTableRowGroupFrame::InsertFrames(
     int32_t rowIndex = (prevRow) ? prevRow->GetRowIndex() + 1 : startRowIndex;
     tableFrame->InsertRows(this, rows, rowIndex, true);
 
-    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::TreeChange,
+    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::FrameAndAncestors,
                                   NS_FRAME_HAS_DIRTY_CHILDREN);
     tableFrame->SetGeometryDirty();
   }
@@ -1535,7 +1534,7 @@ void nsTableRowGroupFrame::InsertFrames(
 
 void nsTableRowGroupFrame::RemoveFrame(ChildListID aListID,
                                        nsIFrame* aOldFrame) {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
+  NS_ASSERTION(aListID == FrameChildListID::Principal, "unexpected child list");
 
   ClearRowCursor();
 
@@ -1546,7 +1545,7 @@ void nsTableRowGroupFrame::RemoveFrame(ChildListID aListID,
     // remove the rows from the table (and flag a rebalance)
     tableFrame->RemoveRows(*rowFrame, 1, true);
 
-    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::TreeChange,
+    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::FrameAndAncestors,
                                   NS_FRAME_HAS_DIRTY_CHILDREN);
     tableFrame->SetGeometryDirty();
   }

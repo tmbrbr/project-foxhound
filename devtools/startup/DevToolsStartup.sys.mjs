@@ -31,9 +31,8 @@ const DEVTOOLS_POLICY_DISABLED_PREF = "devtools.policy.disabled";
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
-);
+import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
+
 const lazy = {};
 ChromeUtils.defineModuleGetter(
   lazy,
@@ -45,20 +44,14 @@ ChromeUtils.defineModuleGetter(
   "CustomizableWidgets",
   "resource:///modules/CustomizableWidgets.jsm"
 );
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "PrivateBrowsingUtils",
-  "resource://gre/modules/PrivateBrowsingUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
+  WebChannel: "resource://gre/modules/WebChannel.sys.mjs",
+});
 ChromeUtils.defineModuleGetter(
   lazy,
   "ProfilerMenuButton",
   "resource://devtools/client/performance-new/popup/menu-button.jsm.js"
-);
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "WebChannel",
-  "resource://gre/modules/WebChannel.jsm"
 );
 ChromeUtils.defineModuleGetter(
   lazy,
@@ -263,7 +256,7 @@ export function validateProfilerWebChannelUrl(targetUrl) {
     // the official frontend URL for testing.
     if (
       // Allow a test URL.
-      targetUrl === "http://example.com" ||
+      /^https?:\/\/example\.com$/.test(targetUrl) ||
       // Allows the following:
       //   "http://localhost:4242"
       //   "http://localhost:4242/"
@@ -910,13 +903,10 @@ DevToolsStartup.prototype = {
     const { BrowserToolboxLauncher } = ChromeUtils.importESModule(
       "resource://devtools/client/framework/browser-toolbox/Launcher.sys.mjs"
     );
-    const env = Cc["@mozilla.org/process/environment;1"].getService(
-      Ci.nsIEnvironment
-    );
     // --jsdebugger $binaryPath is an helper alias to set MOZ_BROWSER_TOOLBOX_BINARY=$binaryPath
     // See comment within BrowserToolboxLauncher.
     // Setting it as an environment variable helps it being reused if we restart the browser via CmdOrCtrl+R
-    env.set("MOZ_BROWSER_TOOLBOX_BINARY", binaryPath);
+    Services.env.set("MOZ_BROWSER_TOOLBOX_BINARY", binaryPath);
 
     const browserToolboxLauncherConfig = {};
 
@@ -984,7 +974,7 @@ DevToolsStartup.prototype = {
       useDistinctSystemPrincipalLoader,
       releaseDistinctSystemPrincipalLoader,
     } = ChromeUtils.importESModule(
-      "resource://devtools/shared/loader/Loader.sys.mjs"
+      "resource://devtools/shared/loader/DistinctSystemPrincipalLoader.sys.mjs"
     );
 
     try {

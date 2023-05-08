@@ -68,7 +68,6 @@
 #include "mozilla/dom/FontFaceSet.h"
 #include "mozilla/StaticPresData.h"
 #include "nsRefreshDriver.h"
-#include "Layers.h"
 #include "LayerUserData.h"
 #include "mozilla/dom/NotifyPaintEvent.h"
 #include "nsFontCache.h"
@@ -331,7 +330,6 @@ static const char* gExactCallbackPrefs[] = {
     "intl.accept_languages",
     "layout.css.devPixelsPerPx",
     "layout.css.dpi",
-    "privacy.resistFingerprinting",
     "privacy.trackingprotection.enabled",
     "ui.use_standins_for_native_colors",
     nullptr,
@@ -577,7 +575,6 @@ void nsPresContext::PreferenceChanged(const char* aPrefName) {
   // because that pref doesn't just affect the "live" value of the media query;
   // it affects whether it is parsed at all.
   if (prefName.EqualsLiteral("browser.display.document_color_use") ||
-      prefName.EqualsLiteral("privacy.resistFingerprinting") ||
       prefName.EqualsLiteral("browser.display.foreground_color") ||
       prefName.EqualsLiteral("browser.display.background_color")) {
     MediaFeatureValuesChanged({MediaFeatureChangeReason::PreferenceChange},
@@ -1004,11 +1001,13 @@ struct QueryContainerState {
   nscoord GetInlineSize() const { return LogicalSize(mWm, mSize).ISize(mWm); }
 
   bool Changed(const QueryContainerState& aNewState, StyleContainerType aType) {
-    if (aType & StyleContainerType::SIZE) {
-      return mSize != aNewState.mSize;
-    }
-    if (aType & StyleContainerType::INLINE_SIZE) {
-      return GetInlineSize() != aNewState.GetInlineSize();
+    switch (aType) {
+      case StyleContainerType::Normal:
+        break;
+      case StyleContainerType::Size:
+        return mSize != aNewState.mSize;
+      case StyleContainerType::InlineSize:
+        return GetInlineSize() != aNewState.GetInlineSize();
     }
     return false;
   }
@@ -1032,6 +1031,8 @@ bool nsPresContext::UpdateContainerQueryStyles() {
     return false;
   }
 
+  AUTO_PROFILER_MARKER_TEXT("UpdateContainerQueryStyles", LAYOUT, {}, ""_ns);
+
   PresShell()->DoFlushLayout(/* aInterruptible = */ false);
 
   bool anyChanged = false;
@@ -1041,7 +1042,8 @@ bool nsPresContext::UpdateContainerQueryStyles() {
     }
 
     auto type = frame->StyleDisplay()->mContainerType;
-    MOZ_ASSERT(type, "Non-container frames shouldn't be in this type");
+    MOZ_ASSERT(type != StyleContainerType::Normal,
+               "Non-container frames shouldn't be in this type");
 
     if (!mUpdatedContainerQueryContents.EnsureInserted(frame->GetContent())) {
       continue;
@@ -2609,12 +2611,6 @@ size_t nsPresContext::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const {
   return 0;
 }
 
-bool nsPresContext::IsRootContentDocument() const {
-  // Default to the in process version for now, but we should try
-  // to remove callers of this.
-  return IsRootContentDocumentInProcess();
-}
-
 bool nsPresContext::IsRootContentDocumentInProcess() const {
   if (mDocument->IsResourceDoc()) {
     return false;
@@ -2710,6 +2706,23 @@ void nsPresContext::NotifyContentfulPaint() {
       RefPtr<PerformancePaintTiming> paintTiming = new PerformancePaintTiming(
           perf, u"first-contentful-paint"_ns, nowTime);
       perf->SetFCPTimingEntry(paintTiming);
+
+      if (profiler_thread_is_being_profiled_for_markers()) {
+        RefPtr<nsDOMNavigationTiming> timing = mDocument->GetNavigationTiming();
+        if (timing) {
+          TimeStamp navigationStart = timing->GetNavigationStartTimeStamp();
+          TimeDuration elapsed = nowTime - navigationStart;
+          nsIURI* docURI = Document()->GetDocumentURI();
+          nsPrintfCString marker("Contentful paint after %dms for URL %s",
+                                 int(elapsed.ToMilliseconds()),
+                                 docURI->GetSpecOrDefault().get());
+          PROFILER_MARKER_TEXT(
+              "FirstContentfulPaint", DOM,
+              MarkerOptions(MarkerTiming::Interval(navigationStart, nowTime),
+                            MarkerInnerWindowId(innerWindow->WindowID())),
+              marker);
+        }
+      }
     }
   }
 }
@@ -2892,7 +2905,7 @@ void nsPresContext::UpdateDynamicToolbarOffset(ScreenIntCoord aOffset) {
   // %-based style values will be recomputed with the visual viewport size which
   // is including the area covered by the dynamic toolbar.
   if (mDynamicToolbarHeight == 0 || aOffset == -mDynamicToolbarMaxHeight) {
-    mPresShell->MarkFixedFramesForReflow(IntrinsicDirty::Resize);
+    mPresShell->MarkFixedFramesForReflow(IntrinsicDirty::None);
     mPresShell->AddResizeEventFlushObserverIfNeeded();
   }
 

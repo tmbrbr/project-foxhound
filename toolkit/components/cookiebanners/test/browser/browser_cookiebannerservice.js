@@ -59,7 +59,7 @@ add_task(async function test_enabled_pref() {
     Ci.nsICookieBannerRule
   );
   rule.id = genUUID();
-  rule.domain = "example.com";
+  rule.domains = ["example.com"];
 
   Assert.throws(
     () => {
@@ -89,7 +89,7 @@ add_task(async function test_enabled_pref() {
   );
   Assert.throws(
     () => {
-      Services.cookieBanners.getClickRulesForDomain("example.com");
+      Services.cookieBanners.getClickRulesForDomain("example.com", true);
     },
     /NS_ERROR_NOT_AVAILABLE/,
     "Should have thrown NS_ERROR_NOT_AVAILABLE for rules getClickRuleForDomain."
@@ -156,6 +156,22 @@ add_task(async function test_enabled_pref() {
     Array.isArray(rules),
     "Rules getter should not throw but return an array."
   );
+
+  info("Enabling cookie banner service. MODE_DETECT_ONLY");
+  await SpecialPowers.pushPrefEnv({
+    set: [
+      [
+        "cookiebanners.service.mode",
+        Ci.nsICookieBannerService.MODE_DETECT_ONLY,
+      ],
+    ],
+  });
+
+  rules = Services.cookieBanners.rules;
+  ok(
+    Array.isArray(rules),
+    "Rules getter should not throw but return an array."
+  );
 });
 
 /**
@@ -167,6 +183,7 @@ add_task(async function test_enabled_pref_pbm_combinations() {
     Ci.nsICookieBannerService.MODE_DISABLED,
     Ci.nsICookieBannerService.MODE_REJECT,
     Ci.nsICookieBannerService.MODE_REJECT_OR_ACCEPT,
+    Ci.nsICookieBannerService.MODE_DETECT_ONLY,
   ];
 
   // Test all pref combinations
@@ -238,7 +255,7 @@ add_task(async function test_insertAndGetRule() {
   let rule = Cc["@mozilla.org/cookie-banner-rule;1"].createInstance(
     Ci.nsICookieBannerRule
   );
-  rule.domain = "example.com";
+  rule.domains = ["example.com"];
 
   Services.cookieBanners.insertRule(rule);
 
@@ -301,7 +318,14 @@ add_task(async function test_insertAndGetRule() {
   );
 
   info("Adding a click rule to the rule for example.com.");
-  rule.addClickRule("div#presence", "div#hide", "div#optOut", "div#optIn");
+  rule.addClickRule(
+    "div#presence",
+    false,
+    Ci.nsIClickRule.RUN_TOP,
+    "div#hide",
+    "div#optOut",
+    "div#optIn"
+  );
 
   is(rule.cookiesOptOut.length, 2, "Should have two opt-out cookies.");
   is(rule.cookiesOptIn.length, 1, "Should have one opt-in cookie.");
@@ -315,7 +339,7 @@ add_task(async function test_insertAndGetRule() {
   let rule2 = Cc["@mozilla.org/cookie-banner-rule;1"].createInstance(
     Ci.nsICookieBannerRule
   );
-  rule2.domain = "example.org";
+  rule2.domains = ["example.org"];
 
   Services.cookieBanners.insertRule(rule2);
   info("Clearing preexisting cookies rules for example.org.");
@@ -338,7 +362,14 @@ add_task(async function test_insertAndGetRule() {
   );
 
   info("Adding a click rule to the rule for example.org.");
-  rule2.addClickRule("div#presence", null, null, "div#optIn");
+  rule2.addClickRule(
+    "div#presence",
+    false,
+    Ci.nsIClickRule.RUN_TOP,
+    null,
+    null,
+    "div#optIn"
+  );
 
   is(
     Services.cookieBanners.rules.length,
@@ -367,7 +398,10 @@ add_task(async function test_insertAndGetRule() {
   is(rule.cookiesOptIn.length, 0, "Should have no opt-in cookies.");
 
   info("Getting the click rule for example.com.");
-  let clickRules = Services.cookieBanners.getClickRulesForDomain("example.com");
+  let clickRules = Services.cookieBanners.getClickRulesForDomain(
+    "example.com",
+    true
+  );
   is(
     clickRules.length,
     1,
@@ -405,7 +439,8 @@ add_task(async function test_insertAndGetRule() {
 
   info("Getting the click rule for example.org.");
   let clickRules2 = Services.cookieBanners.getClickRulesForDomain(
-    "example.org"
+    "example.org",
+    true
   );
   is(
     clickRules2.length,
@@ -482,7 +517,7 @@ add_task(async function test_removeRule() {
     Ci.nsICookieBannerRule
   );
   rule.id = genUUID();
-  rule.domain = "example.com";
+  rule.domains = ["example.com"];
 
   Services.cookieBanners.insertRule(rule);
 
@@ -490,7 +525,7 @@ add_task(async function test_removeRule() {
     Ci.nsICookieBannerRule
   );
   rule2.id = genUUID();
-  rule2.domain = "example.org";
+  rule2.domains = ["example.org"];
 
   Services.cookieBanners.insertRule(rule2);
 
@@ -505,7 +540,7 @@ add_task(async function test_removeRule() {
     Ci.nsICookieBannerRule
   );
   ruleExampleNet.id = genUUID();
-  ruleExampleNet.domain = "example.net";
+  ruleExampleNet.domains = ["example.net"];
   Services.cookieBanners.removeRule(ruleExampleNet);
 
   is(
@@ -519,7 +554,7 @@ add_task(async function test_removeRule() {
     Ci.nsICookieBannerRule
   );
   ruleGlobal.id = genUUID();
-  ruleGlobal.domain = "*";
+  ruleGlobal.domains = [];
   Services.cookieBanners.removeRule(ruleGlobal);
 
   is(
@@ -538,7 +573,7 @@ add_task(async function test_removeRule() {
   );
 
   is(
-    Services.cookieBanners.rules[0].domain,
+    Services.cookieBanners.rules[0].domains[0],
     "example.org",
     "It should be the example.org rule."
   );
@@ -567,7 +602,7 @@ add_task(async function test_overwriteRule() {
   let rule = Cc["@mozilla.org/cookie-banner-rule;1"].createInstance(
     Ci.nsICookieBannerRule
   );
-  rule.domain = "example.com";
+  rule.domains = ["example.com"];
 
   info("Adding a cookie so we can detect if the rule updates.");
   rule.addCookie(
@@ -600,7 +635,7 @@ add_task(async function test_overwriteRule() {
   let ruleNew = Cc["@mozilla.org/cookie-banner-rule;1"].createInstance(
     Ci.nsICookieBannerRule
   );
-  ruleNew.domain = "example.com";
+  ruleNew.domains = ["example.com"];
 
   ruleNew.addCookie(
     true,
@@ -655,7 +690,7 @@ add_task(async function test_globalRules() {
     Ci.nsICookieBannerRule
   );
   rule.id = genUUID();
-  rule.domain = "example.com";
+  rule.domains = ["example.com"];
   rule.addCookie(
     true,
     "foo",
@@ -670,7 +705,13 @@ add_task(async function test_globalRules() {
     0,
     0
   );
-  rule.addClickRule("#cookieBannerExample", "#btnOptOut", "#btnOptIn");
+  rule.addClickRule(
+    "#cookieBannerExample",
+    false,
+    Ci.nsIClickRule.RUN_TOP,
+    "#btnOptOut",
+    "#btnOptIn"
+  );
   Services.cookieBanners.insertRule(rule);
 
   info(
@@ -680,7 +721,7 @@ add_task(async function test_globalRules() {
     Ci.nsICookieBannerRule
   );
   ruleGlobalA.id = genUUID();
-  ruleGlobalA.domain = "*";
+  ruleGlobalA.domains = [];
   ruleGlobalA.addCookie(
     true,
     "foo",
@@ -695,7 +736,13 @@ add_task(async function test_globalRules() {
     0,
     0
   );
-  ruleGlobalA.addClickRule("#globalCookieBanner", "#btnOptOut", "#btnOptIn");
+  ruleGlobalA.addClickRule(
+    "#globalCookieBanner",
+    false,
+    Ci.nsIClickRule.RUN_TOP,
+    "#btnOptOut",
+    "#btnOptIn"
+  );
   Services.cookieBanners.insertRule(ruleGlobalA);
 
   info("Insert a second global rule");
@@ -703,8 +750,14 @@ add_task(async function test_globalRules() {
     Ci.nsICookieBannerRule
   );
   ruleGlobalB.id = genUUID();
-  ruleGlobalB.domain = "*";
-  ruleGlobalB.addClickRule("#globalCookieBannerB", "#btnOptOutB", "#btnOptIn");
+  ruleGlobalB.domains = [];
+  ruleGlobalB.addClickRule(
+    "#globalCookieBannerB",
+    false,
+    Ci.nsIClickRule.RUN_TOP,
+    "#btnOptOutB",
+    "#btnOptIn"
+  );
   Services.cookieBanners.insertRule(ruleGlobalB);
 
   is(
@@ -723,7 +776,7 @@ add_task(async function test_globalRules() {
   );
 
   is(
-    Services.cookieBanners.getClickRulesForDomain("example.com").length,
+    Services.cookieBanners.getClickRulesForDomain("example.com", true).length,
     1,
     "There should be a a click rule for example.com"
   );
@@ -738,7 +791,8 @@ add_task(async function test_globalRules() {
   );
 
   let clickRules = Services.cookieBanners.getClickRulesForDomain(
-    Services.io.newURI("http://thishasnorule.com")
+    Services.io.newURI("http://thishasnorule.com"),
+    true
   );
   is(
     clickRules.length,
@@ -778,14 +832,15 @@ add_task(async function test_globalRules() {
 
   is(
     Services.cookieBanners.getClickRulesForDomain(
-      Services.io.newURI("http://thishasnorule.com")
+      Services.io.newURI("http://thishasnorule.com"),
+      true
     ).length,
     0,
     "There should be no click rules for thishasnorule.com since global rules are disabled"
   );
 });
 
-add_task(async function test_DomainPreference() {
+add_task(async function test_domain_preference() {
   info("Enabling cookie banner service with MODE_REJECT");
   await SpecialPowers.pushPrefEnv({
     set: [
@@ -871,7 +926,7 @@ add_task(async function test_DomainPreference() {
   );
 });
 
-add_task(async function test_DomainPreference_dont_override_disable_pref() {
+add_task(async function test_domain_preference_dont_override_disable_pref() {
   info("Enabling cookie banner service with MODE_REJECT");
   await SpecialPowers.pushPrefEnv({
     set: [
@@ -916,4 +971,55 @@ add_task(async function test_DomainPreference_dont_override_disable_pref() {
     ],
   });
   Services.cookieBanners.removeAllDomainPrefs(false);
+});
+
+/**
+ * Test that domain preference is properly cleared when private browsing session
+ * ends.
+ */
+add_task(async function test_domain_preference_cleared_PBM_ends() {
+  info("Enabling cookie banner service with MODE_REJECT");
+  await SpecialPowers.pushPrefEnv({
+    set: [
+      ["cookiebanners.service.mode", Ci.nsICookieBannerService.MODE_REJECT],
+    ],
+  });
+
+  info("Adding a domain preference for example.com in PBM");
+  let uri = Services.io.newURI("http://example.com");
+
+  info("Open a private browsing window.");
+  let PBMWin = await BrowserTestUtils.openNewBrowserWindow({
+    private: true,
+  });
+
+  // Set a domain preference for PBM.
+  Services.cookieBanners.setDomainPref(
+    uri,
+    Ci.nsICookieBannerService.MODE_DISABLED,
+    true
+  );
+
+  info("Verifying if the cookie banner domain pref is set for PBM.");
+  is(
+    Services.cookieBanners.getDomainPref(uri, true),
+    Ci.nsICookieBannerService.MODE_DISABLED,
+    "The domain pref is properly set for PBM."
+  );
+
+  info("Trigger an ending of a private browsing window session");
+  let PBMSessionEndsObserved = TestUtils.topicObserved(
+    "last-pb-context-exited"
+  );
+
+  // Close the PBM window and wait until it finishes.
+  await BrowserTestUtils.closeWindow(PBMWin);
+  await PBMSessionEndsObserved;
+
+  info("Verify if the private domain pref is cleared.");
+  is(
+    Services.cookieBanners.getDomainPref(uri, true),
+    Ci.nsICookieBannerService.MODE_UNSET,
+    "The domain pref is properly set for PBM."
+  );
 });

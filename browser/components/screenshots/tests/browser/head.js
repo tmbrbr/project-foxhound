@@ -62,10 +62,21 @@ class ScreenshotsHelper {
     button.click();
   }
 
+  async waitForPanel() {
+    return BrowserTestUtils.waitForCondition(async () => {
+      return gBrowser.selectedBrowser.ownerDocument.querySelector(
+        "#screenshotsPagePanel"
+      );
+    });
+  }
+
   async waitForOverlay() {
     let panel = gBrowser.selectedBrowser.ownerDocument.querySelector(
       "#screenshotsPagePanel"
     );
+    if (!panel) {
+      panel = await this.waitForPanel();
+    }
     await BrowserTestUtils.waitForMutationCondition(
       panel,
       { attributes: true },
@@ -83,6 +94,21 @@ class ScreenshotsHelper {
   }
 
   async waitForOverlayClosed() {
+    let panel = gBrowser.selectedBrowser.ownerDocument.querySelector(
+      "#screenshotsPagePanel"
+    );
+    if (!panel) {
+      panel = await this.waitForPanel();
+    }
+    await BrowserTestUtils.waitForMutationCondition(
+      panel,
+      { attributes: true },
+      () => {
+        return BrowserTestUtils.is_hidden(panel);
+      }
+    );
+    ok(BrowserTestUtils.is_hidden(panel), "Panel buttons are hidden");
+
     await BrowserTestUtils.waitForCondition(async () => {
       let init = !(await this.isOverlayInitialized());
       info("Is overlay initialized: " + !init);
@@ -172,6 +198,10 @@ class ScreenshotsHelper {
     });
   }
 
+  clickDownloadButton() {
+    mouse.click(this.endX - 60, this.endY + 30);
+  }
+
   clickCopyButton(overrideX = null, overrideY = null) {
     // click copy button with last x and y position from dragOverlay
     // the middle of the copy button is last X - 163 and last Y + 30.
@@ -208,6 +238,26 @@ class ScreenshotsHelper {
     let manager = currDialogBox.getTabDialogManager();
     let dialogs = manager.hasDialogs && manager.dialogs;
     return dialogs[0];
+  }
+
+  assertPanelVisible() {
+    let panel = gBrowser.selectedBrowser.ownerDocument.querySelector(
+      "#screenshotsPagePanel"
+    );
+    Assert.ok(
+      BrowserTestUtils.is_visible(panel),
+      "Screenshots panel is visible"
+    );
+  }
+
+  assertPanelNotVisible() {
+    let panel = gBrowser.selectedBrowser.ownerDocument.querySelector(
+      "#screenshotsPagePanel"
+    );
+    Assert.ok(
+      BrowserTestUtils.is_hidden(panel),
+      "Screenshots panel is not visible"
+    );
   }
 
   /**
@@ -438,3 +488,9 @@ add_setup(async () => {
   let screenshotBtn = document.getElementById("screenshot-button");
   Assert.ok(screenshotBtn, "The screenshots button was added to the nav bar");
 });
+
+function getContentDevicePixelRatio(browser) {
+  return SpecialPowers.spawn(browser, [], async function() {
+    return content.window.devicePixelRatio;
+  });
+}

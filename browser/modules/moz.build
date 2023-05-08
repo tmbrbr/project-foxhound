@@ -70,7 +70,7 @@ with Files("LiveBookmarkMigrator.jsm"):
 with Files("OpenInTabsUtils.jsm"):
     BUG_COMPONENT = ("Firefox", "Tabbed Browser")
 
-with Files("PartnerLinkAttribution.jsm"):
+with Files("PartnerLinkAttribution.sys.mjs"):
     BUG_COMPONENT = ("Firefox", "Search")
 
 with Files("PermissionUI.jsm"):
@@ -79,14 +79,14 @@ with Files("PermissionUI.jsm"):
 with Files("ProcessHangMonitor.jsm"):
     BUG_COMPONENT = ("Core", "DOM: Content Processes")
 
-with Files("Sanitizer.jsm"):
-    BUG_COMPONENT = ("Firefox", "Preferences")
+with Files("Sanitizer.sys.mjs"):
+    BUG_COMPONENT = ("Toolkit", "Data Sanitization")
 
 with Files("SelectionChangedMenulist.jsm"):
-    BUG_COMPONENT = ("Firefox", "Preferences")
+    BUG_COMPONENT = ("Firefox", "Settings UI")
 
 with Files("SiteDataManager.jsm"):
-    BUG_COMPONENT = ("Firefox", "Preferences")
+    BUG_COMPONENT = ("Firefox", "Settings UI")
 
 with Files("SitePermissions.jsm"):
     BUG_COMPONENT = ("Firefox", "Site Permissions")
@@ -95,7 +95,7 @@ with Files("TabsList.jsm"):
     BUG_COMPONENT = ("Firefox", "Tabbed Browser")
 
 with Files("TransientPrefs.jsm"):
-    BUG_COMPONENT = ("Firefox", "Preferences")
+    BUG_COMPONENT = ("Firefox", "Settings UI")
 
 with Files("WindowsJumpLists.jsm"):
     BUG_COMPONENT = ("Firefox", "Shell Integration")
@@ -119,7 +119,6 @@ XPCSHELL_TESTS_MANIFESTS += ["test/unit/xpcshell.ini"]
 
 EXTRA_JS_MODULES += [
     "AboutNewTab.jsm",
-    "AppUpdater.jsm",
     "AsyncTabSwitcher.jsm",
     "BrowserUIUtils.jsm",
     "BrowserUsageTelemetry.jsm",
@@ -134,11 +133,11 @@ EXTRA_JS_MODULES += [
     "NewTabPagePreloading.jsm",
     "OpenInTabsUtils.jsm",
     "PageActions.jsm",
-    "PartnerLinkAttribution.jsm",
+    "PartnerLinkAttribution.sys.mjs",
     "PermissionUI.jsm",
     "PingCentre.jsm",
     "ProcessHangMonitor.jsm",
-    "Sanitizer.jsm",
+    "Sanitizer.sys.mjs",
     "SelectionChangedMenulist.jsm",
     "SiteDataManager.jsm",
     "SitePermissions.jsm",

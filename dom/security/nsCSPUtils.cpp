@@ -322,6 +322,7 @@ CSPDirective CSP_ContentTypeToDirective(nsContentPolicyType aType) {
     case nsIContentPolicy::TYPE_INTERNAL_XMLHTTPREQUEST:
     case nsIContentPolicy::TYPE_INTERNAL_EVENTSOURCE:
     case nsIContentPolicy::TYPE_INTERNAL_FETCH_PRELOAD:
+    case nsIContentPolicy::TYPE_WEB_IDENTITY:
       return nsIContentSecurityPolicy::CONNECT_SRC_DIRECTIVE;
 
     case nsIContentPolicy::TYPE_OBJECT:
@@ -874,7 +875,7 @@ bool nsCSPKeywordSrc::allows(enum CSPKeyword aKeyword,
        "%s",
        CSP_EnumToUTF8Keyword(aKeyword),
        NS_ConvertUTF16toUTF8(aHashOrNonce).get(),
-       mInvalidated ? "yes" : "false"));
+       mInvalidated ? "true" : "false"));
 
   if (mInvalidated) {
     // only 'self', 'report-sample' and 'unsafe-inline' are keywords that can be
@@ -1460,16 +1461,6 @@ bool nsCSPPolicy::allows(CSPDirective aDirective, enum CSPKeyword aKeyword,
       }
       return false;
     }
-  }
-
-  // {nonce,hash}-source should not consult default-src:
-  //   * return false if default-src is specified
-  //   * but allow the load if default-src is *not* specified (Bug 1198422)
-  if (aKeyword == CSP_NONCE || aKeyword == CSP_HASH) {
-    if (!defaultDir) {
-      return true;
-    }
-    return false;
   }
 
   // If the above loop runs through, we haven't found a matching directive.

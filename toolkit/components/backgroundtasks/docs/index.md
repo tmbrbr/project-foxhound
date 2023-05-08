@@ -59,6 +59,18 @@ For more details, see [`XPCSHELL_TESTING_MODULES_URI`](https://searchfox.org/moz
 
 Background task mode supports using the JavaScript debugger and the Firefox Devtools and Browser Toolbox.  When invoked with the command line parameters `--jsdebugger` (and optionally `--wait-for-jsdebugger`), the background task framework will launch a Browser Toolbox, connect to the background task, and pause execution at the first line of the task implementation.  The Browser Toolbox is launched with a temporary profile (sibling to the ephemeral temporary profile the background task itself creates.)  The Browser Toolbox profile's preferences are copied from the default browsing profile, allowing to configure devtools preferences.  (The `--start-debugger-server` command line option is also recognized; see the output of `firefox --backgroundtask success --attach-console --help` for details.)
 
+## Invoking background tasks
+
+Use `BackgroundTasksRunner::RunInDetachedProcess` is a helper to open a new background process within Gecko. It automatically manages the configuration 1) to let the new process outlive the launching process and 2) to escape the arguments properly. The function is safe to be called in a non-main process.
+
+## Existing background tasks
+
+* `BackgroundTask_removeDirectory`
+
+  Removes the child directory with the given name and/or child directories with the given postfix, all in the given parent directory. It's recommended to run it via the corresponding helper function `BackgroundTasksRunner::RemoveDirectoryInDetachedProcess`.
+
+  Tests can use `toolkit.background_tasks.remove_directory.testing.sleep_ms` to see whether a longstanding task can finish the work even after the launching process is closed.
+
 ## The background task mode runtime environment
 
 ### Most background tasks run in ephemeral temporary profiles
@@ -92,3 +104,9 @@ Background tasks that are launched at shutdown (and that are not updating) do no
         firefox (version N+1)                    :2014-01-07, 3d
         firefox --backgroundtask ... (version N) :2014-01-05, 3d
 ```
+
+### Most background tasks produce console output
+
+Background tasks are usually scheduled in situations where their output is not user-visible: by the Windows Task Scheduler, at shutdown, etc.  Therefore, it's usually safe to always produce console output.  But some tasks, especially shutdown tasks executed during developer builds, can "pollute" the console even after the Firefox main process has exited.  To avoid this, background tasks can opt-in to producing no output; the predicate that determines whether a particular background task *does* produce output is [`BackgroundTasks::IsNoOutputTaskName`](https://searchfox.org/mozilla-central/source/toolkit/components/backgroundtasks/BackgroundTasks.h).  This predicate can be overridden by providing the `--attach-console` command line flag or by setting the `MOZ_BACKGROUNDTASKS_IGNORE_NO_OUTPUT` environment variable to a non-empty value.
+
+The `pingsender` background task opts to produce no output: see [Bug 1736623](https://bugzilla.mozilla.org/show_bug.cgi?id=1736623).

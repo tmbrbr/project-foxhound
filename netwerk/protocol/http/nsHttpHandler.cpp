@@ -879,19 +879,13 @@ void nsHttpHandler::InitUserAgentComponents() {
     }
   }
 
-  // Add the `Mobile` or `Tablet` or `TV` token when running on device.
-  bool isTablet;
-  rv = infoService->GetPropertyAsBool(u"tablet"_ns, &isTablet);
-  if (NS_SUCCEEDED(rv) && isTablet) {
-    mCompatDevice.AssignLiteral("Tablet");
+  // Add the `Mobile` or `TV` token when running on device.
+  bool isTV;
+  rv = infoService->GetPropertyAsBool(u"tv"_ns, &isTV);
+  if (NS_SUCCEEDED(rv) && isTV) {
+    mCompatDevice.AssignLiteral("TV");
   } else {
-    bool isTV;
-    rv = infoService->GetPropertyAsBool(u"tv"_ns, &isTV);
-    if (NS_SUCCEEDED(rv) && isTV) {
-      mCompatDevice.AssignLiteral("TV");
-    } else {
-      mCompatDevice.AssignLiteral("Mobile");
-    }
+    mCompatDevice.AssignLiteral("Mobile");
   }
 
   if (Preferences::GetBool(UA_PREF("use_device"), false)) {
@@ -1842,9 +1836,10 @@ nsresult nsHttpHandler::SetAcceptLanguages() {
 
     // Forward to the main thread synchronously.
     SyncRunnable::DispatchToThread(
-        mainThread, new SyncRunnable(NS_NewRunnableFunction(
-                        "nsHttpHandler::SetAcceptLanguages",
-                        [&rv]() { rv = gHttpHandler->SetAcceptLanguages(); })));
+        mainThread,
+        NS_NewRunnableFunction("nsHttpHandler::SetAcceptLanguages", [&rv]() {
+          rv = gHttpHandler->SetAcceptLanguages();
+        }));
     return rv;
   }
 
@@ -1893,18 +1888,6 @@ NS_IMPL_ISUPPORTS(nsHttpHandler, nsIHttpProtocolHandler,
 NS_IMETHODIMP
 nsHttpHandler::GetScheme(nsACString& aScheme) {
   aScheme.AssignLiteral("http");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::GetDefaultPort(int32_t* result) {
-  *result = NS_HTTP_DEFAULT_PORT;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::GetProtocolFlags(uint32_t* result) {
-  *result = NS_HTTP_PROTOCOL_FLAGS;
   return NS_OK;
 }
 
@@ -2415,18 +2398,6 @@ nsresult nsHttpsHandler::Init() {
 NS_IMETHODIMP
 nsHttpsHandler::GetScheme(nsACString& aScheme) {
   aScheme.AssignLiteral("https");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpsHandler::GetDefaultPort(int32_t* aPort) {
-  *aPort = NS_HTTPS_DEFAULT_PORT;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpsHandler::GetProtocolFlags(uint32_t* aProtocolFlags) {
-  *aProtocolFlags = NS_HTTP_PROTOCOL_FLAGS | URI_IS_POTENTIALLY_TRUSTWORTHY;
   return NS_OK;
 }
 

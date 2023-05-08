@@ -840,9 +840,7 @@ class nsFlexContainerFrame::FlexItem final {
   nsBlockFrame* BlockFrame() const;
 
  protected:
-  // Helper called by the constructor, to set mNeedsMinSizeAutoResolution:
-  void CheckForMinSizeAuto(const ReflowInput& aFlexItemReflowInput,
-                           const FlexboxAxisTracker& aAxisTracker);
+  bool IsMinSizeAutoResolutionNeeded() const;
 
   uint32_t NumAutoMarginsInAxis(LogicalAxis aAxis) const;
 
@@ -918,7 +916,12 @@ class nsFlexContainerFrame::FlexItem final {
   // constructor.
   bool mIsInlineAxisMainAxis = true;
 
-  // Does this item need to resolve a min-[width|height]:auto (in main-axis).
+  // Does this item need to resolve a min-[width|height]:auto (in main-axis)?
+  //
+  // Note: mNeedsMinSizeAutoResolution needs to be declared towards the end of
+  // the member variables since it's initialized in a method that depends on
+  // other members declared above such as mCBWM, mMainAxis, and
+  // mIsInlineAxisMainAxis.
   bool mNeedsMinSizeAutoResolution = false;
 
   // Should we take care to treat this item's resolved BSize as indefinite?
@@ -1097,12 +1100,20 @@ struct nsFlexContainerFrame::StrutInfo {
 // Flex data shared by the flex container frames in a continuation chain, owned
 // by the first-in-flow. The data is initialized at the end of the
 // first-in-flow's Reflow().
-struct nsFlexContainerFrame::SharedFlexData {
+struct nsFlexContainerFrame::SharedFlexData final {
+  // The flex lines generated in DoFlexLayout() by our first-in-flow.
   nsTArray<FlexLine> mLines;
 
   // The final content main/cross size computed by DoFlexLayout.
   nscoord mContentBoxMainSize = NS_UNCONSTRAINEDSIZE;
   nscoord mContentBoxCrossSize = NS_UNCONSTRAINEDSIZE;
+
+  // Update this struct. Called by the first-in-flow.
+  void Update(FlexLayoutResult&& aFlr) {
+    mLines = std::move(aFlr.mLines);
+    mContentBoxMainSize = aFlr.mContentBoxMainSize;
+    mContentBoxCrossSize = aFlr.mContentBoxCrossSize;
+  }
 
   // The frame property under which this struct is stored. Set only on the
   // first-in-flow.
@@ -1235,22 +1246,22 @@ bool nsFlexContainerFrame::DrainSelfOverflowList() {
 }
 
 void nsFlexContainerFrame::AppendFrames(ChildListID aListID,
-                                        nsFrameList& aFrameList) {
+                                        nsFrameList&& aFrameList) {
   NoteNewChildren(aListID, aFrameList);
-  nsContainerFrame::AppendFrames(aListID, aFrameList);
+  nsContainerFrame::AppendFrames(aListID, std::move(aFrameList));
 }
 
 void nsFlexContainerFrame::InsertFrames(
     ChildListID aListID, nsIFrame* aPrevFrame,
-    const nsLineList::iterator* aPrevFrameLine, nsFrameList& aFrameList) {
+    const nsLineList::iterator* aPrevFrameLine, nsFrameList&& aFrameList) {
   NoteNewChildren(aListID, aFrameList);
   nsContainerFrame::InsertFrames(aListID, aPrevFrame, aPrevFrameLine,
-                                 aFrameList);
+                                 std::move(aFrameList));
 }
 
 void nsFlexContainerFrame::RemoveFrame(ChildListID aListID,
                                        nsIFrame* aOldFrame) {
-  MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
+  MOZ_ASSERT(aListID == FrameChildListID::Principal, "unexpected child list");
 
 #ifdef DEBUG
   SetDidPushItemsBitIfNeeded(aListID, aOldFrame);
@@ -2039,8 +2050,8 @@ nscoord nsFlexContainerFrame::MeasureFlexItemContentBSize(
   // min-block-size and max-block-size by resetting both to to their
   // unconstraining (extreme) values. The flexbox layout algorithm does still
   // explicitly clamp both sizes when resolving the target main size.
-  childRIForMeasuringBSize.ComputedMinBSize() = 0;
-  childRIForMeasuringBSize.ComputedMaxBSize() = NS_UNCONSTRAINEDSIZE;
+  childRIForMeasuringBSize.SetComputedMinBSize(0);
+  childRIForMeasuringBSize.SetComputedMaxBSize(NS_UNCONSTRAINEDSIZE);
 
   if (aForceBResizeForMeasuringReflow) {
     childRIForMeasuringBSize.SetBResize(true);
@@ -2074,8 +2085,8 @@ FlexItem::FlexItem(ReflowInput& aFlexItemReflowInput, float aFlexGrow,
       mCrossMinSize(aCrossMinSize),
       mCrossMaxSize(aCrossMaxSize),
       mCrossSize(aTentativeCrossSize),
-      mIsInlineAxisMainAxis(aAxisTracker.IsInlineAxisMainAxis(mWM))
-// mNeedsMinSizeAutoResolution is initialized in CheckForMinSizeAuto()
+      mIsInlineAxisMainAxis(aAxisTracker.IsInlineAxisMainAxis(mWM)),
+      mNeedsMinSizeAutoResolution(IsMinSizeAutoResolutionNeeded())
 // mAlignSelf, mHasAnyAutoMargin see below
 {
   MOZ_ASSERT(mFrame, "expecting a non-null child frame");
@@ -2157,7 +2168,6 @@ FlexItem::FlexItem(ReflowInput& aFlexItemReflowInput, float aFlexGrow,
   }
 
   SetFlexBaseSizeAndMainSize(aFlexBaseSize);
-  CheckForMinSizeAuto(aFlexItemReflowInput, aAxisTracker);
 
   const nsStyleMargin* styleMargin = aFlexItemReflowInput.mStyleMargin;
   mHasAnyAutoMargin = styleMargin->HasInlineAxisAuto(mCBWM) ||
@@ -2219,28 +2229,18 @@ FlexItem::FlexItem(nsIFrame* aChildFrame, nscoord aCrossSize,
              "out-of-flow frames should not be treated as flex items");
 }
 
-void FlexItem::CheckForMinSizeAuto(const ReflowInput& aFlexItemReflowInput,
-                                   const FlexboxAxisTracker& aAxisTracker) {
-  const nsStylePosition* pos = aFlexItemReflowInput.mStylePosition;
-  const nsStyleDisplay* disp = aFlexItemReflowInput.mStyleDisplay;
-
+bool FlexItem::IsMinSizeAutoResolutionNeeded() const {
   // We'll need special behavior for "min-[width|height]:auto" (whichever is in
   // the flex container's main axis) iff:
-  // (a) its computed value is "auto"
-  // (b) the "overflow" sub-property in the same axis (the main axis) has a
-  //     computed value of "visible" and the item does not create a scroll
-  //     container.
-  const auto& mainMinSize = aAxisTracker.IsRowOriented()
-                                ? pos->MinISize(aAxisTracker.GetWritingMode())
-                                : pos->MinBSize(aAxisTracker.GetWritingMode());
+  // (a) its computed value is "auto", and
+  // (b) the item is *not* a scroll container. (A scroll container's automatic
+  //     minimum size is zero.)
+  // https://drafts.csswg.org/css-flexbox-1/#min-size-auto
+  const auto& mainMinSize =
+      Frame()->StylePosition()->MinSize(MainAxis(), ContainingBlockWM());
 
-  // If the scrollable overflow makes us create a scroll container, then we
-  // don't need to do any extra resolution for our `min-size:auto` value.
-  // We don't need to check for scrollable overflow in a particular axis
-  // because this will be true for both or neither axis.
-  mNeedsMinSizeAutoResolution =
-      IsAutoOrEnumOnBSize(mainMinSize, IsInlineAxisMainAxis()) &&
-      !disp->IsScrollableOverflow();
+  return IsAutoOrEnumOnBSize(mainMinSize, IsInlineAxisMainAxis()) &&
+         !Frame()->StyleDisplay()->IsScrollableOverflow();
 }
 
 nscoord FlexItem::BaselineOffsetFromOuterCrossEdge(
@@ -2856,13 +2856,14 @@ void nsFlexContainerFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   nsDisplayListSet childLists(tempLists, tempLists.BlockBorderBackgrounds());
 
   CSSOrderAwareFrameIterator iter(
-      this, kPrincipalList, CSSOrderAwareFrameIterator::ChildFilter::IncludeAll,
+      this, FrameChildListID::Principal,
+      CSSOrderAwareFrameIterator::ChildFilter::IncludeAll,
       OrderStateForIter(this), OrderingPropertyForIter(this));
 
+  const auto flags = DisplayFlagsForFlexOrGridItem();
   for (; !iter.AtEnd(); iter.Next()) {
     nsIFrame* childFrame = *iter;
-    BuildDisplayListForChild(aBuilder, childFrame, childLists,
-                             childFrame->DisplayFlagForFlexOrGridItem());
+    BuildDisplayListForChild(aBuilder, childFrame, childLists, flags);
   }
 
   tempLists.MoveTo(aLists);
@@ -4037,7 +4038,8 @@ void nsFlexContainerFrame::GenerateFlexLines(
   uint32_t itemIdxInContainer = 0;
 
   CSSOrderAwareFrameIterator iter(
-      this, kPrincipalList, CSSOrderAwareFrameIterator::ChildFilter::IncludeAll,
+      this, FrameChildListID::Principal,
+      CSSOrderAwareFrameIterator::ChildFilter::IncludeAll,
       CSSOrderAwareFrameIterator::OrderState::Unknown,
       OrderingPropertyForIter(this));
 
@@ -4146,7 +4148,7 @@ nsFlexContainerFrame::GenerateFlexLayoutResult() {
   // Construct flex items for this flex container fragment from existing flex
   // items in SharedFlexData.
   CSSOrderAwareFrameIterator iter(
-      this, kPrincipalList,
+      this, FrameChildListID::Principal,
       CSSOrderAwareFrameIterator::ChildFilter::SkipPlaceholders,
       OrderStateForIter(this), OrderingPropertyForIter(this));
 
@@ -4488,7 +4490,8 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
   ComputedFlexContainerInfo* containerInfo = CreateOrClearFlexContainerInfo();
 
   FlexLayoutResult flr;
-  if (!GetPrevInFlow()) {
+  const nsIFrame* prevInFlow = GetPrevInFlow();
+  if (!prevInFlow) {
     const LogicalSize tentativeContentBoxSize = aReflowInput.ComputedSize();
     const nscoord tentativeContentBoxMainSize =
         axisTracker.MainComponent(tentativeContentBoxSize);
@@ -4572,7 +4575,6 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
                aReflowInput.AvailableBSize()));
   const nsSize containerSize = tentativeBorderBoxSize.GetPhysicalSize(wm);
 
-  const auto* prevInFlow = static_cast<nsFlexContainerFrame*>(GetPrevInFlow());
   OverflowAreas ocBounds;
   nsReflowStatus ocStatus;
   nscoord sumOfChildrenBlockSize;
@@ -4592,14 +4594,17 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
       ReflowChildren(aReflowInput, containerSize, availableSizeForItems,
                      borderPadding, sumOfChildrenBlockSize, axisTracker, flr);
 
-  // maxBlockEndEdgeOfChildren is relative to border-box, so we need to subtract
-  // block-start border and padding to make it relative to our content-box. Note
-  // that if there is a packing space in between the last flex item's block-end
-  // edge and the available space's block-end edge, we want to record the
-  // available size of item to consume part of the packing space.
-  sumOfChildrenBlockSize +=
-      std::max(maxBlockEndEdgeOfChildren - borderPadding.BStart(wm),
-               availableSizeForItems.BSize(wm));
+  if (aReflowInput.AvailableBSize() != NS_UNCONSTRAINEDSIZE) {
+    // maxBlockEndEdgeOfChildren is relative to border-box, so we need to
+    // subtract block-start border and padding to make it relative to our
+    // content-box. Note that if there is a packing space in between the last
+    // flex item's block-end edge and the available space's block-end edge, we
+    // want to record the available size of item to consume part of the packing
+    // space.
+    sumOfChildrenBlockSize +=
+        std::max(maxBlockEndEdgeOfChildren - borderPadding.BStart(wm),
+                 availableSizeForItems.BSize(wm));
+  }
 
   PopulateReflowOutput(aReflowOutput, aReflowInput, aStatus, contentBoxSize,
                        borderPadding, consumedBSize, mayNeedNextInFlow,
@@ -4623,7 +4628,48 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
 
   // Overflow area = union(my overflow area, children's overflow areas)
   aReflowOutput.SetOverflowAreasToDesiredBounds();
+  UnionInFlowChildOverflow(aReflowOutput.mOverflowAreas);
 
+  // Merge overflow container bounds and status.
+  aReflowOutput.mOverflowAreas.UnionWith(ocBounds);
+  aStatus.MergeCompletionStatusFrom(ocStatus);
+
+  FinishReflowWithAbsoluteFrames(PresContext(), aReflowOutput, aReflowInput,
+                                 aStatus);
+
+  // Finally update our line and item measurements in our containerInfo.
+  if (MOZ_UNLIKELY(containerInfo)) {
+    UpdateFlexLineAndItemInfo(*containerInfo, flr.mLines);
+  }
+
+  // If we are the first-in-flow, we want to store data for our next-in-flows,
+  // or clear the existing data if it is not needed.
+  if (!prevInFlow) {
+    SharedFlexData* sharedData = GetProperty(SharedFlexData::Prop());
+    if (!aStatus.IsFullyComplete()) {
+      if (!sharedData) {
+        sharedData = new SharedFlexData;
+        SetProperty(SharedFlexData::Prop(), sharedData);
+      }
+      sharedData->Update(std::move(flr));
+
+      SetProperty(SumOfChildrenBlockSizeProperty(), sumOfChildrenBlockSize);
+    } else if (sharedData && !GetNextInFlow()) {
+      // We are fully-complete, so no next-in-flow is needed. However, if we
+      // report SetInlineLineBreakBeforeAndReset() in an incremental reflow, our
+      // next-in-flow might still exist. It can be reflowed again before us if
+      // it is an overflow container. Delete the existing data only if we don't
+      // have a next-in-flow.
+      RemoveProperty(SharedFlexData::Prop());
+      RemoveProperty(SumOfChildrenBlockSizeProperty());
+    }
+  } else {
+    SetProperty(SumOfChildrenBlockSizeProperty(), sumOfChildrenBlockSize);
+  }
+}
+
+void nsFlexContainerFrame::UnionInFlowChildOverflow(
+    OverflowAreas& aOverflowAreas) {
   // The CSS Overflow spec [1] requires that a scrollable container's
   // scrollable overflow should include the following areas.
   //
@@ -4642,11 +4688,6 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
   // [1] https://drafts.csswg.org/css-overflow-3/#scrollable.
   const bool isScrolledContent =
       Style()->GetPseudoType() == PseudoStyleType::scrolledContent;
-  MOZ_ASSERT(
-      !isScrolledContent || aReflowInput.ComputedLogicalBorderPadding(wm) ==
-                                aReflowInput.ComputedLogicalPadding(wm),
-      "A scrolled inner frame shouldn't have any border!");
-
   bool anyScrolledContentItem = false;
   // Union of normal-positioned margin boxes for all the items.
   nsRect itemMarginBoxes;
@@ -4657,7 +4698,7 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
     if (useMozBoxCollapseBehavior && f->StyleVisibility()->IsCollapse()) {
       continue;
     }
-    ConsiderChildOverflow(aReflowOutput.mOverflowAreas, f);
+    ConsiderChildOverflow(aOverflowAreas, f);
     if (!isScrolledContent) {
       continue;
     }
@@ -4677,49 +4718,18 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
   }
 
   if (anyScrolledContentItem) {
-    itemMarginBoxes.Inflate(borderPadding.GetPhysicalMargin(wm));
-    aReflowOutput.mOverflowAreas.UnionAllWith(itemMarginBoxes);
-    aReflowOutput.mOverflowAreas.UnionAllWith(relPosItemMarginBoxes);
+    itemMarginBoxes.Inflate(GetUsedPadding());
+    aOverflowAreas.UnionAllWith(itemMarginBoxes);
+    aOverflowAreas.UnionAllWith(relPosItemMarginBoxes);
   }
+}
 
-  // Merge overflow container bounds and status.
-  aReflowOutput.mOverflowAreas.UnionWith(ocBounds);
-  aStatus.MergeCompletionStatusFrom(ocStatus);
-
-  FinishReflowWithAbsoluteFrames(PresContext(), aReflowOutput, aReflowInput,
-                                 aStatus);
-
-  // Finally update our line and item measurements in our containerInfo.
-  if (MOZ_UNLIKELY(containerInfo)) {
-    UpdateFlexLineAndItemInfo(*containerInfo, flr.mLines);
-  }
-
-  // If we are the first-in-flow, we want to store data for our next-in-flows,
-  // or clear the existing data if it is not needed.
-  if (!GetPrevInFlow()) {
-    SharedFlexData* data = GetProperty(SharedFlexData::Prop());
-    if (!aStatus.IsFullyComplete()) {
-      if (!data) {
-        data = new SharedFlexData;
-        SetProperty(SharedFlexData::Prop(), data);
-      }
-      data->mLines = std::move(flr.mLines);
-      data->mContentBoxMainSize = flr.mContentBoxMainSize;
-      data->mContentBoxCrossSize = flr.mContentBoxCrossSize;
-
-      SetProperty(SumOfChildrenBlockSizeProperty(), sumOfChildrenBlockSize);
-    } else if (data && !GetNextInFlow()) {
-      // We are fully-complete, so no next-in-flow is needed. However, if we
-      // report SetInlineLineBreakBeforeAndReset() in a incremental reflow, our
-      // next-in-flow might still exist. It can be reflowed again before us if
-      // it is an overflow container. Delete the existing data only if we don't
-      // have a next-in-flow.
-      RemoveProperty(SharedFlexData::Prop());
-      RemoveProperty(SumOfChildrenBlockSizeProperty());
-    }
-  } else {
-    SetProperty(SumOfChildrenBlockSizeProperty(), sumOfChildrenBlockSize);
-  }
+void nsFlexContainerFrame::UnionChildOverflow(OverflowAreas& aOverflowAreas) {
+  UnionInFlowChildOverflow(aOverflowAreas);
+  // Union with child frames, skipping the principal list since we already
+  // handled those above.
+  nsLayoutUtils::UnionChildOverflow(this, aOverflowAreas,
+                                    {FrameChildListID::Principal});
 }
 
 void nsFlexContainerFrame::CalculatePackingSpace(
@@ -4933,7 +4943,7 @@ nsFlexContainerFrame* nsFlexContainerFrame::GetFlexFrameWithComputedInfo(
 
       RefPtr<mozilla::PresShell> presShell = flexFrame->PresShell();
       flexFrame->SetShouldGenerateComputedInfo(true);
-      presShell->FrameNeedsReflow(flexFrame, IntrinsicDirty::Resize,
+      presShell->FrameNeedsReflow(flexFrame, IntrinsicDirty::None,
                                   NS_FRAME_IS_DIRTY);
       presShell->FlushPendingNotifications(FlushType::Layout);
 
@@ -5211,7 +5221,7 @@ std::tuple<nscoord, bool> nsFlexContainerFrame::ReflowChildren(
         // The item is a continuation. Lay it out at the beginning of the
         // available space.
         framePos.B(flexWM) = 0;
-      } else {
+      } else if (GetPrevInFlow()) {
         // We haven't laid the item out. Subtract its block-direction position
         // by the sum of our prev-in-flows' content block-end.
         framePos.B(flexWM) -= aSumOfPrevInFlowsChildrenBlockSize;

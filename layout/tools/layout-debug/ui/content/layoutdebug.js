@@ -13,11 +13,11 @@ var gFissionBrowser = window.docShell.QueryInterface(Ci.nsILoadContext)
 var gWritingProfile = false;
 var gWrittenProfile = false;
 
-const { E10SUtils } = ChromeUtils.import(
-  "resource://gre/modules/E10SUtils.jsm"
+const { E10SUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/E10SUtils.sys.mjs"
 );
-const { Preferences } = ChromeUtils.import(
-  "resource://gre/modules/Preferences.jsm"
+const { Preferences } = ChromeUtils.importESModule(
+  "resource://gre/modules/Preferences.sys.mjs"
 );
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -341,10 +341,7 @@ function OnLDBLoad() {
 
   if (gArgs.profile) {
     if (Services.profiler) {
-      let env = Cc["@mozilla.org/process/environment;1"].getService(
-        Ci.nsIEnvironment
-      );
-      if (!env.exists("MOZ_PROFILER_SYMBOLICATE")) {
+      if (!Services.env.exists("MOZ_PROFILER_SYMBOLICATE")) {
         dump(
           "Warning: MOZ_PROFILER_SYMBOLICATE environment variable not set; " +
             "profile will not be symbolicated.\n"

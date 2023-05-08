@@ -4,10 +4,15 @@
 
 # flake8: noqa
 
-from Atom import Atom, InheritingAnonBoxAtom, NonInheritingAnonBoxAtom
-from Atom import PseudoElementAtom
-from HTMLAtoms import HTML_PARSER_ATOMS
 import sys
+
+from Atom import (
+    Atom,
+    InheritingAnonBoxAtom,
+    NonInheritingAnonBoxAtom,
+    PseudoElementAtom,
+)
+from HTMLAtoms import HTML_PARSER_ATOMS
 
 # Static atom definitions, used to generate nsGkAtomList.h.
 #
@@ -305,7 +310,6 @@ STATIC_ATOMS = [
     Atom("datetime", "datetime"),
     Atom("datetime_local", "datetime-local"),
     Atom("datetimeInputBoxWrapper", "datetime-input-box-wrapper"),
-    Atom("datetimeResetButton", "datetime-reset-button"),
     Atom("dd", "dd"),
     Atom("decimal", "decimal"),
     Atom("decimalFormat", "decimal-format"),
@@ -318,6 +322,7 @@ STATIC_ATOMS = [
     Atom("headerDefaultStyle", "default-style"),
     Atom("defer", "defer"),
     Atom("del", "del"),
+    Atom("delegatesanchor", "delegatesanchor"),
     Atom("deletion", "deletion"),
     Atom("deprecation", "deprecation"),
     Atom("descendant", "descendant"),
@@ -419,7 +424,6 @@ STATIC_ATOMS = [
     Atom("end", "end"),
     Atom("endEvent", "endEvent"),
     Atom("enterkeyhint", "enterkeyhint"),
-    Atom("equalsize", "equalsize"),
     Atom("error", "error"),
     Atom("ethiopic_numeric", "ethiopic-numeric"),
     Atom("even", "even"),
@@ -1012,9 +1016,10 @@ STATIC_ATOMS = [
     Atom("prefersReducedMotion", "prefers-reduced-motion"),
     Atom("prefersColorScheme", "prefers-color-scheme"),
     Atom("prefersContrast", "prefers-contrast"),
+    Atom("prefix", "prefix"),
+    Atom("prefwidth", "prefwidth"),
     Atom("dynamicRange", "dynamic-range"),
     Atom("videoDynamicRange", "video-dynamic-range"),
-    Atom("prefix", "prefix"),
     Atom("preload", "preload"),
     Atom("preserve", "preserve"),
     Atom("preserveSpace", "preserve-space"),
@@ -1101,7 +1106,9 @@ STATIC_ATOMS = [
     Atom("scoped", "scoped"),
     Atom("screen", "screen"),
     Atom("screenX", "screenX"),
+    Atom("screenx", "screenx"),
     Atom("screenY", "screenY"),
+    Atom("screeny", "screeny"),
     Atom("script", "script"),
     Atom("scrollbar", "scrollbar"),
     Atom("scrollbarThumb", "scrollbar-thumb"),
@@ -1203,6 +1210,7 @@ STATIC_ATOMS = [
     Atom("targets", "targets"),
     Atom("tbody", "tbody"),
     Atom("td", "td"),
+    Atom("tel", "tel"),
     Atom("_template", "template"),
     Atom("text_decoration", "text-decoration"),
     Atom("terminate", "terminate"),
@@ -1222,7 +1230,6 @@ STATIC_ATOMS = [
     Atom("time", "time"),
     Atom("title", "title"),
     Atom("titlebar", "titlebar"),
-    Atom("titlebar_button","titlebar-btn"),
     Atom("titletip", "titletip"),
     Atom("token", "token"),
     Atom("tokenize", "tokenize"),
@@ -2269,6 +2276,7 @@ STATIC_ATOMS = [
     Atom("_moz_content_preferred_color_scheme", "-moz-content-preferred-color-scheme"),
     Atom("_moz_system_dark_theme", "-moz-system-dark-theme"),
     Atom("_moz_box_flexbox_emulation", "-moz-box-flexbox-emulation"),
+    Atom("_moz_panel_animations", "-moz-panel-animations"),
     # application commands
     Atom("Back", "Back"),
     Atom("Forward", "Forward"),
@@ -2447,6 +2455,7 @@ STATIC_ATOMS = [
     Atom("DirectoryService_OS_TemporaryDirectory", "TmpD"),
     Atom("DirectoryService_OS_CurrentProcessDirectory", "CurProcD"),
     Atom("DirectoryService_OS_CurrentWorkingDirectory", "CurWorkD"),
+    Atom("DirectoryService_OS_SystemConfigDir", "SysConfD"),
     # Atom("DirectoryService_OS_HomeDirectory", "Home"),  # "Home" is present above
     Atom("DirectoryService_OS_DesktopDirectory", "Desk"),
     Atom("DirectoryService_InitCurrentProcess_dummy", "MozBinD"),

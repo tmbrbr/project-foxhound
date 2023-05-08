@@ -11,7 +11,7 @@
 
 from __future__ import absolute_import
 
-from marionette_driver import errors, Wait
+from marionette_driver import Wait, errors
 from marionette_harness import MarionetteTestCase
 
 
@@ -46,7 +46,9 @@ class TestNoWindowUpdateRestart(MarionetteTestCase):
                 Services.prefs.setIntPref("app.update.noWindowAutoRestart.delayMs", 1000);
                 Services.prefs.clearUserPref("testing.no_window_update_restart.silent_restart_env");
 
-                let { UpdateUtils } = ChromeUtils.import("resource://gre/modules/UpdateUtils.jsm");
+                let { UpdateUtils } = ChromeUtils.importESModule(
+                    "resource://gre/modules/UpdateUtils.sys.mjs"
+                );
                 let origAppUpdateAuto = await UpdateUtils.getAppUpdateAutoEnabled();
                 await UpdateUtils.setAppUpdateAutoEnabled(true);
 
@@ -100,7 +102,9 @@ class TestNoWindowUpdateRestart(MarionetteTestCase):
                 Services.prefs.clearUserPref("app.update.noWindowAutoRestart.delayMs");
                 Services.prefs.clearUserPref("testing.no_window_update_restart.silent_restart_env");
 
-                let { UpdateUtils } = ChromeUtils.import("resource://gre/modules/UpdateUtils.jsm");
+                let { UpdateUtils } = ChromeUtils.importESModule(
+                    "resource://gre/modules/UpdateUtils.sys.mjs"
+                );
                 await UpdateUtils.setAppUpdateAutoEnabled(origAppUpdateAuto);
             })().then(resolve);
         """,
@@ -163,7 +167,9 @@ class TestNoWindowUpdateRestart(MarionetteTestCase):
             let { UpdateListener } = ChromeUtils.import("resource://gre/modules/UpdateListener.jsm");
             UpdateListener.reset();
 
-            let { AppMenuNotifications } = ChromeUtils.import("resource://gre/modules/AppMenuNotifications.jsm");
+            let { AppMenuNotifications } = ChromeUtils.importESModule(
+                "resource://gre/modules/AppMenuNotifications.sys.mjs"
+            );
             AppMenuNotifications.removeNotification(/.*/);
 
             // Remove old update files so that they don't interfere with tests.
@@ -238,10 +244,7 @@ class TestNoWindowUpdateRestart(MarionetteTestCase):
                 await updateDownloadedPromise;
 
                 Services.obs.addObserver((aSubject, aTopic, aData) => {
-                    let env = Cc["@mozilla.org/process/environment;1"].getService(
-                        Ci.nsIEnvironment
-                    );
-                    let silent_restart = env.get("MOZ_APP_SILENT_START") == 1 && env.get("MOZ_APP_RESTART") == 1;
+                    let silent_restart = Services.env.get("MOZ_APP_SILENT_START") == 1 && Services.env.get("MOZ_APP_RESTART") == 1;
                     Services.prefs.setBoolPref("testing.no_window_update_restart.silent_restart_env", silent_restart);
                 }, "quit-application-granted");
 

@@ -36,7 +36,6 @@
 #include "nsRefreshDriver.h"
 #include "nsString.h"
 #include "nsView.h"
-#include "Layers.h"
 
 static mozilla::LazyLogModule sApzHlpLog("apz.helper");
 #define APZCCH_LOG(...) MOZ_LOG(sApzHlpLog, LogLevel::Debug, (__VA_ARGS__))
@@ -110,7 +109,7 @@ static CSSPoint ScrollFrameTo(nsIScrollableFrame* aFrame,
     NS_WARNING(
         nsPrintfCString(
             "APZCCH: targetScrollPosition.y (%f) != geckoScrollPosition.y (%f)",
-            targetScrollPosition.y, geckoScrollPosition.y)
+            targetScrollPosition.y.value, geckoScrollPosition.y.value)
             .get());
   }
   if (aFrame->GetScrollStyles().mHorizontal == StyleOverflow::Hidden &&
@@ -118,7 +117,7 @@ static CSSPoint ScrollFrameTo(nsIScrollableFrame* aFrame,
     NS_WARNING(
         nsPrintfCString(
             "APZCCH: targetScrollPosition.x (%f) != geckoScrollPosition.x (%f)",
-            targetScrollPosition.x, geckoScrollPosition.x)
+            targetScrollPosition.x.value, geckoScrollPosition.x.value)
             .get());
   }
 

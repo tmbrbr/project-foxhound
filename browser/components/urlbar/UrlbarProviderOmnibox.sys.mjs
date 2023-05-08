@@ -37,6 +37,7 @@ class ProviderOmnibox extends UrlbarProvider {
 
   /**
    * Returns the name of this provider.
+   *
    * @returns {string} the name of this provider.
    */
   get name() {
@@ -45,10 +46,32 @@ class ProviderOmnibox extends UrlbarProvider {
 
   /**
    * Returns the type of this provider.
+   *
    * @returns {integer} one of the types from UrlbarUtils.PROVIDER_TYPE.*
    */
   get type() {
     return UrlbarUtils.PROVIDER_TYPE.HEURISTIC;
+  }
+
+  /**
+   * Called when the result's block button is picked. If the provider can block
+   * the result, it should do so and return true. If the provider cannot block
+   * the result, it should return false. The meaning of "blocked" depends on the
+   * provider and the type of result.
+   *
+   * @param {UrlbarQueryContext} queryContext
+   *   The query context.
+   * @param {UrlbarResult} result
+   *   The result that should be blocked.
+   * @returns {boolean}
+   *   Whether the result was blocked.
+   */
+  blockResult(queryContext, result) {
+    if (result.payload.deletable) {
+      lazy.ExtensionSearchHandler.handleInputDeleted(result.payload.title);
+    }
+
+    return result.payload.deletable;
   }
 
   /**
@@ -105,7 +128,7 @@ class ProviderOmnibox extends UrlbarProvider {
    *
    * @param {UrlbarQueryContext} queryContext
    *   The query context object.
-   * @param {function} addCallback
+   * @param {Function} addCallback
    *   The callback invoked by this method to add each result.
    */
   async startQuery(queryContext, addCallback) {
@@ -156,10 +179,12 @@ class ProviderOmnibox extends UrlbarProvider {
                   queryContext.tokens[0].value,
                   UrlbarUtils.HIGHLIGHT.TYPED,
                 ],
+                deletable: suggestion.deletable,
                 icon: UrlbarUtils.ICON.EXTENSION,
               }
             )
           );
+
           addCallback(this, result);
         }
       }

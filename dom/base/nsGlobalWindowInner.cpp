@@ -196,6 +196,8 @@
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/Types.h"
 #include "mozilla/intl/LocaleService.h"
+#include "mozilla/ipc/BackgroundUtils.h"
+#include "mozilla/ipc/PBackgroundSharedTypes.h"
 #include "mozilla/net/CookieJarSettings.h"
 #include "nsAtom.h"
 #include "nsBaseHashtable.h"
@@ -877,7 +879,8 @@ class PromiseDocumentFlushedResolver final {
       mPromise->MaybeReject(std::move(error));
     } else if (guard.Mutated(0)) {
       // Something within the callback mutated the DOM.
-      mPromise->MaybeReject(NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR);
+      mPromise->MaybeRejectWithNoModificationAllowedError(
+          "DOM mutated from promiseDocumentFlushed callbacks");
     } else {
       mPromise->MaybeResolve(returnVal);
     }
@@ -1454,6 +1457,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindowInner)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mExternal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mInstallTrigger)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mIntlUtils)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVisualViewport)
 
   tmp->TraverseObjectsInGlobal(cb);
 
@@ -1570,6 +1574,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindowInner)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mExternal)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mInstallTrigger)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mIntlUtils)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mVisualViewport)
 
   tmp->UnlinkObjectsInGlobal();
 
@@ -1627,9 +1632,11 @@ bool nsGlobalWindowInner::IsBlackForCC(bool aTracingNeeded) {
 
 bool nsGlobalWindowInner::ShouldResistFingerprinting() const {
   if (mDoc) {
-    return nsContentUtils::ShouldResistFingerprinting(mDoc);
+    return mDoc->ShouldResistFingerprinting();
   }
-  return nsIScriptGlobalObject::ShouldResistFingerprinting();
+  return nsContentUtils::ShouldResistFingerprinting(
+      "If we do not have a document then we do not have any context"
+      "to make an informed RFP choice, so we fall back to the global pref");
 }
 
 OriginTrials nsGlobalWindowInner::Trials() const {
@@ -1648,6 +1655,36 @@ uint32_t nsGlobalWindowInner::GetPrincipalHashValue() const {
     return mDoc->NodePrincipal()->GetHashValue();
   }
   return 0;
+}
+
+mozilla::Result<mozilla::ipc::PrincipalInfo, nsresult>
+nsGlobalWindowInner::GetStorageKey() {
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsIPrincipal* principal = GetEffectiveStoragePrincipal();
+  if (!principal) {
+    return mozilla::Err(NS_ERROR_FAILURE);
+  }
+
+  mozilla::ipc::PrincipalInfo principalInfo;
+  nsresult rv = PrincipalToPrincipalInfo(principal, &principalInfo);
+  if (NS_FAILED(rv)) {
+    return mozilla::Err(rv);
+  }
+
+  // Block expanded and null principals, let content and system through.
+  if (principalInfo.type() !=
+          mozilla::ipc::PrincipalInfo::TContentPrincipalInfo &&
+      principalInfo.type() !=
+          mozilla::ipc::PrincipalInfo::TSystemPrincipalInfo) {
+    return Err(NS_ERROR_DOM_SECURITY_ERR);
+  }
+
+  return std::move(principalInfo);
+}
+
+mozilla::dom::StorageManager* nsGlobalWindowInner::GetStorageManager() {
+  return Navigator()->Storage();
 }
 
 nsresult nsGlobalWindowInner::EnsureScriptEnvironment() {
@@ -3934,16 +3971,14 @@ void nsGlobalWindowInner::ResizeBy(int32_t aWidthDif, int32_t aHeightDif,
 
 void nsGlobalWindowInner::SizeToContent(CallerType aCallerType,
                                         ErrorResult& aError) {
-  FORWARD_TO_OUTER_OR_THROW(SizeToContentOuter, (aCallerType, 0, 0, aError),
+  FORWARD_TO_OUTER_OR_THROW(SizeToContentOuter, (aCallerType, {}, aError),
                             aError, );
 }
 
-void nsGlobalWindowInner::SizeToContentConstrained(int32_t aMaxWidth,
-                                                   int32_t aMaxHeight,
-                                                   ErrorResult& aError) {
-  FORWARD_TO_OUTER_OR_THROW(SizeToContentOuter,
-                            (CallerType::System, aMaxWidth, aMaxHeight, aError),
-                            aError, );
+void nsGlobalWindowInner::SizeToContentConstrained(
+    const SizeToContentConstraints& aConstraints, ErrorResult& aError) {
+  FORWARD_TO_OUTER_OR_THROW(
+      SizeToContentOuter, (CallerType::System, aConstraints, aError), aError, );
 }
 
 already_AddRefed<nsPIWindowRoot> nsGlobalWindowInner::GetTopWindowRoot() {
@@ -4986,10 +5021,8 @@ Storage* nsGlobalWindowInner::GetLocalStorage(ErrorResult& aError) {
   if (mDoc) {
     cookieJarSettings = mDoc->CookieJarSettings();
   } else {
-    bool shouldResistFingerprinting =
-        nsContentUtils::ShouldResistFingerprinting(this->GetExtantDoc());
     cookieJarSettings =
-        net::CookieJarSettings::GetBlockingAll(shouldResistFingerprinting);
+        net::CookieJarSettings::GetBlockingAll(ShouldResistFingerprinting());
   }
 
   // Note that this behavior is observable: if we grant storage permission to a
@@ -6591,7 +6624,7 @@ void nsGlobalWindowInner::DisableDeviceSensor(uint32_t aType) {
 
 #if defined(MOZ_WIDGET_ANDROID)
 void nsGlobalWindowInner::EnableOrientationChangeListener() {
-  if (!nsContentUtils::ShouldResistFingerprinting(GetDocShell())) {
+  if (!ShouldResistFingerprinting()) {
     mHasOrientationChangeListeners = true;
     mOrientationAngle = Orientation(CallerType::System);
   }
@@ -6918,7 +6951,7 @@ void nsGlobalWindowInner::GetGamepads(nsTArray<RefPtr<Gamepad>>& aGamepads) {
 
   // navigator.getGamepads() always returns an empty array when
   // privacy.resistFingerprinting is true.
-  if (nsContentUtils::ShouldResistFingerprinting(GetDocShell())) {
+  if (ShouldResistFingerprinting()) {
     return;
   }
 
@@ -7218,18 +7251,22 @@ already_AddRefed<Promise> nsGlobalWindowInner::PromiseDocumentFlushed(
   MOZ_RELEASE_ASSERT(IsChromeWindow());
 
   if (!IsCurrentInnerWindow()) {
-    aError.Throw(NS_ERROR_FAILURE);
+    aError.ThrowInvalidStateError("Not the current inner window");
+    return nullptr;
+  }
+  if (!mDoc) {
+    aError.ThrowInvalidStateError("No document");
     return nullptr;
   }
 
-  if (!mDoc || mIteratingDocumentFlushedResolvers) {
-    aError.Throw(NS_ERROR_FAILURE);
+  if (mIteratingDocumentFlushedResolvers) {
+    aError.ThrowInvalidStateError("Already iterating through resolvers");
     return nullptr;
   }
 
   PresShell* presShell = mDoc->GetPresShell();
   if (!presShell) {
-    aError.Throw(NS_ERROR_FAILURE);
+    aError.ThrowInvalidStateError("No pres shell");
     return nullptr;
   }
 
@@ -7239,7 +7276,7 @@ already_AddRefed<Promise> nsGlobalWindowInner::PromiseDocumentFlushed(
   // we can still resolve the Promise.
   nsIGlobalObject* global = GetIncumbentGlobal();
   if (!global) {
-    aError.Throw(NS_ERROR_FAILURE);
+    aError.ThrowInvalidStateError("No incumbent global");
     return nullptr;
   }
 
@@ -7257,7 +7294,7 @@ already_AddRefed<Promise> nsGlobalWindowInner::PromiseDocumentFlushed(
   }
 
   if (!TryToObserveRefresh()) {
-    aError.Throw(NS_ERROR_FAILURE);
+    aError.ThrowInvalidStateError("Couldn't observe refresh");
     return nullptr;
   }
 
@@ -7562,7 +7599,7 @@ void nsGlobalWindowInner::SetReplaceableWindowCoord(
     return;
   }
 
-  if (nsContentUtils::ShouldResistFingerprinting(GetDocShell())) {
+  if (ShouldResistFingerprinting()) {
     bool innerWidthSpecified = false;
     bool innerHeightSpecified = false;
     bool outerWidthSpecified = false;

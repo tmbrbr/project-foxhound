@@ -1387,7 +1387,7 @@ void WorkerPrivate::EvictFromBFCache() {
   runnable->Dispatch(this);
 }
 
-void WorkerPrivate::SetCSP(nsIContentSecurityPolicy* aCSP) {
+void WorkerPrivate::SetCsp(nsIContentSecurityPolicy* aCSP) {
   AssertIsOnMainThread();
   if (!aCSP) {
     return;
@@ -2081,6 +2081,28 @@ void WorkerPrivate::MemoryPressure() {
   Unused << NS_WARN_IF(!runnable->Dispatch());
 }
 
+RefPtr<WorkerPrivate::JSMemoryUsagePromise> WorkerPrivate::GetJSMemoryUsage() {
+  AssertIsOnMainThread();
+
+  {
+    MutexAutoLock lock(mMutex);
+    // If we have started shutting down the worker, do not dispatch a runnable
+    // to measure its memory.
+    if (ParentStatus() > Running) {
+      return nullptr;
+    }
+  }
+
+  return InvokeAsync(ControlEventTarget(), __func__, []() {
+    WorkerPrivate* wp = GetCurrentThreadWorkerPrivate();
+    MOZ_ASSERT(wp);
+    wp->AssertIsOnWorkerThread();
+    MutexAutoLock lock(wp->mMutex);
+    return JSMemoryUsagePromise::CreateAndResolve(
+        js::GetGCHeapUsage(wp->mJSContext), __func__);
+  });
+}
+
 void WorkerPrivate::WorkerScriptLoaded() {
   AssertIsOnMainThread();
 
@@ -2342,8 +2364,10 @@ WorkerPrivate::WorkerPrivate(
       // Make timing imprecise in unprivileged code to blunt Spectre timing
       // attacks.
       bool clampAndJitterTime = !usesSystemPrincipal;
-      chromeRealmBehaviors.setClampAndJitterTime(clampAndJitterTime);
-      contentRealmBehaviors.setClampAndJitterTime(clampAndJitterTime);
+      chromeRealmBehaviors.setClampAndJitterTime(clampAndJitterTime)
+          .setShouldResistFingerprinting(false);
+      contentRealmBehaviors.setClampAndJitterTime(clampAndJitterTime)
+          .setShouldResistFingerprinting(mLoadInfo.mShouldResistFingerprinting);
 
       JS::RealmCreationOptions& chromeCreationOptions =
           chromeRealmOptions.creationOptions();
@@ -2720,10 +2744,10 @@ nsresult WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindowInner* aWindow,
     loadInfo.mOriginAttributes = aParent->GetOriginAttributes();
     loadInfo.mServiceWorkersTestingInWindow =
         aParent->ServiceWorkersTestingInWindow();
-    loadInfo.mShouldResistFingerprinting =
-        aParent->ShouldResistFingerprinting();
     loadInfo.mIsThirdPartyContextToTopWindow =
         aParent->IsThirdPartyContextToTopWindow();
+    loadInfo.mShouldResistFingerprinting =
+        aParent->GlobalScope()->ShouldResistFingerprinting();
     loadInfo.mParentController = aParent->GlobalScope()->GetController();
     loadInfo.mWatchedByDevTools = aParent->IsWatchedByDevTools();
   } else {
@@ -2865,7 +2889,7 @@ nsresult WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindowInner* aWindow,
       loadInfo.mHasStorageAccessPermissionGranted =
           document->HasStorageAccessPermissionGranted();
       loadInfo.mShouldResistFingerprinting =
-          nsContentUtils::ShouldResistFingerprinting(document);
+          document->ShouldResistFingerprinting();
 
       // This is an hack to deny the storage-access-permission for workers of
       // sub-iframes.
@@ -4082,7 +4106,7 @@ void WorkerPrivate::CancelAllTimeouts() {
   data->mTimerRunnable = nullptr;
 }
 
-already_AddRefed<nsIEventTarget> WorkerPrivate::CreateNewSyncLoop(
+already_AddRefed<nsISerialEventTarget> WorkerPrivate::CreateNewSyncLoop(
     WorkerStatus aFailStatus) {
   AssertIsOnWorkerThread();
   MOZ_ASSERT(
@@ -4603,7 +4627,11 @@ bool WorkerPrivate::NotifyInternal(WorkerStatus aStatus) {
     if (aStatus >= Canceling) {
       MutexAutoUnlock unlock(mMutex);
       if (data->mScope) {
-        data->mScope->NoteTerminating();
+        if (aStatus == Canceling) {
+          data->mScope->NoteTerminating();
+        } else {
+          data->mScope->NoteShuttingDown();
+        }
       }
     }
 
@@ -5410,15 +5438,18 @@ WorkerGlobalScope* WorkerPrivate::GetOrCreateGlobalScope(JSContext* aCx) {
     return data->mScope;
   }
 
+  bool rfp = mLoadInfo.mShouldResistFingerprinting;
+
   if (IsSharedWorker()) {
-    data->mScope =
-        new SharedWorkerGlobalScope(this, CreateClientSource(), WorkerName());
+    data->mScope = new SharedWorkerGlobalScope(this, CreateClientSource(),
+                                               WorkerName(), rfp);
   } else if (IsServiceWorker()) {
     data->mScope = new ServiceWorkerGlobalScope(
-        this, CreateClientSource(), GetServiceWorkerRegistrationDescriptor());
+        this, CreateClientSource(), GetServiceWorkerRegistrationDescriptor(),
+        rfp);
   } else {
     data->mScope = new DedicatedWorkerGlobalScope(this, CreateClientSource(),
-                                                  WorkerName());
+                                                  WorkerName(), rfp);
   }
 
   JS::Rooted<JSObject*> global(aCx);
@@ -5446,8 +5477,10 @@ WorkerDebuggerGlobalScope* WorkerPrivate::CreateDebuggerGlobalScope(
   auto clientSource = ClientManager::CreateSource(
       GetClientType(), HybridEventTarget(), NullPrincipalInfo());
 
+  bool rfp = false;  // The debugger for a worker can exempt RFP; it is not
+                     // client-exposed
   data->mDebuggerScope =
-      new WorkerDebuggerGlobalScope(this, std::move(clientSource));
+      new WorkerDebuggerGlobalScope(this, std::move(clientSource), rfp);
 
   JS::Rooted<JSObject*> global(aCx);
   NS_ENSURE_TRUE(data->mDebuggerScope->WrapGlobalObject(aCx, &global), nullptr);

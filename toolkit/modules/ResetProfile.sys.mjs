@@ -2,9 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
-);
+import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 
 const MOZ_APP_NAME = AppConstants.MOZ_APP_NAME;
 const MOZ_BUILD_APP = AppConstants.MOZ_BUILD_APP;
@@ -87,10 +85,7 @@ export var ResetProfile = {
     }
 
     // Set the reset profile environment variable.
-    let env = Cc["@mozilla.org/process/environment;1"].getService(
-      Ci.nsIEnvironment
-    );
-    env.set("MOZ_RESET_PROFILE_RESTART", "1");
+    Services.env.set("MOZ_RESET_PROFILE_RESTART", "1");
 
     Services.startup.quit(
       Ci.nsIAppStartup.eForceQuit | Ci.nsIAppStartup.eRestart

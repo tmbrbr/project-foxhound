@@ -13,9 +13,16 @@ ChromeUtils.defineESModuleGetters(this, {
 var { ExtensionError } = ExtensionUtils;
 
 this.declarativeNetRequest = class extends ExtensionAPI {
+  onManifestEntry(entryName) {
+    if (entryName === "declarative_net_request") {
+      ExtensionDNR.validateManifestEntry(this.extension);
+    }
+  }
+
   onShutdown() {
     ExtensionDNR.clearRuleManager(this.extension);
   }
+
   getAPI(context) {
     const { extension } = this;
 
@@ -24,7 +31,8 @@ this.declarativeNetRequest = class extends ExtensionAPI {
         updateSessionRules({ removeRuleIds, addRules }) {
           const ruleManager = ExtensionDNR.getRuleManager(extension);
           let ruleValidator = new ExtensionDNR.RuleValidator(
-            ruleManager.getSessionRules()
+            ruleManager.getSessionRules(),
+            { isSessionRuleset: true }
           );
           if (removeRuleIds) {
             ruleValidator.removeRuleIds(removeRuleIds);
@@ -39,6 +47,25 @@ this.declarativeNetRequest = class extends ExtensionAPI {
           ruleManager.setSessionRules(ruleValidator.getValidatedRules());
         },
 
+        async getEnabledRulesets() {
+          await ExtensionDNR.ensureInitialized(extension);
+          const ruleManager = ExtensionDNR.getRuleManager(extension);
+          return ruleManager.enabledStaticRulesetIds;
+        },
+
+        async getAvailableStaticRuleCount() {
+          await ExtensionDNR.ensureInitialized(extension);
+          const ruleManager = ExtensionDNR.getRuleManager(extension);
+          return ruleManager.availableStaticRuleCount;
+        },
+
+        updateEnabledRulesets({ disableRulesetIds, enableRulesetIds }) {
+          return ExtensionDNR.updateEnabledStaticRulesets(extension, {
+            disableRulesetIds,
+            enableRulesetIds,
+          });
+        },
+
         getSessionRules() {
           // ruleManager.getSessionRules() returns an array of Rule instances.
           // When these are structurally cloned (to send them to the child),
@@ -47,11 +74,28 @@ this.declarativeNetRequest = class extends ExtensionAPI {
           return ExtensionDNR.getRuleManager(extension).getSessionRules();
         },
 
-        async testMatchOutcome(request) {
-          // TODO bug 1745758: Implement rule evaluation engine.
-          // Since rule registration has not been implemented yet, the result
-          // is always an empty list.
-          return [];
+        async testMatchOutcome(request, options) {
+          let { url, initiator, ...req } = request;
+          req.requestURI = Services.io.newURI(url);
+          if (initiator) {
+            req.initiatorURI = Services.io.newURI(initiator);
+          }
+          const matchedRules = ExtensionDNR.getMatchedRulesForRequest(
+            req,
+            options?.includeOtherExtensions ? null : extension
+          ).map(matchedRule => {
+            // Converts an internal MatchedRule instance to an object described
+            // by the "MatchedRule" type in declarative_net_request.json.
+            const result = {
+              ruleId: matchedRule.rule.id,
+              rulesetId: matchedRule.ruleset.id,
+            };
+            if (matchedRule.ruleManager.extension !== extension) {
+              result.extensionId = matchedRule.ruleManager.extension.id;
+            }
+            return result;
+          });
+          return { matchedRules };
         },
       },
     };

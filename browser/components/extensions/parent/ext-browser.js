@@ -10,20 +10,16 @@
 // modules. All of the code is installed on |global|, which is a scope
 // shared among the different ext-*.js scripts.
 
-ChromeUtils.defineModuleGetter(
-  this,
-  "PrivateBrowsingUtils",
-  "resource://gre/modules/PrivateBrowsingUtils.jsm"
-);
+ChromeUtils.defineESModuleGetters(this, {
+  AboutReaderParent: "resource:///actors/AboutReaderParent.sys.mjs",
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
+  PromiseUtils: "resource://gre/modules/PromiseUtils.sys.mjs",
+});
 ChromeUtils.defineModuleGetter(
   this,
   "BrowserWindowTracker",
   "resource:///modules/BrowserWindowTracker.jsm"
 );
-ChromeUtils.defineESModuleGetters(this, {
-  AboutReaderParent: "resource:///actors/AboutReaderParent.sys.mjs",
-  PromiseUtils: "resource://gre/modules/PromiseUtils.sys.mjs",
-});
 
 var { ExtensionError } = ExtensionUtils;
 
@@ -171,7 +167,7 @@ global.TabContext = class extends EventEmitter {
    *
    * @param {XULElement|ChromeWindow} keyObject
    *        Browser tab or browser chrome window.
-   * @returns {Object}
+   * @returns {object}
    */
   get(keyObject) {
     if (!this.tabData.has(keyObject)) {
@@ -559,7 +555,7 @@ class TabTracker extends TabTrackerBase {
   }
 
   /**
-   * @param {Object} message
+   * @param {object} message
    *        The message to handle.
    * @private
    */
@@ -665,7 +661,7 @@ class TabTracker extends TabTrackerBase {
    *
    * @param {NativeTab} nativeTab
    *        The tab element which is being created.
-   * @param {Object} [currentTabSize]
+   * @param {object} [currentTabSize]
    *        The size of the tab element for the currently active tab.
    * @private
    */
@@ -871,14 +867,14 @@ class Tab extends TabBase {
    *
    * @param {Extension} extension
    *        The extension for which to convert the data.
-   * @param {Object} tabData
+   * @param {object} tabData
    *        Session store data for a closed tab, as returned by
    *        `SessionStore.getClosedTabData()`.
    * @param {DOMWindow} [window = null]
    *        The browser window which the tab belonged to before it was closed.
    *        May be null if the window the tab belonged to no longer exists.
    *
-   * @returns {Object}
+   * @returns {object}
    * @static
    */
   static convertFromSessionStoreClosedData(extension, tabData, window = null) {
@@ -929,7 +925,7 @@ class Window extends WindowBase {
   /**
    * Update the geometry of the browser window.
    *
-   * @param {Object} options
+   * @param {object} options
    *        An object containing new values for the window's geometry.
    * @param {integer} [options.left]
    *        The new pixel distance of the left side of the browser window from
@@ -1156,11 +1152,11 @@ class Window extends WindowBase {
    *
    * @param {Extension} extension
    *        The extension for which to convert the data.
-   * @param {Object} windowData
+   * @param {object} windowData
    *        Session store data for a closed window, as returned by
    *        `SessionStore.getClosedWindowData()`.
    *
-   * @returns {Object}
+   * @returns {object}
    * @static
    */
   static convertFromSessionStoreClosedData(extension, windowData) {

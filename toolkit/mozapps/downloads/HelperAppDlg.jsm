@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
@@ -25,10 +25,10 @@ XPCOMUtils.defineLazyServiceGetter(
 const { Integration } = ChromeUtils.importESModule(
   "resource://gre/modules/Integration.sys.mjs"
 );
-Integration.downloads.defineModuleGetter(
+Integration.downloads.defineESModuleGetter(
   lazy,
   "DownloadIntegration",
-  "resource://gre/modules/DownloadIntegration.jsm"
+  "resource://gre/modules/DownloadIntegration.sys.mjs"
 );
 
 // /////////////////////////////////////////////////////////////////////////////
@@ -118,14 +118,14 @@ const nsITimer = Ci.nsITimer;
 var downloadModule = ChromeUtils.import(
   "resource://gre/modules/DownloadLastDir.jsm"
 );
-const { DownloadPaths } = ChromeUtils.import(
-  "resource://gre/modules/DownloadPaths.jsm"
+const { DownloadPaths } = ChromeUtils.importESModule(
+  "resource://gre/modules/DownloadPaths.sys.mjs"
 );
 const { DownloadUtils } = ChromeUtils.import(
   "resource://gre/modules/DownloadUtils.jsm"
 );
-const { Downloads } = ChromeUtils.import(
-  "resource://gre/modules/Downloads.jsm"
+const { Downloads } = ChromeUtils.importESModule(
+  "resource://gre/modules/Downloads.sys.mjs"
 );
 const { FileUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/FileUtils.sys.mjs"
@@ -169,7 +169,7 @@ nsUnknownContentTypeDialog.prototype = {
       let parent = aContext.getInterface(Ci.nsIDOMWindow);
       this._mDownloadDir = new downloadModule.DownloadLastDir(parent);
     } catch (ex) {
-      Cu.reportError(
+      console.error(
         "Missing window information when showing nsIHelperAppLauncherDialog: " +
           ex
       );
@@ -268,7 +268,7 @@ nsUnknownContentTypeDialog.prototype = {
         }
       }
       if (!parent) {
-        Cu.reportError(
+        console.error(
           "No candidate parent windows were found for the save filepicker." +
             "This should never happen."
         );
@@ -485,7 +485,7 @@ nsUnknownContentTypeDialog.prototype = {
         try {
           url = Services.io.newURI(origin);
         } catch (ex) {
-          Cu.reportError(ex);
+          console.error(ex);
         }
       }
     }
@@ -1099,7 +1099,7 @@ nsUnknownContentTypeDialog.prototype = {
         this.updateHelperAppPref();
       }
     } catch (e) {
-      Cu.reportError(e);
+      console.error(e);
     }
 
     this.onUnload();
@@ -1113,7 +1113,7 @@ nsUnknownContentTypeDialog.prototype = {
     try {
       this.mLauncher.cancel(Cr.NS_BINDING_ABORTED);
     } catch (e) {
-      Cu.reportError(e);
+      console.error(e);
     }
 
     this.onUnload();

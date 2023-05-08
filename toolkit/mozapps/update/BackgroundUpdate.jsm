@@ -7,8 +7,8 @@
 
 var EXPORTED_SYMBOLS = ["BackgroundUpdate"];
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const { EXIT_CODE } = ChromeUtils.import(
   "resource://gre/modules/BackgroundTasksManager.jsm"
@@ -33,10 +33,12 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
 });
 
 XPCOMUtils.defineLazyGetter(lazy, "log", () => {
-  let { ConsoleAPI } = ChromeUtils.import("resource://gre/modules/Console.jsm");
+  let { ConsoleAPI } = ChromeUtils.importESModule(
+    "resource://gre/modules/Console.sys.mjs"
+  );
   let consoleOptions = {
     // tip: set maxLogLevel to "debug" and use log.debug() to create detailed
-    // messages during development. See LOG_LEVELS in Console.jsm for details.
+    // messages during development. See LOG_LEVELS in Console.sys.mjs for details.
     maxLogLevel: "error",
     maxLogLevelPref: "app.update.background.loglevel",
     prefix: "BackgroundUpdate",
@@ -638,7 +640,7 @@ var BackgroundUpdate = {
           // the regular log apparatus is not available, so use `dump`.
           if (lazy.log.shouldLog("debug")) {
             dump(
-              `${SLUG}: shutting down, so not updating Firefox Messaging System targeting information\n`
+              `${SLUG}: shutting down, so not updating Firefox Messaging System targeting information from beforeSave\n`
             );
           }
           return;
@@ -654,12 +656,12 @@ var BackgroundUpdate = {
 
     // We don't `load`, since we don't care about reading existing (now stale)
     // data.
-    snapshot.data = lazy.ASRouterTargeting.getEnvironmentSnapshot();
+    snapshot.data = await lazy.ASRouterTargeting.getEnvironmentSnapshot();
 
     // Persist.
     snapshot.saveSoon();
 
-    // Continue persisting periodically.  `JSONFile.jsm` will also persist one
+    // Continue persisting periodically.  `JSONFile.sys.mjs` will also persist one
     // last time before shutdown.
     this._targetingSnapshottingTimer = Cc[
       "@mozilla.org/timer;1"
@@ -668,6 +670,18 @@ var BackgroundUpdate = {
     // Hold a reference to prevent GC.
     this._targetingSnapshottingTimer.initWithCallback(
       () => {
+        if (Services.startup.shuttingDown) {
+          // Collecting targeting information can be slow and cause shutdown
+          // crashes, so if we're shutting down, don't try to collect.  During
+          // shutdown, the regular log apparatus is not available, so use `dump`.
+          if (lazy.log.shouldLog("debug")) {
+            dump(
+              `${SLUG}: shutting down, so not updating Firefox Messaging System targeting information from timer\n`
+            );
+          }
+          return;
+        }
+
         snapshot.saveSoon();
       },
       // By default, snapshot Firefox Messaging System targeting for use by the
@@ -678,6 +692,71 @@ var BackgroundUpdate = {
       ) * 1000,
       Ci.nsITimer.TYPE_REPEATING_SLACK_LOW_PRIORITY
     );
+  },
+
+  /**
+   * Reads the snapshotted Firefox Messaging System targeting out of a profile.
+   * Collects background update specific telemetry.  Never throws.
+   *
+   * If no `lock` is given, the default profile is locked and the preferences
+   * read from it.  If `lock` is given, read from the given lock's directory.
+   *
+   * @param {nsIProfileLock} [lock] optional lock to use
+   * @returns {object} possibly empty targeting snapshot.
+   */
+  async readFirefoxMessagingSystemTargetingSnapshot(lock = null) {
+    let SLUG = "readFirefoxMessagingSystemTargetingSnapshot";
+
+    let defaultProfileTargetingSnapshot = {};
+
+    Glean.backgroundUpdate.targetingExists.set(false);
+    Glean.backgroundUpdate.targetingException.set(true);
+    try {
+      defaultProfileTargetingSnapshot = await lazy.BackgroundTasksUtils.readFirefoxMessagingSystemTargetingSnapshot(
+        lock
+      );
+      Glean.backgroundUpdate.targetingExists.set(true);
+      Glean.backgroundUpdate.targetingException.set(false);
+
+      if (defaultProfileTargetingSnapshot?.version) {
+        Glean.backgroundUpdate.targetingVersion.set(
+          defaultProfileTargetingSnapshot.version
+        );
+      }
+      if (defaultProfileTargetingSnapshot?.environment?.firefoxVersion) {
+        Glean.backgroundUpdate.targetingEnvFirefoxVersion.set(
+          defaultProfileTargetingSnapshot.environment.firefoxVersion
+        );
+      }
+      if (defaultProfileTargetingSnapshot?.environment?.currentDate) {
+        Glean.backgroundUpdate.targetingEnvCurrentDate.set(
+          // Glean date times are provided in nanoseconds, `getTime()` yields
+          // milliseconds (after the Unix epoch).
+          new Date(
+            defaultProfileTargetingSnapshot.environment.currentDate
+          ).getTime() * 1000
+        );
+      }
+      if (defaultProfileTargetingSnapshot?.environment?.profileAgeCreated) {
+        Glean.backgroundUpdate.targetingEnvProfileAge.set(
+          // Glean date times are provided in nanoseconds, `profileAgeCreated`
+          // is in milliseconds (after the Unix epoch).
+          defaultProfileTargetingSnapshot.environment.profileAgeCreated * 1000
+        );
+      }
+    } catch (f) {
+      if (DOMException.isInstance(f) && f.name === "NotFoundError") {
+        Glean.backgroundUpdate.targetingException.set(false);
+        lazy.log.info(`${SLUG}: no default profile targeting snapshot exists`);
+      } else {
+        lazy.log.warn(
+          `${SLUG}: ignoring exception reading default profile targeting snapshot`,
+          f
+        );
+      }
+    }
+
+    return defaultProfileTargetingSnapshot;
   },
 };
 

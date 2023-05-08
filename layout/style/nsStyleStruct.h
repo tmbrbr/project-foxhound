@@ -14,9 +14,11 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/Likely.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/ServoStyleConstsInlines.h"
 #include "mozilla/UniquePtr.h"
+#include "mozilla/WindowButtonType.h"
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsMargin.h"
@@ -140,7 +142,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleFont {
   // MathML  mathvariant support
   mozilla::StyleMathVariant mMathVariant;
   // math-style support (used for MathML displaystyle)
-  uint8_t mMathStyle;
+  mozilla::StyleMathStyle mMathStyle;
 
   // allow different min font-size for certain cases
   uint8_t mMinFontSizeRatio;  // percent * 100
@@ -918,9 +920,9 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleTextReset {
 
   mozilla::StyleTextDecorationLine mTextDecorationLine;
   uint8_t mTextDecorationStyle;  // NS_STYLE_TEXT_DECORATION_STYLE_*
-  uint8_t mUnicodeBidi;          // NS_STYLE_UNICODE_BIDI_*
-  nscoord mInitialLetterSink;    // 0 means normal
-  float mInitialLetterSize;      // 0.0f means normal
+  mozilla::StyleUnicodeBidi mUnicodeBidi;
+  nscoord mInitialLetterSink;  // 0 means normal
+  float mInitialLetterSize;    // 0.0f means normal
   mozilla::StyleColor mTextDecorationColor;
   mozilla::StyleTextDecorationLength mTextDecorationThickness;
 };
@@ -950,7 +952,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleText {
   mozilla::StyleRubyAlign mRubyAlign;
   mozilla::StyleRubyPosition mRubyPosition;
   mozilla::StyleTextSizeAdjust mTextSizeAdjust;
-  uint8_t mTextCombineUpright;  // NS_STYLE_TEXT_COMBINE_UPRIGHT_*
+  mozilla::StyleTextCombineUpright mTextCombineUpright;
   mozilla::StyleMozControlCharacterVisibility mMozControlCharacterVisibility;
   mozilla::StyleTextEmphasisPosition mTextEmphasisPosition;
   mozilla::StyleTextRendering mTextRendering;
@@ -1285,17 +1287,20 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleDisplay {
       const nsStyleDisplay& aNewData) const;
 
   mozilla::StyleDisplay mDisplay;
-  mozilla::StyleDisplay mOriginalDisplay;  // saved mDisplay for
-                                           //         position:absolute/fixed
-                                           //         and float:left/right;
-                                           //         otherwise equal to
-                                           //         mDisplay
-  mozilla::StyleContain mContain;
+  // Saved mDisplay for position:absolute/fixed and float:left/right; otherwise
+  // equal to mDisplay.
+  mozilla::StyleDisplay mOriginalDisplay;
+  // Equal to mContain plus any implicit containment from mContentVisibility and
+  // mContainerType.
   mozilla::StyleContentVisibility mContentVisibility;
   mozilla::StyleContainerType mContainerType;
 
  private:
   mozilla::StyleAppearance mAppearance;
+  mozilla::StyleContain mContain;
+  // Equal to mContain plus any implicit containment from mContentVisibility and
+  // mContainerType.
+  mozilla::StyleContain mEffectiveContainment;
 
  public:
   mozilla::StyleAppearance mDefaultAppearance;
@@ -1359,11 +1364,31 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleDisplay {
 
   mozilla::StyleShapeOutside mShapeOutside;
 
+  mozilla::Maybe<mozilla::WindowButtonType> GetWindowButtonType() const {
+    if (MOZ_LIKELY(mDefaultAppearance == mozilla::StyleAppearance::None)) {
+      return mozilla::Nothing();
+    }
+    switch (mDefaultAppearance) {
+      case mozilla::StyleAppearance::MozWindowButtonMaximize:
+      case mozilla::StyleAppearance::MozWindowButtonRestore:
+        return Some(mozilla::WindowButtonType::Maximize);
+      case mozilla::StyleAppearance::MozWindowButtonMinimize:
+        return Some(mozilla::WindowButtonType::Minimize);
+      case mozilla::StyleAppearance::MozWindowButtonClose:
+        return Some(mozilla::WindowButtonType::Close);
+      default:
+        return mozilla::Nothing();
+    }
+  }
+
   bool HasAppearance() const {
     return EffectiveAppearance() != mozilla::StyleAppearance::None;
   }
 
   mozilla::StyleAppearance EffectiveAppearance() const {
+    if (MOZ_LIKELY(mAppearance == mozilla::StyleAppearance::None)) {
+      return mAppearance;
+    }
     switch (mAppearance) {
       case mozilla::StyleAppearance::Auto:
       case mozilla::StyleAppearance::Button:
@@ -1544,19 +1569,17 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleDisplay {
   }
 
   bool IsContainPaint() const {
-    const auto contain = EffectiveContainment();
     // Short circuit for no containment whatsoever
-    if (!contain) {
+    if (!mEffectiveContainment) {
       return false;
     }
-    return (contain & StyleContain::PAINT) && !IsInternalRubyDisplayType() &&
-           !IsInternalTableStyleExceptCell();
+    return (mEffectiveContainment & StyleContain::PAINT) &&
+           !IsInternalRubyDisplayType() && !IsInternalTableStyleExceptCell();
   }
 
   bool IsContainLayout() const {
-    const auto contain = EffectiveContainment();
     // Short circuit for no containment whatsoever
-    if (!contain) {
+    if (!mEffectiveContainment) {
       return false;
     }
     // Note: The spec for layout containment says it should
@@ -1566,15 +1589,15 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleDisplay {
     // responsible for checking if the box in question is
     // non-atomic and inline-level, and creating an
     // exemption as necessary.
-    return (contain & StyleContain::LAYOUT) && !IsInternalRubyDisplayType() &&
-           !IsInternalTableStyleExceptCell();
+    return (mEffectiveContainment & StyleContain::LAYOUT) &&
+           !IsInternalRubyDisplayType() && !IsInternalTableStyleExceptCell();
   }
 
   bool IsContainStyle() const {
-    return !!(EffectiveContainment() && StyleContain::STYLE);
+    return !!(mEffectiveContainment & StyleContain::STYLE);
   }
 
-  bool IsContainAny() const { return !!EffectiveContainment(); }
+  bool IsContainAny() const { return !!mEffectiveContainment; }
 
   bool PrecludesSizeContainment() const {
     return IsInternalRubyDisplayType() ||
@@ -1588,6 +1611,10 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleDisplay {
 
   bool IsContentVisibilityHidden() const {
     return mContentVisibility == StyleContentVisibility::Hidden;
+  }
+
+  bool IsContentVisibilityAuto() const {
+    return mContentVisibility == StyleContentVisibility::Auto;
   }
 
   /* Returns whether the element has the transform property or a related
@@ -1701,47 +1728,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleDisplay {
   IsFixedPosContainingBlockForContainLayoutAndPaintSupportingFrames() const;
   inline bool IsFixedPosContainingBlockForTransformSupportingFrames() const;
 
-  StyleContain EffectiveContainment() const {
-    auto contain = mContain;
-    // content-visibility and container-type implicitly enable some containment
-    // flags.
-    if (MOZ_LIKELY(!mContainerType) &&
-        MOZ_LIKELY(mContentVisibility == StyleContentVisibility::Visible)) {
-      return contain;
-    }
-
-    switch (mContentVisibility) {
-      case StyleContentVisibility::Visible:
-        break;
-      case StyleContentVisibility::Auto:
-        // `content-visibility:auto` also applies size containment when content
-        // is not relevant (and therefore skipped). This is checked in
-        // nsIFrame::GetContainSizeAxes.
-        contain |=
-            StyleContain::LAYOUT | StyleContain::PAINT | StyleContain::STYLE;
-        break;
-      case StyleContentVisibility::Hidden:
-        contain |= StyleContain::LAYOUT | StyleContain::PAINT |
-                   StyleContain::SIZE | StyleContain::STYLE;
-        break;
-    }
-
-    if (mContainerType & mozilla::StyleContainerType::SIZE) {
-      // https://drafts.csswg.org/css-contain-3/#valdef-container-type-size:
-      //     Applies layout containment, style containment, and size containment
-      //     to the principal box.
-      contain |= mozilla::StyleContain::LAYOUT | mozilla::StyleContain::STYLE |
-                 mozilla::StyleContain::SIZE;
-    } else if (mContainerType & mozilla::StyleContainerType::INLINE_SIZE) {
-      // https://drafts.csswg.org/css-contain-3/#valdef-container-type-inline-size:
-      //     Applies layout containment, style containment, and inline-size
-      //     containment to the principal box.
-      contain |= mozilla::StyleContain::LAYOUT | mozilla::StyleContain::STYLE |
-                 mozilla::StyleContain::INLINE_SIZE;
-    }
-
-    return contain;
-  }
+  mozilla::ContainSizeAxes GetContainSizeAxes(const nsIFrame& aFrame) const;
 };
 
 struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleTable {

@@ -244,23 +244,9 @@ class _RemoteSettingsExperimentLoader {
     let recipes;
     let loadingError = false;
 
-    if (forceSync) {
-      try {
-        await this.remoteSettingsClient.sync({
-          trigger: "RemoteSettingsExperimentLoader",
-        });
-      } catch (e) {
-        lazy.log.debug(
-          "Error forcing sync of recipes from remote settings.",
-          e
-        );
-        Cu.reportError(e);
-        throw e;
-      }
-    }
-
     try {
       recipes = await this.remoteSettingsClient.get({
+        forceSync,
         // Throw instead of returning an empty list.
         emptyListFallback: false,
       });
@@ -349,7 +335,15 @@ class _RemoteSettingsExperimentLoader {
           continue;
         }
 
-        let type = r.isRollout ? "rollout" : "experiment";
+        if (!(await this.checkTargeting(r))) {
+          lazy.log.debug(`${r.id} did not match due to targeting`);
+          recipeMismatches.push(r.slug);
+          continue;
+        }
+
+        const type = r.isRollout ? "rollout" : "experiment";
+        lazy.log.debug(`[${type}] ${r.id} matched targeting`);
+        matches++;
 
         if (validateFeatures) {
           const result = await this._validateBranches(r, validatorCache);
@@ -365,14 +359,7 @@ class _RemoteSettingsExperimentLoader {
           }
         }
 
-        if (await this.checkTargeting(r)) {
-          matches++;
-          lazy.log.debug(`[${type}] ${r.id} matched`);
-          await this.manager.onRecipe(r, "rs-loader");
-        } else {
-          lazy.log.debug(`${r.id} did not match due to targeting`);
-          recipeMismatches.push(r.slug);
-        }
+        await this.manager.onRecipe(r, "rs-loader");
       }
 
       lazy.log.debug(

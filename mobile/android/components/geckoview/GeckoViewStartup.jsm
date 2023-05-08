@@ -5,19 +5,24 @@
 
 var EXPORTED_SYMBOLS = ["GeckoViewStartup"];
 
-const { XPCOMUtils } = ChromeUtils.importESModule(
-  "resource://gre/modules/XPCOMUtils.sys.mjs"
-);
-const { GeckoViewUtils } = ChromeUtils.import(
-  "resource://gre/modules/GeckoViewUtils.jsm"
+const { GeckoViewUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/GeckoViewUtils.sys.mjs"
 );
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  ActorManagerParent: "resource://gre/modules/ActorManagerParent.sys.mjs",
+  EventDispatcher: "resource://gre/modules/Messaging.sys.mjs",
+  Preferences: "resource://gre/modules/Preferences.sys.mjs",
+});
+
+const { XPCOMUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/XPCOMUtils.sys.mjs"
+);
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
-  ActorManagerParent: "resource://gre/modules/ActorManagerParent.jsm",
-  EventDispatcher: "resource://gre/modules/Messaging.jsm",
-  Preferences: "resource://gre/modules/Preferences.jsm",
+  PdfJs: "resource://pdf.js/PdfJs.jsm",
 });
 
 const { debug, warn } = GeckoViewUtils.initLogging("Startup");
@@ -132,6 +137,9 @@ class GeckoViewStartup {
             "GeckoView:GetPermissionsByURI",
             "GeckoView:SetPermission",
             "GeckoView:SetPermissionByURI",
+            "GeckoView:GetCookieBannerModeForDomain",
+            "GeckoView:SetCookieBannerModeForDomain",
+            "GeckoView:RemoveCookieBannerModeForDomain",
           ],
         });
 
@@ -239,6 +247,7 @@ class GeckoViewStartup {
         ]);
 
         Services.obs.addObserver(this, "browser-idle-startup-tasks-finished");
+        Services.obs.addObserver(this, "handlersvc-store-initialized");
 
         Services.obs.notifyObservers(null, "geckoview-startup-complete");
         break;
@@ -251,6 +260,19 @@ class GeckoViewStartup {
         // Notify the start up crash tracker that the browser has successfully
         // started up so the startup cache isn't rebuilt on next startup.
         Services.startup.trackStartupCrashEnd();
+        break;
+      }
+      case "handlersvc-store-initialized": {
+        // Initialize PdfJs when running in-process and remote. This only
+        // happens once since PdfJs registers global hooks. If the PdfJs
+        // extension is installed the init method below will be overridden
+        // leaving initialization to the extension.
+        // parent only: configure default prefs, set up pref observers, register
+        // pdf content handler, and initializes parent side message manager
+        // shim for privileged api access.
+        try {
+          lazy.PdfJs.init(this._isNewProfile);
+        } catch {}
         break;
       }
     }

@@ -54,7 +54,6 @@ class ScrollFrameHelper : public nsIReflowCallback {
   using FrameMetrics = mozilla::layers::FrameMetrics;
   using ScrollableLayerGuid = mozilla::layers::ScrollableLayerGuid;
   using ScrollSnapInfo = mozilla::layers::ScrollSnapInfo;
-  using Layer = mozilla::layers::Layer;
   using WebRenderLayerManager = mozilla::layers::WebRenderLayerManager;
   using ScrollAnchorContainer = mozilla::layout::ScrollAnchorContainer;
   using APZScrollAnimationType = mozilla::APZScrollAnimationType;
@@ -372,7 +371,7 @@ class ScrollFrameHelper : public nsIReflowCallback {
   nsRect GetScrolledRect() const;
 
   /**
-   * GetUnsnappedScrolledRectInternal is designed to encapsulate deciding which
+   * GetScrolledRectInternal is designed to encapsulate deciding which
    * directions of overflow should be reachable by scrolling and which
    * should not.  Callers should NOT depend on it having any particular
    * behavior (although nsXULScrollFrame currently does).
@@ -382,8 +381,8 @@ class ScrollFrameHelper : public nsIReflowCallback {
    * nsXULScrollFrames, and allows scrolling down and to the left for
    * nsHTMLScrollFrames with RTL directionality.
    */
-  nsRect GetUnsnappedScrolledRectInternal(const nsRect& aScrolledOverflowArea,
-                                          const nsSize& aScrollPortSize) const;
+  nsRect GetScrolledRectInternal(const nsRect& aScrolledOverflowArea,
+                                 const nsSize& aScrollPortSize) const;
 
   layers::ScrollDirections GetAvailableScrollingDirectionsForUserInputEvents()
       const;
@@ -874,7 +873,7 @@ class ScrollFrameHelper : public nsIReflowCallback {
   void ScrollToWithOrigin(nsPoint aScrollPosition, const nsRect* aRange,
                           ScrollOperationParams&& aParams);
 
-  void CompleteAsyncScroll(const nsRect& aRange,
+  void CompleteAsyncScroll(const nsPoint& aScrollPosition, const nsRect& aRange,
                            UniquePtr<ScrollSnapTargetIds> aSnapTargetIds,
                            ScrollOrigin aOrigin = ScrollOrigin::NotSpecified);
 
@@ -889,6 +888,11 @@ class ScrollFrameHelper : public nsIReflowCallback {
   void ApzSmoothScrollTo(const nsPoint& aDestination, ScrollOrigin aOrigin,
                          ScrollTriggeredByScript aTriggeredByScript,
                          UniquePtr<ScrollSnapTargetIds> aSnapTargetIds);
+
+  // Check whether APZ can scroll in the provided directions, keeping in mind
+  // that APZ currently cannot scroll along axes which are overflow:hidden.
+  bool CanApzScrollInTheseDirections(
+      mozilla::layers::ScrollDirections aDirections);
 
   // Removes any RefreshDriver observers we might have registered.
   void RemoveObservers();
@@ -993,11 +997,11 @@ class nsHTMLScrollFrame : public nsContainerFrame,
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
   void SetInitialChildList(ChildListID aListID,
-                           nsFrameList& aChildList) override;
-  void AppendFrames(ChildListID aListID, nsFrameList& aFrameList) final;
+                           nsFrameList&& aChildList) override;
+  void AppendFrames(ChildListID aListID, nsFrameList&& aFrameList) final;
   void InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
                     const nsLineList::iterator* aPrevFrameLine,
-                    nsFrameList& aFrameList) final;
+                    nsFrameList&& aFrameList) final;
   void RemoveFrame(ChildListID aListID, nsIFrame* aOldFrame) final;
 
   void DestroyFrom(nsIFrame* aDestructRoot, PostDestroyData&) override;
@@ -1450,11 +1454,11 @@ class nsXULScrollFrame final : public nsBoxFrame,
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
-  void SetInitialChildList(ChildListID aListID, nsFrameList& aChildList) final;
-  void AppendFrames(ChildListID aListID, nsFrameList& aFrameList) final;
+  void SetInitialChildList(ChildListID aListID, nsFrameList&& aChildList) final;
+  void AppendFrames(ChildListID aListID, nsFrameList&& aFrameList) final;
   void InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
                     const nsLineList::iterator* aPrevFrameLine,
-                    nsFrameList& aFrameList) final;
+                    nsFrameList&& aFrameList) final;
   void RemoveFrame(ChildListID aListID, nsIFrame* aOldFrame) final;
 
   void DestroyFrom(nsIFrame* aDestructRoot,

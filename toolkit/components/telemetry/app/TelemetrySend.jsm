@@ -21,8 +21,8 @@ var EXPORTED_SYMBOLS = [
   "gzipCompressString",
 ];
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const { ClientID } = ChromeUtils.import("resource://gre/modules/ClientID.jsm");
 const { Log } = ChromeUtils.importESModule(
@@ -37,8 +37,8 @@ const { ServiceRequest } = ChromeUtils.importESModule(
 const { TelemetryUtils } = ChromeUtils.import(
   "resource://gre/modules/TelemetryUtils.jsm"
 );
-const { clearTimeout, setTimeout } = ChromeUtils.import(
-  "resource://gre/modules/Timer.jsm"
+const { clearTimeout, setTimeout } = ChromeUtils.importESModule(
+  "resource://gre/modules/Timer.sys.mjs"
 );
 
 const lazy = {};
@@ -58,6 +58,11 @@ ChromeUtils.defineModuleGetter(
   lazy,
   "TelemetryHealthPing",
   "resource://gre/modules/HealthPing.jsm"
+);
+ChromeUtils.defineModuleGetter(
+  lazy,
+  "NimbusFeatures",
+  "resource://nimbus/ExperimentAPI.jsm"
 );
 
 const Utils = TelemetryUtils;
@@ -849,6 +854,10 @@ var TelemetrySendImpl = {
     try {
       const cr = Cc["@mozilla.org/toolkit/crash-reporter;1"];
       if (cr) {
+        // This needs to use nsICrashReporter because test_TelemetrySend.js
+        // replaces the crash reporter service, which we can't access here
+        // as Services caches it.
+        // eslint-disable-next-line mozilla/use-services
         const crs = cr.getService(Ci.nsICrashReporter);
 
         let clientId = ClientID.getCachedClientID();
@@ -1699,13 +1708,27 @@ var TelemetrySendImpl = {
       return;
     }
 
-    const exeName =
+    // By default, invoke `pingsender[.exe] URL path ...`.
+    let exeName =
       AppConstants.platform === "win" ? "pingsender.exe" : "pingsender";
+    let params = [];
+
+    if (lazy.NimbusFeatures.pingsender.getVariable("backgroundTaskEnabled")) {
+      // If using pingsender background task, invoke `firefox[.exe] --backgroundtask pingsender URL path ...`.
+      exeName =
+        AppConstants.MOZ_APP_NAME +
+        (AppConstants.platform === "win" ? ".exe" : "");
+      params = ["--backgroundtask", "pingsender"];
+    }
+
+    this._log.info(
+      `Invoking '${exeName}${params.length ? " " + params.join(" ") : ""} ...'`
+    );
 
     let exe = Services.dirsvc.get("GreBinD", Ci.nsIFile);
     exe.append(exeName);
 
-    let params = pings.flatMap(ping => [ping.url, ping.path]);
+    params.push(...pings.flatMap(ping => [ping.url, ping.path]));
     let process = Cc["@mozilla.org/process/util;1"].createInstance(
       Ci.nsIProcess
     );

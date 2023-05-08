@@ -13,11 +13,9 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 
 const lazy = {};
 
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "setTimeout",
-  "resource://gre/modules/Timer.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  setTimeout: "resource://gre/modules/Timer.sys.mjs",
+});
 
 // xpcshell doesn't handle idle callbacks well.
 XPCOMUtils.defineLazyGetter(lazy, "idleTimeout", () =>
@@ -315,6 +313,7 @@ function parseMatchPatterns(patterns, options) {
 
 /**
  * Fetch icon content and convert it to a data: URI.
+ *
  * @param {string} iconUrl Icon url to fetch.
  * @returns {Promise<string>}
  */

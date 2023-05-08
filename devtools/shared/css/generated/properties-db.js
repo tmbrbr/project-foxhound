@@ -215,7 +215,6 @@ exports.CSS_PROPERTIES = {
       "-moz-win-browsertabbar-toolbox",
       "-moz-win-communications-toolbox",
       "-moz-win-exclude-glass",
-      "-moz-win-glass",
       "-moz-win-media-toolbox",
       "-moz-window-button-box",
       "-moz-window-button-box-maximized",
@@ -223,9 +222,6 @@ exports.CSS_PROPERTIES = {
       "-moz-window-button-maximize",
       "-moz-window-button-minimize",
       "-moz-window-button-restore",
-      "-moz-window-frame-bottom",
-      "-moz-window-frame-left",
-      "-moz-window-frame-right",
       "-moz-window-titlebar",
       "-moz-window-titlebar-maximized",
       "auto",
@@ -1490,7 +1486,6 @@ exports.CSS_PROPERTIES = {
       "-moz-win-browsertabbar-toolbox",
       "-moz-win-communications-toolbox",
       "-moz-win-exclude-glass",
-      "-moz-win-glass",
       "-moz-win-media-toolbox",
       "-moz-window-button-box",
       "-moz-window-button-box-maximized",
@@ -1498,9 +1493,6 @@ exports.CSS_PROPERTIES = {
       "-moz-window-button-maximize",
       "-moz-window-button-minimize",
       "-moz-window-button-restore",
-      "-moz-window-frame-bottom",
-      "-moz-window-frame-left",
-      "-moz-window-frame-right",
       "-moz-window-titlebar",
       "-moz-window-titlebar-maximized",
       "auto",
@@ -1922,6 +1914,34 @@ exports.CSS_PROPERTIES = {
       "revert",
       "revert-layer",
       "unset"
+    ]
+  },
+  "-webkit-clip-path": {
+    "isInherited": false,
+    "subproperties": [
+      "clip-path"
+    ],
+    "supports": [],
+    "values": [
+      "border-box",
+      "circle",
+      "content-box",
+      "ellipse",
+      "fill-box",
+      "inherit",
+      "initial",
+      "inset",
+      "margin-box",
+      "none",
+      "padding-box",
+      "path",
+      "polygon",
+      "revert",
+      "revert-layer",
+      "stroke-box",
+      "unset",
+      "url",
+      "view-box"
     ]
   },
   "-webkit-filter": {
@@ -3030,6 +3050,7 @@ exports.CSS_PROPERTIES = {
       "font-kerning",
       "font-variant-alternates",
       "font-variant-east-asian",
+      "font-variant-emoji",
       "font-variant-ligatures",
       "font-variant-numeric",
       "font-variant-position",
@@ -3132,7 +3153,6 @@ exports.CSS_PROPERTIES = {
       "outline-style",
       "outline-width",
       "outline-offset",
-      "size",
       "page",
       "padding-top",
       "padding-right",
@@ -3471,7 +3491,6 @@ exports.CSS_PROPERTIES = {
       "-moz-win-browsertabbar-toolbox",
       "-moz-win-communications-toolbox",
       "-moz-win-exclude-glass",
-      "-moz-win-glass",
       "-moz-win-media-toolbox",
       "-moz-window-button-box",
       "-moz-window-button-box-maximized",
@@ -3479,9 +3498,6 @@ exports.CSS_PROPERTIES = {
       "-moz-window-button-maximize",
       "-moz-window-button-minimize",
       "-moz-window-button-restore",
-      "-moz-window-frame-bottom",
-      "-moz-window-frame-left",
-      "-moz-window-frame-right",
       "-moz-window-titlebar",
       "-moz-window-titlebar-maximized",
       "auto",
@@ -6118,6 +6134,57 @@ exports.CSS_PROPERTIES = {
       "unset"
     ]
   },
+  "container": {
+    "isInherited": false,
+    "subproperties": [
+      "container-name",
+      "container-type"
+    ],
+    "supports": [],
+    "values": [
+      "inherit",
+      "initial",
+      "inline-size",
+      "none",
+      "normal",
+      "revert",
+      "revert-layer",
+      "size",
+      "unset"
+    ]
+  },
+  "container-name": {
+    "isInherited": false,
+    "subproperties": [
+      "container-name"
+    ],
+    "supports": [],
+    "values": [
+      "inherit",
+      "initial",
+      "none",
+      "revert",
+      "revert-layer",
+      "unset"
+    ]
+  },
+  "container-type": {
+    "isInherited": false,
+    "subproperties": [
+      "container-type"
+    ],
+    "supports": [],
+    "values": [
+      "inherit",
+      "initial",
+      "inline-size",
+      "normal",
+      "revert",
+      "revert-layer",
+      "size",
+      "unset"
+    ]
+  },
   "content": {
     "isInherited": false,
     "subproperties": [
@@ -6677,26 +6744,20 @@ exports.CSS_PROPERTIES = {
       "font-optical-sizing",
       "font-variant-alternates",
       "font-variant-east-asian",
+      "font-variant-emoji",
       "font-variant-ligatures",
       "font-variant-numeric",
       "font-variant-position",
       "font-language-override",
       "font-feature-settings",
-      "font-variation-settings",
-      "font-palette"
+      "font-variation-settings"
     ],
     "supports": [],
     "values": [
       "-moz-button",
-      "-moz-desktop",
-      "-moz-dialog",
-      "-moz-document",
       "-moz-field",
-      "-moz-info",
       "-moz-list",
       "-moz-pull-down-menu",
-      "-moz-window",
-      "-moz-workspace",
       "all-petite-caps",
       "all-small-caps",
       "bold",
@@ -6938,6 +6999,7 @@ exports.CSS_PROPERTIES = {
       "font-variant-caps",
       "font-variant-alternates",
       "font-variant-east-asian",
+      "font-variant-emoji",
       "font-variant-ligatures",
       "font-variant-numeric",
       "font-variant-position"
@@ -6952,6 +7014,7 @@ exports.CSS_PROPERTIES = {
       "contextual",
       "diagonal-fractions",
       "discretionary-ligatures",
+      "emoji",
       "full-width",
       "historical-forms",
       "historical-ligatures",
@@ -6987,9 +7050,11 @@ exports.CSS_PROPERTIES = {
       "super",
       "swash",
       "tabular-nums",
+      "text",
       "titling-caps",
       "traditional",
       "unicase",
+      "unicode",
       "unset"
     ]
   },
@@ -7057,6 +7122,24 @@ exports.CSS_PROPERTIES = {
       "ruby",
       "simplified",
       "traditional",
+      "unset"
+    ]
+  },
+  "font-variant-emoji": {
+    "isInherited": true,
+    "subproperties": [
+      "font-variant-emoji"
+    ],
+    "supports": [],
+    "values": [
+      "emoji",
+      "inherit",
+      "initial",
+      "normal",
+      "revert",
+      "revert-layer",
+      "text",
+      "unicode",
       "unset"
     ]
   },
@@ -11833,6 +11916,10 @@ exports.PREFERENCES = [
   [
     "font-optical-sizing",
     "layout.css.font-variations.enabled"
+  ],
+  [
+    "font-variant-emoji",
+    "layout.css.font-variant-emoji.enabled"
   ],
   [
     "initial-letter",

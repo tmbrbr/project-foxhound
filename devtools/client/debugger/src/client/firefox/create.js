@@ -12,6 +12,7 @@ import {
 } from "../../selectors";
 import { features } from "../../utils/prefs";
 import { isUrlExtension } from "../../utils/source";
+import { createLocation } from "../../utils/location";
 import { getDisplayURL } from "../../utils/sources-tree/getURL";
 
 let store;
@@ -39,11 +40,12 @@ export async function createFrame(thread, frame, index = 0) {
     frame.where.actor
   );
 
-  const location = {
+  const location = createLocation({
     sourceId: sourceActor.source,
     line: frame.where.line,
     column: frame.where.column,
-  };
+    sourceActorId: sourceActor.actor,
+  });
 
   return {
     id: frame.actorID,
@@ -244,7 +246,7 @@ function createSourceObject({
     // True if WASM is enabled *and* the generated source is a WASM source
     isWasm,
 
-    // True is this source is an HTML and relates to many sources actors,
+    // True if this source is an HTML and relates to many sources actors,
     // one for each of its inline <script>
     isHTML,
 

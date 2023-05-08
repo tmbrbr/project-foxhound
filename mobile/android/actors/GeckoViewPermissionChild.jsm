@@ -5,17 +5,14 @@
 
 var EXPORTED_SYMBOLS = ["GeckoViewPermissionChild"];
 
-const { XPCOMUtils } = ChromeUtils.importESModule(
-  "resource://gre/modules/XPCOMUtils.sys.mjs"
-);
-const { GeckoViewActorChild } = ChromeUtils.import(
-  "resource://gre/modules/GeckoViewActorChild.jsm"
+const { GeckoViewActorChild } = ChromeUtils.importESModule(
+  "resource://gre/modules/GeckoViewActorChild.sys.mjs"
 );
 
 const lazy = {};
 
-XPCOMUtils.defineLazyModuleGetters(lazy, {
-  E10SUtils: "resource://gre/modules/E10SUtils.jsm",
+ChromeUtils.defineESModuleGetters(lazy, {
+  E10SUtils: "resource://gre/modules/E10SUtils.sys.mjs",
 });
 
 const PERM_ACCESS_FINE_LOCATION = "android.permission.ACCESS_FINE_LOCATION";
@@ -93,7 +90,7 @@ class GeckoViewPermissionChild extends GeckoViewActorChild {
         }
       }
     } catch (error) {
-      Cu.reportError("Permission error: " + error);
+      console.error("Permission error: " + error);
       allowOrDeny = Services.perms.DENY_ACTION;
     }
 

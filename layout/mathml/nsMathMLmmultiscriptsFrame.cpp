@@ -229,8 +229,7 @@ nsresult nsMathMLmmultiscriptsFrame::PlaceMultiScript(
 
     // get sup script shift depending on current script level and display style
     // Rule 18c, App. G, TeXbook
-    if (font->mMathDepth == 0 &&
-        font->mMathStyle == NS_STYLE_MATH_STYLE_NORMAL &&
+    if (font->mMathDepth == 0 && font->mMathStyle == StyleMathStyle::Normal &&
         !NS_MATHML_IS_COMPRESSED(presentationData.flags)) {
       // Style D in TeXbook
       supScriptShift = supScriptShift1;
@@ -282,7 +281,6 @@ nsresult nsMathMLmmultiscriptsFrame::PlaceMultiScript(
   aDesiredSize.Width() = aDesiredSize.Height() = 0;
 
   int32_t count = 0;
-  bool foundNoneTag = false;
 
   // Boolean to determine whether the current child is a subscript.
   // Note that only msup starts with a superscript.
@@ -316,18 +314,6 @@ nsresult nsMathMLmmultiscriptsFrame::PlaceMultiScript(
       firstPrescriptsPair = true;
     } else if (0 == count) {
       // base
-
-      if (childFrame->GetContent()->IsMathMLElement(nsGkAtoms::none)) {
-        if (tag == nsGkAtoms::mmultiscripts_) {
-          if (aPlaceOrigin) {
-            aFrame->ReportErrorToConsole("NoBase");
-          }
-          return aFrame->PlaceForError(aDrawTarget, aPlaceOrigin, aDesiredSize);
-        } else {
-          // A different error message is triggered later for the other tags
-          foundNoneTag = true;
-        }
-      }
       baseFrame = childFrame;
       GetReflowAndBoundingMetricsFor(baseFrame, baseSize, bmBase);
 
@@ -348,10 +334,6 @@ nsresult nsMathMLmmultiscriptsFrame::PlaceMultiScript(
       boundingMetrics.leftBearing = bmBase.leftBearing;  // until overwritten
     } else {
       // super/subscript block
-      if (childFrame->GetContent()->IsMathMLElement(nsGkAtoms::none)) {
-        foundNoneTag = true;
-      }
-
       if (isSubScript) {
         // subscript
         subScriptFrame = childFrame;
@@ -497,7 +479,6 @@ nsresult nsMathMLmmultiscriptsFrame::PlaceMultiScript(
   // NoBase error may also have been reported above
   if ((count != 2 && (tag == nsGkAtoms::msup_ || tag == nsGkAtoms::msub_)) ||
       (count != 3 && tag == nsGkAtoms::msubsup_) || !baseFrame ||
-      (foundNoneTag && tag != nsGkAtoms::mmultiscripts_) ||
       (!isSubScript && tag == nsGkAtoms::mmultiscripts_)) {
     // report an error, encourage people to get their markups in order
     if (aPlaceOrigin) {
@@ -505,8 +486,6 @@ nsresult nsMathMLmmultiscriptsFrame::PlaceMultiScript(
            (tag == nsGkAtoms::msup_ || tag == nsGkAtoms::msub_)) ||
           (count != 3 && tag == nsGkAtoms::msubsup_)) {
         aFrame->ReportChildCountError();
-      } else if (foundNoneTag && tag != nsGkAtoms::mmultiscripts_) {
-        aFrame->ReportInvalidChildError(nsGkAtoms::none);
       } else if (!baseFrame) {
         aFrame->ReportErrorToConsole("NoBase");
       } else {

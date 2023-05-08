@@ -6,11 +6,12 @@
 
 from __future__ import print_function
 
-from copy import deepcopy
-from six import iteritems
-from struct import unpack
 import os
+from copy import deepcopy
+from struct import unpack
 from uuid import UUID
+
+from six import iteritems
 
 H_HEADER = """/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=8 sts=2 et sw=2 tw=80: */
@@ -63,6 +64,7 @@ BROWSER_PROCESS_ONLY = "BROWSER_PROCESS_ONLY"
 SUBSTITUTE_LSP_PASSTHROUGH = "SUBSTITUTE_LSP_PASSTHROUGH"
 REDIRECT_TO_NOOP_ENTRYPOINT = "REDIRECT_TO_NOOP_ENTRYPOINT"
 UTILITY_PROCESSES_ONLY = "UTILITY_PROCESSES_ONLY"
+SOCKET_PROCESSES_ONLY = "SOCKET_PROCESSES_ONLY"
 
 # Only these flags are available in the input script
 INPUT_ONLY_FLAGS = {
@@ -103,6 +105,7 @@ ALL_DEFINITION_LISTS = (
     "BROWSER_PROCESS",
     "CHILD_PROCESSES",
     "UTILITY_PROCESSES",
+    "SOCKET_PROCESSES",
 )
 
 
@@ -372,6 +375,7 @@ GENERATED_BLOCKLIST_FILES = [
             "BROWSER_PROCESS": {BROWSER_PROCESS_ONLY},
             "CHILD_PROCESSES": {CHILD_PROCESSES_ONLY},
             "UTILITY_PROCESSES": {UTILITY_PROCESSES_ONLY},
+            "SOCKET_PROCESSES": {SOCKET_PROCESSES_ONLY},
         },
     ),
     BlocklistDescriptor(
@@ -381,6 +385,7 @@ GENERATED_BLOCKLIST_FILES = [
             "BROWSER_PROCESS": {BROWSER_PROCESS_ONLY},
             "CHILD_PROCESSES": {CHILD_PROCESSES_ONLY},
             "UTILITY_PROCESSES": {UTILITY_PROCESSES_ONLY},
+            "SOCKET_PROCESSES": {SOCKET_PROCESSES_ONLY},
         },
     ),
     # Roughed-in for the moment; we'll enable this in bug 1238735

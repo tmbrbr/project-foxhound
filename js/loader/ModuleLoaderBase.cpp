@@ -267,6 +267,9 @@ bool ModuleLoaderBase::HostPopulateImportMeta(
 bool ModuleLoaderBase::HostImportModuleDynamically(
     JSContext* aCx, JS::Handle<JS::Value> aReferencingPrivate,
     JS::Handle<JSObject*> aModuleRequest, JS::Handle<JSObject*> aPromise) {
+  MOZ_DIAGNOSTIC_ASSERT(aModuleRequest);
+  MOZ_DIAGNOSTIC_ASSERT(aPromise);
+
   RefPtr<LoadedScript> script(GetLoadedScriptOrNull(aCx, aReferencingPrivate));
 
   JS::Rooted<JSString*> specifierString(
@@ -750,29 +753,18 @@ nsresult ModuleLoaderBase::ResolveRequestedModules(
   ModuleScript* ms = aRequest->mModuleScript;
 
   AutoJSAPI jsapi;
-  if (!jsapi.Init(ms->ModuleRecord())) {
+  if (!jsapi.Init(mGlobalObject)) {
     return NS_ERROR_FAILURE;
   }
 
   JSContext* cx = jsapi.cx();
   JS::Rooted<JSObject*> moduleRecord(cx, ms->ModuleRecord());
-  JS::Rooted<JSObject*> requestedModules(cx);
-  requestedModules = JS::GetRequestedModules(cx, moduleRecord);
-  MOZ_ASSERT(requestedModules);
-
-  uint32_t length;
-  if (!JS::GetArrayLength(cx, requestedModules, &length)) {
-    return NS_ERROR_FAILURE;
-  }
+  uint32_t length = JS::GetRequestedModulesCount(cx, moduleRecord);
 
   JS::Rooted<JS::Value> requestedModule(cx);
   for (uint32_t i = 0; i < length; i++) {
-    if (!JS_GetElement(cx, requestedModules, i, &requestedModule)) {
-      return NS_ERROR_FAILURE;
-    }
-
     JS::Rooted<JSString*> str(
-        cx, JS::GetRequestedModuleSpecifier(cx, requestedModule));
+        cx, JS::GetRequestedModuleSpecifier(cx, moduleRecord, i));
     MOZ_ASSERT(str);
 
     nsAutoJSString specifier;
@@ -787,7 +779,7 @@ nsresult ModuleLoaderBase::ResolveRequestedModules(
     if (result.isErr()) {
       uint32_t lineNumber = 0;
       uint32_t columnNumber = 0;
-      JS::GetRequestedModuleSourcePos(cx, requestedModule, &lineNumber,
+      JS::GetRequestedModuleSourcePos(cx, moduleRecord, i, &lineNumber,
                                       &columnNumber);
 
       JS::Rooted<JS::Value> error(cx);
@@ -925,7 +917,10 @@ void ModuleLoaderBase::FinishDynamicImportAndReject(ModuleLoadRequest* aRequest,
                                                     nsresult aResult) {
   AutoJSAPI jsapi;
   MOZ_ASSERT(NS_FAILED(aResult));
-  MOZ_ALWAYS_TRUE(jsapi.Init(aRequest->mDynamicPromise));
+  if (!jsapi.Init(mGlobalObject)) {
+    return;
+  }
+
   FinishDynamicImport(jsapi.cx(), aRequest, aResult, nullptr);
 }
 
@@ -941,6 +936,11 @@ void ModuleLoaderBase::FinishDynamicImport(
 
   // Complete the dynamic import, report failures indicated by aResult or as a
   // pending exception on the context.
+
+  if (!aRequest->mDynamicPromise) {
+    // Import has already been completed.
+    return;
+  }
 
   if (NS_FAILED(aResult) &&
       aResult != NS_SUCCESS_DOM_SCRIPT_EVALUATION_THREW_UNCATCHABLE) {
@@ -1074,7 +1074,7 @@ bool ModuleLoaderBase::InstantiateModuleGraph(ModuleLoadRequest* aRequest) {
   MOZ_ASSERT(moduleScript->ModuleRecord());
 
   AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.Init(moduleScript->ModuleRecord()))) {
+  if (NS_WARN_IF(!jsapi.Init(mGlobalObject))) {
     return false;
   }
 

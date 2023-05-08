@@ -22,7 +22,7 @@
 #include "nsError.h"
 #include "nsGkAtoms.h"
 #include "nsINode.h"
-#include "nsISupportsBase.h"
+#include "nsISupports.h"
 #include "nsISupportsImpl.h"
 #include "nsReadableUtils.h"
 #include "nsString.h"
@@ -31,6 +31,30 @@
 namespace mozilla {
 
 using namespace dom;
+
+/********************************************************************
+ * mozilla::PendingStyle
+ *******************************************************************/
+
+EditorInlineStyle PendingStyle::ToInlineStyle() const {
+  return mTag ? EditorInlineStyle(*mTag, mAttribute)
+              : EditorInlineStyle::RemoveAllStyles();
+}
+
+EditorInlineStyleAndValue PendingStyle::ToInlineStyleAndValue() const {
+  MOZ_ASSERT(mTag);
+  return mAttribute ? EditorInlineStyleAndValue(*mTag, *mAttribute,
+                                                mAttributeValueOrCSSValue)
+                    : EditorInlineStyleAndValue(*mTag);
+}
+
+/********************************************************************
+ * mozilla::PendingStyleCache
+ *******************************************************************/
+
+EditorInlineStyle PendingStyleCache::ToInlineStyle() const {
+  return EditorInlineStyle(mTag, mAttribute);
+}
 
 /********************************************************************
  * mozilla::PendingStyles

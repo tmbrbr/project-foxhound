@@ -204,7 +204,9 @@ public final class StorageController {
   }
 
   /**
-   * Get all currently stored permissions for a given URI and default (unset) context ID.
+   * Get all currently stored permissions for a given URI and default (unset) context ID, in normal
+   * mode This API will be deprecated in the future
+   * https://bugzilla.mozilla.org/show_bug.cgi?id=1797379
    *
    * @param uri A String representing the URI to get permissions for.
    * @return A {@link GeckoResult} that will complete with a list of all currently stored {@link
@@ -212,7 +214,22 @@ public final class StorageController {
    */
   @AnyThread
   public @NonNull GeckoResult<List<ContentPermission>> getPermissions(final @NonNull String uri) {
-    return getPermissions(uri, null);
+    return getPermissions(uri, null, false);
+  }
+
+  /**
+   * Get all currently stored permissions for a given URI and default (unset) context ID.
+   *
+   * @param uri A String representing the URI to get permissions for.
+   * @param privateMode indicate where the {@link ContentPermission}s should be in private or normal
+   *     mode.
+   * @return A {@link GeckoResult} that will complete with a list of all currently stored {@link
+   *     ContentPermission}s for the URI.
+   */
+  @AnyThread
+  public @NonNull GeckoResult<List<ContentPermission>> getPermissions(
+      final @NonNull String uri, final boolean privateMode) {
+    return getPermissions(uri, null, privateMode);
   }
 
   /**
@@ -220,15 +237,19 @@ public final class StorageController {
    *
    * @param uri A String representing the URI to get permissions for.
    * @param contextId A String specifying the context ID.
+   * @param privateMode indicate where the {@link ContentPermission}s should be in private or normal
+   *     mode
    * @return A {@link GeckoResult} that will complete with a list of all currently stored {@link
    *     ContentPermission}s for the URI.
    */
   @AnyThread
   public @NonNull GeckoResult<List<ContentPermission>> getPermissions(
-      final @NonNull String uri, final @Nullable String contextId) {
+      final @NonNull String uri, final @Nullable String contextId, final boolean privateMode) {
     final GeckoBundle msg = new GeckoBundle(2);
+    final int privateBrowsingId = (privateMode) ? 1 : 0;
     msg.putString("uri", uri);
     msg.putString("contextId", createSafeSessionContextId(contextId));
+    msg.putInt("privateBrowsingId", privateBrowsingId);
     return EventDispatcher.getInstance()
         .queryBundle("GeckoView:GetPermissionsByURI", msg)
         .map(
@@ -286,5 +307,81 @@ public final class StorageController {
     msg.putInt("newValue", value);
     msg.putBoolean("allowPermanentPrivateBrowsing", allowPermanentPrivateBrowsing);
     EventDispatcher.getInstance().dispatch("GeckoView:SetPermission", msg);
+  }
+
+  /**
+   * Set a permanent {@link ContentBlocking.CBCookieBannerMode} for the given uri and browsing mode.
+   *
+   * @param uri An uri for which you want change the {@link ContentBlocking.CBCookieBannerMode}
+   *     value.
+   * @param mode A new {@link ContentBlocking.CBCookieBannerMode} for the given uri.
+   * @param isPrivateBrowsing Indicates in which browsing mode the given {@link
+   *     ContentBlocking.CBCookieBannerMode} should be applied.
+   * @return A {@link GeckoResult} that will complete when the mode has been set.
+   */
+  @AnyThread
+  public @NonNull GeckoResult<Void> setCookieBannerModeForDomain(
+      final @NonNull String uri,
+      final @ContentBlocking.CBCookieBannerMode int mode,
+      final boolean isPrivateBrowsing) {
+    final GeckoBundle data = new GeckoBundle(3);
+    data.putString("uri", uri);
+    data.putInt("mode", mode);
+    data.putBoolean("isPrivateBrowsing", isPrivateBrowsing);
+    return EventDispatcher.getInstance().queryVoid("GeckoView:SetCookieBannerModeForDomain", data);
+  }
+
+  /**
+   * Removes a {@link ContentBlocking.CBCookieBannerMode} for the given uri and and browsing mode.
+   *
+   * @param uri An uri for which you want change the {@link ContentBlocking.CBCookieBannerMode}
+   *     value.
+   * @param isPrivateBrowsing Indicates in which mode the given mode should be applied.
+   * @return A {@link GeckoResult} that will complete when the mode has been removed.
+   */
+  @AnyThread
+  public @NonNull GeckoResult<Void> removeCookieBannerModeForDomain(
+      final @NonNull String uri, final boolean isPrivateBrowsing) {
+
+    final GeckoBundle data = new GeckoBundle(3);
+    data.putString("uri", uri);
+    data.putBoolean("isPrivateBrowsing", isPrivateBrowsing);
+    return EventDispatcher.getInstance()
+        .queryVoid("GeckoView:RemoveCookieBannerModeForDomain", data);
+  }
+
+  /**
+   * Gets the actual {@link ContentBlocking.CBCookieBannerMode} for the given uri and browsing mode.
+   *
+   * @param uri An uri for which you want get the {@link ContentBlocking.CBCookieBannerMode}.
+   * @param isPrivateBrowsing Indicates in which browsing mode the given uri should be.
+   * @return A {@link GeckoResult} that resolves to a {@link ContentBlocking.CBCookieBannerMode} for
+   *     the given uri and browsing mode.
+   */
+  @AnyThread
+  public @NonNull @ContentBlocking.CBCookieBannerMode GeckoResult<Integer>
+      getCookieBannerModeForDomain(final @NonNull String uri, final boolean isPrivateBrowsing) {
+
+    final GeckoBundle data = new GeckoBundle(2);
+    data.putString("uri", uri);
+    data.putBoolean("isPrivateBrowsing", isPrivateBrowsing);
+    return EventDispatcher.getInstance()
+        .queryBundle("GeckoView:GetCookieBannerModeForDomain", data)
+        .map(StorageController::cookieBannerModeFromBundle, StorageController::fromQueryException);
+  }
+
+  private static @ContentBlocking.CBCookieBannerMode int cookieBannerModeFromBundle(
+      final GeckoBundle bundle) throws Exception {
+    if (bundle == null) {
+      throw new Exception("Unable to parse cookie banner mode");
+    }
+    return bundle.getInt("mode");
+  }
+
+  private static Throwable fromQueryException(final Throwable exception) {
+    final EventDispatcher.QueryException queryException =
+        (EventDispatcher.QueryException) exception;
+    final Object response = queryException.data;
+    return new Exception(response.toString());
   }
 }

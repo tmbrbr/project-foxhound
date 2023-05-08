@@ -7,6 +7,8 @@ import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  Preferences: "resource://gre/modules/Preferences.sys.mjs",
+
   Deferred: "chrome://remote/content/shared/Sync.sys.mjs",
   EnvironmentPrefs: "chrome://remote/content/marionette/prefs.sys.mjs",
   Log: "chrome://remote/content/shared/Log.sys.mjs",
@@ -16,22 +18,11 @@ ChromeUtils.defineESModuleGetters(lazy, {
   TCPListener: "chrome://remote/content/marionette/server.sys.mjs",
 });
 
-XPCOMUtils.defineLazyModuleGetters(lazy, {
-  Preferences: "resource://gre/modules/Preferences.jsm",
-});
-
 XPCOMUtils.defineLazyGetter(lazy, "logger", () =>
   lazy.Log.get(lazy.Log.TYPES.MARIONETTE)
 );
 
 XPCOMUtils.defineLazyGetter(lazy, "textEncoder", () => new TextEncoder());
-
-XPCOMUtils.defineLazyServiceGetter(
-  lazy,
-  "env",
-  "@mozilla.org/process/environment;1",
-  "nsIEnvironment"
-);
 
 const NOTIFY_LISTENING = "marionette-listening";
 
@@ -74,7 +65,7 @@ class MarionetteParentProcess {
     this.helpInfo = "  --marionette       Enable remote control server.\n";
 
     // Initially set the enabled state based on the environment variable.
-    this.enabled = lazy.env.exists(ENV_ENABLED);
+    this.enabled = Services.env.exists(ENV_ENABLED);
 
     Services.ppmm.addMessageListener("Marionette:IsRunning", this);
 
@@ -240,7 +231,7 @@ class MarionetteParentProcess {
       return;
     }
 
-    lazy.env.set(ENV_ENABLED, "1");
+    Services.env.set(ENV_ENABLED, "1");
     Services.obs.notifyObservers(this, NOTIFY_LISTENING, true);
     lazy.logger.debug("Marionette is listening");
 

@@ -132,23 +132,36 @@ static nsIScriptGlobalObject* GetGlobalObject(nsIChannel* aChannel) {
 }
 
 static bool AllowedByCSP(nsIContentSecurityPolicy* aCSP,
-                         const nsAString& aContentOfPseudoScript) {
+                         const nsACString& aJavaScriptURL) {
   if (!aCSP) {
     return true;
   }
 
-  // javascript: is a "navigation" type, so script-src-elem applies.
+  // https://w3c.github.io/webappsec-csp/#should-block-navigation-request
+  // Step 3. If result is "Allowed", and if navigation request’s current URL’s
+  // scheme is javascript:
+  //
+  // Step 3.1.1.2 If directive’s inline check returns "Allowed" when executed
+  // upon null, "navigation" and navigation request’s current URL, skip to the
+  // next directive.
+  //
+  // This means /type/ is "navigation" and /source string/ is the
+  // "navigation request’s current URL".
+  //
+  // Per
   // https://w3c.github.io/webappsec-csp/#effective-directive-for-inline-check
+  // type "navigation" maps to the effective directive script-src-elem.
   bool allowsInlineScript = true;
   nsresult rv =
       aCSP->GetAllowsInline(nsIContentSecurityPolicy::SCRIPT_SRC_ELEM_DIRECTIVE,
-                            u""_ns,                  // aNonce
-                            true,                    // aParserCreated
-                            nullptr,                 // aElement,
-                            nullptr,                 // nsICSPEventListener
-                            aContentOfPseudoScript,  // aContent
-                            0,                       // aLineNumber
-                            0,                       // aColumnNumber
+                            true,     // aHasUnsafeHash
+                            u""_ns,   // aNonce
+                            true,     // aParserCreated
+                            nullptr,  // aElement,
+                            nullptr,  // nsICSPEventListener
+                            NS_ConvertASCIItoUTF16(aJavaScriptURL),  // aContent
+                            0,  // aLineNumber
+                            0,  // aColumnNumber
                             &allowsInlineScript);
 
   return (NS_SUCCEEDED(rv) && allowsInlineScript);
@@ -210,11 +223,7 @@ nsresult nsJSThunk::EvaluateScript(
   // once we have determined the target document.
   nsCOMPtr<nsIContentSecurityPolicy> csp = loadInfo->GetCspToInherit();
 
-  nsAutoCString script(mScript);
-  // Unescape the script
-  NS_UnescapeURL(script);
-
-  if (!AllowedByCSP(csp, NS_ConvertASCIItoUTF16(script))) {
+  if (!AllowedByCSP(csp, mURL)) {
     return NS_ERROR_DOM_RETVAL_UNDEFINED;
   }
 
@@ -264,7 +273,7 @@ nsresult nsJSThunk::EvaluateScript(
     // against if the triggering principal is system.
     if (targetDoc->NodePrincipal()->Subsumes(loadInfo->TriggeringPrincipal())) {
       nsCOMPtr<nsIContentSecurityPolicy> targetCSP = targetDoc->GetCsp();
-      if (!AllowedByCSP(targetCSP, NS_ConvertASCIItoUTF16(script))) {
+      if (!AllowedByCSP(targetCSP, mURL)) {
         return NS_ERROR_DOM_RETVAL_UNDEFINED;
       }
     }
@@ -304,6 +313,10 @@ nsresult nsJSThunk::EvaluateScript(
   if (objectPrincipal->IsSystemPrincipal()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
+
+  nsAutoCString script(mScript);
+  // Unescape the script
+  NS_UnescapeURL(script);
 
   JS::Rooted<JS::Value> v(cx, JS::UndefinedValue());
   // Finally, we have everything needed to evaluate the expression.
@@ -1136,20 +1149,6 @@ NS_IMPL_ISUPPORTS(nsJSProtocolHandler, nsIProtocolHandler)
 NS_IMETHODIMP
 nsJSProtocolHandler::GetScheme(nsACString& result) {
   result = "javascript";
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsJSProtocolHandler::GetDefaultPort(int32_t* result) {
-  *result = -1;  // no port for javascript: URLs
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsJSProtocolHandler::GetProtocolFlags(uint32_t* result) {
-  *result = URI_NORELATIVE | URI_NOAUTH | URI_INHERITS_SECURITY_CONTEXT |
-            URI_LOADABLE_BY_ANYONE | URI_NON_PERSISTABLE |
-            URI_OPENING_EXECUTES_SCRIPT;
   return NS_OK;
 }
 

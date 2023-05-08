@@ -2,10 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from mach.decorators import (
-    Command,
-    SubCommand,
-)
+from mach.decorators import Command, SubCommand
 
 
 def run_mach(command_context, cmd, **kwargs):
@@ -40,7 +37,7 @@ def storybook_launch(command_context):
     description="Install Storybook node dependencies.",
 )
 def storybook_install(command_context):
-    return run_npm(command_context, args=["install"])
+    return run_npm(command_context, args=["ci"])
 
 
 @SubCommand(

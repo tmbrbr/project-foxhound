@@ -60,6 +60,13 @@ XPCOMUtils.defineLazyGetter(lazy, "logConsole", function() {
   });
 });
 
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "snapshots_enabled",
+  "browser.places.snapshots.enabled",
+  false
+);
+
 /**
  * Snapshots are considered overlapping if interactions took place within snapshot_overlap_limit milleseconds of each other.
  * Default to a half-hour on each end of the interactions.
@@ -236,7 +243,8 @@ export const Snapshots = new (class Snapshots {
    * This is called by PageThumbs to see what thumbnails should be kept alive.
    * Currently, the last 100 snapshots are kept alive.
    *
-   * @param {Function} callback
+   * @param {function(string[])} callback
+   *   Called with an array of urls to keep alive.
    */
   async filterForThumbnailExpiration(callback) {
     let snapshots = await this.query();
@@ -385,6 +393,7 @@ export const Snapshots = new (class Snapshots {
    * cleared.
    *
    * @param {object} details
+   *   The details of the snapshot to add.
    * @param {string} details.url
    *   The url associated with the snapshot.
    * @param {string} [details.title]
@@ -396,6 +405,10 @@ export const Snapshots = new (class Snapshots {
   async add({ url, title, userPersisted = this.USER_PERSISTED.NO }) {
     if (!url) {
       throw new Error("Missing url parameter to Snapshots.add()");
+    }
+
+    if (!lazy.snapshots_enabled) {
+      return;
     }
 
     url = this.stripFragments(url);
@@ -589,6 +602,7 @@ export const Snapshots = new (class Snapshots {
    * Queries the current snapshots in the database.
    *
    * @param {object} [options]
+   *   Options for the query.
    * @param {number} [options.limit]
    *   A numerical limit to the number of snapshots to retrieve, defaults to 100.
    *   -1 may be used to get all snapshots, e.g. for use by the group builders.
@@ -615,7 +629,7 @@ export const Snapshots = new (class Snapshots {
    * @param {string} [options.sortBy]
    *   A string to choose what to sort the snapshots by, e.g. "last_interaction_at"
    *   By default results are sorted by last_interaction_at.
-   * @returns {Snapshot[]}
+   * @returns {Promise<Snapshot[]>}
    *   Returns snapshots in order of descending last interaction time.
    */
   async query({
@@ -1036,6 +1050,7 @@ export const Snapshots = new (class Snapshots {
    *   2) thumbnail of the page
    *
    * @param {Snapshot} snapshot
+   *   The snapshot to get the image for.
    *
    * @returns {string?}
    */
@@ -1081,6 +1096,10 @@ export const Snapshots = new (class Snapshots {
    *  The list of pages to check, if undefined all pages are checked.
    */
   async updateSnapshots(urls = undefined) {
+    if (!lazy.snapshots_enabled) {
+      return;
+    }
+
     if (urls !== undefined && !urls.length) {
       return;
     }

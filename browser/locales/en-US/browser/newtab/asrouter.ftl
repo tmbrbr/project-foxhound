@@ -151,13 +151,6 @@ spotlight-public-wifi-vpn-primary-button = Stay private with { -mozilla-vpn-bran
 spotlight-public-wifi-vpn-link = Not Now
   .accesskey = N
 
-## Total Cookie Protection Rollout
-
-cfr-total-cookie-protection-header = Thanks to you, { -brand-short-name } is more private and secure than ever
-# "Early access" for this feature rollout means it's a "feature preview" or
-# "soft launch". Only those who received it and accepted are shown this message.
-cfr-total-cookie-protection-body = Total Cookie Protection is our strongest privacy protection yet – and it’s now a default setting for { -brand-short-name } users everywhere. We couldn’t have done it without early access participants like you. So thanks for helping us create a better, more private internet.
-
 ## Emotive Continuous Onboarding
 
 spotlight-better-internet-header = A better internet starts with you
@@ -204,8 +197,8 @@ firefoxview-cfr-primarybutton = Try it
   .accesskey = T
 firefoxview-cfr-secondarybutton = Not now
   .accesskey = N
-firefoxview-cfr-header = Get recently closed tabs back with { -firefoxview-brand-name }
-firefoxview-cfr-body = Plus seamlessly hop between devices and add a splash of color to your browser.
+firefoxview-cfr-header-v2 = Quickly pick up where you left off
+firefoxview-cfr-body-v2 = Get recently closed tabs back, plus seamlessly hop between devices with { -firefoxview-brand-name }.
 
 ## Firefox View Spotlight
 
@@ -215,3 +208,15 @@ firefoxview-spotlight-promo-title = Say hello to { -firefoxview-brand-name }
 firefoxview-spotlight-promo-subtitle = Want that open tab on your phone? Grab it. Need that site you just visited? Poof, it’s back with { -firefoxview-brand-name }.
 firefoxview-spotlight-promo-primarybutton = See how it works
 firefoxview-spotlight-promo-secondarybutton = Skip
+
+## Colorways expiry reminder CFR
+
+colorways-cfr-primarybutton = Choose colorway
+  .accesskey = C
+
+# "shades" refers to the different color options available to users in colorways.
+colorways-cfr-body = Color your browser with { -brand-short-name } exclusive shades inspired by voices that changed culture.
+colorways-cfr-header-28days = Independent Voices colorways expire January 16
+colorways-cfr-header-14days = Independent Voices colorways expire in two weeks
+colorways-cfr-header-7days =  Independent Voices colorways expire this week
+colorways-cfr-header-today = Independent Voices colorways expire today

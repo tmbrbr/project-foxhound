@@ -7,8 +7,8 @@ var EXPORTED_SYMBOLS = ["StartupRecorder"];
 const Cm = Components.manager;
 Cm.QueryInterface(Ci.nsIServiceManager);
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 
 let firstPaintNotification = "widget-first-paint";
@@ -203,10 +203,7 @@ StartupRecorder.prototype = {
       }
       paints = null;
 
-      let env = Cc["@mozilla.org/process/environment;1"].getService(
-        Ci.nsIEnvironment
-      );
-      if (!env.exists("MOZ_PROFILER_STARTUP_PERFORMANCE_TEST")) {
+      if (!Services.env.exists("MOZ_PROFILER_STARTUP_PERFORMANCE_TEST")) {
         this._resolve();
         this._resolve = null;
         return;

@@ -9,7 +9,7 @@
 import {
   Reducer as ReduxReducer,
   Store as ReduxStore,
-} from "devtools/client/shared/vendor/redux";
+} from "resource://devtools/client/shared/vendor/redux.js";
 
 export interface PanelWindow {
   gToolbox?: any;
@@ -197,12 +197,6 @@ export type RestartBrowserWithEnvironmentVariable = (
  * profile has been obtained.
  */
 export type OnProfileReceived = (profile: MinimallyTypedGeckoProfile) => void;
-
-/**
- * This is the type signature for a function to query the browser for an
- * environment variable. Currently only implemented for the popup.
- */
-export type GetEnvironmentVariable = (envName: string) => string;
 
 /**
  * This is the type signature for a function to query the browser for the
@@ -548,7 +542,7 @@ type QuerySymbolicationApiResponse = string;
 
 /**
  * This represents an event channel that can talk to a content page on the web.
- * This interface is a manually typed version of toolkit/modules/WebChannel.jsm
+ * This interface is a manually typed version of toolkit/modules/WebChannel.sys.mjs
  * and is opinionated about the types of messages we can send with it.
  *
  * The definition is here rather than gecko.d.ts because it was simpler than getting

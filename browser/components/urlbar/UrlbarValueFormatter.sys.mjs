@@ -2,17 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
-
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
   UrlbarUtils: "resource:///modules/UrlbarUtils.sys.mjs",
-});
-
-XPCOMUtils.defineLazyModuleGetters(lazy, {
-  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
 });
 
 /**
@@ -22,6 +17,7 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
 export class UrlbarValueFormatter {
   /**
    * @param {UrlbarInput} urlbarInput
+   *   The parent instance of UrlbarInput
    */
   constructor(urlbarInput) {
     this.urlbarInput = urlbarInput;
@@ -123,6 +119,7 @@ export class UrlbarValueFormatter {
         this.urlbarInput.setAttribute("domaindir", "ltr");
         this.inputField.scrollLeft = 0;
       }
+      this.urlbarInput.updateTextOverflow();
     });
   }
 
@@ -132,6 +129,11 @@ export class UrlbarValueFormatter {
     }
 
     let url = this.inputField.value;
+    // getFixupURIInfo logs an error if the URL is empty. Avoid that by
+    // returning early.
+    if (!url) {
+      return null;
+    }
     let browser = this.window.gBrowser.selectedBrowser;
 
     // Since doing a full URIFixup and offset calculations is expensive, we
@@ -466,6 +468,7 @@ export class UrlbarValueFormatter {
 
   /**
    * Passes DOM events to the _on_<event type> methods.
+   *
    * @param {Event} event
    *   DOM event.
    */

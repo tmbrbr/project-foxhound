@@ -64,6 +64,19 @@ BaseWebSocketChannel::BaseWebSocketChannel()
   mSerial = (processBits << kWebSocketIDWebSocketBits) | webSocketBits;
 }
 
+BaseWebSocketChannel::~BaseWebSocketChannel() {
+  NS_ReleaseOnMainThread("BaseWebSocketChannel::mLoadGroup",
+                         mLoadGroup.forget());
+  NS_ReleaseOnMainThread("BaseWebSocketChannel::mLoadInfo", mLoadInfo.forget());
+  nsCOMPtr<nsIEventTarget> target;
+  {
+    auto lock = mTargetThread.Lock();
+    target.swap(*lock);
+  }
+  NS_ReleaseOnMainThread("BaseWebSocketChannel::mTargetThread",
+                         target.forget());
+}
+
 //-----------------------------------------------------------------------------
 // BaseWebSocketChannel::nsIWebSocketChannel
 //-----------------------------------------------------------------------------
@@ -271,31 +284,6 @@ BaseWebSocketChannel::GetScheme(nsACString& aScheme) {
     aScheme.AssignLiteral("wss");
   } else {
     aScheme.AssignLiteral("ws");
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-BaseWebSocketChannel::GetDefaultPort(int32_t* aDefaultPort) {
-  LOG(("BaseWebSocketChannel::GetDefaultPort() %p\n", this));
-
-  if (mEncrypted) {
-    *aDefaultPort = kDefaultWSSPort;
-  } else {
-    *aDefaultPort = kDefaultWSPort;
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-BaseWebSocketChannel::GetProtocolFlags(uint32_t* aProtocolFlags) {
-  LOG(("BaseWebSocketChannel::GetProtocolFlags() %p\n", this));
-
-  *aProtocolFlags = URI_NORELATIVE | URI_NON_PERSISTABLE | ALLOWS_PROXY |
-                    ALLOWS_PROXY_HTTP | URI_DOES_NOT_RETURN_DATA |
-                    URI_DANGEROUS_TO_LOAD;
-  if (mEncrypted) {
-    *aProtocolFlags |= URI_IS_POTENTIALLY_TRUSTWORTHY;
   }
   return NS_OK;
 }

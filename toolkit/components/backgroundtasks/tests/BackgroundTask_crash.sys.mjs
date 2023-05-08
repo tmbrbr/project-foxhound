@@ -20,22 +20,15 @@ export async function runBackgroundTask(commandLine) {
   );
 
   // Get the temp dir.
-  var env = Cc["@mozilla.org/process/environment;1"].getService(
-    Ci.nsIEnvironment
-  );
   var tmpd = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
-  tmpd.initWithPath(env.get("XPCSHELL_TEST_TEMP_DIR"));
-
-  var crashReporter = Cc["@mozilla.org/toolkit/crash-reporter;1"].getService(
-    Ci.nsICrashReporter
-  );
+  tmpd.initWithPath(Services.env.get("XPCSHELL_TEST_TEMP_DIR"));
 
   // We need to call this or crash events go in an undefined location.
-  crashReporter.UpdateCrashEventsDir();
+  Services.appinfo.UpdateCrashEventsDir();
 
   // Setting the minidump path is not allowed in content processes,
   // but background tasks run in the parent.
-  crashReporter.minidumpPath = tmpd;
+  Services.appinfo.minidumpPath = tmpd;
 
   // Arguments are [crashType, key1, value1, key2, value2, ...].
   let i = 0;
@@ -45,7 +38,7 @@ export async function runBackgroundTask(commandLine) {
     let key = commandLine.getArgument(i);
     let value = commandLine.getArgument(i + 1);
     i += 2;
-    crashReporter.annotateCrashReport(key, value);
+    Services.appinfo.annotateCrashReport(key, value);
   }
 
   console.log(`Crashing with crash type ${crashType}`);

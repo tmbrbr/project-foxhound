@@ -8,6 +8,7 @@
 use super::feature::{Evaluator, QueryFeatureDescription};
 use super::feature::{FeatureFlags, KeywordDiscriminant};
 use crate::parser::{Parse, ParserContext};
+use crate::queries::condition::KleeneValue;
 use crate::str::{starts_with_ignore_ascii_case, string_as_ascii_lowercase};
 use crate::values::computed::{self, Ratio, ToComputedValue};
 use crate::values::specified::{Integer, Length, Number, Resolution};
@@ -575,7 +576,7 @@ impl QueryFeatureExpression {
     }
 
     /// Returns whether this query evaluates to true for the given device.
-    pub fn matches(&self, context: &computed::Context) -> bool {
+    pub fn matches(&self, context: &computed::Context) -> KleeneValue {
         macro_rules! expect {
             ($variant:ident, $v:expr) => {
                 match *$v {
@@ -585,9 +586,17 @@ impl QueryFeatureExpression {
             };
         }
 
-        match self.feature().evaluator {
+        KleeneValue::from(match self.feature().evaluator {
             Evaluator::Length(eval) => {
                 let v = eval(context);
+                self.kind
+                    .evaluate(v, |v| expect!(Length, v).to_computed_value(context))
+            },
+            Evaluator::OptionalLength(eval) => {
+                let v = match eval(context) {
+                    Some(v) => v,
+                    None => return KleeneValue::Unknown,
+                };
                 self.kind
                     .evaluate(v, |v| expect!(Length, v).to_computed_value(context))
             },
@@ -605,6 +614,15 @@ impl QueryFeatureExpression {
                 // to convert it if necessary.
                 // FIXME: we may need to update here once
                 // https://github.com/w3c/csswg-drafts/issues/4954 got resolved.
+                self.kind
+                    .evaluate(ratio, |v| expect!(NumberRatio, v).used_value())
+            },
+            Evaluator::OptionalNumberRatio(eval) => {
+                let ratio = match eval(context) {
+                    Some(v) => v,
+                    None => return KleeneValue::Unknown,
+                };
+                // See above for subtleties here.
                 self.kind
                     .evaluate(ratio, |v| expect!(NumberRatio, v).used_value())
             },
@@ -629,7 +647,7 @@ impl QueryFeatureExpression {
                 let boolean = eval(context);
                 computed.map_or(boolean, |v| v == boolean)
             },
-        }
+        })
     }
 }
 
@@ -686,7 +704,7 @@ impl QueryExpressionValue {
         input: &mut Parser<'i, 't>,
     ) -> Result<QueryExpressionValue, ParseError<'i>> {
         Ok(match for_feature.evaluator {
-            Evaluator::Length(..) => {
+            Evaluator::OptionalLength(..) | Evaluator::Length(..) => {
                 let length = Length::parse_non_negative(context, input)?;
                 QueryExpressionValue::Length(length)
             },
@@ -706,7 +724,7 @@ impl QueryExpressionValue {
                 let number = Number::parse(context, input)?;
                 QueryExpressionValue::Float(number.get())
             },
-            Evaluator::NumberRatio(..) => {
+            Evaluator::OptionalNumberRatio(..) | Evaluator::NumberRatio(..) => {
                 use crate::values::specified::Ratio as SpecifiedRatio;
                 let ratio = SpecifiedRatio::parse(context, input)?;
                 QueryExpressionValue::NumberRatio(Ratio::new(ratio.0.get(), ratio.1.get()))

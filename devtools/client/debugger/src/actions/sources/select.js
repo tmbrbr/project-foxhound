@@ -7,7 +7,7 @@
  * @module actions/sources
  */
 
-import { isOriginalId } from "devtools-source-map";
+import { isOriginalId } from "devtools/client/shared/source-map-loader/index";
 
 import { setSymbols } from "./symbols";
 import { setInScopeLines } from "../ast";
@@ -25,6 +25,8 @@ import { getRelatedMapLocation } from "../../utils/source-maps";
 
 import {
   getSource,
+  getSourceActor,
+  getFirstSourceActorForGeneratedSource,
   getSourceByURL,
   getPrettySource,
   getActiveSearch,
@@ -75,8 +77,7 @@ export function selectSourceURL(cx, url, options) {
       return dispatch(setPendingSelectedLocation(cx, url, options));
     }
 
-    const sourceId = source.id;
-    const location = createLocation({ ...options, sourceId });
+    const location = createLocation({ ...options, sourceId: source.id });
     return dispatch(selectLocation(cx, location));
   };
 }
@@ -89,13 +90,16 @@ export function selectSourceURL(cx, url, options) {
  * @param {Object} cx
  * @param {String} sourceId
  *        The precise source to select.
+ * @param {String} sourceActorId
+ *        The specific source actor of the source to
+ *        select the source text. This is optional.
  * @param {Object} location
  *        Optional precise location to select, if we need to select
  *        a precise line/column.
  */
-export function selectSource(cx, sourceId, location = {}) {
+export function selectSource(cx, sourceId, sourceActorId, location = {}) {
   return async ({ dispatch }) => {
-    location = createLocation({ ...location, sourceId });
+    location = createLocation({ ...location, sourceId, sourceActorId });
     return dispatch(selectSpecificLocation(cx, location));
   };
 }
@@ -164,9 +168,21 @@ export function selectLocation(cx, location, { keepContext = true } = {}) {
       dispatch(addTab(source));
     }
 
+    let sourceActor;
+    if (!location.sourceActorId) {
+      sourceActor = getFirstSourceActorForGeneratedSource(
+        getState(),
+        source.id
+      );
+      location.sourceActorId = sourceActor ? sourceActor.actor : null;
+    } else {
+      sourceActor = getSourceActor(getState(), location.sourceActorId);
+    }
+
     dispatch(setSelectedLocation(cx, source, location));
 
-    await dispatch(loadSourceText({ cx, source }));
+    await dispatch(loadSourceText(cx, source, sourceActor));
+
     await dispatch(setBreakableLines(cx, source.id));
 
     const loadedSource = getSource(getState(), source.id);
@@ -176,20 +192,20 @@ export function selectLocation(cx, location, { keepContext = true } = {}) {
       return;
     }
 
-    const sourceTextContent = getSourceTextContent(getState(), source.id);
+    const sourceTextContent = getSourceTextContent(getState(), location);
 
     if (
       keepContext &&
       prefs.autoPrettyPrint &&
       !getPrettySource(getState(), loadedSource.id) &&
-      canPrettyPrintSource(getState(), loadedSource.id) &&
+      canPrettyPrintSource(getState(), location) &&
       isMinified(source, sourceTextContent)
     ) {
       await dispatch(togglePrettyPrint(cx, loadedSource.id));
       dispatch(closeTab(cx, loadedSource));
     }
 
-    await dispatch(setSymbols({ cx, source: loadedSource }));
+    await dispatch(setSymbols({ cx, source: loadedSource, sourceActor }));
     dispatch(setInScopeLines(cx));
 
     if (getIsCurrentThreadPaused(getState())) {

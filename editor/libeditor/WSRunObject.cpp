@@ -7,6 +7,7 @@
 
 #include "EditorDOMPoint.h"
 #include "EditorUtils.h"
+#include "ErrorList.h"
 #include "HTMLEditHelpers.h"  // for MoveNodeResult, SplitNodeResult
 #include "HTMLEditor.h"
 #include "HTMLEditUtils.h"
@@ -508,6 +509,9 @@ Result<EditActionResult, nsresult> WhiteSpaceVisibilityKeeper::
       // out of its block.
       pointToMoveFirstLineContent = atLeftBlockChild;
     } else {
+      if (NS_WARN_IF(!aLeftContentInBlock.IsInComposedDoc())) {
+        return Err(NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE);
+      }
       // We try to work as well as possible with HTML that's already invalid.
       // Although "right block" is a block, and a block must not be contained
       // in inline elements, reality is that broken documents do exist.  The
@@ -534,7 +538,7 @@ Result<EditActionResult, nsresult> WhiteSpaceVisibilityKeeper::
     if (&aLeftContentInBlock != &aEditingHost) {
       Result<SplitNodeResult, nsresult> splitNodeResult =
           aHTMLEditor.SplitAncestorStyledInlineElementsAt(
-              pointToMoveFirstLineContent, nullptr, nullptr,
+              pointToMoveFirstLineContent, EditorInlineStyle::RemoveAllStyles(),
               HTMLEditor::SplitAtEdges::eDoNotCreateEmptyContainer);
       if (MOZ_UNLIKELY(splitNodeResult.isErr())) {
         NS_WARNING("HTMLEditor::SplitAncestorStyledInlineElementsAt() failed");
@@ -933,8 +937,7 @@ WhiteSpaceVisibilityKeeper::InsertBRElement(
   }
 
   Result<CreateElementResult, nsresult> insertBRElementResult =
-      aHTMLEditor.InsertBRElement(HTMLEditor::WithTransaction::Yes,
-                                  pointToInsert);
+      aHTMLEditor.InsertBRElement(WithTransaction::Yes, pointToInsert);
   NS_WARNING_ASSERTION(
       insertBRElementResult.isOk(),
       "HTMLEditor::InsertBRElement(WithTransaction::Yes, eNone) failed");
@@ -3182,7 +3185,7 @@ nsresult WhiteSpaceVisibilityKeeper::NormalizeVisibleWhiteSpacesAt(
           // when they type 2 spaces.
 
           Result<CreateElementResult, nsresult> insertBRElementResult =
-              aHTMLEditor.InsertBRElement(HTMLEditor::WithTransaction::Yes,
+              aHTMLEditor.InsertBRElement(WithTransaction::Yes,
                                           atEndOfVisibleWhiteSpaces);
           if (MOZ_UNLIKELY(insertBRElementResult.isErr())) {
             NS_WARNING(

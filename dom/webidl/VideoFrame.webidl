@@ -12,7 +12,8 @@ enum AlphaOption {
   "discard",
 };
 
-[Exposed=(Window,DedicatedWorker) /* , Serializable (bug 1774302), Transferable (bug 1774306) */, Pref="dom.media.webcodecs.enabled"]
+// [Serializable] is implemented without adding attribute here.
+[Exposed=(Window,DedicatedWorker) /*, Transferable (bug 1774306) */, Pref="dom.media.webcodecs.enabled"]
 interface VideoFrame {
   // The constructors should be shorten to:
   //   ```
@@ -52,7 +53,7 @@ interface VideoFrame {
   readonly attribute unsigned long displayWidth;
   readonly attribute unsigned long displayHeight;
   readonly attribute unsigned long long? duration;  // microseconds
-  readonly attribute long long? timestamp;          // microseconds
+  readonly attribute long long timestamp;           // microseconds
   readonly attribute VideoColorSpace colorSpace;
 
   [Throws]

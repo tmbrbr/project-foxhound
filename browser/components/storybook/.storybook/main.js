@@ -4,6 +4,7 @@
 /* eslint-env node */
 
 const path = require("path");
+const projectRoot = path.resolve(__dirname, "../../../../");
 
 // ./mach environment --format json
 // topobjdir should be the build location
@@ -11,7 +12,14 @@ const path = require("path");
 module.exports = {
   stories: [
     "../stories/**/*.stories.mdx",
-    "../stories/**/*.stories.@(js|jsx|ts|tsx)",
+    "../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)",
+    `${projectRoot}/toolkit/**/*.stories.@(js|jsx|mjs|ts|tsx)`,
+  ],
+  // Additions to the staticDirs might also need to get added to
+  // MozXULElement.importCss in preview.mjs to enable auto-reloading.
+  staticDirs: [
+    `${projectRoot}/toolkit/content/widgets/`,
+    `${projectRoot}/browser/themes/shared/`,
   ],
   addons: ["@storybook/addon-links", "@storybook/addon-essentials"],
   framework: "@storybook/web-components",
@@ -21,7 +29,6 @@ module.exports = {
     // 'PRODUCTION' is used when building the static version of storybook.
 
     // Make whatever fine-grained changes you need
-    const projectRoot = path.resolve(__dirname, "../../../../");
     config.resolve.alias.browser = `${projectRoot}/browser`;
     config.resolve.alias.toolkit = `${projectRoot}/toolkit`;
     config.resolve.alias[

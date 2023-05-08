@@ -5,14 +5,15 @@
 
 #include "HTMLEditUtils.h"
 
-#include "AutoRangeArray.h"  // for AutoRangeArray
-#include "CSSEditUtils.h"    // for CSSEditUtils
-#include "EditAction.h"      // for EditAction
-#include "EditorBase.h"      // for EditorBase, EditorType
-#include "EditorDOMPoint.h"  // for EditorDOMPoint, etc.
-#include "EditorForwards.h"  // for CollectChildrenOptions
-#include "EditorUtils.h"     // for EditorUtils
-#include "WSRunObject.h"     // for WSRunScanner
+#include "AutoRangeArray.h"   // for AutoRangeArray
+#include "CSSEditUtils.h"     // for CSSEditUtils
+#include "EditAction.h"       // for EditAction
+#include "EditorBase.h"       // for EditorBase, EditorType
+#include "EditorDOMPoint.h"   // for EditorDOMPoint, etc.
+#include "EditorForwards.h"   // for CollectChildrenOptions
+#include "EditorUtils.h"      // for EditorUtils
+#include "HTMLEditHelpers.h"  // for EditorInlineStyle
+#include "WSRunObject.h"      // for WSRunScanner
 
 #include "mozilla/ArrayUtils.h"   // for ArrayLength
 #include "mozilla/Assertions.h"   // for MOZ_ASSERT, etc.
@@ -38,6 +39,7 @@
 #include "nsString.h"            // for nsAutoString
 #include "nsStyledElement.h"
 #include "nsTextFragment.h"  // for nsTextFragment
+#include "nsTextFrame.h"     // for nsTextFrame
 
 namespace mozilla {
 
@@ -351,14 +353,14 @@ bool HTMLEditUtils::IsImage(nsINode* aNode) {
   return aNode && aNode->IsHTMLElement(nsGkAtoms::img);
 }
 
-bool HTMLEditUtils::IsLink(nsINode* aNode) {
+bool HTMLEditUtils::IsLink(const nsINode* aNode) {
   MOZ_ASSERT(aNode);
 
   if (!aNode->IsContent()) {
     return false;
   }
 
-  RefPtr<dom::HTMLAnchorElement> anchor =
+  RefPtr<const dom::HTMLAnchorElement> anchor =
       dom::HTMLAnchorElement::FromNodeOrNull(aNode->AsContent());
   if (!anchor) {
     return false;
@@ -451,39 +453,23 @@ bool HTMLEditUtils::IsVisibleTextNode(const Text& aText) {
 
 bool HTMLEditUtils::IsInVisibleTextFrames(nsPresContext* aPresContext,
                                           const Text& aText) {
+  // TODO(dholbert): aPresContext is now unused; maybe we can remove it, here
+  // and in IsEmptyNode?  We do use it as a signal (implicitly here,
+  // more-explicitly in IsEmptyNode) that we are in a "SafeToAskLayout" case...
+  // If/when we remove it, we should be sure we're not losing that signal of
+  // strictness, since this function here does absolutely need to query layout.
   MOZ_ASSERT(aPresContext);
-
-  nsIFrame* frame = aText.GetPrimaryFrame();
-  if (!frame) {
-    return false;
-  }
-
-  nsCOMPtr<nsISelectionController> selectionController;
-  nsresult rv = frame->GetSelectionController(
-      aPresContext, getter_AddRefs(selectionController));
-  NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
-                       "nsIFrame::GetSelectionController() failed");
-  if (NS_FAILED(rv) || !selectionController) {
-    return false;
-  }
 
   if (!aText.TextDataLength()) {
     return false;
   }
 
-  // Ask the selection controller for information about whether any of the
-  // data in the node is really rendered.  This is really something that
-  // frames know about, but we aren't supposed to talk to frames.  So we put
-  // a call in the selection controller interface, since it's already in bed
-  // with frames anyway.  (This is a fix for bug 22227, and a partial fix for
-  // bug 46209.)
-  bool isVisible = false;
-  rv = selectionController->CheckVisibilityContent(
-      const_cast<Text*>(&aText), 0, aText.TextDataLength(), &isVisible);
-  NS_WARNING_ASSERTION(
-      NS_SUCCEEDED(rv),
-      "nsISelectionController::CheckVisibilityContent() failed");
-  return NS_SUCCEEDED(rv) && isVisible;
+  nsTextFrame* textFrame = do_QueryFrame(aText.GetPrimaryFrame());
+  if (!textFrame) {
+    return false;
+  }
+
+  return textFrame->HasVisibleText();
 }
 
 Element* HTMLEditUtils::GetElementOfImmediateBlockBoundary(
@@ -1664,7 +1650,8 @@ Element* HTMLEditUtils::GetAncestorElement(
     const Element* aAncestorLimiter /* = nullptr */) {
   MOZ_ASSERT(
       aAncestorTypes.contains(AncestorType::ClosestBlockElement) ||
-      aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock));
+      aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock) ||
+      aAncestorTypes.contains(AncestorType::ButtonElement));
 
   if (&aContent == aAncestorLimiter) {
     return nullptr;
@@ -1675,13 +1662,15 @@ Element* HTMLEditUtils::GetAncestorElement(
   Element* lastAncestorElement = nullptr;
   const bool editableElementOnly =
       aAncestorTypes.contains(AncestorType::EditableElement);
-  const bool lookingForClosesetBlockElement =
+  const bool lookingForClosestBlockElement =
       aAncestorTypes.contains(AncestorType::ClosestBlockElement);
   const bool lookingForMostDistantInlineElementInBlock =
       aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock);
   const bool ignoreHRElement =
       aAncestorTypes.contains(AncestorType::IgnoreHRElement);
-  auto isSerachingElementType = [&](const nsIContent& aContent) -> bool {
+  const bool lookingForButtonElement =
+      aAncestorTypes.contains(AncestorType::ButtonElement);
+  auto IsSearchingElementType = [&](const nsIContent& aContent) -> bool {
     if (!aContent.IsElement() ||
         (ignoreHRElement && aContent.IsHTMLElement(nsGkAtoms::hr))) {
       return false;
@@ -1690,15 +1679,17 @@ Element* HTMLEditUtils::GetAncestorElement(
         !EditorUtils::IsEditableContent(aContent, EditorType::HTML)) {
       return false;
     }
-    return (lookingForClosesetBlockElement &&
+    return (lookingForClosestBlockElement &&
             HTMLEditUtils::IsBlockElement(aContent)) ||
            (lookingForMostDistantInlineElementInBlock &&
-            HTMLEditUtils::IsInlineElement(aContent));
+            HTMLEditUtils::IsInlineElement(aContent)) ||
+           (lookingForButtonElement &&
+            aContent.IsHTMLElement(nsGkAtoms::button));
   };
   for (Element* element : aContent.AncestorsOfType<Element>()) {
     if (editableElementOnly &&
         !EditorUtils::IsEditableContent(*element, EditorType::HTML)) {
-      return lastAncestorElement && isSerachingElementType(*lastAncestorElement)
+      return lastAncestorElement && IsSearchingElementType(*lastAncestorElement)
                  ? lastAncestorElement  // editing host (can be inline element)
                  : nullptr;
     }
@@ -1708,8 +1699,11 @@ Element* HTMLEditUtils::GetAncestorElement(
       }
       continue;
     }
+    if (lookingForButtonElement && element->IsHTMLElement(nsGkAtoms::button)) {
+      return element;  // closest button element
+    }
     if (HTMLEditUtils::IsBlockElement(*element)) {
-      if (lookingForClosesetBlockElement) {
+      if (lookingForClosestBlockElement) {
         return element;  // closest block element
       }
       MOZ_ASSERT_IF(lastAncestorElement,
@@ -1722,7 +1716,7 @@ Element* HTMLEditUtils::GetAncestorElement(
     }
     lastAncestorElement = element;
   }
-  return lastAncestorElement && isSerachingElementType(*lastAncestorElement)
+  return lastAncestorElement && IsSearchingElementType(*lastAncestorElement)
              ? lastAncestorElement
              : nullptr;
 }
@@ -1733,19 +1727,22 @@ Element* HTMLEditUtils::GetInclusiveAncestorElement(
     const Element* aAncestorLimiter /* = nullptr */) {
   MOZ_ASSERT(
       aAncestorTypes.contains(AncestorType::ClosestBlockElement) ||
-      aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock));
+      aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock) ||
+      aAncestorTypes.contains(AncestorType::ButtonElement));
 
   const Element* theBodyElement = aContent.OwnerDoc()->GetBody();
   const Element* theDocumentElement = aContent.OwnerDoc()->GetDocumentElement();
   const bool editableElementOnly =
       aAncestorTypes.contains(AncestorType::EditableElement);
-  const bool lookingForClosesetBlockElement =
+  const bool lookingForClosestBlockElement =
       aAncestorTypes.contains(AncestorType::ClosestBlockElement);
   const bool lookingForMostDistantInlineElementInBlock =
       aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock);
+  const bool lookingForButtonElement =
+      aAncestorTypes.contains(AncestorType::ButtonElement);
   const bool ignoreHRElement =
       aAncestorTypes.contains(AncestorType::IgnoreHRElement);
-  auto isSerachingElementType = [&](const nsIContent& aContent) -> bool {
+  auto IsSearchingElementType = [&](const nsIContent& aContent) -> bool {
     if (!aContent.IsElement() ||
         (ignoreHRElement && aContent.IsHTMLElement(nsGkAtoms::hr))) {
       return false;
@@ -1754,26 +1751,34 @@ Element* HTMLEditUtils::GetInclusiveAncestorElement(
         !EditorUtils::IsEditableContent(aContent, EditorType::HTML)) {
       return false;
     }
-    return (lookingForClosesetBlockElement &&
+    return (lookingForClosestBlockElement &&
             HTMLEditUtils::IsBlockElement(aContent)) ||
            (lookingForMostDistantInlineElementInBlock &&
-            HTMLEditUtils::IsInlineElement(aContent));
+            HTMLEditUtils::IsInlineElement(aContent)) ||
+           (lookingForButtonElement &&
+            aContent.IsHTMLElement(nsGkAtoms::button));
   };
 
   // If aContent is the body element or the document element, we shouldn't climb
   // up to its parent.
   if (editableElementOnly &&
       (&aContent == theBodyElement || &aContent == theDocumentElement)) {
-    return isSerachingElementType(aContent)
+    return IsSearchingElementType(aContent)
                ? const_cast<Element*>(aContent.AsElement())
                : nullptr;
   }
 
+  if (lookingForButtonElement && aContent.IsHTMLElement(nsGkAtoms::button)) {
+    return const_cast<Element*>(aContent.AsElement());
+  }
+
   // If aContent is a block element, we don't need to climb up the tree.
   // Consider the result right now.
-  if (HTMLEditUtils::IsBlockElement(aContent) &&
+  if ((lookingForClosestBlockElement ||
+       lookingForMostDistantInlineElementInBlock) &&
+      HTMLEditUtils::IsBlockElement(aContent) &&
       !(ignoreHRElement && aContent.IsHTMLElement(nsGkAtoms::hr))) {
-    return isSerachingElementType(aContent)
+    return IsSearchingElementType(aContent)
                ? const_cast<Element*>(aContent.AsElement())
                : nullptr;
   }
@@ -1784,11 +1789,11 @@ Element* HTMLEditUtils::GetInclusiveAncestorElement(
   if (!aContent.GetParent() ||
       (editableElementOnly && !EditorUtils::IsEditableContent(
                                   *aContent.GetParent(), EditorType::HTML)) ||
-      (!lookingForClosesetBlockElement &&
+      (!lookingForClosestBlockElement &&
        HTMLEditUtils::IsBlockElement(*aContent.GetParent()) &&
        !(ignoreHRElement &&
          aContent.GetParent()->IsHTMLElement(nsGkAtoms::hr)))) {
-    return isSerachingElementType(aContent)
+    return IsSearchingElementType(aContent)
                ? const_cast<Element*>(aContent.AsElement())
                : nullptr;
   }
@@ -2042,8 +2047,39 @@ HTMLEditUtils::ComputePointToPutCaretInElementIfOutside(
 }
 
 // static
+bool HTMLEditUtils::IsInlineStyleSetByElement(
+    const nsIContent& aContent, const EditorInlineStyle& aStyle,
+    const nsAString* aValue, nsAString* aOutValue /* = nullptr */) {
+  for (Element* element : aContent.InclusiveAncestorsOfType<Element>()) {
+    if (aStyle.mHTMLProperty != element->NodeInfo()->NameAtom()) {
+      continue;
+    }
+    if (!aStyle.mAttribute) {
+      return true;
+    }
+    nsAutoString value;
+    element->GetAttr(kNameSpaceID_None, aStyle.mAttribute, value);
+    if (aOutValue) {
+      *aOutValue = value;
+    }
+    if (!value.IsEmpty()) {
+      if (!aValue) {
+        return true;
+      }
+      if (aValue->Equals(value, nsCaseInsensitiveStringComparator)) {
+        return true;
+      }
+      // We found the prop with the attribute, but the value doesn't match.
+      return false;
+    }
+  }
+  return false;
+}
+
+// static
 size_t HTMLEditUtils::CollectChildren(
-    nsINode& aNode, nsTArray<OwningNonNull<nsIContent>>& aOutArrayOfContents,
+    const nsINode& aNode,
+    nsTArray<OwningNonNull<nsIContent>>& aOutArrayOfContents,
     size_t aIndexToInsertChildren, const CollectChildrenOptions& aOptions) {
   // FYI: This was moved from
   // https://searchfox.org/mozilla-central/rev/4bce7d85ba4796dd03c5dcc7cfe8eee0e4c07b3b/editor/libeditor/HTMLEditSubActionHandler.cpp#6261
@@ -2060,12 +2096,20 @@ size_t HTMLEditUtils::CollectChildren(
       numberOfFoundChildren += HTMLEditUtils::CollectChildren(
           *content, aOutArrayOfContents,
           aIndexToInsertChildren + numberOfFoundChildren, aOptions);
-    } else if (!aOptions.contains(
-                   CollectChildrenOption::IgnoreNonEditableChildren) ||
-               EditorUtils::IsEditableContent(*content, EditorType::HTML)) {
-      aOutArrayOfContents.InsertElementAt(
-          aIndexToInsertChildren + numberOfFoundChildren++, *content);
+      continue;
     }
+
+    if (aOptions.contains(CollectChildrenOption::IgnoreNonEditableChildren) &&
+        !EditorUtils::IsEditableContent(*content, EditorType::HTML)) {
+      continue;
+    }
+    if (aOptions.contains(CollectChildrenOption::IgnoreInvisibleTextNodes) &&
+        content->IsText() &&
+        !HTMLEditUtils::IsVisibleTextNode(*content->AsText())) {
+      continue;
+    }
+    aOutArrayOfContents.InsertElementAt(
+        aIndexToInsertChildren + numberOfFoundChildren++, *content);
   }
   return numberOfFoundChildren;
 }
@@ -2101,6 +2145,33 @@ size_t HTMLEditUtils::CollectEmptyInlineContainerDescendants(
     }
   }
   return numberOfFoundElements;
+}
+
+// static
+bool HTMLEditUtils::ElementHasAttributeExcept(const Element& aElement,
+                                              const nsAtom& aAttribute) {
+  // FYI: This was moved from
+  // https://searchfox.org/mozilla-central/rev/0b1543e85d13c30a13c57e959ce9815a3f0fa1d3/editor/libeditor/HTMLStyleEditor.cpp#1626
+  for (auto i : IntegerRange<uint32_t>(aElement.GetAttrCount())) {
+    const nsAttrName* name = aElement.GetAttrNameAt(i);
+    if (!name->NamespaceEquals(kNameSpaceID_None)) {
+      return true;
+    }
+
+    if (name->LocalName() == &aAttribute) {
+      continue;  // Ignore the given attribute
+    }
+
+    // Ignore special _moz attributes
+    nsAutoString attrString;
+    name->LocalName()->ToString(attrString);
+    if (!StringBeginsWith(attrString, u"_moz"_ns)) {
+      return true;
+    }
+  }
+  // if we made it through all of them without finding a real attribute
+  // other than aAttribute, then return true
+  return false;
 }
 
 /******************************************************************************

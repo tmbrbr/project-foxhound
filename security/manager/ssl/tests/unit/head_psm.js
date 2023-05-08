@@ -4,16 +4,16 @@
  */
 "use strict";
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const { ctypes } = ChromeUtils.import("resource://gre/modules/ctypes.jsm");
 const { FileUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/FileUtils.sys.mjs"
 );
 const { HttpServer } = ChromeUtils.import("resource://testing-common/httpd.js");
-const { MockRegistrar } = ChromeUtils.import(
-  "resource://testing-common/MockRegistrar.jsm"
+const { MockRegistrar } = ChromeUtils.importESModule(
+  "resource://testing-common/MockRegistrar.sys.mjs"
 );
 const { NetUtil } = ChromeUtils.import("resource://gre/modules/NetUtil.jsm");
 const { PromiseUtils } = ChromeUtils.importESModule(
@@ -473,7 +473,7 @@ function add_tls_server_setup(serverBinName, certsPath, addDefaultRoot = true) {
 /**
  * Add a TLS connection test case.
  *
- * @param {String} aHost
+ * @param {string} aHost
  *   The hostname to pass in the SNI TLS extension; this should unambiguously
  *   identify which test is being run.
  * @param {PRErrorCode} aExpectedResult
@@ -617,7 +617,7 @@ async function asyncConnectTo(
     return connection.go();
   }
 
-  return connectTo(aHost).then(function(conn) {
+  return connectTo(aHost).then(async function(conn) {
     info("handling " + aHost);
     let expectedNSResult =
       aExpectedResult == PRErrorCodeSuccess
@@ -630,9 +630,7 @@ async function asyncConnectTo(
     );
     if (aWithSecurityInfo) {
       aWithSecurityInfo(
-        conn.transport.tlsSocketControl.QueryInterface(
-          Ci.nsITransportSecurityInfo
-        )
+        await conn.transport.tlsSocketControl.asyncGetSecurityInfo()
       );
     }
   });
@@ -688,16 +686,13 @@ async function asyncStartTLSTestServer(
 
   const CALLBACK_PORT = 8444;
 
-  let envSvc = Cc["@mozilla.org/process/environment;1"].getService(
-    Ci.nsIEnvironment
-  );
   let greBinDir = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  envSvc.set("DYLD_LIBRARY_PATH", greBinDir.path);
+  Services.env.set("DYLD_LIBRARY_PATH", greBinDir.path);
   // TODO(bug 1107794): Android libraries are in /data/local/xpcb, but "GreBinD"
   // does not return this path on Android, so hard code it here.
-  envSvc.set("LD_LIBRARY_PATH", greBinDir.path + ":/data/local/xpcb");
-  envSvc.set("MOZ_TLS_SERVER_DEBUG_LEVEL", "3");
-  envSvc.set("MOZ_TLS_SERVER_CALLBACK_PORT", CALLBACK_PORT);
+  Services.env.set("LD_LIBRARY_PATH", greBinDir.path + ":/data/local/xpcb");
+  Services.env.set("MOZ_TLS_SERVER_DEBUG_LEVEL", "3");
+  Services.env.set("MOZ_TLS_SERVER_CALLBACK_PORT", CALLBACK_PORT);
 
   let httpServer = new HttpServer();
   let serverReady = new Promise(resolve => {
@@ -1004,10 +999,10 @@ class CertVerificationResult {
  *   The certificate database to use to verify the certificate.
  * @param {nsIX509Cert} cert
  *   The certificate to be verified.
- * @param {Number[]} expectedUsages
+ * @param {number[]} expectedUsages
  *   A list of usages (as their integer values) that are expected to verify
  *   successfully.
- * @return {Promise}
+ * @returns {Promise}
  *   A promise that will resolve with no value when all asynchronous operations
  *   have completed.
  */
@@ -1039,9 +1034,9 @@ function asyncTestCertificateUsages(certdb, cert, expectedUsages) {
  * @param {nsIFile} libraryFile
  *                  The dynamic library file that implements the module to
  *                  load.
- * @param {String} moduleName
+ * @param {string} moduleName
  *                 What to call the module.
- * @param {Boolean} expectModuleUnloadToFail
+ * @param {boolean} expectModuleUnloadToFail
  *                  Should be set to true for tests that manually unload the
  *                  test module, so the attempt to auto unload the test module
  *                  doesn't cause a test failure. Should be set to false
@@ -1068,8 +1063,8 @@ function loadPKCS11Module(libraryFile, moduleName, expectModuleUnloadToFail) {
 }
 
 /**
- * @param {String} data
- * @returns {String}
+ * @param {string} data
+ * @returns {string}
  */
 function hexify(data) {
   // |slice(-2)| chomps off the last two characters of a string.
@@ -1082,7 +1077,7 @@ function hexify(data) {
 }
 
 /**
- * @param {String[]} lines
+ * @param {string[]} lines
  *        Lines to write. Each line automatically has "\n" appended to it when
  *        being written.
  * @param {nsIFileOutputStream} outputStream
@@ -1096,9 +1091,9 @@ function writeLinesAndClose(lines, outputStream) {
 }
 
 /**
- * @param {String} moduleName
+ * @param {string} moduleName
  *        The name of the module that should not be loaded.
- * @param {String} libraryName
+ * @param {string} libraryName
  *        A unique substring of name of the dynamic library file of the module
  *        that should not be loaded.
  */
@@ -1128,9 +1123,9 @@ function checkPKCS11ModuleNotPresent(moduleName, libraryName) {
  * Checks that the test module exists in the module list.
  * Also checks various attributes of the test module for correctness.
  *
- * @param {String} moduleName
+ * @param {string} moduleName
  *                 The name of the module that should be present.
- * @param {String} libraryName
+ * @param {string} libraryName
  *                 A unique substring of the name of the dynamic library file
  *                 of the module that should be loaded.
  * @returns {nsIPKCS11Module}
@@ -1175,14 +1170,11 @@ function getSubjectAndSPKIHash(nsCert) {
 }
 
 function run_certutil_on_directory(directory, args, expectSuccess = true) {
-  let envSvc = Cc["@mozilla.org/process/environment;1"].getService(
-    Ci.nsIEnvironment
-  );
   let greBinDir = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  envSvc.set("DYLD_LIBRARY_PATH", greBinDir.path);
+  Services.env.set("DYLD_LIBRARY_PATH", greBinDir.path);
   // TODO(bug 1107794): Android libraries are in /data/local/xpcb, but "GreBinD"
   // does not return this path on Android, so hard code it here.
-  envSvc.set("LD_LIBRARY_PATH", greBinDir.path + ":/data/local/xpcb");
+  Services.env.set("LD_LIBRARY_PATH", greBinDir.path + ":/data/local/xpcb");
   let certutilBin = _getBinaryUtil("certutil");
   let process = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
   process.init(certutilBin);

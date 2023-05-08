@@ -222,8 +222,10 @@ already_AddRefed<TextureHost> TextureHost::Create(
       const SurfaceDescriptorRecorded& desc =
           aDesc.get_SurfaceDescriptorRecorded();
       UniquePtr<SurfaceDescriptor> realDesc =
-          aDeallocator->AsCompositorBridgeParentBase()
-              ->LookupSurfaceDescriptorForClientTexture(desc.textureId());
+          aDeallocator
+              ? aDeallocator->AsCompositorBridgeParentBase()
+                    ->LookupSurfaceDescriptorForClientTexture(desc.textureId())
+              : nullptr;
       if (!realDesc) {
         gfxCriticalNote << "Failed to get descriptor for recorded texture.";
         // Create a dummy to prevent any crashes due to missing IPDL actors.
@@ -389,8 +391,21 @@ void TextureHost::RecycleTexture(TextureFlags aFlags) {
   mFlags = aFlags;
 }
 
+void TextureHost::PrepareForUse() {
+  if ((mFlags & TextureFlags::REMOTE_TEXTURE) && AsSurfaceTextureHost()) {
+    MOZ_ASSERT(mExternalImageId.isSome());
+    // Call PrepareForUse on render thread.
+    // See RenderAndroidSurfaceTextureHostOGL::PrepareForUse.
+    wr::RenderThread::Get()->PrepareForUse(*mExternalImageId);
+  }
+}
+
 void TextureHost::NotifyNotUsed() {
   if (!mActor) {
+    if ((mFlags & TextureFlags::REMOTE_TEXTURE) && AsSurfaceTextureHost()) {
+      MOZ_ASSERT(mExternalImageId.isSome());
+      wr::RenderThread::Get()->NotifyNotUsed(*mExternalImageId);
+    }
     return;
   }
 

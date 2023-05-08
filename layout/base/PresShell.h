@@ -13,6 +13,7 @@
 
 #include <stdio.h>  // for FILE definition
 #include "FrameMetrics.h"
+#include "LayoutConstants.h"
 #include "TouchManager.h"
 #include "Units.h"
 #include "Visibility.h"
@@ -56,9 +57,6 @@ class AutoPointerEventTargetUpdater;
 class AutoWeakFrame;
 class gfxContext;
 class MobileViewportManager;
-#ifdef ACCESSIBILITY
-class nsAccessibilityService;
-#endif
 class nsAutoCauseReflowNotifier;
 class nsCanvasFrame;
 class nsCaret;
@@ -233,16 +231,6 @@ class PresShell final : public nsStubDocumentObserver,
   void SetDocAccessible(a11y::DocAccessible* aDocAccessible) {
     mDocAccessible = aDocAccessible;
   }
-
-  /**
-   * Return true if accessibility is active.
-   */
-  static bool IsAccessibilityActive();
-
-  /**
-   * Return accessibility service if accessibility is active.
-   */
-  static nsAccessibilityService* GetAccessibilityService();
 #endif  // #ifdef ACCESSIBILITY
 
   /**
@@ -605,8 +593,9 @@ class PresShell final : public nsStubDocumentObserver,
    * Scrolls the view of the document so that the given area of a frame
    * is visible, if possible. Layout is not flushed before scrolling.
    *
-   * @param aRect Relative to aFrame. The rect edges will be respected even if
-   * the rect is empty.
+   * @param aRect Relative to aTargetFrame. If none, the bounding box of
+   * aTargetFrame will be used. The rect edges will be respected even if the
+   * rect is empty.
    * @param aVertical see ScrollContentIntoView and ScrollAxis
    * @param aHorizontal see ScrollContentIntoView and ScrollAxis
    * @param aScrollFlags if ScrollFirstAncestorOnly is set, only the
@@ -619,15 +608,13 @@ class PresShell final : public nsStubDocumentObserver,
    * If ScrollNoParentFrames is set then we only scroll
    * nodes in this document, not in any parent documents which
    * contain this document in a iframe or the like.
-   * @param aTarget optional, specifying the targe frame where we want to scroll
-   * if it's different from aFrame.
    * @return true if any scrolling happened, false if no scrolling happened
    */
   MOZ_CAN_RUN_SCRIPT
-  bool ScrollFrameRectIntoView(nsIFrame* aFrame, const nsRect& aRect,
-                               const nsMargin& aMargin, ScrollAxis aVertical,
-                               ScrollAxis aHorizontal, ScrollFlags aScrollFlags,
-                               const nsIFrame* aTarget = nullptr);
+  bool ScrollFrameIntoView(nsIFrame* aTargetFrame,
+                           const Maybe<nsRect>& aKnownRectRelativeToTarget,
+                           ScrollAxis aVertical, ScrollAxis aHorizontal,
+                           ScrollFlags aScrollFlags);
 
   /**
    * Suppress notification of the frame manager that frames are
@@ -1387,10 +1374,6 @@ class PresShell final : public nsStubDocumentObserver,
   NS_IMETHOD CompleteScroll(bool aForward) override;
   MOZ_CAN_RUN_SCRIPT NS_IMETHOD CompleteMove(bool aForward,
                                              bool aExtend) override;
-  NS_IMETHOD CheckVisibility(nsINode* node, int16_t startOffset,
-                             int16_t EndOffset, bool* _retval) override;
-  nsresult CheckVisibilityContent(nsIContent* aNode, int16_t aStartOffset,
-                                  int16_t aEndOffset, bool* aRetval) override;
 
   // Notifies that the state of the document has changed.
   void DocumentStatesChanged(dom::DocumentState);
@@ -1767,6 +1750,13 @@ class PresShell final : public nsStubDocumentObserver,
    */
   bool IsForcingLayoutForHiddenContent(const nsIFrame*) const;
 
+  void RegisterContentVisibilityAutoFrame(nsIFrame* aFrame) {
+    mContentVisibilityAutoFrames.Insert(aFrame);
+  }
+
+  void UpdateRelevancyOfContentVisibilityAutoFrames();
+  void ScheduleContentRelevancyUpdate(ContentRelevancyReason aReason);
+
  private:
   ~PresShell();
 
@@ -1926,8 +1916,7 @@ class PresShell final : public nsStubDocumentObserver,
       mPresShell->mRenderingStateFlags = mOldState.mRenderingStateFlags;
       mPresShell->mResolution = mOldState.mResolution;
 #ifdef ACCESSIBILITY
-      if (nsAccessibilityService* accService =
-              PresShell::GetAccessibilityService()) {
+      if (nsAccessibilityService* accService = GetAccService()) {
         accService->NotifyOfResolutionChange(mPresShell,
                                              mPresShell->GetResolution());
       }
@@ -3027,6 +3016,12 @@ class PresShell final : public nsStubDocumentObserver,
   nsTHashSet<nsIScrollableFrame*> mPendingScrollResnap;
 
   nsTHashSet<nsIContent*> mHiddenContentInForcedLayout;
+
+  nsTHashSet<nsIFrame*> mContentVisibilityAutoFrames;
+
+  // The type of content relevancy to update the next time content relevancy
+  // updates are triggered for `content-visibility: auto` frames.
+  ContentRelevancy mContentVisibilityRelevancyToUpdate;
 
   nsCallbackEventRequest* mFirstCallbackEventRequest = nullptr;
   nsCallbackEventRequest* mLastCallbackEventRequest = nullptr;

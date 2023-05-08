@@ -8,8 +8,8 @@
 //
 // NOTE: Allowing a whole class of rejections should be avoided. Normally you
 //       should use "expectUncaughtRejection" to flag individual failures.
-const { PromiseTestUtils } = ChromeUtils.import(
-  "resource://testing-common/PromiseTestUtils.jsm"
+const { PromiseTestUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/PromiseTestUtils.sys.mjs"
 );
 PromiseTestUtils.allowMatchingRejectionsGlobally(/aborted by the user agent/);
 const { BrowserWindowTracker } = ChromeUtils.import(
@@ -22,10 +22,7 @@ const permissionError =
 
 const notFoundError = "error: NotFoundError: The object can not be found here.";
 
-let env = Cc["@mozilla.org/process/environment;1"].getService(
-  Ci.nsIEnvironment
-);
-const isHeadless = env.get("MOZ_HEADLESS");
+const isHeadless = Services.env.get("MOZ_HEADLESS");
 
 var gTests = [
   {

@@ -8,6 +8,7 @@
 #include "nsWindow.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <dlfcn.h>
 #include <gdk/gdkkeysyms.h>
 #include <wchar.h>
@@ -24,7 +25,6 @@
 #include "gtkdrawing.h"
 #include "imgIContainer.h"
 #include "InputData.h"
-#include "Layers.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Components.h"
@@ -378,6 +378,22 @@ static void UpdateLastInputEventTime(void* aGdkEvent) {
   sLastUserInputTime = timestamp;
 }
 
+// Don't set parent (transient for) if nothing changes.
+// gtk_window_set_transient_for() blows up wl_subsurfaces used by aWindow
+// even if aParent is the same.
+static void GtkWindowSetTransientFor(GtkWindow* aWindow, GtkWindow* aParent) {
+  GtkWindow* parent = gtk_window_get_transient_for(aWindow);
+  if (parent != aParent) {
+    gtk_window_set_transient_for(aWindow, aParent);
+  }
+}
+
+#define gtk_window_set_transient_for(a, b)                         \
+  {                                                                \
+    MOZ_ASSERT_UNREACHABLE(                                        \
+        "gtk_window_set_transient_for() can't be used directly."); \
+  }
+
 nsWindow::nsWindow()
     : mIsDestroyed(false),
       mIsShown(false),
@@ -448,10 +464,6 @@ nsWindow::nsWindow()
 
 nsWindow::~nsWindow() {
   LOG("nsWindow::~nsWindow()");
-
-  delete[] mTransparencyBitmap;
-  mTransparencyBitmap = nullptr;
-
   Destroy();
 }
 
@@ -579,7 +591,9 @@ void nsWindow::DestroyChildWindows() {
 void nsWindow::Destroy() {
   MOZ_DIAGNOSTIC_ASSERT(NS_IsMainThread());
 
-  if (mIsDestroyed || !mCreated) return;
+  if (mIsDestroyed || !mCreated) {
+    return;
+  }
 
   LOG("nsWindow::Destroy\n");
 
@@ -587,6 +601,8 @@ void nsWindow::Destroy() {
   mCreated = false;
 
   MozClearHandleID(mCompositorPauseTimeoutID, g_source_remove);
+
+  ClearTransparencyBitmap();
 
 #ifdef MOZ_WAYLAND
   // Shut down our local vsync source
@@ -779,7 +795,7 @@ void nsWindow::ReparentNativeWidget(nsIWidget* aNewParent) {
   GtkWindow* newParentWidget = GTK_WINDOW(newParent->GetGtkWidget());
 
   LOG("nsWindow::ReparentNativeWidget new parent %p\n", newParent);
-  gtk_window_set_transient_for(GTK_WINDOW(mShell), newParentWidget);
+  GtkWindowSetTransientFor(GTK_WINDOW(mShell), newParentWidget);
 }
 
 void nsWindow::SetModal(bool aModal) {
@@ -930,7 +946,12 @@ void nsWindow::Show(bool aState) {
 
   mIsShown = aState;
 
+#ifdef MOZ_LOGGING
   LOG("nsWindow::Show state %d frame %s\n", aState, GetFrameTag().get());
+  if (!aState && mSourceDragContext && GdkIsWaylandDisplay()) {
+    LOG("  closing Drag&Drop source window, D&D will be canceled!");
+  }
+#endif
 
   if (aState) {
     // Now that this window is shown, mHasMappedToplevel needs to be
@@ -963,7 +984,7 @@ void nsWindow::ResizeInt(const Maybe<LayoutDeviceIntPoint>& aMove,
   const bool moved = aMove && *aMove != mBounds.TopLeft();
   if (moved) {
     mBounds.MoveTo(*aMove);
-    LOG("  with move to left:%d top:%d", aMove->x, aMove->y);
+    LOG("  with move to left:%d top:%d", aMove->x.value, aMove->y.value);
   }
 
   ConstrainSize(&aSize.width, &aSize.height);
@@ -1134,8 +1155,9 @@ void nsWindow::RemovePopupFromHierarchyList() {
 // as a workaround just fool around and place the popup temporary to 0,0.
 bool nsWindow::WaylandPopupRemoveNegativePosition(int* aX, int* aY) {
   // https://gitlab.gnome.org/GNOME/gtk/-/issues/4071 applies to temporary
-  // windows only, i.e. tooltips & DND windows.
-  if (mPopupType != ePopupTypeTooltip) {
+  // windows only
+  GdkWindow* window = gtk_widget_get_window(mShell);
+  if (!window || gdk_window_get_window_type(window) != GDK_WINDOW_TEMP) {
     return false;
   }
 
@@ -1143,25 +1165,23 @@ bool nsWindow::WaylandPopupRemoveNegativePosition(int* aX, int* aY) {
 
   int x, y;
   gtk_window_get_position(GTK_WINDOW(mShell), &x, &y);
-  if (x >= 0 || y >= 0) {
-    LOG("  coordinates are correct (%d, %d)", x, y);
-    return false;
+  bool moveBack = (x < 0 && y < 0);
+  if (moveBack) {
+    gtk_window_move(GTK_WINDOW(mShell), 0, 0);
+    if (aX) {
+      *aX = x;
+    }
+    if (aY) {
+      *aY = y;
+    }
   }
 
-  // We need to reset coordinates of both GtkWindow and GtkWindow
-  LOG("  wrong coord (%d, %d) move to 0,0", x, y);
-  GdkWindow* window = gtk_widget_get_window(mShell);
-  gdk_window_move(window, 0, 0);
-  gtk_window_move(GTK_WINDOW(mShell), 0, 0);
-
-  if (aX) {
-    *aX = x;
-  }
-  if (aY) {
-    *aY = y;
+  gdk_window_get_geometry(window, &x, &y, nullptr, nullptr);
+  if (x < 0 && y < 0) {
+    gdk_window_move(window, 0, 0);
   }
 
-  return true;
+  return moveBack;
 }
 
 void nsWindow::ShowWaylandPopupWindow() {
@@ -1416,8 +1436,9 @@ void nsWindow::WaylandPopupHierarchyHideByLayout(
   // Hide all popups which are not in layout popup chain
   nsWindow* popup = mWaylandPopupNext;
   while (popup) {
-    // Tooltips are not tracked in layout chain
-    if (!popup->mPopupClosed && popup->mPopupType != ePopupTypeTooltip) {
+    // Don't check closed popups and drag source popups and tooltips.
+    if (!popup->mPopupClosed && popup->mPopupType != ePopupTypeTooltip &&
+        !popup->mSourceDragContext) {
       if (!popup->IsPopupInLayoutPopupChain(aLayoutWidgetHierarchy,
                                             /* aMustMatchParent */ false)) {
         LOG("  hidding popup [%p]", popup);
@@ -1479,8 +1500,8 @@ void nsWindow::WaylandPopupHierarchyCalculatePositions() {
   while (popup) {
     LOG("  popup [%p] set parent window [%p]", (void*)popup,
         (void*)popup->mWaylandPopupPrev);
-    gtk_window_set_transient_for(GTK_WINDOW(popup->mShell),
-                                 GTK_WINDOW(popup->mWaylandPopupPrev->mShell));
+    GtkWindowSetTransientFor(GTK_WINDOW(popup->mShell),
+                             GTK_WINDOW(popup->mWaylandPopupPrev->mShell));
     popup = popup->mWaylandPopupNext;
   }
 
@@ -1514,7 +1535,7 @@ void nsWindow::WaylandPopupHierarchyCalculatePositions() {
           NS_WARNING("Anchored popup does not match layout!");
         }
       }
-      GdkPoint parent = WaylandGetParentPosition();
+      GdkPoint parent = popup->WaylandGetParentPosition();
 
       LOG("  popup [%p] uses transformed coordinates\n", popup);
       LOG("    parent position [%d, %d]\n", parent.x, parent.y);
@@ -1949,7 +1970,7 @@ void nsWindow::WaylandPopupPropagateChangesToLayout(bool aMove, bool aResize) {
     LOG("  needSizeUpdate\n");
     if (nsMenuPopupFrame* popupFrame = GetMenuPopupFrame(GetFrame())) {
       RefPtr<PresShell> presShell = popupFrame->PresShell();
-      presShell->FrameNeedsReflow(popupFrame, IntrinsicDirty::Resize,
+      presShell->FrameNeedsReflow(popupFrame, IntrinsicDirty::None,
                                   NS_FRAME_IS_DIRTY);
     }
   }
@@ -2086,6 +2107,9 @@ void nsWindow::WaylandPopupSetDirectPosition() {
 
   GtkWindow* parentGtkWindow = gtk_window_get_transient_for(GTK_WINDOW(mShell));
   nsWindow* window = get_window_for_gtk_widget(GTK_WIDGET(parentGtkWindow));
+  if (!window) {
+    return;
+  }
   GdkWindow* gdkWindow =
       gtk_widget_get_window(GTK_WIDGET(window->GetMozContainer()));
 
@@ -2329,6 +2353,44 @@ static ResolvedPopupMargin ResolveMargin(nsMenuPopupFrame* aFrame,
 
   return {margin, offset};
 }
+
+#ifdef MOZ_LOGGING
+void nsWindow::LogPopupAnchorHints(int aHints) {
+  static struct hints_ {
+    int hint;
+    char name[100];
+  } hints[] = {
+      {GDK_ANCHOR_FLIP_X, "GDK_ANCHOR_FLIP_X"},
+      {GDK_ANCHOR_FLIP_Y, "GDK_ANCHOR_FLIP_Y"},
+      {GDK_ANCHOR_SLIDE_X, "GDK_ANCHOR_SLIDE_X"},
+      {GDK_ANCHOR_SLIDE_Y, "GDK_ANCHOR_SLIDE_Y"},
+      {GDK_ANCHOR_RESIZE_X, "GDK_ANCHOR_RESIZE_X"},
+      {GDK_ANCHOR_RESIZE_Y, "GDK_ANCHOR_RESIZE_X"},
+  };
+
+  LOG("  PopupAnchorHints");
+  for (const auto& hint : hints) {
+    if (hint.hint & aHints) {
+      LOG("    %s", hint.name);
+    }
+  }
+}
+
+void nsWindow::LogPopupGravity(GdkGravity aGravity) {
+  static char gravity[][100]{"NONE",
+                             "GDK_GRAVITY_NORTH_WEST",
+                             "GDK_GRAVITY_NORTH",
+                             "GDK_GRAVITY_NORTH_EAST",
+                             "GDK_GRAVITY_WEST",
+                             "GDK_GRAVITY_CENTER",
+                             "GDK_GRAVITY_EAST",
+                             "GDK_GRAVITY_SOUTH_WEST",
+                             "GDK_GRAVITY_SOUTH",
+                             "GDK_GRAVITY_SOUTH_EAST",
+                             "GDK_GRAVITY_STATIC"};
+  LOG("    %s", gravity[aGravity]);
+}
+#endif
 
 const nsWindow::WaylandPopupMoveToRectParams
 nsWindow::WaylandPopupGetPositionFromLayout() {
@@ -2653,7 +2715,20 @@ void nsWindow::WaylandPopupMoveImpl() {
   }
   mWaitingForMoveToRectCallback = true;
 
-  LOG("  call move-to-rect");
+#ifdef MOZ_LOGGING
+  if (LOG_ENABLED()) {
+    LOG("  Call move-to-rect");
+    LOG("  Anchor rect [%d, %d] -> [%d x %d]", gtkAnchorRect.x, gtkAnchorRect.y,
+        gtkAnchorRect.width, gtkAnchorRect.height);
+    LOG("  Offset [%d, %d]", offset.x, offset.y);
+    LOG("  AnchorType");
+    LogPopupGravity(mPopupMoveToRectParams.mAnchorRectType);
+    LOG("  PopupAnchorType");
+    LogPopupGravity(mPopupMoveToRectParams.mPopupAnchorType);
+    LogPopupAnchorHints(mPopupMoveToRectParams.mHints);
+  }
+#endif
+
   sGdkWindowMoveToRect(gdkWindow, &gtkAnchorRect,
                        mPopupMoveToRectParams.mAnchorRectType,
                        mPopupMoveToRectParams.mPopupAnchorType,
@@ -2964,33 +3039,33 @@ void nsWindow::MoveToWorkspace(const nsAString& workspaceIDStr) {
 #endif
 }
 
-using SetUserTimeFunc = void (*)(GdkWindow*, guint32);
+void nsWindow::SetUserTimeAndStartupTokenForActivatedWindow() {
+  nsGTKToolkit* toolkit = nsGTKToolkit::GetToolkit();
+  if (!toolkit || MOZ_UNLIKELY(mWindowType == eWindowType_invisible)) {
+    return;
+  }
 
-static void SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow) {
-  nsGTKToolkit* GTKToolkit = nsGTKToolkit::GetToolkit();
-  if (!GTKToolkit) return;
-
-  nsAutoCString desktopStartupID;
-  GTKToolkit->GetDesktopStartupID(&desktopStartupID);
-  if (desktopStartupID.IsEmpty()) {
+  mWindowActivationTokenFromEnv = toolkit->GetStartupToken();
+  if (!mWindowActivationTokenFromEnv.IsEmpty()) {
+    if (!GdkIsWaylandDisplay()) {
+      gtk_window_set_startup_id(GTK_WINDOW(mShell),
+                                mWindowActivationTokenFromEnv.get());
+      // In the case of X11, the above call is all we need. For wayland we need
+      // to keep the token around until we take it in RequestFocusWaylandWindow.
+      mWindowActivationTokenFromEnv.Truncate();
+    }
+  } else if (uint32_t timestamp = toolkit->GetFocusTimestamp()) {
     // We don't have the data we need. Fall back to an
     // approximation ... using the timestamp of the remote command
     // being received as a guess for the timestamp of the user event
     // that triggered it.
-    uint32_t timestamp = GTKToolkit->GetFocusTimestamp();
-    if (timestamp) {
-      gdk_window_focus(gtk_widget_get_window(aWindow), timestamp);
-      GTKToolkit->SetFocusTimestamp(0);
-    }
-    return;
+    gdk_window_focus(gtk_widget_get_window(mShell), timestamp);
   }
-
-  gtk_window_set_startup_id(GTK_WINDOW(aWindow), desktopStartupID.get());
 
   // If we used the startup ID, that already contains the focus timestamp;
   // we don't want to reuse the timestamp next time we raise the window
-  GTKToolkit->SetFocusTimestamp(0);
-  GTKToolkit->SetDesktopStartupID(""_ns);
+  toolkit->SetFocusTimestamp(0);
+  toolkit->SetStartupToken(""_ns);
 }
 
 /* static */
@@ -3020,10 +3095,11 @@ guint32 nsWindow::GetLastUserInputTime() {
 
 #ifdef MOZ_WAYLAND
 void nsWindow::FocusWaylandWindow(const char* aTokenID) {
-  auto releaseToken = mozilla::MakeScopeExit(
-      [&]() { MozClearPointer(mXdgToken, xdg_activation_token_v1_destroy); });
+  MOZ_DIAGNOSTIC_ASSERT(aTokenID);
+  auto releaseToken = MakeScopeExit(
+      [&] { MozClearPointer(mXdgToken, xdg_activation_token_v1_destroy); });
 
-  LOG("nsWindow::SetFocusWayland");
+  LOG("nsWindow::FocusWaylandWindow(%s)", aTokenID);
   if (IsDestroyed()) {
     LOG("  already destroyed, quit.");
     return;
@@ -3037,8 +3113,10 @@ void nsWindow::FocusWaylandWindow(const char* aTokenID) {
 
   LOG("  requesting xdg-activation, surface ID %d",
       wl_proxy_get_id((struct wl_proxy*)surface));
-
   xdg_activation_v1* xdg_activation = WaylandDisplayGet()->GetXdgActivation();
+  if (!xdg_activation) {
+    return;
+  }
   xdg_activation_v1_activate(xdg_activation, aTokenID, surface);
 }
 
@@ -3055,8 +3133,15 @@ static const struct xdg_activation_token_v1_listener token_listener = {
 };
 
 void nsWindow::RequestFocusWaylandWindow(RefPtr<nsWindow> aWindow) {
-  LOGW("nsWindow::RequestFocusWaylandWindow(%p) gFocusWindow %p",
-       (void*)aWindow, gFocusWindow);
+  LOGW("nsWindow::RequestFocusWaylandWindow(%p) gFocusWindow %p", aWindow.get(),
+       gFocusWindow);
+
+  auto existingToken = std::move(aWindow->mWindowActivationTokenFromEnv);
+  if (!existingToken.IsEmpty()) {
+    LOGW("  has existing activation token.");
+    aWindow->FocusWaylandWindow(existingToken.get());
+    return;
+  }
 
   if (!gFocusWindow || gFocusWindow->IsDestroyed()) {
     LOGW("  missing gFocusWindow, quit.");
@@ -3150,24 +3235,25 @@ void nsWindow::SetFocus(Raise aRaise, mozilla::dom::CallerType aCallerType) {
   if (aRaise == Raise::Yes) {
     // means request toplevel activation.
 
-    // This is asynchronous.
-    // If and when the window manager accepts the request, then the focus
-    // widget will get a focus-in-event signal.
+    // This is asynchronous. If and when the window manager accepts the request,
+    // then the focus widget will get a focus-in-event signal.
     if (StaticPrefs::mozilla_widget_raise_on_setfocus_AtStartup() &&
         toplevelWindow->mIsShown && toplevelWindow->mShell &&
         !gtk_window_is_active(GTK_WINDOW(toplevelWindow->mShell))) {
-      uint32_t timestamp = GDK_CURRENT_TIME;
+      LOG("  requesting toplevel activation [%p]\n", toplevelWindow.get());
 
-      nsGTKToolkit* GTKToolkit = nsGTKToolkit::GetToolkit();
-      if (GTKToolkit) {
-        timestamp = GTKToolkit->GetFocusTimestamp();
-        GTKToolkit->SetFocusTimestamp(0);
-      }
-      if (!timestamp) {
-        timestamp = GetLastUserInputTime();
-      }
+      // Take the time here explicitly for the call below.
+      const uint32_t timestamp = [&] {
+        if (nsGTKToolkit* toolkit = nsGTKToolkit::GetToolkit()) {
+          if (uint32_t t = toolkit->GetFocusTimestamp()) {
+            toolkit->SetFocusTimestamp(0);
+            return t;
+          }
+        }
+        return GetLastUserInputTime();
+      }();
 
-      LOG("  requesting toplevel activation [%p]\n", (void*)toplevelWindow);
+      toplevelWindow->SetUserTimeAndStartupTokenForActivatedWindow();
       gtk_window_present_with_time(GTK_WINDOW(toplevelWindow->mShell),
                                    timestamp);
 
@@ -3584,9 +3670,14 @@ void nsWindow::SetIcon(const nsAString& aIconSpec) {
     }
 */
 LayoutDeviceIntPoint nsWindow::WidgetToScreenOffset() {
+  // Don't use gdk_window_get_origin() on wl_subsurface Wayland popups
+  // https://gitlab.gnome.org/GNOME/gtk/-/issues/5287
+  if (IsWaylandPopup() && !mPopupUseMoveToRect) {
+    return mBounds.TopLeft();
+  }
   nsIntPoint origin(0, 0);
   if (mGdkWindow) {
-    gdk_window_get_origin(mGdkWindow, &origin.x, &origin.y);
+    gdk_window_get_origin(mGdkWindow, &origin.x.value, &origin.y.value);
   }
   return GdkPointToDevicePixels({origin.x, origin.y});
 }
@@ -4083,6 +4174,15 @@ void nsWindow::OnUnmap() {
   // Mark window as unmapped. It can be still used for rendering on X11
   // untill OnUnrealize is called.
   mIsMapped = false;
+
+  if (mSourceDragContext) {
+    static auto sGtkDragCancel =
+        (void (*)(GdkDragContext*))dlsym(RTLD_DEFAULT, "gtk_drag_cancel");
+    if (sGtkDragCancel) {
+      sGtkDragCancel(mSourceDragContext);
+      mSourceDragContext = nullptr;
+    }
+  }
 
 #ifdef MOZ_WAYLAND
   // wl_surface owned by mContainer is going to be deleted.
@@ -4932,10 +5032,6 @@ void nsWindow::OnScrollEvent(GdkEventScroll* aEvent) {
           panEvent.mSimulateMomentum =
               StaticPrefs::apz_gtk_kinetic_scroll_enabled();
 
-          panEvent
-              .mRequiresContentResponseIfCannotScrollHorizontallyInStartDirection =
-              SwipeTracker::CanTriggerSwipe(panEvent);
-
           DispatchPanGesture(panEvent);
 
           if (mCurrentSynthesizedTouchpadPan.mSavedObserver != 0) {
@@ -5013,14 +5109,12 @@ void nsWindow::DispatchPanGesture(PanGestureInput& aPanInput) {
   }
 
   WidgetWheelEvent event = aPanInput.ToWidgetEvent(this);
-  bool canTriggerSwipe = SwipeTracker::CanTriggerSwipe(aPanInput);
   if (!mAPZC) {
-    if (MayStartSwipeForNonAPZ(aPanInput, CanTriggerSwipe{canTriggerSwipe})) {
+    if (MayStartSwipeForNonAPZ(aPanInput)) {
       return;
     }
   } else {
-    event = MayStartSwipeForAPZ(aPanInput, result,
-                                CanTriggerSwipe{canTriggerSwipe});
+    event = MayStartSwipeForAPZ(aPanInput, result);
   }
 
   ProcessUntransformedAPZEvent(&event, result);
@@ -5074,20 +5168,16 @@ void nsWindow::OnWindowStateEvent(GtkWidget* aWidget,
   //
   // See https://gitlab.gnome.org/GNOME/gtk/issues/1044
   //
-  // This may be fixed in Gtk 3.24+ but some DE still have this issue
-  // (Bug 1624199) so let's remove it for Wayland only.
-#ifdef MOZ_X11
-  if (GdkIsX11Display()) {
-    if (!mIsShown) {
-      aEvent->changed_mask = static_cast<GdkWindowState>(
-          aEvent->changed_mask & ~GDK_WINDOW_STATE_MAXIMIZED);
-    } else if (aEvent->changed_mask & GDK_WINDOW_STATE_WITHDRAWN &&
-               aEvent->new_window_state & GDK_WINDOW_STATE_MAXIMIZED) {
-      aEvent->changed_mask = static_cast<GdkWindowState>(
-          aEvent->changed_mask | GDK_WINDOW_STATE_MAXIMIZED);
-    }
+  // This may be fixed in Gtk 3.24+ but it's still live and kicking
+  // (Bug 1791779).
+  if (!mIsShown) {
+    aEvent->changed_mask = static_cast<GdkWindowState>(
+        aEvent->changed_mask & ~GDK_WINDOW_STATE_MAXIMIZED);
+  } else if (aEvent->changed_mask & GDK_WINDOW_STATE_WITHDRAWN &&
+             aEvent->new_window_state & GDK_WINDOW_STATE_MAXIMIZED) {
+    aEvent->changed_mask = static_cast<GdkWindowState>(
+        aEvent->changed_mask | GDK_WINDOW_STATE_MAXIMIZED);
   }
-#endif
 
   // This is a workaround for https://gitlab.gnome.org/GNOME/gtk/issues/1395
   // Gtk+ controls window active appearance by window-state-event signal.
@@ -5249,6 +5339,7 @@ void nsWindow::OnScaleChanged() {
 void nsWindow::DispatchDragEvent(EventMessage aMsg,
                                  const LayoutDeviceIntPoint& aRefPoint,
                                  guint aTime) {
+  LOGDRAG("nsWindow::DispatchDragEvent");
   WidgetDragEvent event(true, aMsg, this);
 
   InitDragEvent(event);
@@ -5265,7 +5356,7 @@ void nsWindow::OnDragDataReceivedEvent(GtkWidget* aWidget,
                                        GtkSelectionData* aSelectionData,
                                        guint aInfo, guint aTime,
                                        gpointer aData) {
-  LOGDRAG("nsWindow::OnDragDataReceived(%p)\n", (void*)this);
+  LOGDRAG("nsWindow::OnDragDataReceived");
 
   RefPtr<nsDragService> dragService = nsDragService::GetInstance();
   nsDragService::AutoEventLoop loop(dragService);
@@ -5606,7 +5697,8 @@ void nsWindow::ConfigureCompositor() {
 
     // too late
     if (mIsDestroyed || !mIsMapped) {
-      LOG("  quit, mIsDestroyed = %d mIsMapped = %d", mIsDestroyed, mIsMapped);
+      LOG("  quit, mIsDestroyed = %d mIsMapped = %d", !!mIsDestroyed,
+          mIsMapped);
       return;
     }
     // Compositor will be resumed later by ResumeCompositorFlickering().
@@ -5911,8 +6003,8 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
     gtk_window_set_type_hint(GTK_WINDOW(mShell), GDK_WINDOW_TYPE_HINT_DIALOG);
     LOG("nsWindow::Create(): dialog");
     if (parentnsWindow) {
-      gtk_window_set_transient_for(GTK_WINDOW(mShell),
-                                   GTK_WINDOW(parentnsWindow->GetGtkWidget()));
+      GtkWindowSetTransientFor(GTK_WINDOW(mShell),
+                               GTK_WINDOW(parentnsWindow->GetGtkWidget()));
       LOG("    set parent window [%p]\n", parentnsWindow);
     }
   } else if (mWindowType == eWindowType_popup) {
@@ -5977,8 +6069,11 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
       LOG("    set parent window [%p] %s", parentnsWindow,
           parentnsWindow->mGtkWindowRoleName.get());
       GtkWindow* parentWidget = GTK_WINDOW(parentnsWindow->GetGtkWidget());
-      gtk_window_set_transient_for(GTK_WINDOW(mShell), parentWidget);
-      if (GdkIsWaylandDisplay() && gtk_window_get_modal(parentWidget)) {
+      GtkWindowSetTransientFor(GTK_WINDOW(mShell), parentWidget);
+
+      // If popup parent is modal, we need to make popup modal on Wayland too.
+      if (GdkIsWaylandDisplay() && mPopupHint != ePopupTypeTooltip &&
+          gtk_window_get_modal(parentWidget)) {
         gtk_window_set_modal(GTK_WINDOW(mShell), true);
       }
     }
@@ -6531,8 +6626,10 @@ void nsWindow::NativeShow(bool aAction) {
       }
     }
     // Set up usertime/startupID metadata for the created window.
-    if (mWindowType != eWindowType_invisible) {
-      SetUserTimeAndStartupIDForActivatedWindow(mShell);
+    // On X11 we use gtk_window_set_startup_id() so we need to call it
+    // before show.
+    if (GdkIsX11Display()) {
+      SetUserTimeAndStartupTokenForActivatedWindow();
     }
     if (GdkIsWaylandDisplay()) {
       if (IsWaylandPopup()) {
@@ -6544,7 +6641,15 @@ void nsWindow::NativeShow(bool aAction) {
       LOG("  calling gtk_widget_show(mShell)\n");
       gtk_widget_show(mShell);
     }
-
+    if (GdkIsWaylandDisplay()) {
+      SetUserTimeAndStartupTokenForActivatedWindow();
+#ifdef MOZ_WAYLAND
+      auto token = std::move(mWindowActivationTokenFromEnv);
+      if (!token.IsEmpty()) {
+        FocusWaylandWindow(token.get());
+      }
+#endif
+    }
     if (mHiddenPopupPositioned && IsPopup()) {
       LOG("  re-position hidden popup window");
       gtk_window_move(GTK_WINDOW(mShell), mPopupPosition.x, mPopupPosition.y);
@@ -7201,7 +7306,7 @@ FullscreenTransitionWindow::FullscreenTransitionWindow(GtkWidget* aWidget) {
   GtkWindow* gtkWin = GTK_WINDOW(mWindow);
 
   gtk_window_set_type_hint(gtkWin, GDK_WINDOW_TYPE_HINT_SPLASHSCREEN);
-  gtk_window_set_transient_for(gtkWin, GTK_WINDOW(aWidget));
+  GtkWindowSetTransientFor(gtkWin, GTK_WINDOW(aWidget));
   gtk_window_set_decorated(gtkWin, false);
 
   GdkWindow* gdkWin = gtk_widget_get_window(aWidget);
@@ -7437,6 +7542,7 @@ void nsWindow::HideWindowChrome(bool aShouldHide) {
 
 bool nsWindow::CheckForRollup(gdouble aMouseX, gdouble aMouseY, bool aIsWheel,
                               bool aAlwaysRollup) {
+  LOG("nsWindow::CheckForRollup() aAlwaysRollup %d", aAlwaysRollup);
   nsIRollupListener* rollupListener = GetActiveRollupListener();
   nsCOMPtr<nsIWidget> rollupWidget;
   if (rollupListener) {
@@ -7550,13 +7656,11 @@ MOZ_CAN_RUN_SCRIPT static void WaylandDragWorkaround(GdkEventButton* aEvent) {
 
 static nsWindow* get_window_for_gtk_widget(GtkWidget* widget) {
   gpointer user_data = g_object_get_data(G_OBJECT(widget), "nsWindow");
-
   return static_cast<nsWindow*>(user_data);
 }
 
 static nsWindow* get_window_for_gdk_window(GdkWindow* window) {
   gpointer user_data = g_object_get_data(G_OBJECT(window), "nsWindow");
-
   return static_cast<nsWindow*>(user_data);
 }
 
@@ -9235,11 +9339,15 @@ nsresult nsWindow::SynthesizeNativeTouchPadPinch(
       reinterpret_cast<GdkEventTouchpadPinch*>(&event);
   touchpad_event->type = GDK_TOUCHPAD_PINCH;
 
-  const LayoutDeviceIntPoint widgetToScreenOffset = WidgetToScreenOffset();
-
-  ScreenPoint pointInWindow = ViewAs<ScreenPixel>(
-      aPoint - widgetToScreenOffset,
+  const ScreenIntPoint widgetToScreenOffset = ViewAs<ScreenPixel>(
+      WidgetToScreenOffset(),
       PixelCastJustification::LayoutDeviceIsScreenForUntransformedEvent);
+
+  ScreenPoint pointInWindow =
+      ViewAs<ScreenPixel>(
+          aPoint,
+          PixelCastJustification::LayoutDeviceIsScreenForUntransformedEvent) -
+      widgetToScreenOffset;
 
   gdouble dx = 0, dy = 0;
 
@@ -9271,9 +9379,11 @@ nsresult nsWindow::SynthesizeNativeTouchPadPinch(
   touchpad_event->time = GDK_CURRENT_TIME;
   touchpad_event->scale = aScale;
   touchpad_event->x_root = DevicePixelsToGdkCoordRoundDown(
-      mCurrentSynthesizedTouchpadPinch.mBeginFocus.x + widgetToScreenOffset.x);
+      mCurrentSynthesizedTouchpadPinch.mBeginFocus.x +
+      ScreenCoord(widgetToScreenOffset.x));
   touchpad_event->y_root = DevicePixelsToGdkCoordRoundDown(
-      mCurrentSynthesizedTouchpadPinch.mBeginFocus.y + widgetToScreenOffset.y);
+      mCurrentSynthesizedTouchpadPinch.mBeginFocus.y +
+      ScreenCoord(widgetToScreenOffset.y));
 
   touchpad_event->x = DevicePixelsToGdkCoordRoundDown(
       mCurrentSynthesizedTouchpadPinch.mBeginFocus.x);
@@ -9724,9 +9834,14 @@ void nsWindow::SetEGLNativeWindowSize(
   if (!mContainer || !GdkIsWaylandDisplay()) {
     return;
   }
-  moz_container_wayland_egl_window_set_size(mContainer, aEGLWindowSize.width,
-                                            aEGLWindowSize.height);
-  moz_container_wayland_set_scale_factor(mContainer);
+  if (moz_container_wayland_egl_window_needs_size_update(
+          mContainer, aEGLWindowSize.ToUnknownSize(), GdkCeiledScaleFactor())) {
+    LOG("nsWindow::SetEGLNativeWindowSize() %d x %d", aEGLWindowSize.width,
+        aEGLWindowSize.height);
+    moz_container_wayland_egl_window_set_size(mContainer,
+                                              aEGLWindowSize.ToUnknownSize());
+    moz_container_wayland_set_scale_factor(mContainer);
+  }
 }
 #endif
 
@@ -9740,6 +9855,10 @@ LayoutDeviceIntSize nsWindow::GetMozContainerSize() {
     size.height = round(allocation.height * scale);
   }
   return size;
+}
+
+nsWindow* nsWindow::GetWindow(GdkWindow* window) {
+  return get_window_for_gdk_window(window);
 }
 
 void nsWindow::ClearRenderingQueue() {
@@ -9804,5 +9923,15 @@ void nsWindow::NotifyOcclusionState(mozilla::widget::OcclusionState aState) {
   LOG("nsWindow::NotifyOcclusionState() mIsFullyOccluded %d", mIsFullyOccluded);
   if (mWidgetListener) {
     mWidgetListener->OcclusionStateChanged(mIsFullyOccluded);
+  }
+}
+
+void nsWindow::SetDragSource(GdkDragContext* aSourceDragContext) {
+  mSourceDragContext = aSourceDragContext;
+  if (IsPopup() &&
+      (widget::GdkIsWaylandDisplay() || widget::IsXWaylandProtocol())) {
+    if (auto* menuPopupFrame = GetMenuPopupFrame(GetFrame())) {
+      menuPopupFrame->SetIsDragSource(!!aSourceDragContext);
+    }
   }
 }

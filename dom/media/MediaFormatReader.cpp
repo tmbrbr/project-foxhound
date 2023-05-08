@@ -377,7 +377,7 @@ void MediaFormatReader::DecoderFactory::DoCreateDecoder(Data& aData) {
           {*ownerData.GetCurrentInfo()->GetAsAudioInfo(), mOwner->mCrashHelper,
            CreateDecoderParams::UseNullDecoder(ownerData.mIsNullDecode),
            TrackInfo::kAudioTrack, std::move(onWaitingForKeyEvent),
-           mOwner->mMediaEngineId});
+           mOwner->mMediaEngineId, mOwner->mTrackingId});
       break;
     }
 
@@ -397,7 +397,7 @@ void MediaFormatReader::DecoderFactory::DoCreateDecoder(Data& aData) {
            OptionSet(ownerData.mHardwareDecodingDisabled
                          ? Option::HardwareDecoderNotAllowed
                          : Option::Default),
-           mOwner->mMediaEngineId});
+           mOwner->mMediaEngineId, mOwner->mTrackingId});
       break;
     }
 
@@ -882,7 +882,8 @@ MediaFormatReader::MediaFormatReader(MediaFormatReaderInit& aInit,
       mBuffered(mTaskQueue, TimeIntervals(),
                 "MediaFormatReader::mBuffered (Canonical)"),
       mFrameStats(aInit.mFrameStats),
-      mMediaDecoderOwnerID(aInit.mMediaDecoderOwnerID) {
+      mMediaDecoderOwnerID(aInit.mMediaDecoderOwnerID),
+      mTrackingId(std::move(aInit.mTrackingId)) {
   MOZ_ASSERT(aDemuxer);
   MOZ_COUNT_CTOR(MediaFormatReader);
   DDLINKCHILD("audio decoder data", "MediaFormatReader::DecoderDataWithPromise",
@@ -1412,12 +1413,16 @@ Maybe<TimeUnit> MediaFormatReader::ShouldSkip(TimeUnit aTimeThreshold,
 RefPtr<MediaFormatReader::VideoDataPromise> MediaFormatReader::RequestVideoData(
     const TimeUnit& aTimeThreshold, bool aRequestNextVideoKeyFrame) {
   MOZ_ASSERT(OnTaskQueue());
-  MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty(),
-                        "No sample requests allowed while seeking");
   MOZ_DIAGNOSTIC_ASSERT(!mVideo.HasPromise(), "No duplicate sample requests");
-  MOZ_DIAGNOSTIC_ASSERT(!mVideo.mSeekRequest.Exists() ||
-                        mVideo.mTimeThreshold.isSome());
-  MOZ_DIAGNOSTIC_ASSERT(!IsSeeking(), "called mid-seek");
+  // Requesting video can be done independently from audio, even during audio
+  // seeking. But it shouldn't happen if we're doing video seek.
+  if (!IsAudioOnlySeeking()) {
+    MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty(),
+                          "No sample requests allowed while seeking");
+    MOZ_DIAGNOSTIC_ASSERT(!mVideo.mSeekRequest.Exists() ||
+                          mVideo.mTimeThreshold.isSome());
+    MOZ_DIAGNOSTIC_ASSERT(!IsSeeking(), "called mid-seek");
+  }
   LOGV("RequestVideoData(%" PRId64 "), requestNextKeyFrame=%d",
        aTimeThreshold.ToMicroseconds(), aRequestNextVideoKeyFrame);
 
@@ -1508,10 +1513,9 @@ void MediaFormatReader::DoDemuxVideo() {
   using SamplesPromise = MediaTrackDemuxer::SamplesPromise;
 
   DDLOG(DDLogCategory::Log, "video_demuxing", DDNoValue{});
-  PerformanceRecorder perfRecorder(
-      PerformanceRecorder::Stage::RequestDemux,
+  PerformanceRecorder<PlaybackStage> perfRecorder(
+      MediaStage::RequestDemux,
       mVideo.GetCurrentInfo()->GetAsVideoInfo()->mImage.height);
-  perfRecorder.Start();
   auto p = mVideo.mTrackDemuxer->GetSamples(1);
 
   RefPtr<MediaFormatReader> self = this;
@@ -1540,7 +1544,7 @@ void MediaFormatReader::DoDemuxVideo() {
        OwnerThread(), __func__,
        [self, perfRecorder(std::move(perfRecorder))](
            RefPtr<MediaTrackDemuxer::SamplesHolder> aSamples) mutable {
-         perfRecorder.End();
+         perfRecorder.Record();
          self->OnVideoDemuxCompleted(std::move(aSamples));
        },
        [self](const MediaResult& aError) { self->OnVideoDemuxFailed(aError); })
@@ -1566,11 +1570,15 @@ RefPtr<MediaFormatReader::AudioDataPromise>
 MediaFormatReader::RequestAudioData() {
   MOZ_ASSERT(OnTaskQueue());
   MOZ_DIAGNOSTIC_ASSERT(!mAudio.HasPromise(), "No duplicate sample requests");
-  MOZ_DIAGNOSTIC_ASSERT(IsVideoSeeking() || mSeekPromise.IsEmpty(),
-                        "No sample requests allowed while seeking");
-  MOZ_DIAGNOSTIC_ASSERT(IsVideoSeeking() || !mAudio.mSeekRequest.Exists() ||
-                        mAudio.mTimeThreshold.isSome());
-  MOZ_DIAGNOSTIC_ASSERT(IsVideoSeeking() || !IsSeeking(), "called mid-seek");
+  // Requesting audio can be done independently from video, even during video
+  // seeking. But it shouldn't happen if we're doing audio seek.
+  if (!IsVideoOnlySeeking()) {
+    MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty(),
+                          "No sample requests allowed while seeking");
+    MOZ_DIAGNOSTIC_ASSERT(!mAudio.mSeekRequest.Exists() ||
+                          mAudio.mTimeThreshold.isSome());
+    MOZ_DIAGNOSTIC_ASSERT(!IsSeeking(), "called mid-seek");
+  }
   LOGV("");
 
   if (!HasAudio()) {
@@ -1602,8 +1610,7 @@ void MediaFormatReader::DoDemuxAudio() {
   using SamplesPromise = MediaTrackDemuxer::SamplesPromise;
 
   DDLOG(DDLogCategory::Log, "audio_demuxing", DDNoValue{});
-  PerformanceRecorder perfRecorder(PerformanceRecorder::Stage::RequestDemux);
-  perfRecorder.Start();
+  PerformanceRecorder<PlaybackStage> perfRecorder(MediaStage::RequestDemux);
   auto p = mAudio.mTrackDemuxer->GetSamples(1);
 
   RefPtr<MediaFormatReader> self = this;
@@ -1632,7 +1639,7 @@ void MediaFormatReader::DoDemuxAudio() {
        OwnerThread(), __func__,
        [self, perfRecorder(std::move(perfRecorder))](
            RefPtr<MediaTrackDemuxer::SamplesHolder> aSamples) mutable {
-         perfRecorder.End();
+         perfRecorder.Record();
          self->OnAudioDemuxCompleted(std::move(aSamples));
        },
        [self](const MediaResult& aError) { self->OnAudioDemuxFailed(aError); })
@@ -1859,17 +1866,18 @@ bool MediaFormatReader::UpdateReceivedNewData(TrackType aTrack) {
   }
 
   if (!mSeekPromise.IsEmpty() &&
-      (!IsVideoSeeking() || aTrack == TrackInfo::kVideoTrack)) {
+      (!IsVideoOnlySeeking() || aTrack == TrackInfo::kVideoTrack)) {
     MOZ_ASSERT(!decoder.HasPromise());
     MOZ_DIAGNOSTIC_ASSERT(
-        (IsVideoSeeking() || !mAudio.mTimeThreshold) && !mVideo.mTimeThreshold,
+        (IsVideoOnlySeeking() || !mAudio.mTimeThreshold) &&
+            !mVideo.mTimeThreshold,
         "InternalSeek must have been aborted when Seek was first called");
     MOZ_DIAGNOSTIC_ASSERT(
-        (IsVideoSeeking() || !mAudio.HasWaitingPromise()) &&
+        (IsVideoOnlySeeking() || !mAudio.HasWaitingPromise()) &&
             !mVideo.HasWaitingPromise(),
         "Waiting promises must have been rejected when Seek was first called");
     if (mVideo.mSeekRequest.Exists() ||
-        (!IsVideoSeeking() && mAudio.mSeekRequest.Exists())) {
+        (!IsVideoOnlySeeking() && mAudio.mSeekRequest.Exists())) {
       // Already waiting for a seek to complete. Nothing more to do.
       return true;
     }
@@ -1960,15 +1968,14 @@ void MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
     }
 #endif
   }
-  PerformanceRecorder perfRecorder(PerformanceRecorder::Stage::RequestDecode,
-                                   height, flag);
-  perfRecorder.Start();
+  PerformanceRecorder<PlaybackStage> perfRecorder(MediaStage::RequestDecode,
+                                                  height, flag);
   decoder.mDecoder->Decode(aSample)
       ->Then(
           mTaskQueue, __func__,
           [self, aTrack, &decoder, perfRecorder(std::move(perfRecorder))](
               MediaDataDecoder::DecodedData&& aResults) mutable {
-            perfRecorder.End();
+            perfRecorder.Record();
             decoder.mDecodeRequest.Complete();
             self->NotifyNewOutput(aTrack, std::move(aResults));
           },
@@ -2804,7 +2811,8 @@ RefPtr<MediaFormatReader::SeekPromise> MediaFormatReader::Seek(
   AUTO_PROFILER_LABEL("MediaFormatReader::Seek", MEDIA_PLAYBACK);
   MOZ_ASSERT(OnTaskQueue());
 
-  LOG("aTarget=(%" PRId64 ")", aTarget.GetTime().ToMicroseconds());
+  LOG("aTarget=(%" PRId64 "), track=%s", aTarget.GetTime().ToMicroseconds(),
+      SeekTarget::TrackToStr(aTarget.GetTrack()));
 
   MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty());
   MOZ_DIAGNOSTIC_ASSERT(mPendingSeekTime.isNothing());
@@ -2865,6 +2873,7 @@ void MediaFormatReader::AttemptSeek() {
   mSeekScheduled = false;
 
   if (mPendingSeekTime.isNothing()) {
+    LOGV("AttemptSeek, no pending seek time?");
     return;
   }
 
@@ -2872,6 +2881,8 @@ void MediaFormatReader::AttemptSeek() {
   // issues.
   const bool isSeekingAudio = HasAudio() && !mOriginalSeekTarget.IsVideoOnly();
   const bool isSeekingVideo = HasVideo() && !mOriginalSeekTarget.IsAudioOnly();
+  LOG("AttemptSeek, seekingAudio=%d, seekingVideo=%d", isSeekingAudio,
+      isSeekingVideo);
   if (isSeekingVideo) {
     mVideo.ResetDemuxer();
     mVideo.ResetState();

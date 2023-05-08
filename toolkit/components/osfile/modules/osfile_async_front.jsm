@@ -25,8 +25,8 @@ var EXPORTED_SYMBOLS = ["OS", "Scheduler"];
 var SharedAll = ChromeUtils.import(
   "resource://gre/modules/osfile/osfile_shared_allthreads.jsm"
 );
-const { clearInterval, setInterval } = ChromeUtils.import(
-  "resource://gre/modules/Timer.jsm"
+const { clearInterval, setInterval } = ChromeUtils.importESModule(
+  "resource://gre/modules/Timer.sys.mjs"
 );
 
 // Boilerplate, to simplify the transition to require()
@@ -980,21 +980,6 @@ File.setPermissions = function setPermissions(path, options = {}) {
  */
 File.getCurrentDirectory = function getCurrentDirectory() {
   return Scheduler.post("getCurrentDirectory").then(Type.path.fromMsg);
-};
-
-/**
- * Change the current directory
- *
- * @param {string} path The OS-specific path to the current directory.
- * You should use the methods of OS.Path and the constants of OS.Constants.Path
- * to build OS-specific paths in a portable manner.
- *
- * @return {promise}
- * @resolves {null}
- * @rejects {OS.Error}
- */
-File.setCurrentDirectory = function setCurrentDirectory(path) {
-  return Scheduler.post("setCurrentDirectory", [Type.path.toMsg(path)], path);
 };
 
 /**

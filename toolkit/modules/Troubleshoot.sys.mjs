@@ -5,16 +5,18 @@
 const { AddonManager } = ChromeUtils.import(
   "resource://gre/modules/AddonManager.jsm"
 );
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
-);
-const { E10SUtils } = ChromeUtils.import(
-  "resource://gre/modules/E10SUtils.jsm"
-);
+import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
+import { E10SUtils } from "resource://gre/modules/E10SUtils.sys.mjs";
 
 const { FeatureGate } = ChromeUtils.import(
   "resource://featuregates/FeatureGate.jsm"
 );
+
+const lazy = {};
+
+ChromeUtils.defineESModuleGetters(lazy, {
+  PlacesDBUtils: "resource://gre/modules/PlacesDBUtils.sys.mjs",
+});
 
 // We use a list of prefs for display to make sure we only show prefs that
 // are useful for support and won't compromise the user's privacy.  Note that
@@ -455,8 +457,9 @@ var dataProviders = {
     let Subprocess;
     try {
       // Subprocess is not available in all builds
-      Subprocess = ChromeUtils.import("resource://gre/modules/Subprocess.jsm")
-        .Subprocess;
+      Subprocess = ChromeUtils.importESModule(
+        "resource://gre/modules/Subprocess.sys.mjs"
+      ).Subprocess;
     } catch (ex) {
       done({});
       return;
@@ -487,6 +490,13 @@ var dataProviders = {
           Services.prefs.prefIsLocked(name)
       )
     );
+  },
+
+  places: async function places(done) {
+    const data = AppConstants.MOZ_PLACES
+      ? await lazy.PlacesDBUtils.getEntitiesStatsAndCounts()
+      : [];
+    done(data);
   },
 
   printingPreferences: function printingPreferences(done) {
@@ -554,6 +564,9 @@ var dataProviders = {
 
     data.numTotalWindows = 0;
     data.numAcceleratedWindows = 0;
+
+    let devicePixelRatios = [];
+
     for (let win of Services.ww.getWindowEnumerator()) {
       let winUtils = win.windowUtils;
       try {
@@ -564,6 +577,8 @@ var dataProviders = {
         ) {
           continue;
         }
+        devicePixelRatios.push(win.devicePixelRatio);
+
         data.numTotalWindows++;
         data.windowLayerManagerType = winUtils.layerManagerType;
         data.windowLayerManagerRemote = winUtils.layerManagerRemote;
@@ -574,6 +589,7 @@ var dataProviders = {
         data.numAcceleratedWindows++;
       }
     }
+    data.graphicsDevicePixelRatios = devicePixelRatios;
 
     // If we had no OMTC windows, report back Basic Layers.
     if (!data.windowLayerManagerType) {
@@ -983,6 +999,9 @@ if (AppConstants.MOZ_SANDBOX) {
         sandboxSettings.effectiveContentSandboxLevel;
       data.contentWin32kLockdownState =
         sandboxSettings.contentWin32kLockdownStateString;
+      data.supportSandboxGpuLevel = Services.prefs.getIntPref(
+        "security.sandbox.gpu.level"
+      );
     }
 
     done(data);

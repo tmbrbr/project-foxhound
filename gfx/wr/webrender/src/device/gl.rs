@@ -1165,6 +1165,10 @@ pub struct Device {
     /// at draw call time, neither of which is desirable.
     #[cfg(debug_assertions)]
     shader_is_ready: bool,
+
+    // count created/deleted textures to report in the profiler.
+    pub textures_created: u32,
+    pub textures_deleted: u32,
 }
 
 /// Contains the parameters necessary to bind a draw target.
@@ -1673,9 +1677,11 @@ impl Device {
         // Software webrender relies on the unoptimized shader source.
         let use_optimized_shaders = use_optimized_shaders && !is_software_webrender;
 
-        // On the android emulator, glShaderSource can crash if the source
-        // strings are not null-terminated. See bug 1591945.
-        let requires_null_terminated_shader_source = is_emulator;
+        // On the android emulator, and possibly some Mali devices, glShaderSource
+        // can crash if the source strings are not null-terminated.
+        // See bug 1591945 and bug 1799722.
+        let requires_null_terminated_shader_source = is_emulator || renderer_name == "Mali-T628"
+            || renderer_name == "Mali-T720" || renderer_name == "Mali-T760";
 
         // The android emulator gets confused if you don't explicitly unbind any texture
         // from GL_TEXTURE_EXTERNAL_OES before binding another to GL_TEXTURE_2D. See bug 1636085.
@@ -1894,6 +1900,9 @@ impl Device {
 
             #[cfg(debug_assertions)]
             shader_is_ready: false,
+
+            textures_created: 0,
+            textures_deleted: 0,
         }
     }
 
@@ -2089,6 +2098,9 @@ impl Device {
         {
             self.shader_is_ready = false;
         }
+
+        self.textures_created = 0;
+        self.textures_deleted = 0;
 
         // If our profiler state has changed, apply or remove the profiling
         // wrapper from our GL context.
@@ -2602,6 +2614,8 @@ impl Device {
             }
         }
 
+        self.textures_created += 1;
+
         texture
     }
 
@@ -2937,6 +2951,8 @@ impl Device {
                 *bound_texture = 0;
             }
         }
+
+        self.textures_deleted += 1;
 
         // Disarm the assert in Texture::drop().
         texture.id = 0;
@@ -4289,7 +4305,7 @@ impl UploadPBOPool {
     /// Obtain a PBO, either by reusing an existing PBO or allocating a new one.
     /// min_size specifies the minimum required size of the PBO. The returned PBO
     /// may be larger than required.
-    fn get_pbo(&mut self, device: &mut Device, min_size: usize) -> Result<UploadPBO, ()> {
+    fn get_pbo(&mut self, device: &mut Device, min_size: usize) -> Result<UploadPBO, String> {
 
         // If min_size is smaller than our default size, then use the default size.
         // The exception to this is when due to driver bugs we cannot upload from
@@ -4319,9 +4335,9 @@ impl UploadPBOPool {
                             gl::MAP_WRITE_BIT | gl::MAP_UNSYNCHRONIZED_BIT,
                         ) as *mut _;
 
-                        let ptr = ptr::NonNull::new(ptr).ok_or_else(|| {
-                            error!("Failed to transiently map PBO of size {} bytes", buffer.pbo.reserved_size);
-                        })?;
+                        let ptr = ptr::NonNull::new(ptr).ok_or_else(
+                            || format!("Failed to transiently map PBO of size {} bytes", buffer.pbo.reserved_size)
+                        )?;
 
                         buffer.mapping = PBOMapping::Transient(ptr);
                     }
@@ -4364,9 +4380,9 @@ impl UploadPBOPool {
                 gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_FLUSH_EXPLICIT_BIT,
             ) as *mut _;
 
-            let ptr = ptr::NonNull::new(ptr).ok_or_else(|| {
-                error!("Failed to persistently map PBO of size {} bytes", pbo.reserved_size);
-            })?;
+            let ptr = ptr::NonNull::new(ptr).ok_or_else(
+                || format!("Failed to transiently map PBO of size {} bytes", pbo.reserved_size)
+            )?;
 
             PBOMapping::Persistent(ptr)
         } else {
@@ -4385,9 +4401,9 @@ impl UploadPBOPool {
                 gl::MAP_WRITE_BIT,
             ) as *mut _;
 
-            let ptr = ptr::NonNull::new(ptr).ok_or_else(|| {
-                error!("Failed to transiently map PBO of size {} bytes", pbo.reserved_size);
-            })?;
+            let ptr = ptr::NonNull::new(ptr).ok_or_else(
+                || format!("Failed to transiently map PBO of size {} bytes", pbo.reserved_size)
+            )?;
 
             PBOMapping::Transient(ptr)
         };
@@ -4526,7 +4542,7 @@ impl<'a> TextureUploader<'a> {
         device: &mut Device,
         format: ImageFormat,
         size: DeviceIntSize,
-    ) -> Result<UploadStagingBuffer<'a>, ()> {
+    ) -> Result<UploadStagingBuffer<'a>, String> {
         assert!(matches!(device.upload_method, UploadMethod::PixelBuffer(_)), "Texture uploads should only be staged when using pixel buffers.");
 
         // for optimal PBO texture uploads the offset and stride of the data in

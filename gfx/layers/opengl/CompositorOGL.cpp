@@ -11,7 +11,6 @@
 #include "GLContextProvider.h"  // for GLContextProvider
 #include "GLContext.h"          // for GLContext
 #include "GLUploadHelpers.h"
-#include "Layers.h"                 // for WriteSnapshotToDumpFile
 #include "gfxCrashReporterUtils.h"  // for ScopedGfxFeatureReporter
 #include "gfxEnv.h"                 // for gfxEnv
 #include "gfxPlatform.h"            // for gfxPlatform
@@ -1080,7 +1079,8 @@ gfx::Point3D CompositorOGL::GetLineCoefficients(const gfx::Point& aPoint1,
   gfx::Point3D coeffecients;
   coeffecients.x = aPoint1.y - aPoint2.y;
   coeffecients.y = aPoint2.x - aPoint1.x;
-  coeffecients.z = aPoint1.x * aPoint2.y - aPoint2.x * aPoint1.y;
+  coeffecients.z =
+      aPoint1.x.value * aPoint2.y.value - aPoint2.x.value * aPoint1.y.value;
 
   coeffecients *= 1.0f / sqrtf(coeffecients.x * coeffecients.x +
                                coeffecients.y * coeffecients.y);
@@ -1203,10 +1203,12 @@ void CompositorOGL::DrawGeometry(const Geometry& aGeometry,
       while (winding == 0.0f && wp < pointCount) {
         int wp1 = (wp + 1) % pointCount;
         int wp2 = (wp + 2) % pointCount;
-        winding =
-            (points[wp1].x - points[wp].x) * (points[wp1].y + points[wp].y) +
-            (points[wp2].x - points[wp1].x) * (points[wp2].y + points[wp1].y) +
-            (points[wp].x - points[wp2].x) * (points[wp].y + points[wp2].y);
+        winding = (points[wp1].x - points[wp].x).value *
+                      (points[wp1].y + points[wp].y).value +
+                  (points[wp2].x - points[wp1].x).value *
+                      (points[wp2].y + points[wp1].y).value +
+                  (points[wp].x - points[wp2].x).value *
+                      (points[wp].y + points[wp2].y).value;
         wp++;
       }
       bool frontFacing = winding >= 0.0f;
@@ -1433,6 +1435,29 @@ void CompositorOGL::InitializeVAO(const GLuint aAttrib, const GLint aComponents,
                                    reinterpret_cast<GLvoid*>(aOffset));
   mGLContext->fEnableVertexAttribArray(aAttrib);
 }
+
+#ifdef MOZ_DUMP_PAINTING
+template <typename T>
+void WriteSnapshotToDumpFile_internal(T* aObj, DataSourceSurface* aSurf) {
+  nsCString string(aObj->Name());
+  string.Append('-');
+  string.AppendInt((uint64_t)aObj);
+  if (gfxUtils::sDumpPaintFile != stderr) {
+    fprintf_stderr(gfxUtils::sDumpPaintFile, R"(array["%s"]=")",
+                   string.BeginReading());
+  }
+  gfxUtils::DumpAsDataURI(aSurf, gfxUtils::sDumpPaintFile);
+  if (gfxUtils::sDumpPaintFile != stderr) {
+    fprintf_stderr(gfxUtils::sDumpPaintFile, R"(";)");
+  }
+}
+
+void WriteSnapshotToDumpFile(Compositor* aCompositor, DrawTarget* aTarget) {
+  RefPtr<SourceSurface> surf = aTarget->Snapshot();
+  RefPtr<DataSourceSurface> dSurf = surf->GetDataSurface();
+  WriteSnapshotToDumpFile_internal(aCompositor, dSurf);
+}
+#endif
 
 void CompositorOGL::EndFrame() {
   AUTO_PROFILER_LABEL("CompositorOGL::EndFrame", GRAPHICS);

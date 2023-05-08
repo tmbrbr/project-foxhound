@@ -238,7 +238,7 @@ struct PerformanceMemoryInfo {
   uint64_t domDom;
   uint64_t domStyle;
   uint64_t domOther;
-  uint64_t GCHeapUsage;
+  uint64_t jsMemUsage;
 };
 
 struct CategoryDispatch
@@ -314,6 +314,10 @@ struct DocShellLoadStateInit
   // The TriggineringSandboxFlags are the SandboxFlags of the entity
   // responsible for causing the load to occur.
   uint32_t TriggeringSandboxFlags;
+
+  // The provided remote type of the process responsible for causing the load to
+  // occur. Validated in the parent process.
+  nsCString TriggeringRemoteType;
 
   nsCString? OriginalURIString;
   int32_t? CancelContentJSEpoch;

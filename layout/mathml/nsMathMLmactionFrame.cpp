@@ -164,8 +164,8 @@ nsIFrame* nsMathMLmactionFrame::GetSelectedFrame() {
 }
 
 void nsMathMLmactionFrame::SetInitialChildList(ChildListID aListID,
-                                               nsFrameList& aChildList) {
-  nsMathMLSelectedFrame::SetInitialChildList(aListID, aChildList);
+                                               nsFrameList&& aChildList) {
+  nsMathMLSelectedFrame::SetInitialChildList(aListID, std::move(aChildList));
 
   if (!mSelectedFrame) {
     mActionType = NS_MATHML_ACTION_TYPE_NONE;
@@ -208,7 +208,7 @@ nsresult nsMathMLmactionFrame::AttributeChanged(int32_t aNameSpaceID,
   }
 
   if (needsReflow) {
-    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::TreeChange,
+    PresShell()->FrameNeedsReflow(this, IntrinsicDirty::FrameAndAncestors,
                                   NS_FRAME_IS_DIRTY);
   }
 
@@ -302,8 +302,8 @@ void nsMathMLmactionFrame::MouseClick() {
                                      value, notify);
 
       // Now trigger a content-changed reflow...
-      PresShell()->FrameNeedsReflow(mSelectedFrame, IntrinsicDirty::TreeChange,
-                                    NS_FRAME_IS_DIRTY);
+      PresShell()->FrameNeedsReflow(
+          mSelectedFrame, IntrinsicDirty::FrameAndAncestors, NS_FRAME_IS_DIRTY);
     }
   }
 }

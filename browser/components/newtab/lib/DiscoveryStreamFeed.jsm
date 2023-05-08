@@ -18,8 +18,8 @@ ChromeUtils.defineModuleGetter(
   "pktApi",
   "chrome://pocket/content/pktApi.jsm"
 );
-const { setTimeout, clearTimeout } = ChromeUtils.import(
-  "resource://gre/modules/Timer.jsm"
+const { setTimeout, clearTimeout } = ChromeUtils.importESModule(
+  "resource://gre/modules/Timer.sys.mjs"
 );
 const { actionTypes: at, actionCreators: ac } = ChromeUtils.import(
   "resource://activity-stream/common/Actions.jsm"
@@ -55,8 +55,11 @@ const PREF_SPOCS_ENDPOINT_QUERY = "discoverystream.spocs-endpoint-query";
 const PREF_REGION_BASIC_LAYOUT = "discoverystream.region-basic-layout";
 const PREF_USER_TOPSTORIES = "feeds.section.topstories";
 const PREF_SYSTEM_TOPSTORIES = "feeds.system.topstories";
+const PREF_USER_TOPSITES = "feeds.topsites";
+const PREF_SYSTEM_TOPSITES = "feeds.system.topsites";
 const PREF_SPOCS_CLEAR_ENDPOINT = "discoverystream.endpointSpocsClear";
 const PREF_SHOW_SPONSORED = "showSponsored";
+const PREF_SHOW_SPONSORED_TOPSITES = "showSponsoredTopSites";
 const PREF_SPOC_IMPRESSIONS = "discoverystream.spoc.impressions";
 const PREF_FLIGHT_BLOCKS = "discoverystream.flight.blocks";
 const PREF_REC_IMPRESSIONS = "discoverystream.rec.impressions";
@@ -123,7 +126,7 @@ class DiscoveryStreamFeed {
       // istanbul ignore next
       this._prefCache.config = {};
       // istanbul ignore next
-      Cu.reportError(
+      console.error(
         `Could not parse preference. Try resetting ${PREF_CONFIG} in about:config. ${e}`
       );
     }
@@ -148,6 +151,12 @@ class DiscoveryStreamFeed {
   }
 
   get showSpocs() {
+    // High level overall sponsored check, if one of these is true,
+    // we know we need some sort of spoc control setup.
+    return this.showSponsoredStories || this.showSponsoredTopsites;
+  }
+
+  get showSponsoredStories() {
     // Combine user-set sponsored opt-out with Mozilla-set config
     return (
       this.store.getState().Prefs.values[PREF_SHOW_SPONSORED] &&
@@ -155,11 +164,28 @@ class DiscoveryStreamFeed {
     );
   }
 
+  get showSponsoredTopsites() {
+    const placements = this.getPlacements();
+    // Combine user-set sponsored opt-out with placement data
+    return !!(
+      this.store.getState().Prefs.values[PREF_SHOW_SPONSORED_TOPSITES] &&
+      placements.find(placement => placement.name === "sponsored-topsites")
+    );
+  }
+
   get showStories() {
-    // Combine user-set sponsored opt-out with Mozilla-set config
+    // Combine user-set stories opt-out with Mozilla-set config
     return (
       this.store.getState().Prefs.values[PREF_SYSTEM_TOPSTORIES] &&
       this.store.getState().Prefs.values[PREF_USER_TOPSTORIES]
+    );
+  }
+
+  get showTopsites() {
+    // Combine user-set topsites opt-out with Mozilla-set config
+    return (
+      this.store.getState().Prefs.values[PREF_SYSTEM_TOPSITES] &&
+      this.store.getState().Prefs.values[PREF_USER_TOPSITES]
     );
   }
 
@@ -215,13 +241,21 @@ class DiscoveryStreamFeed {
   }
 
   setupPrefs(isStartup = false) {
-    const pocketNewtabExperiment = lazy.ExperimentAPI.getExperiment({
+    const pocketNewtabExperiment = lazy.ExperimentAPI.getExperimentMetaData({
       featureId: "pocketNewtab",
     });
 
+    const pocketNewtabRollout = lazy.ExperimentAPI.getRolloutMetaData({
+      featureId: "pocketNewtab",
+    });
+
+    // We want to know if the user is in an experiment or rollout,
+    // but we prioritize experiments over rollouts.
+    const experimentMetaData = pocketNewtabExperiment || pocketNewtabRollout;
+
     let utmSource = "pocket-newtab";
-    let utmCampaign = pocketNewtabExperiment?.slug;
-    let utmContent = pocketNewtabExperiment?.branch?.slug;
+    let utmCampaign = experimentMetaData?.slug;
+    let utmContent = experimentMetaData?.branch?.slug;
 
     this.store.dispatch(
       ac.BroadcastToContent({
@@ -344,7 +378,7 @@ class DiscoveryStreamFeed {
 
   async fetchFromEndpoint(rawEndpoint, options = {}) {
     if (!rawEndpoint) {
-      Cu.reportError("Tried to fetch endpoint but none was configured.");
+      console.error("Tried to fetch endpoint but none was configured.");
       return null;
     }
 
@@ -388,7 +422,7 @@ class DiscoveryStreamFeed {
       clearTimeout(timeoutId);
       return response.json();
     } catch (error) {
-      Cu.reportError(`Failed to fetch ${endpoint}: ${error.message}`);
+      console.error(`Failed to fetch ${endpoint}: ${error.message}`);
     }
     return null;
   }
@@ -464,12 +498,13 @@ class DiscoveryStreamFeed {
     const { feeds } = cachedData;
     return {
       layout: this.isExpired({ cachedData, key: "layout" }),
-      spocs: this.isExpired({ cachedData, key: "spocs" }),
+      spocs: this.showSpocs && this.isExpired({ cachedData, key: "spocs" }),
       feeds:
-        !feeds ||
-        Object.keys(feeds).some(url =>
-          this.isExpired({ cachedData, key: "feed", url })
-        ),
+        this.showStories &&
+        (!feeds ||
+          Object.keys(feeds).some(url =>
+            this.isExpired({ cachedData, key: "feed", url })
+          )),
     };
   }
 
@@ -502,7 +537,7 @@ class DiscoveryStreamFeed {
 
         await this.cache.set("layout", layout);
       } else {
-        Cu.reportError("No response for response.layout prop");
+        console.error("No response for response.layout prop");
       }
     }
     return layout;
@@ -512,25 +547,48 @@ class DiscoveryStreamFeed {
     const placements = [];
     const placementsMap = {};
     for (const row of layout.filter(r => r.components && r.components.length)) {
-      for (const component of row.components) {
-        if (component.placement) {
-          // Throw away any dupes for the request.
-          if (!placementsMap[component.placement.name]) {
-            placementsMap[component.placement.name] = component.placement;
-            placements.push(component.placement);
+      for (const component of row.components.filter(
+        c => c.placement && c.spocs
+      )) {
+        // If we find a valid placement, we set it to this value.
+        let placement;
+
+        // We need to check to see if this placement is on or not.
+        // If this placement has a prefs array, check against that.
+        if (component.spocs.prefs) {
+          // Check every pref in the array to see if this placement is turned on.
+          if (
+            component.spocs.prefs.length &&
+            component.spocs.prefs.every(
+              p => this.store.getState().Prefs.values[p]
+            )
+          ) {
+            // This placement is on.
+            placement = component.placement;
           }
+        } else if (this.showSponsoredStories) {
+          // If we do not have a prefs array, use old check.
+          // This is because Pocket spocs uses an old non pref method.
+          placement = component.placement;
+        }
+
+        // Validate this placement and check for dupes.
+        if (placement?.name && !placementsMap[placement.name]) {
+          placementsMap[placement.name] = placement;
+          placements.push(placement);
         }
       }
     }
-    if (placements.length) {
-      sendUpdate({
-        type: at.DISCOVERY_STREAM_SPOCS_PLACEMENTS,
-        data: { placements },
-        meta: {
-          isStartup,
-        },
-      });
-    }
+
+    // Update placements data.
+    // Even if we have no placements, we still want to update it to clear it.
+    sendUpdate({
+      type: at.DISCOVERY_STREAM_SPOCS_PLACEMENTS,
+      data: { placements },
+      meta: {
+        isStartup,
+      },
+    });
   }
 
   /**
@@ -602,22 +660,33 @@ class DiscoveryStreamFeed {
         items = isBasicLayout ? 4 : 24;
       }
 
-      const spocAdTypes = pocketConfig.spocAdTypes
-        ?.split(",")
-        .filter(item => item)
-        .map(item => parseInt(item, 10));
-      const spocZoneIds = pocketConfig.spocZoneIds
-        ?.split(",")
-        .filter(item => item)
-        .map(item => parseInt(item, 10));
+      const prepConfArr = arr => {
+        return arr
+          ?.split(",")
+          .filter(item => item)
+          .map(item => parseInt(item, 10));
+      };
+
+      const spocAdTypes = prepConfArr(pocketConfig.spocAdTypes);
+      const spocZoneIds = prepConfArr(pocketConfig.spocZoneIds);
+      const spocTopsitesAdTypes = prepConfArr(pocketConfig.spocTopsitesAdTypes);
+      const spocTopsitesZoneIds = prepConfArr(pocketConfig.spocTopsitesZoneIds);
       const { spocSiteId } = pocketConfig;
       let spocPlacementData;
+      let spocTopsitesPlacementData;
       let spocsUrl;
 
       if (spocAdTypes?.length && spocZoneIds?.length) {
         spocPlacementData = {
           ad_types: spocAdTypes,
           zone_ids: spocZoneIds,
+        };
+      }
+
+      if (spocTopsitesAdTypes?.length && spocTopsitesZoneIds?.length) {
+        spocTopsitesPlacementData = {
+          ad_types: spocTopsitesAdTypes,
+          zone_ids: spocTopsitesZoneIds,
         };
       }
 
@@ -634,6 +703,7 @@ class DiscoveryStreamFeed {
         items,
         sponsoredCollectionsEnabled,
         spocPlacementData,
+        spocTopsitesPlacementData,
         spocPositions: this.parseGridPositions(
           pocketConfig.spocPositions?.split(`,`)
         ),
@@ -737,7 +807,7 @@ class DiscoveryStreamFeed {
           })
           .catch(
             /* istanbul ignore next */ error => {
-              Cu.reportError(
+              console.error(
                 `Error trying to load component feed ${url}: ${error}`
               );
             }
@@ -835,10 +905,6 @@ class DiscoveryStreamFeed {
 
   getPlacements() {
     const { placements } = this.store.getState().DiscoveryStream.spocs;
-    // Backwards comp for before we had placements, assume just a single spocs placement.
-    if (!placements || !placements.length) {
-      return [{ name: "spocs" }];
-    }
     return placements;
   }
 
@@ -927,9 +993,9 @@ class DiscoveryStreamFeed {
     const cachedData = (await this.cache.get()) || {};
     let spocsState;
 
-    const { placements } = this.store.getState().DiscoveryStream.spocs;
+    const placements = this.getPlacements();
 
-    if (this.showSpocs) {
+    if (this.showSpocs && placements?.length) {
       spocsState = cachedData.spocs;
       if (this.isExpired({ cachedData, key: "spocs", isStartup })) {
         const endpoint = this.store.getState().DiscoveryStream.spocs
@@ -1041,7 +1107,7 @@ class DiscoveryStreamFeed {
             spocs: spocsState.spocs,
           });
         } else {
-          Cu.reportError("No response for spocs_endpoint prop");
+          console.error("No response for spocs_endpoint prop");
         }
       }
     }
@@ -1383,7 +1449,7 @@ class DiscoveryStreamFeed {
           },
         };
       } else {
-        Cu.reportError("No response for feed");
+        console.error("No response for feed");
       }
     }
 
@@ -1557,15 +1623,25 @@ class DiscoveryStreamFeed {
       : this.store.dispatch;
 
     await this.loadLayout(dispatch, isStartup);
-    if (this.showStories) {
-      await Promise.all([
-        this.loadSpocs(dispatch, isStartup).catch(error =>
-          Cu.reportError(`Error trying to load spocs feeds: ${error}`)
-        ),
-        this.loadComponentFeeds(dispatch, isStartup).catch(error =>
-          Cu.reportError(`Error trying to load component feeds: ${error}`)
-        ),
-      ]);
+    if (this.showStories || this.showTopsites) {
+      const promises = [];
+      // We could potentially have either or both sponsored topsites or stories.
+      // We only make one fetch, and control which to request when we fetch.
+      // So for now we only care if we need to make this request at all.
+      const spocsPromise = this.loadSpocs(dispatch, isStartup).catch(error =>
+        console.error(`Error trying to load spocs feeds: ${error}`)
+      );
+      promises.push(spocsPromise);
+      if (this.showStories) {
+        const storiesPromise = this.loadComponentFeeds(
+          dispatch,
+          isStartup
+        ).catch(error =>
+          console.error(`Error trying to load component feeds: ${error}`)
+        );
+        promises.push(storiesPromise);
+      }
+      await Promise.all(promises);
       if (isStartup) {
         await this._maybeUpdateCachedData();
       }
@@ -1790,24 +1866,60 @@ class DiscoveryStreamFeed {
       case PREF_COLLECTIONS_ENABLED:
         this.onCollectionsChanged();
         break;
-      case PREF_USER_TOPSTORIES:
-      case PREF_SYSTEM_TOPSTORIES:
-        if (!action.data.value) {
+      case PREF_USER_TOPSITES:
+      case PREF_SYSTEM_TOPSITES:
+        if (
+          !(
+            this.showTopsites ||
+            (this.showStories && this.showSponsoredStories)
+          )
+        ) {
           // Ensure we delete any remote data potentially related to spocs.
           this.clearSpocs();
-        } else {
+        }
+        break;
+      case PREF_USER_TOPSTORIES:
+      case PREF_SYSTEM_TOPSTORIES:
+        if (
+          !(
+            this.showStories ||
+            (this.showTopsites && this.showSponsoredTopsites)
+          )
+        ) {
+          // Ensure we delete any remote data potentially related to spocs.
+          this.clearSpocs();
+        }
+        if (action.data.value) {
           this.enableStories();
         }
         break;
       // Check if spocs was disabled. Remove them if they were.
       case PREF_SHOW_SPONSORED:
-        if (!action.data.value) {
+      case PREF_SHOW_SPONSORED_TOPSITES:
+        const dispatch = update =>
+          this.store.dispatch(ac.BroadcastToContent(update));
+        // We refresh placements data because one of the spocs were turned off.
+        this.updatePlacements(
+          dispatch,
+          this.store.getState().DiscoveryStream.layout
+        );
+        // Currently the order of this is important.
+        // We need to check this after updatePlacements is called,
+        // because some of the spoc logic depends on the result of placement updates.
+        if (
+          !(
+            (this.showSponsoredStories ||
+              (this.showTopSites && this.showSponsoredTopSites)) &&
+            (this.showSponsoredTopsites ||
+              (this.showStories && this.showSponsoredStories))
+          )
+        ) {
           // Ensure we delete any remote data potentially related to spocs.
           this.clearSpocs();
         }
-        await this.loadSpocs(update =>
-          this.store.dispatch(ac.BroadcastToContent(update))
-        );
+        // Placements have changed so consider spocs expired, and reload them.
+        await this.cache.set("spocs", {});
+        await this.loadSpocs(dispatch);
         break;
     }
   }
@@ -2021,7 +2133,6 @@ class DiscoveryStreamFeed {
       case at.PREF_CHANGED:
         await this.onPrefChangedAction(action);
         if (action.data.name === "pocketConfig") {
-          // TODO Now that this is happening for real, do we need the placement changed function moved.
           await this.onPrefChange();
           this.setupPrefs(false /* isStartup */);
         }
@@ -2039,6 +2150,7 @@ class DiscoveryStreamFeed {
      `items` How many items to include in the primary card grid.
      `spocPositions` Changes the position of spoc cards.
      `spocPlacementData` Used to set the spoc content.
+     `spocTopsitesPlacementData` Used to set spoc content for topsites.
      `sponsoredCollectionsEnabled` Tuns on and off the sponsored collection section.
      `hybridLayout` Changes cards to smaller more compact cards only for specific breakpoints.
      `hideCardBackground` Removes Pocket card background and borders.
@@ -2053,6 +2165,7 @@ getHardcodedLayout = ({
   items = 21,
   spocPositions = [1, 5, 7, 11, 18, 20],
   spocPlacementData = { ad_types: [3617], zone_ids: [217758, 217995] },
+  spocTopsitesPlacementData,
   widgetPositions = [],
   widgetData = [],
   sponsoredCollectionsEnabled = false,
@@ -2079,6 +2192,24 @@ getHardcodedLayout = ({
               id: "newtab-section-header-topsites",
             },
           },
+          ...(spocTopsitesPlacementData
+            ? {
+                placement: {
+                  name: "sponsored-topsites",
+                  ad_types: spocTopsitesPlacementData.ad_types,
+                  zone_ids: spocTopsitesPlacementData.zone_ids,
+                },
+                spocs: {
+                  probability: 1,
+                  prefs: [PREF_SHOW_SPONSORED_TOPSITES],
+                  positions: [
+                    {
+                      index: 1,
+                    },
+                  ],
+                },
+              }
+            : {}),
           properties: {},
         },
         ...(sponsoredCollectionsEnabled

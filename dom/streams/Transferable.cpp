@@ -427,7 +427,7 @@ NS_IMPL_RELEASE_INHERITED(CrossRealmWritableUnderlyingSinkAlgorithms,
                           UnderlyingSinkAlgorithmsBase)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(
     CrossRealmWritableUnderlyingSinkAlgorithms)
-NS_INTERFACE_MAP_END_INHERITING(CrossRealmWritableUnderlyingSinkAlgorithms)
+NS_INTERFACE_MAP_END_INHERITING(UnderlyingSinkAlgorithmsBase)
 
 // https://streams.spec.whatwg.org/#abstract-opdef-setupcrossrealmtransformwritable
 MOZ_CAN_RUN_SCRIPT static void SetUpCrossRealmTransformWritable(
@@ -748,8 +748,6 @@ class CrossRealmReadableUnderlyingSourceAlgorithms final
     return Promise::CreateResolvedWithUndefined(mPort->GetParentObject(), aRv);
   }
 
-  void ErrorCallback() override {}
-
  protected:
   ~CrossRealmReadableUnderlyingSourceAlgorithms() override = default;
 
@@ -765,7 +763,7 @@ NS_IMPL_RELEASE_INHERITED(CrossRealmReadableUnderlyingSourceAlgorithms,
                           UnderlyingSourceAlgorithmsBase)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(
     CrossRealmReadableUnderlyingSourceAlgorithms)
-NS_INTERFACE_MAP_END_INHERITING(CrossRealmReadableUnderlyingSourceAlgorithms)
+NS_INTERFACE_MAP_END_INHERITING(UnderlyingSourceAlgorithmsBase)
 
 // https://streams.spec.whatwg.org/#abstract-opdef-setupcrossrealmtransformreadable
 MOZ_CAN_RUN_SCRIPT static void SetUpCrossRealmTransformReadable(
@@ -833,7 +831,8 @@ bool ReadableStream::Transfer(JSContext* aCx, UniqueMessagePortId& aPortId) {
   }
 
   // Step 5: Let writable be a new WritableStream in the current Realm.
-  RefPtr<WritableStream> writable = new WritableStream(mGlobal);
+  RefPtr<WritableStream> writable = new WritableStream(
+      mGlobal, WritableStream::HoldDropJSObjectsCaller::Implicit);
 
   // Step 6: Perform ! SetUpCrossRealmTransformWritable(writable, port1).
   // MOZ_KnownLive because Port1 never changes before CC
@@ -957,7 +956,8 @@ WritableStreamTransferReceivingStepsImpl(JSContext* aCx,
   // Step 2: Let port be a deserializedRecord.[[Deserialized]].
 
   // Step 3: Perform ! SetUpCrossRealmTransformWritable(value, port).
-  auto writable = MakeRefPtr<WritableStream>(aGlobal);
+  auto writable = MakeRefPtr<WritableStream>(
+      aGlobal, WritableStream::HoldDropJSObjectsCaller::Implicit);
   ErrorResult rv;
   SetUpCrossRealmTransformWritable(writable, &aPort, rv);
   if (rv.MaybeSetPendingException(aCx)) {

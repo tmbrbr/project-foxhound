@@ -519,8 +519,17 @@ ARIAGridCellAccessible::ARIAGridCellAccessible(nsIContent* aContent,
 }
 
 role ARIAGridCellAccessible::NativeRole() const {
-  a11y::role r = GetAccService()->MarkupRole(mContent);
-  return r != roles::NOTHING ? r : roles::CELL;
+  const a11y::role r = GetAccService()->MarkupRole(mContent);
+  if (r != role::NOTHING) {
+    return r;
+  }
+
+  // Special case to handle th elements mapped to ARIA grid cells.
+  if (GetContent() && GetContent()->IsHTMLElement(nsGkAtoms::th)) {
+    return GetHeaderCellRole(this);
+  }
+
+  return role::CELL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -571,9 +580,9 @@ void ARIAGridCellAccessible::ApplyARIAState(uint64_t* aState) const {
 
   nsIContent* rowContent = row->GetContent();
   if (nsAccUtils::HasDefinedARIAToken(rowContent, nsGkAtoms::aria_selected) &&
-      !rowContent->AsElement()->AttrValueIs(kNameSpaceID_None,
-                                            nsGkAtoms::aria_selected,
-                                            nsGkAtoms::_false, eCaseMatters)) {
+      !nsAccUtils::ARIAAttrValueIs(rowContent->AsElement(),
+                                   nsGkAtoms::aria_selected, nsGkAtoms::_false,
+                                   eCaseMatters)) {
     *aState |= states::SELECTABLE | states::SELECTED;
   }
 }

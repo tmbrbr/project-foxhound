@@ -8,10 +8,12 @@ import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 const lazy = {};
 
 XPCOMUtils.defineLazyGetter(lazy, "log", () => {
-  let { ConsoleAPI } = ChromeUtils.import("resource://gre/modules/Console.jsm");
+  let { ConsoleAPI } = ChromeUtils.importESModule(
+    "resource://gre/modules/Console.sys.mjs"
+  );
   let consoleOptions = {
     // tip: set maxLogLevel to "debug" and use log.debug() to create detailed
-    // messages during development. See LOG_LEVELS in Console.jsm for details.
+    // messages during development. See LOG_LEVELS in Console.sys.mjs for details.
     maxLogLevel: "error",
     maxLogLevelPref: "toolkit.backgroundtasks.loglevel",
     prefix: "BackgroundTasksUtils",
@@ -52,13 +54,12 @@ export var BackgroundTasksUtils = {
     if (!this._defaultProfileInitialized) {
       this._defaultProfileInitialized = true;
       // This is all test-only.
-      const env = Cc["@mozilla.org/process/environment;1"].getService(
-        Ci.nsIEnvironment
-      );
-      let defaultProfilePath = env.get(
+      let defaultProfilePath = Services.env.get(
         "MOZ_BACKGROUNDTASKS_DEFAULT_PROFILE_PATH"
       );
-      let noDefaultProfile = env.get("MOZ_BACKGROUNDTASKS_NO_DEFAULT_PROFILE");
+      let noDefaultProfile = Services.env.get(
+        "MOZ_BACKGROUNDTASKS_NO_DEFAULT_PROFILE"
+      );
       if (defaultProfilePath) {
         lazy.log.info(
           `getDefaultProfile: using default profile path ${defaultProfilePath}`
@@ -230,7 +231,7 @@ export var BackgroundTasksUtils = {
    * read from it.  If `lock` is given, read from the given lock's directory.
    *
    * @param {nsIProfileLock} [lock] optional lock to use
-   * @returns {string}
+   * @returns {object}
    */
   async readFirefoxMessagingSystemTargetingSnapshot(lock = null) {
     if (!lock) {

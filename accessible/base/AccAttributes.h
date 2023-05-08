@@ -145,6 +145,20 @@ class AccAttributes {
     return nullptr;
   }
 
+  template <typename T>
+  Maybe<T&> GetMutableAttribute(nsAtom* aAttrName) const {
+    static_assert(std::is_same_v<nsTArray<int32_t>, T> ||
+                      std::is_same_v<nsTArray<uint64_t>, T>,
+                  "Only arrays should be mutable attributes");
+    if (auto value = mData.Lookup(aAttrName)) {
+      if (value->is<T>()) {
+        T& val = value->as<T>();
+        return SomeRef(val);
+      }
+    }
+    return Nothing();
+  }
+
   // Get stringified value
   bool GetAttribute(nsAtom* aAttrName, nsAString& aAttrValue) const;
 
@@ -216,6 +230,9 @@ class AccAttributes {
       StringFromValueAndName(mName, *mValue, aValueString);
     }
 
+    // Size of the pair in the hash table.
+    size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf);
+
    private:
     nsAtom* mName;
     const AttrValueType* mValue;
@@ -258,6 +275,8 @@ class AccAttributes {
 #ifdef A11Y_LOG
   static void DebugPrint(const char* aPrefix, const AccAttributes& aAttributes);
 #endif
+
+  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf);
 
  private:
   static void StringFromValueAndName(nsAtom* aAttrName,

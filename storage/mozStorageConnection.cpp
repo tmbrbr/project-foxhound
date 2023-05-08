@@ -717,18 +717,12 @@ nsresult Connection::initialize(nsIFile* aDatabaseFile) {
   nsresult rv = aDatabaseFile->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
-#ifdef XP_WIN
-  static const char* sIgnoreLockingVFS = "win32-none";
-#else
-  static const char* sIgnoreLockingVFS = "unix-none";
-#endif
-
   bool exclusive = StaticPrefs::storage_sqlite_exclusiveLock_enabled();
   int srv;
   if (mIgnoreLockingMode) {
     exclusive = false;
     srv = ::sqlite3_open_v2(NS_ConvertUTF16toUTF8(path).get(), &mDBConn, mFlags,
-                            sIgnoreLockingVFS);
+                            "readonly-immutable-nolock");
   } else {
     srv = ::sqlite3_open_v2(NS_ConvertUTF16toUTF8(path).get(), &mDBConn, mFlags,
                             GetTelemetryVFSName(exclusive));
@@ -797,13 +791,15 @@ nsresult Connection::initialize(nsIFileURL* aFileURL,
   nsAutoCString query;
   rv = aFileURL->GetQuery(query);
   NS_ENSURE_SUCCESS(rv, rv);
+
   const char* const vfs =
-      URLParams::Parse(query,
-                       [](const nsAString& aName, const nsAString& aValue) {
-                         return aName.EqualsLiteral("key");
-                       })
+      !URLParams::Parse(query,
+                        [](const nsAString& aName, const nsAString& aValue) {
+                          return !aName.EqualsLiteral("key");
+                        })
           ? GetObfuscatingVFSName()
           : GetTelemetryVFSName(exclusive);
+
   int srv = ::sqlite3_open_v2(spec.get(), &mDBConn, mFlags, vfs);
   if (srv != SQLITE_OK) {
     mDBConn = nullptr;

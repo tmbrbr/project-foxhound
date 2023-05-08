@@ -463,7 +463,12 @@ SyncScheduler.prototype = {
         this._log.trace(
           "Engine " + data + " successfully applied " + numItems + " items."
         );
-        if (numItems) {
+        // Bug 1800186 - the tabs engine always reports incoming items, so we don't
+        // want special scheduling in this scenario.
+        // (However, even when we fix the underlying cause of that, we probably still can
+        // ignore tabs here - new incoming tabs don't need to trigger the extra syncs we do
+        // based on this flag.)
+        if (data != "tabs" && numItems) {
           this.hasIncomingItems = true;
         }
         if (subject.newFailed) {
@@ -974,7 +979,7 @@ ErrorHandler.prototype = {
     }
     const logType = await logManager.resetFileLog();
     if (logType == logManager.ERROR_LOG_WRITTEN) {
-      Cu.reportError(
+      console.error(
         "Sync encountered an error - see about:sync-log for the log file."
       );
     }

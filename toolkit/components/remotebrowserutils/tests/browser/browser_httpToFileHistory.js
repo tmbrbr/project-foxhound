@@ -1,5 +1,5 @@
-const { E10SUtils } = ChromeUtils.import(
-  "resource://gre/modules/E10SUtils.jsm"
+const { E10SUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/E10SUtils.sys.mjs"
 );
 
 const HISTORY = [
@@ -24,9 +24,7 @@ async function runTest() {
     let count = 0;
     let index = -1;
     for (let { url } of HISTORY) {
-      SpecialPowers.spawn(aBrowser, [url], url => {
-        content.location.href = url;
-      });
+      BrowserTestUtils.loadURI(aBrowser, url);
 
       await BrowserTestUtils.browserLoaded(aBrowser, false, loaded => {
         return (

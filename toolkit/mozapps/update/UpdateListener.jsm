@@ -6,11 +6,11 @@
 
 var EXPORTED_SYMBOLS = ["UpdateListener"];
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
-const { clearTimeout, setTimeout } = ChromeUtils.import(
-  "resource://gre/modules/Timer.jsm"
+const { clearTimeout, setTimeout } = ChromeUtils.importESModule(
+  "resource://gre/modules/Timer.sys.mjs"
 );
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
@@ -251,6 +251,7 @@ var UpdateListener = {
 
   showUpdateAvailableNotification(update, dismissed) {
     this.showUpdateNotification("available", false, dismissed, () => {
+      // This is asynchronous, but we are just going to kick it off.
       lazy.AppUpdateService.downloadUpdate(update, true);
     });
   },
@@ -263,7 +264,7 @@ var UpdateListener = {
 
   showUnsupportedUpdateNotification(update, dismissed) {
     if (!update || !update.detailsURL) {
-      Cu.reportError(
+      console.error(
         "The update for an unsupported notification must have a " +
           "detailsURL attribute."
       );

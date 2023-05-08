@@ -7,11 +7,11 @@
 
 var EXPORTED_SYMBOLS = ["ExtensionTestUtils"];
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
-const { XPCShellContentUtils } = ChromeUtils.import(
-  "resource://testing-common/XPCShellContentUtils.jsm"
+const { XPCShellContentUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/XPCShellContentUtils.sys.mjs"
 );
 
 const lazy = {};
@@ -46,7 +46,7 @@ ChromeUtils.defineModuleGetter(
 );
 
 let BASE_MANIFEST = Object.freeze({
-  applications: Object.freeze({
+  browser_specific_settings: Object.freeze({
     gecko: Object.freeze({
       id: "test@web.ext",
     }),
@@ -265,6 +265,7 @@ class ExtensionWrapper {
 
   /**
    * This method sends the message to force-sleep the background scripts.
+   *
    * @returns {Promise} resolves after the background is asleep and listeners primed.
    */
   terminateBackground(...args) {
@@ -529,7 +530,7 @@ class InstallableWrapper extends AOMExtensionWrapper {
     let { addonData } = this;
     if (addonData && addonData.incognitoOverride) {
       try {
-        let { id } = addonData.manifest.applications.gecko;
+        let { id } = addonData.manifest.browser_specific_settings.gecko;
         if (id) {
           return lazy.ExtensionTestCommon.setIncognitoOverride({
             id,
@@ -790,10 +791,12 @@ var ExtensionTestUtils = {
    * @param {string} [options.redirectUrl]
    *        An optional URL that the initial page is expected to
    *        redirect to.
+   * @param {...any} args
+   *        Extra parameters to ensure compatibility
    *
    * @returns {ContentPage}
    */
-  loadContentPage(...args) {
-    return XPCShellContentUtils.loadContentPage(...args);
+  loadContentPage(url, options, ...args) {
+    return XPCShellContentUtils.loadContentPage(url, options, ...args);
   },
 };

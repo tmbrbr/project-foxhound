@@ -10,18 +10,13 @@ const BROWSER_TOOLBOX_WINDOW_URL =
   "chrome://devtools/content/framework/browser-toolbox/window.html";
 const CHROME_DEBUGGER_PROFILE_NAME = "chrome_debugger_profile";
 
+import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
+import { require } from "resource://devtools/shared/loader/Loader.sys.mjs";
 import {
-  require,
   useDistinctSystemPrincipalLoader,
   releaseDistinctSystemPrincipalLoader,
-} from "resource://devtools/shared/loader/Loader.sys.mjs";
-
-const { Subprocess } = ChromeUtils.import(
-  "resource://gre/modules/Subprocess.jsm"
-);
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
-);
+} from "resource://devtools/shared/loader/DistinctSystemPrincipalLoader.sys.mjs";
+import { Subprocess } from "resource://gre/modules/Subprocess.sys.mjs";
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = {};
@@ -43,10 +38,6 @@ XPCOMUtils.defineLazyServiceGetters(lazy, {
 
 const Telemetry = require("resource://devtools/client/shared/telemetry.js");
 const EventEmitter = require("resource://devtools/shared/event-emitter.js");
-
-const env = Cc["@mozilla.org/process/environment;1"].getService(
-  Ci.nsIEnvironment
-);
 
 const processes = new Set();
 
@@ -299,7 +290,7 @@ export class BrowserToolboxLauncher extends EventEmitter {
     // so that you could pass an optimized build for the browser toolbox.
     // This is also useful when debugging a patch that break devtools,
     // so that you could use a build that works for the browser toolbox.
-    const customBinaryPath = env.get("MOZ_BROWSER_TOOLBOX_BINARY");
+    const customBinaryPath = Services.env.get("MOZ_BROWSER_TOOLBOX_BINARY");
     if (customBinaryPath) {
       command = customBinaryPath;
       profilePath = lazy.FileUtils.getDir(
@@ -330,7 +321,9 @@ export class BrowserToolboxLauncher extends EventEmitter {
     const environment = {
       // Allow recording the startup of the browser toolbox when setting
       // MOZ_BROWSER_TOOLBOX_PROFILER_STARTUP=1 when running firefox.
-      MOZ_PROFILER_STARTUP: env.get("MOZ_BROWSER_TOOLBOX_PROFILER_STARTUP"),
+      MOZ_PROFILER_STARTUP: Services.env.get(
+        "MOZ_BROWSER_TOOLBOX_PROFILER_STARTUP"
+      ),
       // And prevent profiling any subsequent toolbox
       MOZ_BROWSER_TOOLBOX_PROFILER_STARTUP: "0",
 

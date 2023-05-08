@@ -1,9 +1,10 @@
 from __future__ import absolute_import, print_function
+
 import os
 import time
 
-from marionette_harness import MarionetteTestCase
 from marionette_driver.errors import NoAlertPresentException
+from marionette_harness import MarionetteTestCase
 
 
 # Holds info about things we need to cleanup after the tests are done.
@@ -118,18 +119,11 @@ class TestFirefoxRefresh(MarionetteTestCase):
             value: arguments[1],
             firstUsed: (Date.now() - 5000) * 1000,
           };
-          let finished = false;
           let resolve = arguments[arguments.length - 1];
-          global.FormHistory.update(updateDefinition, {
-            handleError(error) {
-              finished = true;
-              resolve(error);
-            },
-            handleCompletion() {
-              if (!finished) {
-                resolve(false);
-              }
-            }
+          global.FormHistory.update(updateDefinition).then(() => {
+            resolve(false);
+          }, error => {
+            resolve("Unexpected error in adding formhistory: " + error);
           });
         """,
             script_args=(self._formHistoryFieldName, self._formHistoryValue),
@@ -185,8 +179,8 @@ class TestFirefoxRefresh(MarionetteTestCase):
           let resolve = arguments[arguments.length - 1];
           const COMPLETE_STATE = Ci.nsIWebProgressListener.STATE_STOP +
                                  Ci.nsIWebProgressListener.STATE_IS_NETWORK;
-          let { TabStateFlusher } = ChromeUtils.import(
-            "resource:///modules/sessionstore/TabStateFlusher.jsm"
+          let { TabStateFlusher } = ChromeUtils.importESModule(
+            "resource:///modules/sessionstore/TabStateFlusher.sys.mjs"
           );
           let expectedURLs = Array.from(arguments[0])
           gBrowser.addTabsProgressListener({
@@ -322,17 +316,8 @@ class TestFirefoxRefresh(MarionetteTestCase):
             """
           let resolve = arguments[arguments.length - 1];
           let results = [];
-          global.FormHistory.search(["value"], {fieldname: arguments[0]}, {
-            handleError(error) {
-              results = error;
-            },
-            handleResult(result) {
-              results.push(result);
-            },
-            handleCompletion() {
-              resolve(results);
-            },
-          });
+          global.FormHistory.search(["value"], {fieldname: arguments[0]})
+            .then(resolve);
         """,
             script_args=(self._formHistoryFieldName,),
         )
@@ -352,14 +337,7 @@ class TestFirefoxRefresh(MarionetteTestCase):
         formHistoryCount = self.runAsyncCode(
             """
           let [resolve] = arguments;
-          let count;
-          let callbacks = {
-            handleResult: rv => count = rv,
-            handleCompletion() {
-              resolve(count);
-            },
-          };
-          global.FormHistory.count({}, callbacks);
+          global.FormHistory.count({}).then(resolve);
         """
         )
         self.assertEqual(
@@ -534,8 +512,8 @@ class TestFirefoxRefresh(MarionetteTestCase):
           window.global = {};
           global.LoginInfo = Components.Constructor("@mozilla.org/login-manager/loginInfo;1", "nsILoginInfo", "init");
           global.profSvc = Cc["@mozilla.org/toolkit/profile-service;1"].getService(Ci.nsIToolkitProfileService);
-          global.Preferences = ChromeUtils.import(
-            "resource://gre/modules/Preferences.jsm"
+          global.Preferences = ChromeUtils.importESModule(
+            "resource://gre/modules/Preferences.sys.mjs"
           ).Preferences;
           global.FormHistory = ChromeUtils.import(
             "resource://gre/modules/FormHistory.jsm"
@@ -621,18 +599,18 @@ class TestFirefoxRefresh(MarionetteTestCase):
           global.profSvc.flush()
 
           // Now add the reset parameters:
-          let env = Cc["@mozilla.org/process/environment;1"].getService(Ci.nsIEnvironment);
           let prefsToKeep = Array.from(Services.prefs.getChildList("marionette."));
           // Add all the modified preferences set from geckoinstance.py to avoid
           // non-local connections.
-          prefsToKeep = prefsToKeep.concat(JSON.parse(env.get("MOZ_MARIONETTE_REQUIRED_PREFS")));
+          prefsToKeep = prefsToKeep.concat(JSON.parse(
+              Services.env.get("MOZ_MARIONETTE_REQUIRED_PREFS")));
           let prefObj = {};
           for (let pref of prefsToKeep) {
             prefObj[pref] = global.Preferences.get(pref);
           }
-          env.set("MOZ_MARIONETTE_PREF_STATE_ACROSS_RESTARTS", JSON.stringify(prefObj));
-          env.set("MOZ_RESET_PROFILE_RESTART", "1");
-          env.set("XRE_PROFILE_PATH", arguments[0]);
+          Services.env.set("MOZ_MARIONETTE_PREF_STATE_ACROSS_RESTARTS", JSON.stringify(prefObj));
+          Services.env.set("MOZ_RESET_PROFILE_RESTART", "1");
+          Services.env.set("XRE_PROFILE_PATH", arguments[0]);
         """,
             script_args=(
                 self.marionette.instance.profile.profile,

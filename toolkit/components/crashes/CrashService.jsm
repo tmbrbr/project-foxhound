@@ -4,8 +4,8 @@
 
 "use strict";
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const { AsyncShutdown } = ChromeUtils.import(
   "resource://gre/modules/AsyncShutdown.jsm"
@@ -24,10 +24,7 @@ var gRunningProcesses = new Set();
  * don't want to block shutdown waiting for it.
  */
 async function maybeRunMinidumpAnalyzer(minidumpPath, allThreads) {
-  let env = Cc["@mozilla.org/process/environment;1"].getService(
-    Ci.nsIEnvironment
-  );
-  let shutdown = env.exists("MOZ_CRASHREPORTER_SHUTDOWN");
+  let shutdown = Services.env.exists("MOZ_CRASHREPORTER_SHUTDOWN");
 
   if (gQuitting || shutdown) {
     return;
@@ -189,11 +186,8 @@ CrashService.prototype = Object.freeze({
         throw new Error("Unrecognized CRASH_TYPE: " + crashType);
     }
 
-    let cr = Cc["@mozilla.org/toolkit/crash-reporter;1"].getService(
-      Ci.nsICrashReporter
-    );
-    let minidumpPath = cr.getMinidumpForID(id).path;
-    let extraPath = cr.getExtraFileForID(id).path;
+    let minidumpPath = Services.appinfo.getMinidumpForID(id).path;
+    let extraPath = Services.appinfo.getExtraFileForID(id).path;
     let metadata = {};
     let hash = null;
 

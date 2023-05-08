@@ -19,7 +19,7 @@ const STORAGE_SYNC_PREF = "webextensions.storage.sync.enabled";
  *        either "local" or "sync" according to what we want to test
  * @param {string} prop
  *        "key" to look up using the storage API
- * @param {Object} value
+ * @param {object} value
  *        "value" to compare against
  */
 async function checkGetImpl(areaName, prop, value) {
@@ -136,7 +136,7 @@ function test_sync_reloading_extensions_works() {
 
       return ExtensionTestUtils.loadExtension({
         manifest: {
-          applications: { gecko: { id: extensionId } },
+          browser_specific_settings: { gecko: { id: extensionId } },
           permissions: ["storage"],
         },
         background: `(${background})()`,
@@ -750,7 +750,7 @@ async function test_background_storage_area_no_bytes_in_use(area) {
   const extensionDef = {
     manifest: {
       permissions: ["storage"],
-      applications: { gecko: { id: EXT_ID } },
+      browser_specific_settings: { gecko: { id: EXT_ID } },
     },
     background: `(${check_storage_area_no_bytes_in_use})("${area}")`,
   };
@@ -875,7 +875,7 @@ async function test_background_storage_area_with_bytes_in_use(
   const extensionDef = {
     manifest: {
       permissions: ["storage"],
-      applications: { gecko: { id: EXT_ID } },
+      browser_specific_settings: { gecko: { id: EXT_ID } },
     },
     background: `(${check_storage_area_with_bytes_in_use})("${area}", ${expectQuota})`,
   };

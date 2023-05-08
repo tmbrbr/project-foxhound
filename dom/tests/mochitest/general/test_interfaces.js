@@ -277,6 +277,8 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "CSSConditionRule", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "CSSContainerRule", insecureContext: true, nightly: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "CSSCounterStyleRule", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "CSSFontFaceRule", insecureContext: true },
@@ -332,8 +334,6 @@ let interfaceNamesInGlobalScope = [
   { name: "DataTransferItemList", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "DelayNode", insecureContext: true },
-  // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "DeprecationReportBody", insecureContext: true, nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "DeviceLightEvent", insecureContext: true, disabled: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -762,25 +762,21 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "MessagePort", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "MIDIAccess", android: false, disabled: !isEarlyBetaOrEarlier },
+  { name: "MIDIAccess", android: false },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  {
-    name: "MIDIConnectionEvent",
-    android: false,
-    disabled: !isEarlyBetaOrEarlier,
-  },
+  { name: "MIDIConnectionEvent", android: false },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "MIDIInputMap", android: false, disabled: !isEarlyBetaOrEarlier },
+  { name: "MIDIInputMap", android: false },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "MIDIInput", android: false, disabled: !isEarlyBetaOrEarlier },
+  { name: "MIDIInput", android: false },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "MIDIMessageEvent", android: false, disabled: !isEarlyBetaOrEarlier },
+  { name: "MIDIMessageEvent", android: false },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "MIDIOutputMap", android: false, disabled: !isEarlyBetaOrEarlier },
+  { name: "MIDIOutputMap", android: false },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "MIDIOutput", android: false, disabled: !isEarlyBetaOrEarlier },
+  { name: "MIDIOutput", android: false },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "MIDIPort", android: false, disabled: !isEarlyBetaOrEarlier },
+  { name: "MIDIPort", android: false },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "MimeType", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -958,12 +954,6 @@ let interfaceNamesInGlobalScope = [
   { name: "ReadableStreamDefaultController", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "ReadableStreamDefaultReader", insecureContext: true },
-  // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "Report", insecureContext: true, nightly: true },
-  // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "ReportBody", insecureContext: true, nightly: true },
-  // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "ReportingObserver", insecureContext: true, nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "Request", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -1622,8 +1612,6 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "onloadedmetadata", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "onloadend", insecureContext: true },
-  // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "onloadstart", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "onlostpointercapture", insecureContext: true },
@@ -1695,6 +1683,8 @@ let interfaceNamesInGlobalScope = [
   { name: "onresize", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "onscroll", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "onscrollend", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "onsecuritypolicyviolation", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!

@@ -40,34 +40,21 @@ add_setup(async function() {
   searchIcon = searchbar.querySelector(".searchbar-search-button");
   goButton = searchbar.querySelector(".search-go-button");
 
-  let defaultEngine = await Services.search.getDefault();
-  engine = await SearchTestUtils.promiseNewSearchEngine(
-    getRootDirectory(gTestPath) + "testEngine.xml"
-  );
-  await Services.search.setDefault(
-    engine,
-    Ci.nsISearchService.CHANGE_REASON_UNKNOWN
-  );
+  engine = await SearchTestUtils.promiseNewSearchEngine({
+    url: getRootDirectory(gTestPath) + "testEngine.xml",
+    setAsDefault: true,
+  });
 
   await clearSearchbarHistory();
 
-  await new Promise((resolve, reject) => {
-    info("adding search history values: " + kValues);
-    let addOps = kValues.map(value => {
-      return { op: "add", fieldname: "searchbar-history", value };
-    });
-    FormHistory.update(addOps, {
-      handleCompletion: resolve,
-      handleError: reject,
-    });
+  let addOps = kValues.map(value => {
+    return { op: "add", fieldname: "searchbar-history", value };
   });
+  info("adding search history values: " + kValues);
+  await FormHistory.update(addOps);
 
   registerCleanupFunction(async () => {
     await clearSearchbarHistory();
-    await Services.search.setDefault(
-      defaultEngine,
-      Ci.nsISearchService.CHANGE_REASON_UNKNOWN
-    );
     gCUITestUtils.removeSearchBar();
   });
 });

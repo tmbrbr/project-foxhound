@@ -572,6 +572,12 @@ CanonicalBrowsingContext::CreateLoadingSessionHistoryEntryForLoad(
     if (!entry) {
       return nullptr;
     }
+
+    // If the entry was updated, update also the LoadingSessionHistoryInfo.
+    UniquePtr<LoadingSessionHistoryInfo> lshi =
+        MakeUnique<LoadingSessionHistoryInfo>(entry, existingLoadingInfo);
+    aLoadState->SetLoadingSessionHistoryInfo(std::move(lshi));
+    existingLoadingInfo = aLoadState->GetLoadingSessionHistoryInfo();
     Unused << SetHistoryEntryCount(entry->BCHistoryLength());
   } else if (aLoadState->LoadType() == LOAD_REFRESH &&
              !ShouldAddEntryForRefresh(aLoadState->URI(),
@@ -1289,10 +1295,6 @@ void CanonicalBrowsingContext::AddFinalDiscardListener(
     return;
   }
   mFullyDiscardedListeners.AppendElement(std::move(aListener));
-}
-
-net::EarlyHintsService* CanonicalBrowsingContext::GetEarlyHintsService() {
-  return &mEarlyHintsService;
 }
 
 void CanonicalBrowsingContext::AdjustPrivateBrowsingCount(
@@ -2424,8 +2426,8 @@ void CanonicalBrowsingContext::RestoreState::Resolve() {
 
 nsresult CanonicalBrowsingContext::WriteSessionStorageToSessionStore(
     const nsTArray<SSCacheCopy>& aSesssionStorage, uint32_t aEpoch) {
-  nsCOMPtr<nsISessionStoreFunctions> funcs = do_ImportModule(
-      "resource://gre/modules/SessionStoreFunctions.jsm", fallible);
+  nsCOMPtr<nsISessionStoreFunctions> funcs = do_ImportESModule(
+      "resource://gre/modules/SessionStoreFunctions.sys.mjs", fallible);
   if (!funcs) {
     return NS_ERROR_FAILURE;
   }

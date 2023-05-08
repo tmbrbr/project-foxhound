@@ -375,7 +375,7 @@ RemoteDecoderManagerChild::CreateVideoDecoder(
             params.mKnowsCompositor
                 ? Some(params.mKnowsCompositor->GetTextureFactoryIdentifier())
                 : Nothing(),
-            params.mMediaEngineId);
+            params.mMediaEngineId, params.mTrackingId);
         if (NS_FAILED(result)) {
           return PlatformDecoderModule::CreateDecoderPromise::CreateAndReject(
               result, __func__);
@@ -497,8 +497,9 @@ RemoteDecoderManagerChild::LaunchRDDProcessIfNeeded() {
             });
       });
 
+  // This should not be dispatched to a threadpool thread, so use managerThread
   p = p->Then(
-      GetCurrentSerialEventTarget(), __func__,
+      managerThread, __func__,
       [](const GenericNonExclusivePromise::ResolveOrRejectValue& aResult) {
         StaticMutexAutoLock lock(sLaunchMutex);
         sLaunchPromises[RemoteDecodeIn::RddProcess] = nullptr;
@@ -589,8 +590,19 @@ RemoteDecoderManagerChild::LaunchUtilityProcessIfNeeded(
                    });
       });
 
+  // Let's make sure this promise is also run on the managerThread to avoid
+  // situations where it would be run on a threadpool thread.
+  // During bug 1794988 this was happening when enabling Utility for audio on
+  // Android when running the sequence of tests
+  //   dom/media/test/test_access_control.html
+  //   dom/media/test/test_arraybuffer.html
+  //
+  // We would have a launched utility process but the promises would not have
+  // been cleared, so any subsequent tentative to perform audio decoding would
+  // think the process is not yet ran and it would try to wait on the pending
+  // promises.
   p = p->Then(
-      GetCurrentSerialEventTarget(), __func__,
+      managerThread, __func__,
       [aLocation](
           const GenericNonExclusivePromise::ResolveOrRejectValue& aResult) {
         StaticMutexAutoLock lock(sLaunchMutex);
@@ -644,7 +656,8 @@ PRemoteDecoderChild* RemoteDecoderManagerChild::AllocPRemoteDecoderChild(
     const RemoteDecoderInfoIPDL& /* not used */,
     const CreateDecoderParams::OptionSet& aOptions,
     const Maybe<layers::TextureFactoryIdentifier>& aIdentifier,
-    const Maybe<uint64_t>& aMediaEngineId) {
+    const Maybe<uint64_t>& aMediaEngineId,
+    const Maybe<TrackingId>& aTrackingId) {
   // RemoteDecoderModule is responsible for creating RemoteDecoderChild
   // classes.
   MOZ_ASSERT(false,

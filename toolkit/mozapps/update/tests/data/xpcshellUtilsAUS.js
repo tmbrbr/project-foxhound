@@ -27,24 +27,17 @@
 
 "use strict";
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
-const { TestUtils } = ChromeUtils.import(
-  "resource://testing-common/TestUtils.jsm"
-);
-
-ChromeUtils.defineModuleGetter(
-  this,
-  "MockRegistrar",
-  "resource://testing-common/MockRegistrar.jsm"
+const { TestUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/TestUtils.sys.mjs"
 );
 
-ChromeUtils.defineModuleGetter(
-  this,
-  "updateAppInfo",
-  "resource://testing-common/AppInfo.jsm"
-);
+ChromeUtils.defineESModuleGetters(this, {
+  MockRegistrar: "resource://testing-common/MockRegistrar.sys.mjs",
+  updateAppInfo: "resource://testing-common/AppInfo.sys.mjs",
+});
 
 const Cm = Components.manager;
 
@@ -138,6 +131,7 @@ var gTestID;
 // This default value will be overridden when using the http server.
 var gURLData = URL_HOST + "/";
 var gTestserver;
+var gUpdateCheckCount = 0;
 
 var gIncrementalDownloadErrorType;
 
@@ -1907,6 +1901,7 @@ function logUpdateLog(aLogLeafName) {
   if (updateLog.exists()) {
     // xpcshell tests won't display the entire contents so log each line.
     let updateLogContents = readFileBytes(updateLog).replace(/\r\n/g, "\n");
+    updateLogContents = removeTimeStamps(updateLogContents);
     updateLogContents = replaceLogPaths(updateLogContents);
     let aryLogContents = updateLogContents.split("\n");
     logTestInfo("contents of " + updateLog.path + ":");
@@ -1925,6 +1920,7 @@ function logUpdateLog(aLogLeafName) {
     if (updateLog.exists()) {
       // xpcshell tests won't display the entire contents so log each line.
       let updateLogContents = readFileBytes(updateLog).replace(/\r\n/g, "\n");
+      updateLogContents = removeTimeStamps(updateLogContents);
       updateLogContents = replaceLogPaths(updateLogContents);
       let aryLogContents = updateLogContents.split("\n");
       logTestInfo("contents of " + updateLog.path + ":");
@@ -2022,7 +2018,7 @@ function runUpdate(
   let pid = 0;
   if (gPIDPersistProcess) {
     pid = gPIDPersistProcess.pid;
-    gEnv.set("MOZ_TEST_SHORTER_WAIT_PID", "1");
+    Services.env.set("MOZ_TEST_SHORTER_WAIT_PID", "1");
   }
 
   let updateBin = copyTestUpdaterToBinDir();
@@ -2078,7 +2074,7 @@ function runUpdate(
   resetEnvironment();
 
   if (gPIDPersistProcess) {
-    gEnv.set("MOZ_TEST_SHORTER_WAIT_PID", "");
+    Services.env.set("MOZ_TEST_SHORTER_WAIT_PID", "");
   }
 
   let status = readStatusFile();
@@ -3346,6 +3342,20 @@ function replaceLogPaths(aLogContents) {
 }
 
 /**
+ * Helper function that removes the timestamps in the update log
+ *
+ * @param   aLogContents
+ *          The update log file's contents.
+ * @return  the log contents without timestamps
+ */
+function removeTimeStamps(aLogContents) {
+  return aLogContents.replace(
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[+-]\d{4}: /gm,
+    ""
+  );
+}
+
+/**
  * Helper function for updater binary tests for verifying the contents of the
  * update log after a successful update.
  *
@@ -3373,6 +3383,9 @@ function checkUpdateLogContents(
 
   let updateLog = getUpdateDirFile(FILE_LAST_UPDATE_LOG);
   let updateLogContents = readFileBytes(updateLog);
+
+  // Remove leading timestamps
+  updateLogContents = removeTimeStamps(updateLogContents);
 
   // The channel-prefs.js is defined in gTestFilesCommon which will always be
   // located to the end of gTestFiles when it is present.
@@ -3476,6 +3489,9 @@ function checkUpdateLogContents(
     compareLogContents = PERFORMING_STAGED_UPDATE + "\n" + compareLogContents;
   }
 
+  // Remove leading timestamps
+  compareLogContents = removeTimeStamps(compareLogContents);
+
   // The channel-prefs.js is defined in gTestFilesCommon which will always be
   // located to the end of gTestFiles.
   if (
@@ -3527,8 +3543,9 @@ function checkUpdateLogContents(
           "the first incorrect line is line #" +
             i +
             " and the " +
-            "value is: " +
-            aryLog[i]
+            "value is: '" +
+            aryLog[i] +
+            "'"
         );
         Assert.equal(
           aryLog[i],
@@ -3551,11 +3568,16 @@ function checkUpdateLogContents(
 function checkUpdateLogContains(aCheckString) {
   let updateLog = getUpdateDirFile(FILE_LAST_UPDATE_LOG);
   let updateLogContents = readFileBytes(updateLog).replace(/\r\n/g, "\n");
+  updateLogContents = removeTimeStamps(updateLogContents);
   updateLogContents = replaceLogPaths(updateLogContents);
   Assert.notEqual(
     updateLogContents.indexOf(aCheckString),
     -1,
-    "the update log contents should contain value: " + aCheckString
+    "the update log '" +
+      updateLog +
+      "' contents should contain value: '" +
+      aCheckString +
+      "'"
   );
 }
 
@@ -4085,50 +4107,42 @@ function checkFilesInDirRecursive(aDir, aCallback) {
 }
 
 /**
- * Waits for an update check request to complete.
+ * Waits for an update check request to complete and asserts that the results
+ * are as-expected.
  *
  * @param   aSuccess
  *          Whether the update check succeeds or not. If aSuccess is true then
- *          onCheckComplete should be called and if aSuccess is false then
- *          onError should be called.
+ *          the check should succeed and if aSuccess is false then the check
+ *          should fail.
  * @param   aExpectedValues
  *          An object with common values to check.
- * @return  A promise which will resolve the first time either the update check
- *          onCheckComplete or onError occurs and returns the arguments from
- *          onCheckComplete or onError.
+ * @return  A promise which will resolve with the nsIUpdateCheckResult object
+ *          once the update check is complete.
  */
-function waitForUpdateCheck(aSuccess, aExpectedValues = {}) {
-  return new Promise(resolve =>
-    gUpdateChecker.checkForUpdates(
-      {
-        onProgress: (aRequest, aPosition, aTotalSize) => {},
-        onCheckComplete: async (request, updates) => {
-          Assert.ok(aSuccess, "the update check should succeed");
-          if (aExpectedValues.updateCount) {
-            Assert.equal(
-              aExpectedValues.updateCount,
-              updates.length,
-              "the update count" + MSG_SHOULD_EQUAL
-            );
-          }
-          resolve({ request, updates });
-        },
-        onError: async (request, update) => {
-          Assert.ok(!aSuccess, "the update check should error");
-          if (aExpectedValues.url) {
-            Assert.equal(
-              aExpectedValues.url,
-              request.channel.originalURI.spec,
-              "the url" + MSG_SHOULD_EQUAL
-            );
-          }
-          resolve({ request, update });
-        },
-        QueryInterface: ChromeUtils.generateQI(["nsIUpdateCheckListener"]),
-      },
-      true
-    )
+async function waitForUpdateCheck(aSuccess, aExpectedValues = {}) {
+  let check = gUpdateChecker.checkForUpdates(gUpdateChecker.FOREGROUND_CHECK);
+  let result = await check.result;
+  Assert.ok(result.checksAllowed, "We should be able to check for updates");
+  Assert.equal(
+    result.succeeded,
+    aSuccess,
+    "the update check should " + (aSuccess ? "succeed" : "error")
   );
+  if (aExpectedValues.updateCount) {
+    Assert.equal(
+      aExpectedValues.updateCount,
+      result.updates.length,
+      "the update count" + MSG_SHOULD_EQUAL
+    );
+  }
+  if (aExpectedValues.url) {
+    Assert.equal(
+      aExpectedValues.url,
+      result.request.channel.originalURI.spec,
+      "the url" + MSG_SHOULD_EQUAL
+    );
+  }
+  return result;
 }
 
 /**
@@ -4143,9 +4157,9 @@ function waitForUpdateCheck(aSuccess, aExpectedValues = {}) {
  * @return  A promise which will resolve the first time the update download
  *          onStopRequest occurs and returns the arguments from onStopRequest.
  */
-function waitForUpdateDownload(aUpdates, aExpectedStatus) {
+async function waitForUpdateDownload(aUpdates, aExpectedStatus) {
   let bestUpdate = gAUS.selectUpdate(aUpdates);
-  let success = gAUS.downloadUpdate(bestUpdate, false);
+  let success = await gAUS.downloadUpdate(bestUpdate, false);
   if (!success) {
     do_throw("nsIApplicationUpdateService:downloadUpdate returned " + success);
   }
@@ -4206,6 +4220,7 @@ function start_httpserver() {
  *          The http response for the request.
  */
 function pathHandler(aMetadata, aResponse) {
+  gUpdateCheckCount += 1;
   aResponse.setHeader("Content-Type", "text/xml", false);
   aResponse.setStatusLine(aMetadata.httpVersion, 200, "OK");
   aResponse.bodyOutputStream.write(gResponseBody, gResponseBody.length);
@@ -4691,7 +4706,7 @@ function setEnvironment() {
     // set an environment variable and have the test updater set the current
     // working directory than it is to set the current working directory in the
     // test itself.
-    gEnv.set("CURWORKDIRPATH", getApplyDirFile().path);
+    Services.env.set("CURWORKDIRPATH", getApplyDirFile().path);
   }
 
   // Prevent setting the environment more than once.
@@ -4703,28 +4718,28 @@ function setEnvironment() {
 
   if (
     AppConstants.platform == "win" &&
-    !gEnv.exists("XRE_NO_WINDOWS_CRASH_DIALOG")
+    !Services.env.exists("XRE_NO_WINDOWS_CRASH_DIALOG")
   ) {
     gAddedEnvXRENoWindowsCrashDialog = true;
     debugDump(
       "setting the XRE_NO_WINDOWS_CRASH_DIALOG environment " +
         "variable to 1... previously it didn't exist"
     );
-    gEnv.set("XRE_NO_WINDOWS_CRASH_DIALOG", "1");
+    Services.env.set("XRE_NO_WINDOWS_CRASH_DIALOG", "1");
   }
 
-  if (gEnv.exists("XPCOM_MEM_LEAK_LOG")) {
-    gEnvXPCOMMemLeakLog = gEnv.get("XPCOM_MEM_LEAK_LOG");
+  if (Services.env.exists("XPCOM_MEM_LEAK_LOG")) {
+    gEnvXPCOMMemLeakLog = Services.env.get("XPCOM_MEM_LEAK_LOG");
     debugDump(
       "removing the XPCOM_MEM_LEAK_LOG environment variable... " +
         "previous value " +
         gEnvXPCOMMemLeakLog
     );
-    gEnv.set("XPCOM_MEM_LEAK_LOG", "");
+    Services.env.set("XPCOM_MEM_LEAK_LOG", "");
   }
 
-  if (gEnv.exists("XPCOM_DEBUG_BREAK")) {
-    gEnvXPCOMDebugBreak = gEnv.get("XPCOM_DEBUG_BREAK");
+  if (Services.env.exists("XPCOM_DEBUG_BREAK")) {
+    gEnvXPCOMDebugBreak = Services.env.get("XPCOM_DEBUG_BREAK");
     debugDump(
       "setting the XPCOM_DEBUG_BREAK environment variable to " +
         "warn... previous value " +
@@ -4737,16 +4752,16 @@ function setEnvironment() {
     );
   }
 
-  gEnv.set("XPCOM_DEBUG_BREAK", "warn");
+  Services.env.set("XPCOM_DEBUG_BREAK", "warn");
 
   if (gEnvForceServiceFallback) {
     // This env variable forces the updater to use the service in an invalid
     // way, so that it has to fall back to updating without the service.
     debugDump("setting MOZ_FORCE_SERVICE_FALLBACK environment variable to 1");
-    gEnv.set("MOZ_FORCE_SERVICE_FALLBACK", "1");
+    Services.env.set("MOZ_FORCE_SERVICE_FALLBACK", "1");
   } else if (gIsServiceTest) {
     debugDump("setting MOZ_NO_SERVICE_FALLBACK environment variable to 1");
-    gEnv.set("MOZ_NO_SERVICE_FALLBACK", "1");
+    Services.env.set("MOZ_NO_SERVICE_FALLBACK", "1");
   }
 }
 
@@ -4767,7 +4782,7 @@ function resetEnvironment() {
       "setting the XPCOM_MEM_LEAK_LOG environment variable back to " +
         gEnvXPCOMMemLeakLog
     );
-    gEnv.set("XPCOM_MEM_LEAK_LOG", gEnvXPCOMMemLeakLog);
+    Services.env.set("XPCOM_MEM_LEAK_LOG", gEnvXPCOMMemLeakLog);
   }
 
   if (gEnvXPCOMDebugBreak) {
@@ -4775,22 +4790,22 @@ function resetEnvironment() {
       "setting the XPCOM_DEBUG_BREAK environment variable back to " +
         gEnvXPCOMDebugBreak
     );
-    gEnv.set("XPCOM_DEBUG_BREAK", gEnvXPCOMDebugBreak);
-  } else if (gEnv.exists("XPCOM_DEBUG_BREAK")) {
+    Services.env.set("XPCOM_DEBUG_BREAK", gEnvXPCOMDebugBreak);
+  } else if (Services.env.exists("XPCOM_DEBUG_BREAK")) {
     debugDump("clearing the XPCOM_DEBUG_BREAK environment variable");
-    gEnv.set("XPCOM_DEBUG_BREAK", "");
+    Services.env.set("XPCOM_DEBUG_BREAK", "");
   }
 
   if (AppConstants.platform == "win" && gAddedEnvXRENoWindowsCrashDialog) {
     debugDump("removing the XRE_NO_WINDOWS_CRASH_DIALOG environment variable");
-    gEnv.set("XRE_NO_WINDOWS_CRASH_DIALOG", "");
+    Services.env.set("XRE_NO_WINDOWS_CRASH_DIALOG", "");
   }
 
   if (gEnvForceServiceFallback) {
     debugDump("removing MOZ_FORCE_SERVICE_FALLBACK environment variable");
-    gEnv.set("MOZ_FORCE_SERVICE_FALLBACK", "");
+    Services.env.set("MOZ_FORCE_SERVICE_FALLBACK", "");
   } else if (gIsServiceTest) {
     debugDump("removing MOZ_NO_SERVICE_FALLBACK environment variable");
-    gEnv.set("MOZ_NO_SERVICE_FALLBACK", "");
+    Services.env.set("MOZ_NO_SERVICE_FALLBACK", "");
   }
 }

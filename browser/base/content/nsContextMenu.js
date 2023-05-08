@@ -179,7 +179,7 @@ class nsContextMenu {
     this.shouldDisplay = context.shouldDisplay;
     this.timeStamp = context.timeStamp;
 
-    // Assign what's _possibly_ needed from `context` sent by ContextMenuChild.jsm
+    // Assign what's _possibly_ needed from `context` sent by ContextMenuChild.sys.mjs
     // Keep this consistent with the similar code in ContextMenu's _setContext
     this.imageDescURL = context.imageDescURL;
     this.imageInfo = context.imageInfo;
@@ -267,6 +267,8 @@ class nsContextMenu {
         "ContextMenu"
       );
     }
+
+    this.remoteType = this.actor?.domProcess?.remoteType;
 
     const { gBrowser } = this.browser.ownerGlobal;
 
@@ -1363,6 +1365,7 @@ class nsContextMenu {
       originPrincipal: this.principal,
       originStoragePrincipal: this.storagePrincipal,
       triggeringPrincipal: this.principal,
+      triggeringRemoteType: this.remoteType,
       csp: this.csp,
       frameID: this.contentData.frameID,
       hasValidUserGestureActivation: true,
@@ -1580,6 +1583,7 @@ class nsContextMenu {
     openUILink(this.imageDescURL, e, {
       referrerInfo: this.contentData.referrerInfo,
       triggeringPrincipal: this.principal,
+      triggeringRemoteType: this.remoteType,
       csp: this.csp,
     });
   }
@@ -1634,6 +1638,7 @@ class nsContextMenu {
         referrerInfo,
         forceAllowDataURI: true,
         triggeringPrincipal: this.principal,
+        triggeringRemoteType: this.remoteType,
         csp: this.csp,
       });
     }
@@ -1699,6 +1704,7 @@ class nsContextMenu {
       referrerInfo: this.contentData.referrerInfo,
       forceAllowDataURI: true,
       triggeringPrincipal: this.principal,
+      triggeringRemoteType: this.remoteType,
       csp: this.csp,
     });
   }
@@ -1801,13 +1807,9 @@ class nsContextMenu {
         // some other error occured; notify the user...
         if (!Components.isSuccessCode(aRequest.status)) {
           try {
-            const bundle = Services.strings.createBundle(
-              "chrome://mozapps/locale/downloads/downloads.properties"
-            );
+            const l10n = new Localization(["browser/downloads.ftl"], true);
 
-            const title = bundle.GetStringFromName("downloadErrorAlertTitle");
-            let msg = bundle.GetStringFromName("downloadErrorGeneric");
-
+            let msg = null;
             try {
               const channel = aRequest.QueryInterface(Ci.nsIChannel);
               const reason = channel.loadInfo.requestBlockingReason;
@@ -1817,17 +1819,19 @@ class nsContextMenu {
                 try {
                   const properties = channel.QueryInterface(Ci.nsIPropertyBag);
                   const id = properties.getProperty("cancelledByExtension");
-                  msg = bundle.formatStringFromName("downloadErrorBlockedBy", [
-                    WebExtensionPolicy.getByID(id).name,
-                  ]);
+                  msg = l10n.formatValueSync("downloads-error-blocked-by", {
+                    extension: WebExtensionPolicy.getByID(id).name,
+                  });
                 } catch (err) {
                   // "cancelledByExtension" doesn't have to be available.
-                  msg = bundle.GetStringFromName("downloadErrorExtension");
+                  msg = l10n.formatValueSync("downloads-error-extension");
                 }
               }
             } catch (ex) {}
+            msg ??= l10n.formatValueSync("downloads-error-generic");
 
-            let window = Services.wm.getOuterWindowWithId(windowID);
+            const window = Services.wm.getOuterWindowWithId(windowID);
+            const title = l10n.formatValueSync("downloads-error-alert-title");
             Services.prompt.alert(window, title, msg);
           } catch (ex) {}
           return;

@@ -106,7 +106,7 @@ class Downloader {
 
   constructor(...folders) {
     this.folders = ["settings", ...folders];
-    this._cdnURL = null;
+    this._cdnURLs = {};
   }
 
   /**
@@ -178,7 +178,7 @@ class Downloader {
           return { ...(await dumpInfo.getResult()), _source: "dump_match" };
         } catch (e) {
           // Failed to read dump: record found but attachment file is missing.
-          Cu.reportError(e);
+          console.error(e);
         }
       }
     }
@@ -190,7 +190,7 @@ class Downloader {
           return { ...(await cacheInfo.getResult()), _source: "cache_match" };
         } catch (e) {
           // Failed to read cache, e.g. IndexedDB unusable.
-          Cu.reportError(e);
+          console.error(e);
         }
       }
     }
@@ -209,7 +209,7 @@ class Downloader {
         // Store in cache but don't wait for it before returning.
         this.cacheImpl
           .set(attachmentId, { record, blob })
-          .catch(e => Cu.reportError(e));
+          .catch(e => console.error(e));
         return { buffer: newBuffer, record, _source: "remote_match" };
       } catch (e) {
         // No network, corrupted content, etc.
@@ -232,7 +232,7 @@ class Downloader {
           return { ...(await dumpInfo.getResult()), _source: "dump_fallback" };
         } catch (e) {
           // Failed to read dump: record found but attachment file is missing.
-          Cu.reportError(e);
+          console.error(e);
         }
       }
 
@@ -240,7 +240,7 @@ class Downloader {
         return { ...(await cacheInfo.getResult()), _source: "cache_fallback" };
       } catch (e) {
         // Failed to read from cache, e.g. IndexedDB unusable.
-        Cu.reportError(e);
+        console.error(e);
       }
     }
 
@@ -414,7 +414,7 @@ class Downloader {
   }
 
   async _baseAttachmentsURL() {
-    if (!this._cdnURL) {
+    if (!this._cdnURLs[lazy.Utils.SERVER_URL]) {
       const resp = await lazy.Utils.fetch(`${lazy.Utils.SERVER_URL}/`);
       let serverInfo;
       try {
@@ -429,9 +429,10 @@ class Downloader {
         },
       } = serverInfo;
       // Make sure the URL always has a trailing slash.
-      this._cdnURL = base_url + (base_url.endsWith("/") ? "" : "/");
+      this._cdnURLs[lazy.Utils.SERVER_URL] =
+        base_url + (base_url.endsWith("/") ? "" : "/");
     }
-    return this._cdnURL;
+    return this._cdnURLs[lazy.Utils.SERVER_URL];
   }
 
   async _fetchAttachment(url) {

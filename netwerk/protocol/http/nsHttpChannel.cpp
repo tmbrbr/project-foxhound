@@ -17,6 +17,7 @@
 #include "mozilla/dom/nsCSPService.h"
 #include "mozilla/StoragePrincipalHelper.h"
 
+#include "nsContentSecurityUtils.h"
 #include "nsHttp.h"
 #include "nsHttpChannel.h"
 #include "nsHttpChannelAuthProvider.h"
@@ -34,6 +35,7 @@
 #include "nsIStreamListenerTee.h"
 #include "nsISeekableStream.h"
 #include "nsIProtocolProxyService2.h"
+#include "nsIWebTransport.h"
 #include "nsCRT.h"
 #include "nsMimeTypes.h"
 #include "nsNetCID.h"
@@ -259,10 +261,10 @@ bool nsHttpChannel::WillRedirect(const nsHttpResponseHead& response) {
 nsresult StoreAuthorizationMetaData(nsICacheEntry* entry,
                                     nsHttpRequestHead* requestHead);
 
-class AutoRedirectVetoNotifier {
+class MOZ_STACK_CLASS AutoRedirectVetoNotifier {
  public:
-  explicit AutoRedirectVetoNotifier(nsHttpChannel* channel)
-      : mChannel(channel) {
+  explicit AutoRedirectVetoNotifier(nsHttpChannel* channel, nsresult& aRv)
+      : mChannel(channel), mRv(aRv) {
     if (mChannel->LoadHasAutoRedirectVetoNotifier()) {
       MOZ_CRASH("Nested AutoRedirectVetoNotifier on the stack");
       mChannel = nullptr;
@@ -271,20 +273,27 @@ class AutoRedirectVetoNotifier {
 
     mChannel->StoreHasAutoRedirectVetoNotifier(true);
   }
-  ~AutoRedirectVetoNotifier() { ReportRedirectResult(false); }
-  void RedirectSucceeded() { ReportRedirectResult(true); }
+  ~AutoRedirectVetoNotifier() { ReportRedirectResult(mRv); }
+  void RedirectSucceeded() { ReportRedirectResult(NS_OK); }
 
  private:
   nsHttpChannel* mChannel;
-  void ReportRedirectResult(bool succeeded);
+  bool mCalledReport = false;
+  nsresult& mRv;
+  void ReportRedirectResult(nsresult aRv);
 };
 
-void AutoRedirectVetoNotifier::ReportRedirectResult(bool succeeded) {
+void AutoRedirectVetoNotifier::ReportRedirectResult(nsresult aRv) {
   if (!mChannel) return;
+
+  if (mCalledReport) {
+    return;
+  }
+  mCalledReport = true;
 
   mChannel->mRedirectChannel = nullptr;
 
-  if (succeeded) {
+  if (NS_SUCCEEDED(aRv)) {
     mChannel->RemoveAsNonTailRequest();
   }
 
@@ -295,7 +304,7 @@ void AutoRedirectVetoNotifier::ReportRedirectResult(bool succeeded) {
   nsHttpChannel* channel = mChannel;
   mChannel = nullptr;
 
-  if (vetoHook) vetoHook->OnRedirectResult(succeeded);
+  if (vetoHook) vetoHook->OnRedirectResult(aRv);
 
   // Drop after the notification
   channel->StoreHasAutoRedirectVetoNotifier(false);
@@ -664,7 +673,7 @@ nsresult nsHttpChannel::ContinueOnBeforeConnect(bool aShouldUpgrade,
     return aStatus;
   }
 
-  if (aShouldUpgrade) {
+  if (aShouldUpgrade && !mURI->SchemeIs("https")) {
     Telemetry::Accumulate(Telemetry::HTTPS_UPGRADE_WITH_HTTPS_RR,
                           aUpgradeWithHTTPSRR);
     return AsyncCall(&nsHttpChannel::HandleAsyncRedirectChannelToHttps);
@@ -1341,6 +1350,10 @@ nsresult nsHttpChannel::SetupTransaction() {
     mCaps &= ~NS_HTTP_ALLOW_KEEPALIVE;
   }
 
+  if (mIsForWebTransport) {
+    mCaps |= NS_HTTP_STICKY_CONNECTION;
+  }
+
   nsCOMPtr<nsIHttpPushListener> pushListener;
   NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
                                 NS_GET_IID(nsIHttpPushListener),
@@ -1374,6 +1387,7 @@ nsresult nsHttpChannel::SetupTransaction() {
                                     aResult.closeReason());
     };
   }
+  mTransaction->SetIsForWebTransport(mIsForWebTransport);
   rv = mTransaction->Init(
       mCaps, mConnectionInfo, &mRequestHead, mUploadStream, mReqContentLength,
       LoadUploadStreamHasHeaders(), GetCurrentEventTarget(), callbacks, this,
@@ -1521,10 +1535,13 @@ nsresult nsHttpChannel::CallOnStartRequest() {
   // are the checks for Opaque Response Blocking to ensure that we block as many
   // cross-origin responses with CORS headers as possible that are not either
   // Javascript or media to avoid leaking their contents through side channels.
-  if (!EnsureOpaqueResponseIsAllowed()) {
-    // XXXtt: Return an error code or make the response body null.
-    // We silence the error result now because we only want to get how many
-    // response will get allowed or blocked by ORB.
+  OpaqueResponse opaqueResponse =
+      PerformOpaqueResponseSafelistCheckBeforeSniff();
+  if (opaqueResponse == OpaqueResponse::Block) {
+    SetChannelBlockedByOpaqueResponse();
+    CancelWithReason(NS_ERROR_FAILURE,
+                     "OpaqueResponseBlocker::BlockResponse"_ns);
+    return NS_ERROR_FAILURE;
   }
 
   // Allow consumers to override our content type
@@ -1578,11 +1595,17 @@ nsresult nsHttpChannel::CallOnStartRequest() {
   // If unknownDecoder is not going to be launched, call
   // EnsureOpaqueResponseIsAllowedAfterSniff immediately.
   if (!unknownDecoderStarted) {
-    auto isAllowedOrErr = EnsureOpaqueResponseIsAllowedAfterSniff();
-    if (isAllowedOrErr.isErr() || !isAllowedOrErr.inspect()) {
-      // XXXtt: Return an error code or make the response body null.
-      // We silence the error result now because we only want to get how many
-      // response will get allowed or blocked by ORB.
+    if (opaqueResponse == OpaqueResponse::SniffCompressed) {
+      mListener = new nsCompressedAudioVideoImageDetector(
+          mListener, &HttpBaseChannel::CallTypeSniffers);
+    } else if (opaqueResponse == OpaqueResponse::Sniff) {
+      MOZ_DIAGNOSTIC_ASSERT(mORB);
+      nsresult rv = mORB->EnsureOpaqueResponseIsAllowedAfterSniff(this);
+      MOZ_DIAGNOSTIC_ASSERT(!mORB->IsSniffing());
+
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
     }
   }
 
@@ -1771,9 +1794,6 @@ nsresult nsHttpChannel::ProcessFailedProxyConnect(uint32_t httpStatus) {
 static void GetSTSConsoleErrorTag(uint32_t failureResult,
                                   nsAString& consoleErrorTag) {
   switch (failureResult) {
-    case nsISiteSecurityService::ERROR_UNTRUSTWORTHY_CONNECTION:
-      consoleErrorTag = u"STSUntrustworthyConnection"_ns;
-      break;
     case nsISiteSecurityService::ERROR_COULD_NOT_PARSE_HEADER:
       consoleErrorTag = u"STSCouldNotParseHeader"_ns;
       break;
@@ -1817,6 +1837,23 @@ nsresult nsHttpChannel::ProcessHSTSHeader(nsITransportSecurityInfo* aSecInfo) {
     return rv;
   }
 
+  if (!aSecInfo) {
+    LOG(("nsHttpChannel::ProcessHSTSHeader: no securityInfo?"));
+    return NS_ERROR_INVALID_ARG;
+  }
+  nsITransportSecurityInfo::OverridableErrorCategory overridableErrorCategory;
+  rv = aSecInfo->GetOverridableErrorCategory(&overridableErrorCategory);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+  if (overridableErrorCategory !=
+      nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET) {
+    LOG(
+        ("nsHttpChannel::ProcessHSTSHeader: untrustworthy connection - not "
+         "processing header"));
+    return NS_ERROR_FAILURE;
+  }
+
   nsISiteSecurityService* sss = gHttpHandler->GetSSService();
   NS_ENSURE_TRUE(sss, NS_ERROR_OUT_OF_MEMORY);
 
@@ -1827,8 +1864,8 @@ nsresult nsHttpChannel::ProcessHSTSHeader(nsITransportSecurityInfo* aSecInfo) {
   }
 
   uint32_t failureResult;
-  rv = sss->ProcessHeader(mURI, securityHeader, aSecInfo, originAttributes,
-                          nullptr, nullptr, &failureResult);
+  rv = sss->ProcessHeader(mURI, securityHeader, originAttributes, nullptr,
+                          nullptr, &failureResult);
   if (NS_FAILED(rv)) {
     nsAutoString consoleErrorCategory(u"Invalid HSTS Headers"_ns);
     nsAutoString consoleErrorTag;
@@ -1931,6 +1968,10 @@ void nsHttpChannel::ProcessAltService() {
   // alt-authority = quoted-string ;  containing [ uri-host ] ":" port
 
   if (!LoadAllowAltSvc()) {  // per channel opt out
+    return;
+  }
+
+  if (mIsForWebTransport) {
     return;
   }
 
@@ -2335,6 +2376,9 @@ nsresult nsHttpChannel::ContinueProcessResponse3(nsresult rv) {
         // any cached credentials, nor we want to ask the user.
         // It's up to the consumer to re-try w/o setting a custom
         // auth header if cached credentials should be attempted.
+        rv = NS_ERROR_FAILURE;
+      } else if (!nsContentSecurityUtils::CheckCSPFrameAncestorAndXFO(this)) {
+        // CSP Frame Ancestor and X-Frame-Options check has failed
         rv = NS_ERROR_FAILURE;
       } else {
         rv = mAuthProvider->ProcessAuthentication(
@@ -2834,7 +2878,7 @@ nsresult nsHttpChannel::StartRedirectChannelToURI(nsIURI* upgradedURI,
   if (NS_SUCCEEDED(rv)) rv = WaitForRedirectCallback();
 
   if (NS_FAILED(rv)) {
-    AutoRedirectVetoNotifier notifier(this);
+    AutoRedirectVetoNotifier notifier(this, rv);
 
     /* Remove the async call to ContinueAsyncRedirectChannelToURI().
      * It is called directly by our callers upon return (to clean up
@@ -2878,7 +2922,7 @@ nsresult nsHttpChannel::ContinueAsyncRedirectChannelToURI(nsresult rv) {
 }
 
 nsresult nsHttpChannel::OpenRedirectChannel(nsresult rv) {
-  AutoRedirectVetoNotifier notifier(this);
+  AutoRedirectVetoNotifier notifier(this, rv);
 
   // Make sure to do this after we received redirect veto answer,
   // i.e. after all sinks had been notified
@@ -2921,7 +2965,7 @@ nsresult nsHttpChannel::AsyncDoReplaceWithProxy(nsIProxyInfo* pi) {
   if (NS_SUCCEEDED(rv)) rv = WaitForRedirectCallback();
 
   if (NS_FAILED(rv)) {
-    AutoRedirectVetoNotifier notifier(this);
+    AutoRedirectVetoNotifier notifier(this, rv);
     PopRedirectAsyncFunc(&nsHttpChannel::ContinueDoReplaceWithProxy);
   }
 
@@ -2929,7 +2973,7 @@ nsresult nsHttpChannel::AsyncDoReplaceWithProxy(nsIProxyInfo* pi) {
 }
 
 nsresult nsHttpChannel::ContinueDoReplaceWithProxy(nsresult rv) {
-  AutoRedirectVetoNotifier notifier(this);
+  AutoRedirectVetoNotifier notifier(this, rv);
 
   if (NS_FAILED(rv)) return rv;
 
@@ -5266,7 +5310,7 @@ nsresult nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv) {
   if (NS_SUCCEEDED(rv)) rv = WaitForRedirectCallback();
 
   if (NS_FAILED(rv)) {
-    AutoRedirectVetoNotifier notifier(this);
+    AutoRedirectVetoNotifier notifier(this, rv);
     PopRedirectAsyncFunc(&nsHttpChannel::ContinueProcessRedirection);
   }
 
@@ -5274,7 +5318,7 @@ nsresult nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv) {
 }
 
 nsresult nsHttpChannel::ContinueProcessRedirection(nsresult rv) {
-  AutoRedirectVetoNotifier notifier(this);
+  AutoRedirectVetoNotifier notifier(this, rv);
 
   LOG(("nsHttpChannel::ContinueProcessRedirection [rv=%" PRIx32 ",this=%p]\n",
        static_cast<uint32_t>(rv), this));
@@ -5576,6 +5620,12 @@ nsresult nsHttpChannel::CancelInternal(nsresult status) {
     StoreChannelClassifierCancellationPending(0);
   }
 
+  // We don't want the content process to see any header values
+  // when the request is blocked by ORB
+  if (mChannelBlockedByOpaqueResponse && mCachedOpaqueResponseBlockingPref) {
+    mResponseHead->ClearHeaders();
+  }
+
   mEarlyHintObserver = nullptr;
   mCanceled = true;
   mStatus = NS_FAILED(status) ? status : NS_ERROR_ABORT;
@@ -5604,6 +5654,10 @@ nsresult nsHttpChannel::CancelInternal(nsresult status) {
         &mTransactionTimings, std::move(mSource));
   }
 
+  // If we don't have mTransactionPump and mCachePump, we need to call
+  // AsyncAbort to make sure this channel's listener got notified.
+  bool needAsyncAbort = !mTransactionPump && !mCachePump;
+
   if (mProxyRequest) mProxyRequest->Cancel(status);
   CancelNetworkRequest(status);
   mCacheInputStream.CloseAndRelease();
@@ -5614,10 +5668,20 @@ nsresult nsHttpChannel::CancelInternal(nsresult status) {
     mOnTailUnblock = nullptr;
     mRequestContext->CancelTailedRequest(this);
     CloseCacheEntry(false);
+    needAsyncAbort = false;
     Unused << AsyncAbort(status);
   } else if (channelClassifierCancellationPending) {
     // If we're coming from an asynchronous path when canceling a channel due
     // to safe-browsing protection, we need to AsyncAbort the channel now.
+    needAsyncAbort = false;
+    Unused << AsyncAbort(status);
+  }
+
+  // If we already have mCallOnResume, AsyncAbort will be called in
+  // ResumeInternal.
+  if (needAsyncAbort && !mCallOnResume && !mSuspendCount) {
+    LOG(("nsHttpChannel::CancelInternal do AsyncAbort [this=%p]\n", this));
+    CloseCacheEntry(false);
     Unused << AsyncAbort(status);
   }
   return NS_OK;
@@ -5793,6 +5857,10 @@ nsHttpChannel::AsyncOpen(nsIStreamListener* aListener) {
     ReleaseListeners();
     return rv;
   }
+
+  nsCOMPtr<WebTransportSessionEventListener> wt = do_QueryInterface(listener);
+  mIsForWebTransport = !!wt;
+
   MOZ_ASSERT(
       mLoadInfo->GetSecurityMode() == 0 ||
           mLoadInfo->GetInitialSecurityCheckDone() ||
@@ -5973,7 +6041,15 @@ void nsHttpChannel::MaybeResolveProxyAndBeginConnect() {
     return;
   }
 
-  rv = BeginConnect();
+  if (!gHttpHandler->Active()) {
+    LOG(
+        ("nsHttpChannel::MaybeResolveProxyAndBeginConnect [this=%p] "
+         "Handler no longer active.\n",
+         this));
+    rv = NS_ERROR_NOT_AVAILABLE;
+  } else {
+    rv = BeginConnect();
+  }
   if (NS_FAILED(rv)) {
     CloseCacheEntry(false);
     Unused << AsyncAbort(rv);
@@ -6023,6 +6099,9 @@ uint16_t nsHttpChannel::GetProxyDNSStrategy() {
 nsresult nsHttpChannel::BeginConnect() {
   LOG(("nsHttpChannel::BeginConnect [this=%p]\n", this));
   nsresult rv;
+
+  // It is the caller's responsibility to not call us late in shutdown.
+  MOZ_ASSERT(gHttpHandler->Active());
 
   // Construct connection info object
   nsAutoCString host;
@@ -6101,8 +6180,14 @@ nsresult nsHttpChannel::BeginConnect() {
                                  originAttributes, host, port, true);
   } else {
 #endif
-    connInfo = new nsHttpConnectionInfo(host, port, ""_ns, mUsername, proxyInfo,
-                                        originAttributes, isHttps);
+    if (mIsForWebTransport) {
+      connInfo =
+          new nsHttpConnectionInfo(host, port, "h3"_ns, mUsername, proxyInfo,
+                                   originAttributes, isHttps, true, true);
+    } else {
+      connInfo = new nsHttpConnectionInfo(host, port, ""_ns, mUsername,
+                                          proxyInfo, originAttributes, isHttps);
+    }
 #ifdef FUZZING
   }
 #endif
@@ -6116,7 +6201,8 @@ nsresult nsHttpChannel::BeginConnect() {
 
   RefPtr<AltSvcMapping> mapping;
   if (!mConnectionInfo && LoadAllowAltSvc() &&  // per channel
-      (http2Allowed || http3Allowed) && !(mLoadFlags & LOAD_FRESH_CONNECTION) &&
+      !mIsForWebTransport && (http2Allowed || http3Allowed) &&
+      !(mLoadFlags & LOAD_FRESH_CONNECTION) &&
       AltSvcMapping::AcceptableProxy(proxyInfo) &&
       (scheme.EqualsLiteral("http") || scheme.EqualsLiteral("https")) &&
       (mapping = gHttpHandler->GetAltServiceMapping(
@@ -7656,6 +7742,9 @@ nsresult nsHttpChannel::ContinueOnStopRequest(nsresult aStatus, bool aIsFromNet,
 
   RemoveAsNonTailRequest();
 
+  if (mChannelBlockedByOpaqueResponse && mCachedOpaqueResponseBlockingPref) {
+    mResponseHead->ClearHeaders();
+  }
   // If a preferred alt-data type was set, this signals the consumer is
   // interested in reading and/or writing the alt-data representation.
   // We need to hold a reference to the cache entry in case the listener calls
@@ -7803,15 +7892,6 @@ nsHttpChannel::OnDataAvailable(nsIRequest* request, nsIInputStream* input,
     nsresult rv =
         mListener->OnDataAvailable(this, input, mLogicalOffset, count);
     if (NS_SUCCEEDED(rv)) {
-      auto isAllowedOrErr = EnsureOpaqueResponseIsAllowedAfterSniff();
-      if (isAllowedOrErr.isErr() || !isAllowedOrErr.inspect()) {
-        // XXXechuang:
-        // Return an error code or make the response body null here is too late
-        // some content data had already transferred to children processes.
-        // Currently, it is okay for collecting the correct telemetry data for
-        // further steps. But we should make sure all blocking should be done
-        // when implementing the real blocking.
-      }
       // by contract mListener must read all of "count" bytes, but
       // nsInputStreamPump is tolerant to seekable streams that violate that
       // and it will redeliver incompletely read data. So we need to do
@@ -9473,27 +9553,36 @@ HttpChannelSecurityWarningReporter* nsHttpChannel::GetWarningReporter() {
   return mWarningReporter.get();
 }
 
+// The specification for ORB is currently being written:
+// https://whatpr.org/fetch/1442.html#orb-algorithm
+// The `opaque-response-safelist check` is implemented in:
+// * `HttpBaseChannel::PerformOpaqueResponseSafelistCheckBeforeSniff`
+// * `nsHttpChannel::DisableIsOpaqueResponseAllowedAfterSniffCheck`
+// * `HttpBaseChannel::PerformOpaqueResponseSafelistCheckAfterSniff`
+// * `OpaqueResponseBlocker::ValidateJavaScript`
+//
 // Should only be called by nsMediaSniffer::GetMIMETypeFromContent and
 // imageLoader::GetMIMETypeFromContent when the content type can be
 // recognized by these sniffers.
 void nsHttpChannel::DisableIsOpaqueResponseAllowedAfterSniffCheck(
     SnifferType aType) {
+  // https://whatpr.org/fetch/1442.html#orb-algorithm
+  // This method covers steps, 8 and 10.
   MOZ_ASSERT(XRE_IsParentProcess());
 
-  if (mCheckIsOpaqueResponseAllowedAfterSniff) {
+  if (NeedOpaqueResponseAllowedCheckAfterSniff()) {
     MOZ_ASSERT(mCachedOpaqueResponseBlockingPref);
 
-    // If the sniifer type is media and the request comes from a media element,
+    // If the sniffer type is media and the request comes from a media element,
     // we would like to check:
     // - Whether the information provided by the media element shows it's an
     // initial request.
     // - Whether the response's status is either 200 or 206.
-    // - Whether the response's header shows it's the first partial response
-    // when the response's status is 206.
     //
     // If any of the results is false, then we set
     // mBlockOpaqueResponseAfterSniff to true and block the response later.
     if (aType == SnifferType::Media) {
+      // Step 8
       MOZ_ASSERT(mLoadInfo);
 
       bool isMediaRequest;
@@ -9504,24 +9593,23 @@ void nsHttpChannel::DisableIsOpaqueResponseAllowedAfterSniffCheck(
         MOZ_ASSERT(isInitialRequest);
 
         if (!isInitialRequest) {
-          mBlockOpaqueResponseAfterSniff = true;
+          // Step 8.1
+          BlockOpaqueResponseAfterSniff();
           return;
         }
 
         if (mResponseHead->Status() != 200 && mResponseHead->Status() != 206) {
-          mBlockOpaqueResponseAfterSniff = true;
-          return;
-        }
-
-        if (mResponseHead->Status() == 206 &&
-            !IsFirstPartialResponse(*mResponseHead)) {
-          mBlockOpaqueResponseAfterSniff = true;
+          // Step 8.2
+          BlockOpaqueResponseAfterSniff();
           return;
         }
       }
     }
 
-    mCheckIsOpaqueResponseAllowedAfterSniff = false;
+    // Step 8.3 if `aType == SnifferType::Media`
+    // Step 9 can be skipped, only `HTMLMediaElement` ever sets isMediaRequest.
+    // Step 10 if `aType == SnifferType::Image`
+    AllowOpaqueResponseAfterSniff();
   }
 }
 
@@ -9601,7 +9689,7 @@ nsresult nsHttpChannel::RedirectToInterceptedChannel() {
   }
 
   if (NS_FAILED(rv)) {
-    AutoRedirectVetoNotifier notifier(this);
+    AutoRedirectVetoNotifier notifier(this, rv);
 
     PopRedirectAsyncFunc(&nsHttpChannel::ContinueAsyncRedirectChannelToURI);
   }
@@ -9768,14 +9856,21 @@ nsHttpChannel::SetEarlyHintObserver(nsIEarlyHintObserver* aObserver) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::EarlyHint(const nsACString& linkHeader) {
+nsHttpChannel::EarlyHint(const nsACString& linkHeader,
+                         const nsACString& referrerPolicy) {
   LOG(("nsHttpChannel::EarlyHint.\n"));
 
   if (mEarlyHintObserver && nsContentUtils::ComputeIsSecureContext(this)) {
     LOG(("nsHttpChannel::EarlyHint propagated.\n"));
-    mEarlyHintObserver->EarlyHint(linkHeader);
+    mEarlyHintObserver->EarlyHint(linkHeader, referrerPolicy);
   }
   return NS_OK;
+}
+
+WebTransportSessionEventListener*
+nsHttpChannel::GetWebTransportSessionEventListener() {
+  nsCOMPtr<WebTransportSessionEventListener> wt = do_QueryInterface(mListener);
+  return wt;
 }
 
 }  // namespace net

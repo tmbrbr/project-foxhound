@@ -7,8 +7,8 @@
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const lazy = {};
 XPCOMUtils.defineLazyModuleGetters(lazy, {
@@ -32,6 +32,7 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
   RemoteImages: "resource://activity-stream/lib/RemoteImages.jsm",
   RemoteL10n: "resource://activity-stream/lib/RemoteL10n.jsm",
   ExperimentAPI: "resource://nimbus/ExperimentAPI.jsm",
+  setTimeout: "resource://gre/modules/Timer.jsm",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.jsm",
   SpecialMessageActions:
     "resource://messaging-system/lib/SpecialMessageActions.jsm",
@@ -120,7 +121,7 @@ const MessageLoaderUtils = {
   _errors: [],
 
   reportError(e) {
-    Cu.reportError(e);
+    console.error(e);
     this._errors.push({
       timestamp: new Date(),
       error: { message: e.toString(), stack: e.stack },
@@ -270,18 +271,20 @@ const MessageLoaderUtils = {
    * 2). The Remote Settings downloader is able to detect the duplicate download
    * requests for the same attachment and ignore the redundent requests automatically.
    *
-   * @param {obj} provider An AS router provider
+   * @param {object} provider An AS router provider
    * @param {string} provider.id The id of the provider
-   * @param {string} provider.bucket The name of the Remote Settings bucket
-   * @param {func} options.dispatchCFRAction dispatch an action the main AS Store
-   * @returns {Promise} resolves with an array of messages, or an empty array if none could be fetched
+   * @param {string} provider.collection Remote Settings collection name
+   * @param {object} options
+   * @param {function} options.dispatchCFRAction Action handler function
+   * @returns {Promise<object[]>} Resolves with an array of messages, or an
+   *                              empty array if none could be fetched
    */
   async _remoteSettingsLoader(provider, options) {
     let messages = [];
-    if (provider.bucket) {
+    if (provider.collection) {
       try {
         messages = await MessageLoaderUtils._getRemoteSettingsMessages(
-          provider.bucket
+          provider.collection
         );
         if (!messages.length) {
           MessageLoaderUtils._handleRemoteSettingsUndesiredEvent(
@@ -331,8 +334,14 @@ const MessageLoaderUtils = {
     return messages;
   },
 
-  _getRemoteSettingsMessages(bucket) {
-    return RemoteSettings(bucket).get();
+  /**
+   * Fetch messages from a given collection in Remote Settings.
+   *
+   * @param {string} collection The remote settings collection identifier
+   * @returns {Promise<object[]>} Resolves with an array of messages
+   */
+  _getRemoteSettingsMessages(collection) {
+    return RemoteSettings(collection).get();
   },
 
   /**
@@ -598,6 +607,7 @@ class _ASRouter {
     this._onExperimentForceEnrolled = this._onExperimentForceEnrolled.bind(
       this
     );
+    this.forcePBWindow = this.forcePBWindow.bind(this);
     Services.telemetry.setEventRecordingEnabled(REACH_EVENT_CATEGORY, true);
   }
 
@@ -1119,7 +1129,7 @@ class _ASRouter {
   }
 
   _handleTargetingError(error, message) {
-    Cu.reportError(error);
+    console.error(error);
     this.dispatchCFRAction(
       ac.ASRouterUserEvent({
         message_id: message.id,
@@ -1604,12 +1614,12 @@ class _ASRouter {
     try {
       const endpoint = new URL(url);
       if (!this.ALLOWLIST_HOSTS[endpoint.host]) {
-        Cu.reportError(
+        console.error(
           `The preview URL host ${endpoint.host} is not in the list of allowed hosts.`
         );
       }
       if (endpoint.protocol !== "https:") {
-        Cu.reportError("The URL protocol is not https.");
+        console.error("The URL protocol is not https.");
       }
       return (
         endpoint.protocol === "https:" && this.ALLOWLIST_HOSTS[endpoint.host]
@@ -1640,7 +1650,7 @@ class _ASRouter {
       additionalHosts = JSON.parse(allowPrefValue);
     } catch (e) {
       if (allowPrefValue) {
-        Cu.reportError(
+        console.error(
           `Pref ${SNIPPETS_ENDPOINT_ALLOWLIST} value is not valid JSON`
         );
       }
@@ -1733,10 +1743,7 @@ class _ASRouter {
     }
 
     // Clear cache call is only possible in a testing environment
-    let env = Cc["@mozilla.org/process/environment;1"].getService(
-      Ci.nsIEnvironment
-    );
-    env.set("XPCSHELL_TEST_PROFILE_DIR", "testing");
+    Services.env.set("XPCSHELL_TEST_PROFILE_DIR", "testing");
 
     // Clear and refresh Attribution, and then fetch the messages again to update
     AttributionCode._clearCache();
@@ -1998,6 +2005,35 @@ class _ASRouter {
     if (messages.length) {
       lazy.RemoteImages.prefetchImagesFor(messages);
     }
+  }
+
+  async forcePBWindow(browser, msg) {
+    const privateBrowserOpener = await new Promise((
+      resolveOnContentBrowserCreated // wrap this in a promise to give back the right browser
+    ) =>
+      browser.ownerGlobal.openTrustedLinkIn(
+        "about:privatebrowsing?debug",
+        "window",
+        {
+          private: true,
+          triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(
+            {}
+          ),
+          csp: null,
+          resolveOnContentBrowserCreated,
+          opener: "devtools",
+        }
+      )
+    );
+
+    lazy.setTimeout(() => {
+      // setTimeout is necessary to make sure the private browsing window has a chance to open before the message is sent
+      privateBrowserOpener.browsingContext.currentWindowGlobal
+        .getActor("AboutPrivateBrowsing")
+        .sendAsyncMessage("ShowDevToolsMessage", msg);
+    }, 100);
+
+    return privateBrowserOpener;
   }
 }
 

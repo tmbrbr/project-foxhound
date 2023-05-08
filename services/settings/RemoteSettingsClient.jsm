@@ -9,8 +9,8 @@ var EXPORTED_SYMBOLS = ["RemoteSettingsClient"];
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const { Downloader } = ChromeUtils.import(
   "resource://services-settings/Attachments.jsm"
@@ -165,8 +165,13 @@ class StorageError extends Error {
 }
 
 class InvalidSignatureError extends Error {
-  constructor(cid) {
-    super(`Invalid content signature (${cid})`);
+  constructor(cid, x5u) {
+    let message = `Invalid content signature (${cid})`;
+    if (x5u) {
+      const chain = x5u.split("/").pop();
+      message += ` using '${chain}'`;
+    }
+    super(message);
     this.name = "InvalidSignatureError";
   }
 }
@@ -398,6 +403,7 @@ class RemoteSettingsClient extends EventEmitter {
    * @param  {boolean} options.dumpFallback      Fallback to dump data if read of local DB fails (default: `true`).
    * @param  {boolean} options.emptyListFallback Fallback to empty list if no dump data and read of local DB fails (default: `true`).
    * @param  {boolean} options.loadDumpIfNewer   Use dump data if it is newer than local data (default: `true`).
+   * @param  {boolean} options.forceSync         Always synchronize from server before returning results (default: `false`).
    * @param  {boolean} options.syncIfEmpty       Synchronize from server if local data is empty (default: `true`).
    * @param  {boolean} options.verifySignature   Verify the signature of the local data (default: `false`).
    * @return {Promise}
@@ -408,6 +414,7 @@ class RemoteSettingsClient extends EventEmitter {
       order = "", // not sorted by default.
       dumpFallback = true,
       emptyListFallback = true,
+      forceSync = false,
       loadDumpIfNewer = true,
       syncIfEmpty = true,
     } = options;
@@ -416,10 +423,17 @@ class RemoteSettingsClient extends EventEmitter {
     const hasParallelCall = !!this._importingPromise;
     let data;
     try {
-      let lastModified = await this.db.getLastModified();
+      let lastModified = forceSync ? null : await this.db.getLastModified();
       let hasLocalData = lastModified !== null;
 
-      if (syncIfEmpty && !hasLocalData) {
+      if (forceSync) {
+        if (!this._importingPromise) {
+          this._importingPromise = (async () => {
+            await this.sync({ sendEvents: false, trigger: "forced" });
+            return true; // No need to re-verify signature after sync.
+          })();
+        }
+      } else if (syncIfEmpty && !hasLocalData) {
         // .get() was called before we had the chance to synchronize the local database.
         // We'll try to avoid returning an empty list.
         if (!this._importingPromise) {
@@ -486,7 +500,7 @@ class RemoteSettingsClient extends EventEmitter {
           }
           // Report error, but continue because there could have been data
           // loaded from a parallel call.
-          Cu.reportError(e);
+          console.error(e);
         } finally {
           // then delete this promise again, as now we should have local data:
           delete this._importingPromise;
@@ -501,7 +515,7 @@ class RemoteSettingsClient extends EventEmitter {
       if (!dumpFallback) {
         throw e;
       }
-      Cu.reportError(e);
+      console.error(e);
       let { data } = await lazy.SharedUtils.loadJSONDump(
         this.bucketName,
         this.collectionName
@@ -666,7 +680,7 @@ class RemoteSettingsClient extends EventEmitter {
           collectionLastModified = await this.db.getLastModified();
         } catch (e) {
           // Report but go-on.
-          Cu.reportError(e);
+          console.error(e);
         }
       }
       let syncResult;
@@ -965,6 +979,8 @@ class RemoteSettingsClient extends EventEmitter {
       records,
       timestamp
     );
+
+    lazy.console.debug(`${this.identifier} verify signature using ${x5u}`);
     if (
       !(await this._verifier.asyncVerifyContentSignature(
         serialized,
@@ -974,7 +990,7 @@ class RemoteSettingsClient extends EventEmitter {
         lazy.Utils.CERT_CHAIN_ROOT_IDENTIFIER
       ))
     ) {
-      throw new InvalidSignatureError(this.identifier);
+      throw new InvalidSignatureError(this.identifier, x5u);
     }
   }
 

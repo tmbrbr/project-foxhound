@@ -3,14 +3,19 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 from __future__ import absolute_import, print_function
 
-import six
 import argparse
 import os
 import platform
 
+import six
 from mozlog.commandline import add_logging_group
 
-(FIREFOX, CHROME, CHROMIUM) = DESKTOP_APPS = ["firefox", "chrome", "chromium"]
+(FIREFOX, CHROME, CHROMIUM, SAFARI) = DESKTOP_APPS = [
+    "firefox",
+    "chrome",
+    "chromium",
+    "safari",
+]
 (GECKOVIEW, REFBROW, FENIX, CHROME_ANDROID) = FIREFOX_ANDROID_APPS = [
     "geckoview",
     "refbrow",
@@ -23,6 +28,7 @@ APPS = {
     FIREFOX: {"long_name": "Firefox Desktop"},
     CHROME: {"long_name": "Google Chrome Desktop"},
     CHROMIUM: {"long_name": "Google Chromium Desktop"},
+    SAFARI: {"long_name": "Safari Desktop"},
     GECKOVIEW: {
         "long_name": "Firefox GeckoView on Android",
         "default_activity": "org.mozilla.geckoview_example.GeckoViewActivity",
@@ -491,6 +497,15 @@ def create_parser(mach_interface=False):
         default=False,
         help="If set, the test will collect perfstats in addition to "
         "the regular metrics it gathers.",
+    )
+    add_arg(
+        "--extra-summary-methods",
+        dest="extra_summary_methods",
+        action="append",
+        default=[],
+        metavar="OPTION",
+        help="Alternative methods for summarizing technical and visual pageload metrics. "
+        "Options: geomean, mean.",
     )
 
     add_logging_group(parser)

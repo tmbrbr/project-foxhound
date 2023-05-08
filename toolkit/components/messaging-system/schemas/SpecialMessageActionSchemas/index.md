@@ -247,16 +247,7 @@ Action for pinning Firefox to the user's taskbar.
 
 Action for configuring the default browser to Firefox on the user's system.
 
-* args: (none)
-
-### `ENABLE_TOTAL_COOKIE_PROTECTION`
-
-Action for enabling the Total Cookie Protection feature.
-
-### `ENABLE_TOTAL_COOKIE_PROTECTION_SECTION_AND_OPT_OUT`
-
-Action for disabling the Total Cookie Protection feature and enabling an
-additional privacy section in about:preferences.
+- args: (none)
 
 ### `SHOW_SPOTLIGHT`
 
@@ -322,3 +313,10 @@ Action for running multiple actions. Actions should be included in an array of a
 * args: `string` A CSS selector for the HTML element to be clicked
 
 Selects an element in the current Window's document and triggers a click action
+
+
+### `OPEN_FIREFOX_VIEW_AND_COLORWAYS_MODAL`
+
+* args: (none)
+
+Action for opening about:firefoxview and the colorways modal

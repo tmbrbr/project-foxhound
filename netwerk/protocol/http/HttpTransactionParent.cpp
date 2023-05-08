@@ -668,12 +668,13 @@ mozilla::ipc::IPCResult HttpTransactionParent::RecvOnH2PushStream(
 }  // namespace net
 
 mozilla::ipc::IPCResult HttpTransactionParent::RecvEarlyHint(
-    const nsCString& aValue) {
-  LOG(("HttpTransactionParent::RecvEarlyHint header=%s",
-       PromiseFlatCString(aValue).get()));
+    const nsCString& aValue, const nsACString& aReferrerPolicy) {
+  LOG(("HttpTransactionParent::RecvEarlyHint header=%s aReferrerPolicy=%s",
+       PromiseFlatCString(aValue).get(),
+       PromiseFlatCString(aReferrerPolicy).get()));
   nsCOMPtr<nsIEarlyHintObserver> obs = do_QueryInterface(mChannel);
   if (obs) {
-    Unused << obs->EarlyHint(aValue);
+    Unused << obs->EarlyHint(aValue, aReferrerPolicy);
   }
 
   return IPC_OK();
@@ -888,6 +889,10 @@ void HttpTransactionParent::HandleAsyncAbort() {
 }
 
 bool HttpTransactionParent::GetSupportsHTTP3() { return mSupportsHTTP3; }
+
+void HttpTransactionParent::SetIsForWebTransport(bool SetIsForWebTransport) {
+  // TODO: bug 1791727
+}
 
 // We will need to support this in the socket process (See Bug 1791027)
 mozilla::TimeStamp HttpTransactionParent::GetPendingTime() {

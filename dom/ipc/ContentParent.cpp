@@ -53,6 +53,8 @@
 #include "mozilla/ipc/URIUtils.h"
 #include "gfxPlatform.h"
 #include "gfxPlatformFontList.h"
+#include "nsDNSService2.h"
+#include "nsPIDNSService.h"
 #include "mozilla/AntiTrackingUtils.h"
 #include "mozilla/AppShutdown.h"
 #include "mozilla/AutoRestore.h"
@@ -163,6 +165,7 @@
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/net/PCookieServiceParent.h"
 #include "mozilla/net/CookieKey.h"
+#include "mozilla/net/TRRService.h"
 #include "mozilla/TelemetryComms.h"
 #include "mozilla/TelemetryEventEnums.h"
 #include "mozilla/RemoteLazyInputStreamParent.h"
@@ -968,6 +971,7 @@ already_AddRefed<ContentParent> ContentParent::GetUsedBrowserProcess(
   // Note: this process may not have finished launching yet
   RefPtr<ContentParent> preallocated;
   if (aRemoteType != FILE_REMOTE_TYPE &&
+      aRemoteType != PRIVILEGEDABOUT_REMOTE_TYPE &&
       aRemoteType != EXTENSION_REMOTE_TYPE &&  // Bug 1638119
       (preallocated = PreallocatedProcessManager::Take(aRemoteType))) {
     MOZ_DIAGNOSTIC_ASSERT(preallocated->GetRemoteType() ==
@@ -990,6 +994,10 @@ already_AddRefed<ContentParent> ContentParent::GetUsedBrowserProcess(
     // This ensures that the preallocator won't shut down the process once
     // it finishes starting
     preallocated->mRemoteType.Assign(aRemoteType);
+    {
+      MutexAutoLock lock(preallocated->mThreadsafeHandle->mMutex);
+      preallocated->mThreadsafeHandle->mRemoteType = preallocated->mRemoteType;
+    }
     preallocated->mRemoteTypeIsolationPrincipal =
         CreateRemoteTypeIsolationPrincipal(aRemoteType);
     preallocated->mActivateTS = TimeStamp::Now();
@@ -1229,23 +1237,26 @@ mozilla::ipc::IPCResult ContentParent::RecvCreateGMPService() {
   Endpoint<PGMPServiceParent> parent;
   Endpoint<PGMPServiceChild> child;
 
+  if (mGMPCreated) {
+    return IPC_FAIL(this, "GMP Service already created");
+  }
+
   nsresult rv;
   rv = PGMPService::CreateEndpoints(base::GetCurrentProcId(), OtherPid(),
                                     &parent, &child);
   if (NS_FAILED(rv)) {
-    MOZ_ASSERT(false, "CreateEndpoints failed");
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "CreateEndpoints failed");
   }
 
   if (!GMPServiceParent::Create(std::move(parent))) {
-    MOZ_ASSERT(false, "GMPServiceParent::Create failed");
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "GMPServiceParent::Create failed");
   }
 
   if (!SendInitGMPService(std::move(child))) {
-    MOZ_ASSERT(false, "SendInitGMPService failed");
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "SendInitGMPService failed");
   }
+
+  mGMPCreated = true;
 
   return IPC_OK();
 }
@@ -1681,7 +1692,7 @@ void ContentParent::Init() {
 #ifdef ACCESSIBILITY
   // If accessibility is running in chrome process then start it in content
   // process.
-  if (PresShell::IsAccessibilityActive()) {
+  if (GetAccService()) {
 #  if defined(XP_WIN)
     // Don't init content a11y if we detect an incompat version of JAWS in use.
     if (!mozilla::a11y::Compatibility::IsOldJAWS()) {
@@ -1748,15 +1759,18 @@ void ContentParent::MaybeAsyncSendShutDownMessage() {
   bool shouldKeepProcessAlive = ShouldKeepProcessAlive();
 #endif
 
-  auto lock = mRemoteWorkerActorData.Lock();
-  MOZ_ASSERT_IF(!lock->mCount, !shouldKeepProcessAlive);
+  {
+    MutexAutoLock lock(mThreadsafeHandle->mMutex);
+    MOZ_ASSERT_IF(!mThreadsafeHandle->mRemoteWorkerActorCount,
+                  !shouldKeepProcessAlive);
 
-  if (lock->mCount) {
-    return;
+    if (mThreadsafeHandle->mRemoteWorkerActorCount) {
+      return;
+    }
+
+    MOZ_ASSERT(!mThreadsafeHandle->mShutdownStarted);
+    mThreadsafeHandle->mShutdownStarted = true;
   }
-
-  MOZ_ASSERT(!lock->mShutdownStarted);
-  lock->mShutdownStarted = true;
 
   // In the case of normal shutdown, send a shutdown message to child to
   // allow it to perform shutdown tasks.
@@ -1780,7 +1794,8 @@ void MaybeLogBlockShutdownDiagnostics(ContentParent* aSelf, const char* aMsg,
 #endif
 }
 
-void ContentParent::ShutDownProcess(ShutDownMethod aMethod) {
+bool ContentParent::ShutDownProcess(ShutDownMethod aMethod) {
+  bool result = false;
   MOZ_LOG(ContentParent::GetLog(), LogLevel::Debug,
           ("ShutDownProcess: %p", this));
   // NB: must MarkAsDead() here so that this isn't accidentally
@@ -1811,6 +1826,7 @@ void ContentParent::ShutDownProcess(ShutDownMethod aMethod) {
             SignalImpendingShutdownToContentJS();
             StartForceKillTimer();
           }
+          result = true;
         } else {
           MaybeLogBlockShutdownDiagnostics(
               this, "ShutDownProcess: !!! Send shutdown message failed! !!!",
@@ -1824,10 +1840,12 @@ void ContentParent::ShutDownProcess(ShutDownMethod aMethod) {
       MaybeLogBlockShutdownDiagnostics(
           this, "ShutDownProcess: Shutdown already pending.", __FILE__,
           __LINE__);
+
+      result = true;
     }
     // If call was not successful, the channel must have been broken
     // somehow, and we will clean up the error in ActorDestroy.
-    return;
+    return result;
   }
 
   using mozilla::dom::quota::QuotaManagerService;
@@ -1848,6 +1866,7 @@ void ContentParent::ShutDownProcess(ShutDownMethod aMethod) {
       mCalledClose = true;
       Close();
     }
+    result = true;
   }
 
   // A ContentParent object might not get freed until after XPCOM shutdown has
@@ -1855,6 +1874,7 @@ void ContentParent::ShutDownProcess(ShutDownMethod aMethod) {
   // CC'ed objects, so we need to null them out here, while we still can.  See
   // bug 899761.
   ShutDownMessageManager();
+  return result;
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvNotifyShutdownSuccess() {
@@ -2197,6 +2217,8 @@ void ContentParent::ActorDestroy(ActorDestroyReason why) {
     group->Unsubscribe(this);
   }
   MOZ_DIAGNOSTIC_ASSERT(mGroups.IsEmpty());
+
+  mPendingLoadStates.Clear();
 }
 
 void ContentParent::ActorDealloc() { mSelfRef = nullptr; }
@@ -2278,8 +2300,8 @@ bool ContentParent::HasActiveWorkerOrJSPlugin() {
 
   // If we have active workers, we need to stay alive.
   {
-    const auto lock = mRemoteWorkerActorData.Lock();
-    if (lock->mCount) {
+    MutexAutoLock lock(mThreadsafeHandle->mMutex);
+    if (mThreadsafeHandle->mRemoteWorkerActorCount) {
       return true;
     }
   }
@@ -2819,7 +2841,8 @@ ContentParent::ContentParent(const nsACString& aRemoteType, int32_t aJSPluginID)
       mChildID(gContentChildID++),
       mGeolocationWatchID(-1),
       mJSPluginID(aJSPluginID),
-      mRemoteWorkerActorData("ContentParent::mRemoteWorkerActorData"),
+      mThreadsafeHandle(
+          new ThreadsafeContentParentHandle(this, mChildID, mRemoteType)),
       mNumDestroyingTabs(0),
       mNumKeepaliveCalls(0),
       mLifecycleState(LifecycleState::LAUNCHING),
@@ -2833,6 +2856,7 @@ ContentParent::ContentParent(const nsACString& aRemoteType, int32_t aJSPluginID)
       mIsRemoteInputEventQueueEnabled(false),
       mIsInputPriorityEventEnabled(false),
       mIsInPool(false),
+      mGMPCreated(false),
 #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
       mBlockShutdownCalled(false),
 #endif
@@ -2877,7 +2901,10 @@ ContentParent::~ContentParent() {
     mForceKillTimer->Cancel();
   }
 
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  AssertIsOnMainThread();
+
+  // Clear the weak reference from the threadsafe handle back to this actor.
+  mThreadsafeHandle->mWeakActor = nullptr;
 
   if (mIsAPreallocBlocker) {
     MOZ_LOG(ContentParent::GetLog(), LogLevel::Debug,
@@ -3081,6 +3108,8 @@ bool ContentParent::InitInternal(ProcessPriority aInitialPriority) {
 #endif
 
   xpcomInit.perfStatsMask() = PerfStats::GetCollectionMask();
+
+  xpcomInit.trrDomain() = TRRService::ProviderKey();
 
   Unused << SendSetXPCOMProcessAttributes(
       xpcomInit, initialData, lnf, fontList, std::move(sharedUASheetHandle),
@@ -3407,19 +3436,63 @@ mozilla::ipc::IPCResult ContentParent::RecvSetClipboard(
 
   rv = nsContentUtils::IPCTransferableToTransferable(
       aDataTransfer, aIsPrivateData, aRequestingPrincipal, aContentPolicyType,
-      true /* aAddDataFlavor */, trans);
+      true /* aAddDataFlavor */, trans, true /* aFilterUnknownFlavors */);
   NS_ENSURE_SUCCESS(rv, IPC_OK());
 
   clipboard->SetData(trans, nullptr, aWhichClipboard);
   return IPC_OK();
 }
 
+namespace {
+
+static Result<nsCOMPtr<nsITransferable>, nsresult> CreateTransferable(
+    const nsTArray<nsCString>& aTypes) {
+  nsresult rv;
+  nsCOMPtr<nsITransferable> trans =
+      do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
+  if (NS_FAILED(rv)) {
+    return Err(rv);
+  }
+
+  MOZ_TRY(trans->Init(nullptr));
+  // The private flag is only used to prevent the data from being cached to the
+  // disk. The flag is not exported to the IPCDataTransfer object.
+  // The flag is set because we are not sure whether the clipboard data is used
+  // in a private browsing context. The transferable is only used in this scope,
+  // so the cache would not reduce memory consumption anyway.
+  trans->SetIsPrivateData(true);
+  // Fill out flavors for transferable
+  for (uint32_t t = 0; t < aTypes.Length(); t++) {
+    MOZ_TRY(trans->AddDataFlavor(aTypes[t].get()));
+  }
+
+  return std::move(trans);
+}
+
+}  // anonymous namespace
+
 mozilla::ipc::IPCResult ContentParent::RecvGetClipboard(
     nsTArray<nsCString>&& aTypes, const int32_t& aWhichClipboard,
     IPCDataTransfer* aDataTransfer) {
-  nsresult rv = GetDataFromClipboard(aTypes, aWhichClipboard,
-                                     true /* aInSyncMessage */, aDataTransfer);
-  NS_ENSURE_SUCCESS(rv, IPC_OK());
+  nsresult rv;
+  // Retrieve clipboard
+  nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID, &rv));
+  if (NS_FAILED(rv)) {
+    return IPC_OK();
+  }
+
+  // Create transferable
+  auto result = CreateTransferable(aTypes);
+  if (result.isErr()) {
+    return IPC_OK();
+  }
+
+  // Get data from clipboard
+  nsCOMPtr<nsITransferable> trans = result.unwrap();
+  clipboard->GetData(trans, aWhichClipboard);
+
+  nsContentUtils::TransferableToIPCTransferable(
+      trans, aDataTransfer, true /* aInSyncMessage */, nullptr, this);
   return IPC_OK();
 }
 
@@ -3475,58 +3548,36 @@ mozilla::ipc::IPCResult ContentParent::RecvGetExternalClipboardFormats(
   return IPC_OK();
 }
 
-nsresult ContentParent::GetDataFromClipboard(const nsTArray<nsCString>& aTypes,
-                                             const int32_t aWhichClipboard,
-                                             const bool aInSyncMessage,
-                                             IPCDataTransfer* aDataTransfer) {
+mozilla::ipc::IPCResult ContentParent::RecvGetClipboardAsync(
+    nsTArray<nsCString>&& aTypes, const int32_t& aWhichClipboard,
+    GetClipboardAsyncResolver&& aResolver) {
   nsresult rv;
   // Retrieve clipboard
   nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID, &rv));
   if (NS_FAILED(rv)) {
-    return rv;
+    aResolver(rv);
+    return IPC_OK();
   }
 
   // Create transferable
-  nsCOMPtr<nsITransferable> trans =
-      do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  trans->Init(nullptr);
-
-  // The private flag is only used to prevent the data from being cached to the
-  // disk. The flag is not exported to the IPCDataTransfer object.
-  // The flag is set because we are not sure whether the clipboard data is used
-  // in a private browsing context. The transferable is only used in this scope,
-  // so the cache would not reduce memory consumption anyway.
-  trans->SetIsPrivateData(true);
-
-  // Fill out flavors for transferable
-  for (uint32_t t = 0; t < aTypes.Length(); t++) {
-    trans->AddDataFlavor(aTypes[t].get());
+  auto result = CreateTransferable(aTypes);
+  if (result.isErr()) {
+    aResolver(result.unwrapErr());
+    return IPC_OK();
   }
 
   // Get data from clipboard
-  clipboard->GetData(trans, aWhichClipboard);
-
-  nsContentUtils::TransferableToIPCTransferable(trans, aDataTransfer,
-                                                aInSyncMessage, nullptr, this);
-  return NS_OK;
-}
-
-mozilla::ipc::IPCResult ContentParent::RecvGetClipboardAsync(
-    nsTArray<nsCString>&& aTypes, const int32_t& aWhichClipboard,
-    GetClipboardAsyncResolver&& aResolver) {
-  IPCDataTransfer ipcDataTransfer;
-
-  nsresult rv = GetDataFromClipboard(
-      aTypes, aWhichClipboard, false /* aInSyncMessage */, &ipcDataTransfer);
-  if (NS_FAILED(rv)) {
-    return IPC_FAIL(this, "RecvGetClipboardAsync failed.");
-  }
-
-  // Resolve the promise
-  aResolver(std::move(ipcDataTransfer));
+  nsCOMPtr<nsITransferable> trans = result.unwrap();
+  clipboard->AsyncGetData(trans, nsIClipboard::kGlobalClipboard)
+      ->Then(GetMainThreadSerialEventTarget(), __func__,
+             [trans, aResolver, self = RefPtr{this}](
+                 GenericPromise::ResolveOrRejectValue&& aValue) {
+               IPCDataTransfer ipcDataTransfer;
+               nsContentUtils::TransferableToIPCTransferable(
+                   trans, &ipcDataTransfer, false /* aInSyncMessage */, nullptr,
+                   self);
+               aResolver(std::move(ipcDataTransfer));
+             });
   return IPC_OK();
 }
 
@@ -3534,7 +3585,7 @@ mozilla::ipc::IPCResult ContentParent::RecvPlaySound(nsIURI* aURI) {
   // If the check here fails, it can only mean that this message was spoofed.
   if (!aURI || !aURI->SchemeIs("chrome")) {
     // PlaySound only accepts a valid chrome URI.
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "Invalid aURI passed.");
   }
   nsCOMPtr<nsIURL> soundURL(do_QueryInterface(aURI));
   if (!soundURL) {
@@ -3601,6 +3652,26 @@ mozilla::ipc::IPCResult ContentParent::RecvFirstIdle() {
     PreallocatedProcessManager::RemoveBlocker(mRemoteType, this);
     mIsAPreallocBlocker = false;
   }
+  return IPC_OK();
+}
+
+already_AddRefed<nsDocShellLoadState> ContentParent::TakePendingLoadStateForId(
+    uint64_t aLoadIdentifier) {
+  return mPendingLoadStates.Extract(aLoadIdentifier).valueOr(nullptr).forget();
+}
+
+void ContentParent::StorePendingLoadState(nsDocShellLoadState* aLoadState) {
+  MOZ_DIAGNOSTIC_ASSERT(
+      !mPendingLoadStates.Contains(aLoadState->GetLoadIdentifier()),
+      "The same nsDocShellLoadState was sent to the same content process "
+      "twice? This will mess with cross-process tracking of loads");
+  mPendingLoadStates.InsertOrUpdate(aLoadState->GetLoadIdentifier(),
+                                    aLoadState);
+}
+
+mozilla::ipc::IPCResult ContentParent::RecvCleanupPendingLoadState(
+    uint64_t aLoadIdentifier) {
+  mPendingLoadStates.Remove(aLoadIdentifier);
   return IPC_OK();
 }
 
@@ -3701,8 +3772,10 @@ ContentParent::BlockShutdown(nsIAsyncShutdownClient* aClient) {
     // The normal shutdown sequence is to send a shutdown message
     // to the child and then just wait for ActorDestroy which will
     // cleanup everything and remove our blockers.
-    // XXX: Check for successful dispatch, see bug 1765732
-    ShutDownProcess(SEND_SHUTDOWN_MESSAGE);
+    if (!ShutDownProcess(SEND_SHUTDOWN_MESSAGE)) {
+      KillHard("Failed to send Shutdown message. Destroying the process...");
+      return NS_OK;
+    }
   } else if (IsLaunching()) {
     MaybeLogBlockShutdownDiagnostics(
         this, "BlockShutdown: !CanSend && IsLaunching.", __FILE__, __LINE__);
@@ -4609,7 +4682,7 @@ bool ContentParent::DeallocPSpeechSynthesisParent(
 mozilla::ipc::IPCResult ContentParent::RecvPSpeechSynthesisConstructor(
     PSpeechSynthesisParent* aActor) {
   if (!static_cast<SpeechSynthesisParent*>(aActor)->SendInit()) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "SpeechSynthesisParent::SendInit failed.");
   }
   return IPC_OK();
 }
@@ -4633,7 +4706,7 @@ mozilla::ipc::IPCResult ContentParent::RecvStartVisitedQueries(
 mozilla::ipc::IPCResult ContentParent::RecvSetURITitle(nsIURI* uri,
                                                        const nsAString& title) {
   if (!uri) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "uri must not be null.");
   }
   nsCOMPtr<IHistory> history = components::History::Service();
   if (history) {
@@ -4647,14 +4720,14 @@ mozilla::ipc::IPCResult ContentParent::RecvIsSecureURI(
     bool* aIsSecureURI) {
   nsCOMPtr<nsISiteSecurityService> sss(do_GetService(NS_SSSERVICE_CONTRACTID));
   if (!sss) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "Failed to get nsISiteSecurityService.");
   }
   if (!aURI) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "aURI must not be null.");
   }
   nsresult rv = sss->IsSecureURI(aURI, aOriginAttributes, aIsSecureURI);
   if (NS_FAILED(rv)) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "IsSecureURI failed.");
   }
   return IPC_OK();
 }
@@ -4663,7 +4736,7 @@ mozilla::ipc::IPCResult ContentParent::RecvAccumulateMixedContentHSTS(
     nsIURI* aURI, const bool& aActive,
     const OriginAttributes& aOriginAttributes) {
   if (!aURI) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "aURI must not be null.");
   }
   nsMixedContentBlocker::AccumulateMixedContentHSTS(aURI, aActive,
                                                     aOriginAttributes);
@@ -4686,7 +4759,7 @@ mozilla::ipc::IPCResult ContentParent::RecvLoadURIExternal(
   }
 
   if (!uri) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "uri must not be null.");
   }
 
   BrowsingContext* bc = aContext.get();
@@ -4724,7 +4797,7 @@ mozilla::ipc::IPCResult ContentParent::RecvExtProtocolChannelConnectParent(
 mozilla::ipc::IPCResult ContentParent::RecvShowAlert(
     nsIAlertNotification* aAlert) {
   if (!aAlert) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "aAlert must not be null.");
   }
   nsCOMPtr<nsIAlertsService> sysAlerts(components::Alerts::Service());
   if (sysAlerts) {
@@ -5087,12 +5160,12 @@ mozilla::ipc::IPCResult ContentParent::RecvAddIdleObserver(
   nsresult rv;
   nsCOMPtr<nsIUserIdleService> idleService =
       do_GetService("@mozilla.org/widget/useridleservice;1", &rv);
-  NS_ENSURE_SUCCESS(rv, IPC_FAIL_NO_REASON(this));
+  NS_ENSURE_SUCCESS(rv, IPC_FAIL(this, "Failed to get UserIdleService."));
 
   RefPtr<ParentIdleListener> listener =
       new ParentIdleListener(this, aObserver, aIdleTimeInS);
   rv = idleService->AddIdleObserver(listener, aIdleTimeInS);
-  NS_ENSURE_SUCCESS(rv, IPC_FAIL_NO_REASON(this));
+  NS_ENSURE_SUCCESS(rv, IPC_FAIL(this, "AddIdleObserver failed."));
   mIdleListeners.AppendElement(listener);
   return IPC_OK();
 }
@@ -5106,7 +5179,7 @@ mozilla::ipc::IPCResult ContentParent::RecvRemoveIdleObserver(
       nsresult rv;
       nsCOMPtr<nsIUserIdleService> idleService =
           do_GetService("@mozilla.org/widget/useridleservice;1", &rv);
-      NS_ENSURE_SUCCESS(rv, IPC_FAIL_NO_REASON(this));
+      NS_ENSURE_SUCCESS(rv, IPC_FAIL(this, "Failed to get UserIdleService."));
       idleService->RemoveIdleObserver(listener, aIdleTimeInS);
       mIdleListeners.RemoveElementAt(i);
       break;
@@ -5846,7 +5919,7 @@ mozilla::ipc::IPCResult ContentParent::RecvStartCmapLoading(
 mozilla::ipc::IPCResult ContentParent::RecvGetHyphDict(
     nsIURI* aURI, base::SharedMemoryHandle* aOutHandle, uint32_t* aOutSize) {
   if (!aURI) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "aURI must not be null.");
   }
   nsHyphenationManager::Instance()->ShareHyphDictToProcess(
       aURI, Pid(), aOutHandle, aOutSize);
@@ -5880,8 +5953,7 @@ mozilla::ipc::IPCResult ContentParent::RecvBeginDriverCrashGuard(
       guard = MakeUnique<gfx::WMFVPXVideoCrashGuard>(this);
       break;
     default:
-      MOZ_ASSERT_UNREACHABLE("unknown crash guard type");
-      return IPC_FAIL_NO_REASON(this);
+      return IPC_FAIL(this, "unknown crash guard type");
   }
 
   if (guard->Crashed()) {
@@ -6054,7 +6126,7 @@ mozilla::ipc::IPCResult ContentParent::RecvStoreAndBroadcastBlobURLRegistration(
   }
   RefPtr<BlobImpl> blobImpl = IPCBlobUtils::Deserialize(aBlob);
   if (NS_WARN_IF(!blobImpl)) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "Blob deserialization failed.");
   }
 
   BlobURLProtocolHandler::AddDataEntry(aURI, aPrincipal, aAgentClusterId,
@@ -6132,9 +6204,12 @@ mozilla::ipc::IPCResult ContentParent::RecvGetFilesRequest(
   if (!mozilla::Preferences::GetBool("dom.filesystem.pathcheck.disabled",
                                      false)) {
     RefPtr<FileSystemSecurity> fss = FileSystemSecurity::Get();
-    if (NS_WARN_IF(!fss || !fss->ContentProcessHasAccessTo(ChildID(),
-                                                           aDirectoryPath))) {
-      return IPC_FAIL_NO_REASON(this);
+    if (!fss) {
+      return IPC_FAIL(this, "Failed to get FileSystemSecurity.");
+    }
+
+    if (!fss->ContentProcessHasAccessTo(ChildID(), aDirectoryPath)) {
+      return IPC_FAIL(this, "ContentProcessHasAccessTo failed.");
     }
   }
 
@@ -6145,7 +6220,7 @@ mozilla::ipc::IPCResult ContentParent::RecvGetFilesRequest(
   if (NS_WARN_IF(rv.Failed())) {
     if (!SendGetFilesResponse(aUUID,
                               GetFilesResponseFailure(rv.StealNSResult()))) {
-      return IPC_FAIL_NO_REASON(this);
+      return IPC_FAIL(this, "SendGetFilesResponse failed.");
     }
     return IPC_OK();
   }
@@ -6492,8 +6567,7 @@ mozilla::ipc::IPCResult ContentParent::RecvPURLClassifierLocalConstructor(
   nsTArray<IPCURLClassifierFeature> features = std::move(aFeatures);
 
   if (!aURI) {
-    NS_WARNING("aURI should not be null");
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "aURI should not be null");
   }
 
   auto* actor = static_cast<URLClassifierLocalParent*>(aActor);
@@ -6524,7 +6598,7 @@ mozilla::ipc::IPCResult ContentParent::RecvPLoginReputationConstructor(
   MOZ_ASSERT(aActor);
 
   if (!aURI) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "aURI should not be null");
   }
 
   auto* actor = static_cast<LoginReputationParent*>(aActor);
@@ -6554,7 +6628,7 @@ mozilla::ipc::IPCResult ContentParent::RecvPSessionStorageObserverConstructor(
   MOZ_ASSERT(aActor);
 
   if (!mozilla::dom::RecvPSessionStorageObserverConstructor(aActor)) {
-    return IPC_FAIL_NO_REASON(this);
+    return IPC_FAIL(this, "RecvPSessionStorageObserverConstructor failed.");
   }
   return IPC_OK();
 }
@@ -7109,17 +7183,12 @@ mozilla::ipc::IPCResult ContentParent::RecvDiscardBrowsingContext(
   return IPC_OK();
 }
 
-void ContentParent::RegisterRemoteWorkerActor() {
-  auto lock = mRemoteWorkerActorData.Lock();
-  ++lock->mCount;
-}
-
 void ContentParent::UnregisterRemoveWorkerActor() {
   MOZ_ASSERT(NS_IsMainThread());
 
   {
-    auto lock = mRemoteWorkerActorData.Lock();
-    if (--lock->mCount) {
+    MutexAutoLock lock(mThreadsafeHandle->mMutex);
+    if (--mThreadsafeHandle->mRemoteWorkerActorCount) {
       return;
     }
   }
@@ -8086,6 +8155,21 @@ IPCResult ContentParent::RecvSignalFuzzingReady() {
   return IPC_OK();
 }
 #endif
+
+nsCString ThreadsafeContentParentHandle::GetRemoteType() {
+  MutexAutoLock lock(mMutex);
+  return mRemoteType;
+}
+
+bool ThreadsafeContentParentHandle::MaybeRegisterRemoteWorkerActor(
+    MoveOnlyFunction<bool(uint32_t, bool)> aCallback) {
+  MutexAutoLock lock(mMutex);
+  if (aCallback(mRemoteWorkerActorCount, mShutdownStarted)) {
+    ++mRemoteWorkerActorCount;
+    return true;
+  }
+  return false;
+}
 
 }  // namespace dom
 }  // namespace mozilla

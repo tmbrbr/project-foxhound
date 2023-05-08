@@ -1041,7 +1041,7 @@ InterceptedHttpChannel::OnRedirectVerifyCallback(nsresult rv) {
   nsCOMPtr<nsIRedirectResultListener> hook;
   GetCallback(hook);
   if (hook) {
-    hook->OnRedirectResult(NS_SUCCEEDED(rv));
+    hook->OnRedirectResult(rv);
   }
 
   if (NS_FAILED(rv)) {
@@ -1070,21 +1070,14 @@ InterceptedHttpChannel::OnStartRequest(nsIRequest* aRequest) {
     GetCallback(mProgressSink);
   }
 
-  if (!EnsureOpaqueResponseIsAllowed()) {
-    // XXXtt: Return an error code or make the response body null.
-    // We silence the error result now because we only want to get how many
-    // response will get allowed or blocked by ORB.
-  }
+  MOZ_ASSERT_IF(!mLoadInfo->GetServiceWorkerTaintingSynthesized(),
+                mLoadInfo->GetLoadingPrincipal());
+  // No need to do ORB checks if these conditions hold.
+  MOZ_DIAGNOSTIC_ASSERT(mLoadInfo->GetServiceWorkerTaintingSynthesized() ||
+                        mLoadInfo->GetLoadingPrincipal()->IsSystemPrincipal());
 
   if (mPump && mLoadFlags & LOAD_CALL_CONTENT_SNIFFERS) {
     mPump->PeekStream(CallTypeSniffers, static_cast<nsIChannel*>(this));
-  }
-
-  auto isAllowedOrErr = EnsureOpaqueResponseIsAllowedAfterSniff();
-  if (isAllowedOrErr.isErr() || !isAllowedOrErr.inspect()) {
-    // XXXtt: Return an error code or make the response body null.
-    // We silence the error result now because we only want to get how many
-    // response will get allowed or blocked by ORB.
   }
 
   nsresult rv = ProcessCrossOriginEmbedderPolicyHeader();

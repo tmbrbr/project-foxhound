@@ -123,7 +123,8 @@ enum nsTableColType {
  * stand-alone as the top-level frame.
  *
  * The principal child list contains row group frames. There is also an
- * additional child list, kColGroupList, which contains the col group frames.
+ * additional child list, FrameChildListID::ColGroup, which contains the col
+ * group frames.
  */
 class nsTableFrame : public nsContainerFrame {
   typedef mozilla::image::ImgDrawResult ImgDrawResult;
@@ -194,13 +195,12 @@ class nsTableFrame : public nsContainerFrame {
   /** @see nsIFrame::DidSetComputedStyle */
   virtual void DidSetComputedStyle(ComputedStyle* aOldComputedStyle) override;
 
-  virtual void SetInitialChildList(ChildListID aListID,
-                                   nsFrameList& aChildList) override;
-  virtual void AppendFrames(ChildListID aListID,
-                            nsFrameList& aFrameList) override;
-  virtual void InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
-                            const nsLineList::iterator* aPrevFrameLine,
-                            nsFrameList& aFrameList) override;
+  void SetInitialChildList(ChildListID aListID,
+                           nsFrameList&& aChildList) override;
+  void AppendFrames(ChildListID aListID, nsFrameList&& aFrameList) override;
+  void InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
+                    const nsLineList::iterator* aPrevFrameLine,
+                    nsFrameList&& aFrameList) override;
   virtual void RemoveFrame(ChildListID aListID, nsIFrame* aOldFrame) override;
 
   virtual nsMargin GetUsedBorder() const override;
@@ -581,11 +581,11 @@ class nsTableFrame : public nsContainerFrame {
 
  protected:
   // A helper function to reflow a header or footer with unconstrained height
-  // to see if it should be made repeatable and also to determine its desired
-  // height.
-  nsresult SetupHeaderFooterChild(const TableReflowInput& aReflowInput,
-                                  nsTableRowGroupFrame* aFrame,
-                                  nscoord* aDesiredHeight);
+  // to see if it should be made repeatable.
+  // @return the desired height for a header or footer.
+  // XXX: This helper should be converted to logic coordinates.
+  nscoord SetupHeaderFooterChild(const TableReflowInput& aReflowInput,
+                                 nsTableRowGroupFrame* aFrame);
 
   void ReflowChildren(TableReflowInput& aReflowInput, nsReflowStatus& aStatus,
                       nsIFrame*& aLastChildReflowed,

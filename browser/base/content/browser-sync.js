@@ -174,9 +174,6 @@ this.SyncedTabsPanelList = class SyncedTabsPanelList {
           fragment.appendChild(container);
         }
         this.tabsList.appendChild(fragment);
-        PanelView.forNode(
-          this.tabsList.closest("panelview")
-        ).descriptionHeightWorkaround();
       })
       .catch(err => {
         Cu.reportError(err);
@@ -1386,7 +1383,7 @@ var gSync = {
                 ?.id != "widget-overflow-list" &&
               document.getElementById("fxa-toolbar-menu-button")) ||
             document.getElementById("PanelUI-menu-button");
-          ConfirmationHint.show(anchorNode, "sendToDevice");
+          ConfirmationHint.show(anchorNode, "confirmation-hint-send-to-device");
         }
         fxAccounts.flushLogFile();
       });

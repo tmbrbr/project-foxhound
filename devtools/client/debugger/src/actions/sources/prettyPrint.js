@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
-import { generatedToOriginalId } from "devtools-source-map";
+import { generatedToOriginalId } from "devtools/client/shared/source-map-loader/index";
 
 import assert from "../../utils/assert";
 import { recordEvent } from "../../utils/telemetry";
@@ -15,13 +15,15 @@ import {
   isGenerated,
   isJavaScript,
 } from "../../utils/source";
-import { loadSourceText } from "./loadSourceText";
+import { isFulfilled } from "../../utils/async-value";
+import { loadGeneratedSourceText } from "./loadSourceText";
 import { mapFrames } from "../pause";
 import { selectSpecificLocation } from "../sources";
 import { createPrettyPrintOriginalSource } from "../../client/firefox/create";
 
 import {
   getSource,
+  getFirstSourceActorForGeneratedSource,
   getSourceFromId,
   getSourceByURL,
   getSelectedLocation,
@@ -40,13 +42,21 @@ export async function prettyPrintSource(
   content,
   actors
 ) {
-  if (!isJavaScript(generatedSource, content) || content.type !== "text") {
+  if (!content || !isFulfilled(content)) {
+    throw new Error("Cannot pretty-print a file that has not loaded");
+  }
+
+  const contentValue = content.value;
+  if (
+    !isJavaScript(generatedSource, contentValue) ||
+    contentValue.type !== "text"
+  ) {
     throw new Error("Can't prettify non-javascript files.");
   }
 
   const url = getPrettyOriginalSourceURL(generatedSource);
   const { code, mappings } = await prettyPrint({
-    text: content.value,
+    text: contentValue.value,
     url,
   });
   await sourceMaps.applySourceMap(generatedSource.id, url, code, mappings);
@@ -122,11 +132,17 @@ export function togglePrettyPrint(cx, sourceId) {
       recordEvent("pretty_print");
     }
 
-    await dispatch(loadSourceText({ cx, source }));
     assert(
       isGenerated(source),
       "Pretty-printing only allowed on generated sources"
     );
+
+    const sourceActor = getFirstSourceActorForGeneratedSource(
+      getState(),
+      source.id
+    );
+
+    await dispatch(loadGeneratedSourceText({ cx, sourceActor }));
 
     const url = getPrettySourceURL(source.url);
     const prettySource = getSourceByURL(getState(), url);
@@ -137,12 +153,12 @@ export function togglePrettyPrint(cx, sourceId) {
 
     const selectedLocation = getSelectedLocation(getState());
     const newPrettySource = await dispatch(createPrettySource(cx, sourceId));
-    dispatch(selectPrettyLocation(cx, newPrettySource, selectedLocation));
+    await dispatch(selectPrettyLocation(cx, newPrettySource, selectedLocation));
 
     const threadcx = getThreadContext(getState());
     await dispatch(mapFrames(threadcx));
 
-    await dispatch(setSymbols({ cx, source: newPrettySource }));
+    await dispatch(setSymbols({ cx, source: newPrettySource, sourceActor }));
 
     await dispatch(updateBreakpointsForNewPrettyPrintedSource(cx, sourceId));
 

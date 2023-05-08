@@ -2,6 +2,10 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 ChromeUtils.defineESModuleGetters(this, {
+  FormHistory: "resource://gre/modules/FormHistory.sys.mjs",
+  FormHistoryTestUtils:
+    "resource://testing-common/FormHistoryTestUtils.sys.mjs",
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   SearchTestUtils: "resource://testing-common/SearchTestUtils.sys.mjs",
   SearchUtils: "resource://gre/modules/SearchUtils.sys.mjs",
   UrlbarSearchUtils: "resource:///modules/UrlbarSearchUtils.sys.mjs",
@@ -12,9 +16,6 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   AddonTestUtils: "resource://testing-common/AddonTestUtils.jsm",
   CustomizableUITestUtils:
     "resource://testing-common/CustomizableUITestUtils.jsm",
-  FormHistory: "resource://gre/modules/FormHistory.jsm",
-  FormHistoryTestUtils: "resource://testing-common/FormHistoryTestUtils.jsm",
-  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
   TelemetryTestUtils: "resource://testing-common/TelemetryTestUtils.jsm",
 });
 
@@ -108,8 +109,6 @@ XPCOMUtils.defineLazyGetter(this, "SEARCH_AD_CLICK_SCALARS", () => {
     "unknown",
   ];
   return [
-    "browser.search.with_ads",
-    "browser.search.ad_clicks",
     ...sources.map(v => `browser.search.withads.${v}`),
     ...sources.map(v => `browser.search.adclicks.${v}`),
   ];
@@ -211,11 +210,6 @@ async function searchInSearchbar(inputText, win = window) {
 }
 
 function clearSearchbarHistory(win = window) {
-  return new Promise((resolve, reject) => {
-    info("cleanup the search history");
-    FormHistory.update(
-      { op: "remove", fieldname: "searchbar-history" },
-      { handleCompletion: resolve, handleError: reject }
-    );
-  });
+  info("cleanup the search history");
+  return FormHistory.update({ op: "remove", fieldname: "searchbar-history" });
 }

@@ -681,6 +681,52 @@ public class GeckoViewActivity extends AppCompatActivity
         }
       };
 
+  private final StringSetting mCookieBannerHandling =
+      new StringSetting(
+          R.string.key_cookie_banner_handling, R.string.cookie_banner_handling_default) {
+        @Override
+        public void setValue(final GeckoRuntimeSettings settings, final String value) {
+          int cbMode;
+          switch (value) {
+            case "disabled":
+              cbMode = ContentBlocking.CookieBannerMode.COOKIE_BANNER_MODE_DISABLED;
+              break;
+            case "reject_all":
+              cbMode = ContentBlocking.CookieBannerMode.COOKIE_BANNER_MODE_REJECT;
+              break;
+            case "reject_accept_all":
+              cbMode = ContentBlocking.CookieBannerMode.COOKIE_BANNER_MODE_REJECT_OR_ACCEPT;
+              break;
+            default:
+              throw new RuntimeException("Invalid Cookie Banner Handling mode: " + value);
+          }
+          settings.getContentBlocking().setCookieBannerMode(cbMode);
+        }
+      };
+
+  private final StringSetting mCookieBannerHandlingPrivateMode =
+      new StringSetting(
+          R.string.key_cookie_banner_handling_pb, R.string.cookie_banner_handling_pb_default) {
+        @Override
+        public void setValue(final GeckoRuntimeSettings settings, final String value) {
+          int cbPrivateMode;
+          switch (value) {
+            case "disabled":
+              cbPrivateMode = ContentBlocking.CookieBannerMode.COOKIE_BANNER_MODE_DISABLED;
+              break;
+            case "reject_all":
+              cbPrivateMode = ContentBlocking.CookieBannerMode.COOKIE_BANNER_MODE_REJECT;
+              break;
+            case "reject_accept_all":
+              cbPrivateMode = ContentBlocking.CookieBannerMode.COOKIE_BANNER_MODE_REJECT_OR_ACCEPT;
+              break;
+            default:
+              throw new RuntimeException("Invalid Cookie Banner Handling private mode: " + value);
+          }
+          settings.getContentBlocking().setCookieBannerModePrivateBrowsing(cbPrivateMode);
+        }
+      };
+
   private final BooleanSetting mDynamicFirstPartyIsolation =
       new BooleanSetting(R.string.key_dfpi, R.bool.dfpi_default) {
         @Override
@@ -2387,7 +2433,8 @@ public class GeckoViewActivity extends AppCompatActivity
       Intent intent = new Intent(mActivity, GeckoViewActivity.class);
       intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
       PendingIntent pendingIntent =
-          PendingIntent.getActivity(mActivity.getApplicationContext(), 0, intent, 0);
+          PendingIntent.getActivity(
+              mActivity.getApplicationContext(), 0, intent, PendingIntent.FLAG_IMMUTABLE);
 
       NotificationCompat.Builder builder =
           new NotificationCompat.Builder(mActivity.getApplicationContext(), CHANNEL_ID)

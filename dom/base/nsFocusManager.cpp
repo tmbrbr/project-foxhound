@@ -8,6 +8,7 @@
 
 #include "nsFocusManager.h"
 
+#include "LayoutConstants.h"
 #include "ChildIterator.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsGkAtoms.h"
@@ -1324,6 +1325,26 @@ void nsFocusManager::NotifyFocusStateChange(Element* aElement,
     for (nsIContent* host = aElement->GetContainingShadowHost(); host;
          host = host->GetContainingShadowHost()) {
       host->AsElement()->RemoveStates(ElementState::FOCUS);
+    }
+  }
+
+  // Special case for <input type="checkbox"> and <input type="radio">.
+  // The other browsers cancel active state when they gets lost focus, but
+  // does not do it for the other elements such as <button> and <a href="...">.
+  // Additionally, they may be activated with <label>, but they will get focus
+  // at `click`, but activated at `mousedown`.  Therefore, we need to cancel
+  // active state at moving focus.
+  if (RefPtr<nsPresContext> presContext =
+          aElement->GetPresContext(Element::PresContextFor::eForComposedDoc)) {
+    RefPtr<EventStateManager> esm =
+        presContext ? presContext->EventStateManager() : nullptr;
+    HTMLInputElement* activeInputElement =
+        HTMLInputElement::FromNodeOrNull(esm->GetActiveContent());
+    if (activeInputElement &&
+        (activeInputElement->ControlType() == FormControlType::InputCheckbox ||
+         activeInputElement->ControlType() == FormControlType::InputRadio) &&
+        !activeInputElement->State().HasState(ElementState::FOCUS)) {
+      esm->SetContentState(nullptr, ElementState::ACTIVE);
     }
   }
 
@@ -2862,6 +2883,9 @@ void nsFocusManager::FireFocusOrBlurEvent(EventMessage aEventMessage,
   }
 #endif
 
+  aPresShell->ScheduleContentRelevancyUpdate(
+      ContentRelevancyReason::FocusInSubtree);
+
   nsContentUtils::AddScriptRunner(
       new FocusBlurEvent(aTarget, aEventMessage, aPresShell->GetPresContext(),
                          aWindowRaised, aIsRefocus, aRelatedTarget));
@@ -2888,8 +2912,8 @@ void nsFocusManager::ScrollIntoView(PresShell* aPresShell, nsIContent* aContent,
   }
   // If the noscroll flag isn't set, scroll the newly focused element into view.
   aPresShell->ScrollContentIntoView(
-      aContent, ScrollAxis(kScrollMinimum, WhenToScroll::IfNotVisible),
-      ScrollAxis(kScrollMinimum, WhenToScroll::IfNotVisible),
+      aContent, ScrollAxis(WhereToScroll::Nearest, WhenToScroll::IfNotVisible),
+      ScrollAxis(WhereToScroll::Nearest, WhenToScroll::IfNotVisible),
       ScrollFlags::ScrollOverflowHidden);
   // Scroll the input / textarea selection into view, unless focused with the
   // mouse, see bug 572649.

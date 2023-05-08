@@ -4,6 +4,8 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+interface nsIFile;
+
 /**
  * IOUtils is a simple, efficient interface for performing file I/O from a
  * privileged chrome-only context. All asynchronous I/O tasks are run on
@@ -170,7 +172,24 @@ namespace IOUtils {
   [NewObject]
   Promise<undefined> copy(DOMString sourcePath, DOMString destPath, optional CopyOptions options = {});
   /**
-   * Updates the |modification| time for the file at |path|.
+   * Updates the access time for the file at |path|.
+   *
+   * @param path         An absolute file path identifying the file whose
+   *                     modification time is to be set. This file must exist
+   *                     and will not be created.
+   * @param modification An optional access time for the file expressed in
+   *                     milliseconds since the Unix epoch
+   *                     (1970-01-01T00:00:00Z). The current system time is used
+   *                     if this parameter is not provided.
+   *
+   * @return Resolves with the updated access time time expressed in
+   *         milliseconds since the Unix epoch, otherwise rejects with a
+   *         DOMException.
+   */
+  [NewObject]
+  Promise<long long> setAccessTime(DOMString path, optional long long access);
+  /**
+   * Updates the modification time for the file at |path|.
    *
    * @param path         An absolute file path identifying the file whose
    *                     modification time is to be set. This file must exist
@@ -334,6 +353,30 @@ namespace IOUtils {
   [NewObject]
   Promise<undefined> delMacXAttr(DOMString path, UTF8String attr);
 #endif
+
+  /**
+   * Return a nsIFile whose parent directory exists. The parent directory of the
+   * file will be created off main thread if it does not already exist.
+   *
+   * @param components The path components. The first component must be an
+   *                   absolute path.
+   *
+   * @return A promise that resolves to an nsIFile for the requested file.
+   */
+  [NewObject]
+  Promise<nsIFile> getFile(DOMString... components);
+
+  /**
+   * Return an nsIFile corresponding to a directory. It will be created
+   * off-main-thread if it does not already exist.
+   *
+   * @param components The path components. The first component must be an
+   *                   absolute path.
+   *
+   * @return A promise that resolves to an nsIFile for the requested directory.
+   */
+  [NewObject]
+  Promise<nsIFile> getDirectory(DOMString... components);
 };
 
 [Exposed=Window]
@@ -373,7 +416,7 @@ partial namespace IOUtils {
    * but it would use u16-based strings, so it would basically be a separate
    * copy of the bindings.)
    *
-   * This interface was added for use by `Subprocess.jsm`; other would-be
+   * This interface was added for use by `Subprocess.sys.jsm`; other would-be
    * callers may want to just use Subprocess instead of calling this directly.
    *
    * @param argv The command to run and its arguments.
@@ -466,6 +509,10 @@ enum WriteMode {
    * This mode will refuse to create the file if it does not exist.
    */
   "append",
+  /**
+   * Append to the end of the file, or create it if it does not exist.
+   */
+  "appendOrCreate",
   /**
    * Create a new file.
    *
@@ -593,21 +640,18 @@ dictionary FileInfo {
    * obtained.
    */
   DOMString path;
+
   /**
    * Identifies if the file at |path| is a regular file, directory, or something
    * something else.
    */
   FileType type;
+
   /**
    * If this represents a regular file, the size of the file in bytes.
    * Otherwise, -1.
    */
   long long size;
-  /**
-   * The timestamp of the last file modification, represented in milliseconds
-   * since Epoch (1970-01-01T00:00:00.000Z).
-   */
-  long long lastModified;
 
   /**
    * The timestamp of file creation, represented in milliseconds since Epoch
@@ -616,6 +660,19 @@ dictionary FileInfo {
    * This is only available on MacOS and Windows.
    */
   long long creationTime;
+
+  /**
+   * The timestmp of last file accesss, represented in milliseconds since Epoch
+   * (1970-01-01T00:00:00.000Z).
+   */
+  long long lastAccessed;
+
+  /**
+   * The timestamp of the last file modification, represented in milliseconds
+   * since Epoch (1970-01-01T00:00:00.000Z).
+   */
+  long long lastModified;
+
   /**
    * The permissions of the file, expressed as a UNIX file mode.
    *

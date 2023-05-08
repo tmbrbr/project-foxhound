@@ -72,7 +72,6 @@
 #include "mozilla/layers/WebRenderLayerManager.h"
 #include "mozilla/RestyleManager.h"
 #include "mozilla/TaskController.h"
-#include "Layers.h"
 #include "imgIContainer.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "nsDocShell.h"
@@ -676,15 +675,32 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
   void NotifyVsyncOnMainThread(const VsyncEvent& aVsyncEvent) {
     MOZ_ASSERT(NS_IsMainThread());
 
-    // This clears the input handling start time.
-    InputTaskManager::Get()->SetInputHandlingStartTime(TimeStamp());
-
     mRecentVsync = aVsyncEvent.mTime;
     mRecentVsyncId = aVsyncEvent.mId;
     if (!mSuspendVsyncPriorityTicksUntil.IsNull() &&
         mSuspendVsyncPriorityTicksUntil > aVsyncEvent.mTime) {
       if (ShouldGiveNonVsyncTasksMoreTime()) {
-        // Wait for the next tick.
+        if (!IsAnyToplevelContentPageLoading()) {
+          // If pages aren't loading and there aren't other tasks to run,
+          // trigger the pending vsync notification.
+          static bool sHasPendingLowPrioTask = false;
+          if (!sHasPendingLowPrioTask) {
+            sHasPendingLowPrioTask = true;
+            NS_DispatchToMainThreadQueue(
+                NS_NewRunnableFunction(
+                    "NotifyVsyncOnMainThread[low priority]",
+                    [self = RefPtr{this}, event = aVsyncEvent]() {
+                      sHasPendingLowPrioTask = false;
+                      if (self->mRecentVsync == event.mTime &&
+                          self->mRecentVsyncId == event.mId &&
+                          !self->ShouldGiveNonVsyncTasksMoreTime()) {
+                        self->mSuspendVsyncPriorityTicksUntil = TimeStamp();
+                        self->NotifyVsyncOnMainThread(event);
+                      }
+                    }),
+                EventQueuePriority::Low);
+          }
+        }
         return;
       }
 
@@ -1323,6 +1339,7 @@ nsRefreshDriver::nsRefreshDriver(nsPresContext* aPresContext)
       mResizeSuppressed(false),
       mNotifyDOMContentFlushed(false),
       mNeedToUpdateIntersectionObservations(false),
+      mNeedToUpdateContentRelevancy(false),
       mInNormalTick(false),
       mAttemptedExtraTickSinceLastVsync(false),
       mHasExceededAfterLoadTickPeriod(false),
@@ -1922,6 +1939,9 @@ auto nsRefreshDriver::GetReasonsToTick() const -> TickReasons {
   if (mNeedToUpdateIntersectionObservations) {
     reasons |= TickReasons::eNeedsToUpdateIntersectionObservations;
   }
+  if (mNeedToUpdateContentRelevancy) {
+    reasons |= TickReasons::eNeedsToUpdateContentRelevancy;
+  }
   if (!mVisualViewportResizeEvents.IsEmpty()) {
     reasons |= TickReasons::eHasVisualViewportResizeEvents;
   }
@@ -1951,6 +1971,9 @@ void nsRefreshDriver::AppendTickReasonsToString(TickReasons aReasons,
   }
   if (aReasons & TickReasons::eNeedsToUpdateIntersectionObservations) {
     aStr.AppendLiteral(" NeedsToUpdateIntersectionObservations");
+  }
+  if (aReasons & TickReasons::eNeedsToUpdateContentRelevancy) {
+    aStr.AppendLiteral(" NeedsToUpdateContentRelevancy");
   }
   if (aReasons & TickReasons::eHasVisualViewportResizeEvents) {
     aStr.AppendLiteral(" HasVisualViewportResizeEvents");
@@ -2147,6 +2170,25 @@ void nsRefreshDriver::UpdateIntersectionObservations(TimeStamp aNowTime) {
   }
 
   mNeedToUpdateIntersectionObservations = false;
+}
+
+void nsRefreshDriver::UpdateRelevancyOfContentVisibilityAutoFrames() {
+  if (!mNeedToUpdateContentRelevancy) {
+    return;
+  }
+
+  if (RefPtr<PresShell> topLevelPresShell = mPresContext->GetPresShell()) {
+    topLevelPresShell->UpdateRelevancyOfContentVisibilityAutoFrames();
+  }
+
+  mPresContext->Document()->EnumerateSubDocuments([](Document& aSubDoc) {
+    if (PresShell* presShell = aSubDoc.GetPresShell()) {
+      presShell->UpdateRelevancyOfContentVisibilityAutoFrames();
+    }
+    return CallState::Continue;
+  });
+
+  mNeedToUpdateContentRelevancy = false;
 }
 
 void nsRefreshDriver::DispatchAnimationEvents() {
@@ -2633,6 +2675,14 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime,
     pm->UpdatePopupPositions(this);
   }
 
+  // Update the relevancy of the content of any `content-visibility: auto`
+  // elements. The specification says: "Specifically, such changes will
+  // take effect between steps 13 and 14 of Update the Rendering step of
+  // the Processing Model (between “run the animation frame callbacks” and
+  // “run the update intersection observations steps”)."
+  // https://drafts.csswg.org/css-contain/#cv-notes
+  UpdateRelevancyOfContentVisibilityAutoFrames();
+
   UpdateIntersectionObservations(aNowTime);
 
   /*
@@ -2876,6 +2926,19 @@ void nsRefreshDriver::Thaw() {
 }
 
 void nsRefreshDriver::FinishedWaitingForTransaction() {
+  if (mSkippedPaints && !IsInRefresh() &&
+      (HasObservers() || HasImageRequests()) && CanDoCatchUpTick()) {
+    NS_DispatchToCurrentThreadQueue(
+        NS_NewRunnableFunction(
+            "nsRefreshDriver::FinishedWaitingForTransaction",
+            [self = RefPtr{this}]() {
+              if (self->CanDoCatchUpTick()) {
+                self->Tick(self->mActiveTimer->MostRecentRefreshVsyncId(),
+                           self->mActiveTimer->MostRecentRefresh());
+              }
+            }),
+        EventQueuePriority::Vsync);
+  }
   mWaitingForTransaction = false;
   mSkippedPaints = false;
 }

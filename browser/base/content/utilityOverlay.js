@@ -4,8 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Services = object with smart getters for common XPCOM services
-var { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+var { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 var { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
@@ -13,6 +13,7 @@ var { XPCOMUtils } = ChromeUtils.importESModule(
 
 ChromeUtils.defineESModuleGetters(this, {
   BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
 });
 
 XPCOMUtils.defineLazyModuleGetters(this, {
@@ -21,7 +22,6 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   ContextualIdentityService:
     "resource://gre/modules/ContextualIdentityService.jsm",
   ExtensionSettingsStore: "resource://gre/modules/ExtensionSettingsStore.jsm",
-  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
   ShellService: "resource:///modules/ShellService.jsm",
 });
 
@@ -79,7 +79,8 @@ function isBlankPageURL(aURL) {
     aURL == "about:blank" ||
     aURL == "about:home" ||
     aURL == "about:welcome" ||
-    aURL == BROWSER_NEW_TAB_URL
+    aURL == BROWSER_NEW_TAB_URL ||
+    aURL == "chrome://browser/content/blanktab.html"
   );
 }
 
@@ -103,13 +104,7 @@ function getTopWin({ skipPopups, forceNonPrivate } = {}) {
 }
 
 function doGetProtocolFlags(aURI) {
-  let handler = Services.io.getProtocolHandler(aURI.scheme);
-  // see DoGetProtocolFlags in nsIProtocolHandler.idl
-  return handler instanceof Ci.nsIProtocolHandlerWithDynamicFlags
-    ? handler
-        .QueryInterface(Ci.nsIProtocolHandlerWithDynamicFlags)
-        .getFlagsForURI(aURI)
-    : handler.protocolFlags;
+  return Services.io.getDynamicProtocolFlags(aURI);
 }
 
 /**
@@ -305,6 +300,7 @@ function openLinkIn(url, where, params) {
   var aPrincipal = params.originPrincipal;
   var aStoragePrincipal = params.originStoragePrincipal;
   var aTriggeringPrincipal = params.triggeringPrincipal;
+  var aTriggeringRemoteType = params.triggeringRemoteType;
   var aCsp = params.csp;
   var aForceAboutBlankViewerInCurrent = params.forceAboutBlankViewerInCurrent;
   var aResolveOnNewTabCreated = params.resolveOnNewTabCreated;
@@ -415,6 +411,12 @@ function openLinkIn(url, where, params) {
     let extraOptions = Cc["@mozilla.org/hash-property-bag;1"].createInstance(
       Ci.nsIWritablePropertyBag2
     );
+    if (aTriggeringRemoteType) {
+      extraOptions.setPropertyAsACString(
+        "triggeringRemoteType",
+        aTriggeringRemoteType
+      );
+    }
     if (params.hasValidUserGestureActivation !== undefined) {
       extraOptions.setPropertyAsBool(
         "hasValidUserGestureActivation",
@@ -625,6 +627,7 @@ function openLinkIn(url, where, params) {
         userContextId: aUserContextId,
         hasValidUserGestureActivation: params.hasValidUserGestureActivation,
         globalHistoryOptions: aGlobalHistoryOptions,
+        triggeringRemoteType: aTriggeringRemoteType,
       });
       if (aResolveOnContentBrowserReady) {
         aResolveOnContentBrowserReady(targetBrowser);
@@ -658,6 +661,7 @@ function openLinkIn(url, where, params) {
         originStoragePrincipal: aStoragePrincipal,
         triggeringPrincipal: aTriggeringPrincipal,
         allowInheritPrincipal: aAllowInheritPrincipal,
+        triggeringRemoteType: aTriggeringRemoteType,
         csp: aCsp,
         focusUrlBar,
         openerBrowser: params.openerBrowser,

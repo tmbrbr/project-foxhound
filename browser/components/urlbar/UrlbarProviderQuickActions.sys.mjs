@@ -47,6 +47,7 @@ class ProviderQuickActions extends UrlbarProvider {
 
   /**
    * Returns the name of this provider.
+   *
    * @returns {string} the name of this provider.
    */
   get name() {
@@ -55,16 +56,11 @@ class ProviderQuickActions extends UrlbarProvider {
 
   /**
    * The type of the provider.
+   *
+   * @returns {UrlbarUtils.PROVIDER_TYPE}
    */
   get type() {
     return UrlbarUtils.PROVIDER_TYPE.PROFILE;
-  }
-
-  get helpUrl() {
-    return (
-      Services.urlFormatter.formatURLPref("app.support.baseURL") +
-      "quick-actions-firefox-search-bar"
-    );
   }
 
   getPriority(context) {
@@ -78,6 +74,7 @@ class ProviderQuickActions extends UrlbarProvider {
    * Whether this provider should be invoked for the given context.
    * If this method returns false, the providers manager won't start a query
    * with this provider, to save on resources.
+   *
    * @param {UrlbarQueryContext} queryContext The query context object
    * @returns {boolean} Whether this provider should be invoked for the search.
    */
@@ -90,12 +87,13 @@ class ProviderQuickActions extends UrlbarProvider {
   }
 
   /**
-   * Starts querying.
+   * Starts querying. Extended classes should return a Promise resolved when the
+   * provider is done searching AND returning results.
+   *
    * @param {UrlbarQueryContext} queryContext The query context object
-   * @param {function} addCallback Callback invoked by the provider to add a new
+   * @param {Function} addCallback Callback invoked by the provider to add a new
    *        result. A UrlbarResult should be passed to it.
-   * @note Extended classes should return a Promise resolved when the provider
-   *       is done searching AND returning results.
+   * @returns {Promise}
    */
   async startQuery(queryContext, addCallback) {
     let input = queryContext.trimmedSearchString.toLowerCase();
@@ -142,7 +140,6 @@ class ProviderQuickActions extends UrlbarProvider {
       {
         results: results.map(key => ({ key })),
         dynamicType: DYNAMIC_TYPE_NAME,
-        helpUrl: this.helpUrl,
         inputLength: input.length,
       }
     );
@@ -152,9 +149,6 @@ class ProviderQuickActions extends UrlbarProvider {
 
   getViewTemplate(result) {
     return {
-      attributes: {
-        selectable: false,
-      },
       children: [
         {
           name: "buttons",
@@ -200,16 +194,6 @@ class ProviderQuickActions extends UrlbarProvider {
             return row;
           }),
         },
-        {
-          name: "onboarding",
-          tag: "a",
-          attributes: {
-            "data-key": "onboarding-button",
-            role: "button",
-            class: "urlbarView-button urlbarView-button-help",
-            "data-l10n-id": "quickactions-learn-more",
-          },
-        },
       ],
     };
   }
@@ -243,6 +227,7 @@ class ProviderQuickActions extends UrlbarProvider {
 
   /**
    * Adds a new QuickAction.
+   *
    * @param {string} key A key to identify this action.
    * @param {string} definition An object that describes the action.
    */
@@ -264,6 +249,7 @@ class ProviderQuickActions extends UrlbarProvider {
 
   /**
    * Removes an action.
+   *
    * @param {string} key A key to identify this action.
    */
   removeAction(key) {

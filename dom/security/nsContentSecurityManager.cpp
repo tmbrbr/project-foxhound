@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsAboutProtocolUtils.h"
 #include "nsArray.h"
 #include "nsContentSecurityManager.h"
 #include "nsContentSecurityUtils.h"
@@ -22,6 +23,7 @@
 #include "nsCORSListenerProxy.h"
 #include "nsIParentChannel.h"
 #include "nsIRedirectHistoryEntry.h"
+#include "nsIXULRuntime.h"
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 #include "nsSandboxFlags.h"
@@ -36,7 +38,9 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/Document.h"
+#include "mozilla/extensions/WebExtensionPolicy.h"
 #include "mozilla/Components.h"
+#include "mozilla/ExtensionPolicyService.h"
 #include "mozilla/Logging.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Preferences.h"
@@ -1257,19 +1261,11 @@ nsresult nsContentSecurityManager::CheckChannelHasProtocolSecurityFlag(
   nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString scheme;
-  rv = uri->GetScheme(scheme);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIIOService> ios = do_GetIOService(&rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIProtocolHandler> handler;
-  rv = ios->GetProtocolHandler(scheme.get(), getter_AddRefs(handler));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   uint32_t flags;
-  rv = handler->DoGetProtocolFlags(uri, &flags);
+  rv = ios->GetDynamicProtocolFlags(uri, &flags);
   NS_ENSURE_SUCCESS(rv, rv);
 
   uint32_t securityFlagsSet = 0;
@@ -1354,6 +1350,182 @@ static nsresult CheckAllowFileProtocolScriptLoad(nsIChannel* aChannel) {
   return NS_OK;
 }
 
+// We should not allow loading non-JavaScript files as scripts using
+// a moz-extension:// URL.
+static nsresult CheckAllowExtensionProtocolScriptLoad(nsIChannel* aChannel) {
+  nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
+  ExtContentPolicyType type = loadInfo->GetExternalContentPolicyType();
+
+  // Only check script loads.
+  if (type != ExtContentPolicy::TYPE_SCRIPT) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(uri));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!uri || !uri->SchemeIs("moz-extension")) {
+    return NS_OK;
+  }
+
+  // We expect this code to never be hit off-the-main-thread (even worker
+  // scripts are currently hitting only on the main thread, see
+  // WorkerScriptLoader::DispatchLoadScript calling NS_DispatchToMainThread
+  // internally), this diagnostic assertion is meant to let us notice if that
+  // isn't the case anymore.
+  MOZ_DIAGNOSTIC_ASSERT(NS_IsMainThread(),
+                        "Unexpected off-the-main-thread call to "
+                        "CheckAllowFileProtocolScriptLoad");
+
+  nsAutoCString host;
+  rv = uri->GetHost(host);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  RefPtr<extensions::WebExtensionPolicyCore> targetPolicy =
+      ExtensionPolicyService::GetCoreByHost(host);
+
+  if (NS_WARN_IF(!targetPolicy) || targetPolicy->ManifestVersion() < 3) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIMIMEService> mime = do_GetService("@mozilla.org/mime;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // GetDefaultTypeFromExtension fails for missing or unknown file-extensions.
+  nsAutoCString contentType;
+  rv = mime->GetDefaultTypeFromURI(uri, contentType);
+  if (NS_FAILED(rv) || !nsContentUtils::IsJavascriptMIMEType(
+                           NS_ConvertUTF8toUTF16(contentType))) {
+    nsCOMPtr<Document> doc;
+    if (nsINode* node = loadInfo->LoadingNode()) {
+      doc = node->OwnerDoc();
+    }
+
+    nsAutoCString spec;
+    uri->GetSpec(spec);
+
+    AutoTArray<nsString, 1> params;
+    CopyUTF8toUTF16(NS_UnescapeURL(spec), *params.AppendElement());
+
+    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                    "EXTENSION_SCRIPT_BLOCKED"_ns, doc,
+                                    nsContentUtils::eSECURITY_PROPERTIES,
+                                    "BlockExtensionScriptWithWrongExt", params);
+
+    return NS_ERROR_CONTENT_BLOCKED;
+  }
+
+  return NS_OK;
+}
+
+// Validate that a load should be allowed based on its remote type. This
+// intentionally prevents some loads from occuring even using the system
+// principal, if they were started in a content process.
+static nsresult CheckAllowLoadByTriggeringRemoteType(nsIChannel* aChannel) {
+  MOZ_ASSERT(aChannel);
+
+  nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
+
+  // For now, only restrict loads for documents. We currently have no
+  // interesting subresource checks for protocols which are are not fully
+  // handled within the content process.
+  ExtContentPolicy contentPolicyType = loadInfo->GetExternalContentPolicyType();
+  if (contentPolicyType != ExtContentPolicy::TYPE_DOCUMENT &&
+      contentPolicyType != ExtContentPolicy::TYPE_SUBDOCUMENT &&
+      contentPolicyType != ExtContentPolicy::TYPE_OBJECT) {
+    return NS_OK;
+  }
+
+  MOZ_DIAGNOSTIC_ASSERT(NS_IsMainThread(),
+                        "Unexpected off-the-main-thread call to "
+                        "CheckAllowLoadByTriggeringRemoteType");
+
+  // Due to the way that session history is handled without SHIP, we cannot run
+  // these checks when SHIP is disabled.
+  if (!mozilla::SessionHistoryInParent()) {
+    return NS_OK;
+  }
+
+  nsAutoCString triggeringRemoteType;
+  nsresult rv = loadInfo->GetTriggeringRemoteType(triggeringRemoteType);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // For now, only restrict loads coming from web remote types. In the future we
+  // may want to expand this a bit.
+  if (!StringBeginsWith(triggeringRemoteType, WEB_REMOTE_TYPE)) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIURI> finalURI;
+  rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(finalURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Don't allow web content processes to load non-remote about pages.
+  // NOTE: URIs with a `moz-safe-about:` inner scheme are safe to link to, so
+  // it's OK we miss them here.
+  nsCOMPtr<nsIURI> innermostURI = NS_GetInnermostURI(finalURI);
+  if (innermostURI->SchemeIs("about")) {
+    nsCOMPtr<nsIAboutModule> aboutModule;
+    rv = NS_GetAboutModule(innermostURI, getter_AddRefs(aboutModule));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    uint32_t aboutModuleFlags = 0;
+    rv = aboutModule->GetURIFlags(innermostURI, &aboutModuleFlags);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (!(aboutModuleFlags & nsIAboutModule::MAKE_LINKABLE) &&
+        !(aboutModuleFlags & nsIAboutModule::URI_CAN_LOAD_IN_CHILD) &&
+        !(aboutModuleFlags & nsIAboutModule::URI_MUST_LOAD_IN_CHILD)) {
+      NS_WARNING(nsPrintfCString("Blocking load of about URI (%s) which cannot "
+                                 "be linked to in web content process",
+                                 finalURI->GetSpecOrDefault().get())
+                     .get());
+#ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
+      if (NS_SUCCEEDED(
+              loadInfo->TriggeringPrincipal()->CheckMayLoad(finalURI, true))) {
+        nsAutoCString aboutModuleName;
+        MOZ_ALWAYS_SUCCEEDS(
+            NS_GetAboutModuleName(innermostURI, aboutModuleName));
+        MOZ_CRASH_UNSAFE_PRINTF(
+            "Blocking load of about uri by content process which may have "
+            "otherwise succeeded [aboutModule=%s, isSystemPrincipal=%d]",
+            aboutModuleName.get(),
+            loadInfo->TriggeringPrincipal()->IsSystemPrincipal());
+      }
+#endif
+      return NS_ERROR_CONTENT_BLOCKED;
+    }
+    return NS_OK;
+  }
+
+  // Don't allow web content processes to load file documents. Loads of file
+  // URIs as subresources will be handled by the sandbox, and may be allowed in
+  // some cases.
+  bool localFile = false;
+  rv = NS_URIChainHasFlags(finalURI, nsIProtocolHandler::URI_IS_LOCAL_FILE,
+                           &localFile);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (localFile) {
+    NS_WARNING(
+        nsPrintfCString(
+            "Blocking document load of file URI (%s) from web content process",
+            innermostURI->GetSpecOrDefault().get())
+            .get());
+#ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
+    if (NS_SUCCEEDED(
+            loadInfo->TriggeringPrincipal()->CheckMayLoad(finalURI, true))) {
+      MOZ_CRASH_UNSAFE_PRINTF(
+          "Blocking document load of file URI by content process which may "
+          "have otherwise succeeded [isSystemPrincipal=%d]",
+          loadInfo->TriggeringPrincipal()->IsSystemPrincipal());
+    }
+#endif
+    return NS_ERROR_CONTENT_BLOCKED;
+  }
+
+  return NS_OK;
+}
+
 /*
  * Based on the security flags provided in the loadInfo of the channel,
  * doContentSecurityCheck() performs the following content security checks
@@ -1386,7 +1558,15 @@ nsresult nsContentSecurityManager::doContentSecurityCheck(
   rv = CheckAllowLoadInPrivilegedAboutContext(aChannel);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // We want to also check redirected requests to ensure
+  // the target maintains the proper javascript file extensions.
+  rv = CheckAllowExtensionProtocolScriptLoad(aChannel);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   rv = CheckChannelHasProtocolSecurityFlag(aChannel);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = CheckAllowLoadByTriggeringRemoteType(aChannel);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // if dealing with a redirected channel then we have already installed

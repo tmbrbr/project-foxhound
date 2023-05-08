@@ -19,7 +19,7 @@ const EXISTING_RESOURCES = [
     disabled: false,
     constructed: false,
     ruleCount: 1,
-    mediaRules: [],
+    atRules: [],
   },
   {
     styleText: "body { margin: 1px; }",
@@ -31,7 +31,7 @@ const EXISTING_RESOURCES = [
     disabled: false,
     constructed: false,
     ruleCount: 1,
-    mediaRules: [],
+    atRules: [],
   },
   {
     styleText: "",
@@ -41,7 +41,7 @@ const EXISTING_RESOURCES = [
     disabled: false,
     constructed: true,
     ruleCount: 1,
-    mediaRules: [],
+    atRules: [],
   },
   {
     styleText: "body { background-color: pink; }",
@@ -52,7 +52,7 @@ const EXISTING_RESOURCES = [
     disabled: false,
     constructed: false,
     ruleCount: 1,
-    mediaRules: [],
+    atRules: [],
   },
   {
     styleText: "body { padding: 1px; }",
@@ -64,7 +64,7 @@ const EXISTING_RESOURCES = [
     disabled: false,
     constructed: false,
     ruleCount: 1,
-    mediaRules: [],
+    atRules: [],
   },
 ];
 
@@ -78,7 +78,7 @@ const ADDITIONAL_INLINE_RESOURCE = {
   disabled: false,
   constructed: false,
   ruleCount: 3,
-  mediaRules: [
+  atRules: [
     {
       conditionText: "all",
       mediaText: "all",
@@ -104,7 +104,7 @@ const ADDITIONAL_CONSTRUCTED_RESOURCE = {
   disabled: false,
   constructed: true,
   ruleCount: 2,
-  mediaRules: [],
+  atRules: [],
 };
 
 const ADDITIONAL_FROM_ACTOR_RESOURCE = {
@@ -116,7 +116,7 @@ const ADDITIONAL_FROM_ACTOR_RESOURCE = {
   disabled: false,
   constructed: false,
   ruleCount: 1,
-  mediaRules: [],
+  atRules: [],
 };
 
 add_task(async function() {
@@ -129,6 +129,12 @@ async function testResourceAvailableFeature() {
   info("Check resource available feature of the ResourceCommand");
 
   const tab = await addTab(STYLE_TEST_URL);
+  let resourceTimingEntryCounts = await getResourceTimingCount(tab);
+  is(
+    resourceTimingEntryCounts,
+    2,
+    "Should have two entires for resource timing"
+  );
 
   const { client, resourceCommand, targetCommand } = await initResourceCommand(
     tab
@@ -153,6 +159,13 @@ async function testResourceAvailableFeature() {
     ok(expectedResource, "Found a matching expected resource for the resource");
     await assertResource(availableResource, expectedResource);
   }
+
+  resourceTimingEntryCounts = await getResourceTimingCount(tab);
+  is(
+    resourceTimingEntryCounts,
+    2,
+    "Should still have two entires for resource timing after devtools APIs have been triggered"
+  );
 
   info("Check whether ResourceCommand gets additonal stylesheet");
   await ContentTask.spawn(
@@ -275,7 +288,7 @@ async function testResourceUpdateFeature() {
   is(styleSheetDisabled, true, "actual stylesheet was updated correctly");
 
   info("Check update function");
-  const expectedMediaRules = [
+  const expectedAtRules = [
     {
       conditionText: "screen",
       mediaText: "screen",
@@ -323,12 +336,9 @@ async function testResourceUpdateFeature() {
 
   assertUpdate(updates[3].update, {
     resourceId: resource.resourceId,
-    updateType: "media-rules-changed",
+    updateType: "at-rules-changed",
   });
-  assertMediaRules(
-    updates[3].update.resourceUpdates.mediaRules,
-    expectedMediaRules
-  );
+  assertAtRules(updates[3].update.resourceUpdates.atRules, expectedAtRules);
 
   // Check the actual page.
   const styleSheetResult = await getStyleSheetResult(tab);
@@ -338,7 +348,7 @@ async function testResourceUpdateFeature() {
     3,
     "ruleCount of actual stylesheet is updated correctly"
   );
-  assertMediaRules(styleSheetResult.mediaRules, expectedMediaRules);
+  assertAtRules(styleSheetResult.atRules, expectedAtRules);
 
   targetCommand.destroy();
   await client.close();
@@ -395,7 +405,7 @@ async function testNestedResourceUpdateFeature() {
     false
   );
   await waitUntil(() => updates.length === 3);
-  is(resource.mediaRules[0].matches, false, "Media query is not matched yet");
+  is(resource.atRules[0].matches, false, "Media query is not matched yet");
 
   info("Change window size to fire matches-change event");
   tab.ownerGlobal.resizeTo(originalWindowWidth, 500);
@@ -411,7 +421,7 @@ async function testNestedResourceUpdateFeature() {
 
   is(
     JSON.stringify(targetUpdate.update.nestedResourceUpdates[0].path),
-    JSON.stringify(["mediaRules", 0, "matches"]),
+    JSON.stringify(["atRules", 0, "matches"]),
     "path of nestedResourceUpdates is correct"
   );
   is(
@@ -421,7 +431,7 @@ async function testNestedResourceUpdateFeature() {
   );
 
   // Check the resource.
-  const expectedMediaRules = [
+  const expectedAtRules = [
     {
       conditionText: "(min-height: 400px)",
       mediaText: "(min-height: 400px)",
@@ -429,7 +439,7 @@ async function testNestedResourceUpdateFeature() {
     },
   ];
 
-  assertMediaRules(targetUpdate.resource.mediaRules, expectedMediaRules);
+  assertAtRules(targetUpdate.resource.atRules, expectedAtRules);
 
   // Check the actual page.
   const styleSheetResult = await getStyleSheetResult(tab);
@@ -438,7 +448,7 @@ async function testNestedResourceUpdateFeature() {
     1,
     "ruleCount of actual stylesheet is updated correctly"
   );
-  assertMediaRules(styleSheetResult.mediaRules, expectedMediaRules);
+  assertAtRules(styleSheetResult.atRules, expectedAtRules);
 
   tab.ownerGlobal.resizeTo(originalWindowWidth, originalWindowHeight);
 
@@ -462,7 +472,7 @@ async function getStyleSheetResult(tab) {
     const stylesheet = document.styleSheets[0];
     const ruleCount = stylesheet.cssRules.length;
 
-    const mediaRules = [];
+    const atRules = [];
     for (const rule of stylesheet.cssRules) {
       if (!rule.media) {
         continue;
@@ -476,37 +486,37 @@ async function getStyleSheetResult(tab) {
         // Ignored
       }
 
-      mediaRules.push({
+      atRules.push({
         mediaText: rule.media.mediaText,
         conditionText: rule.conditionText,
         matches,
       });
     }
 
-    return { ruleCount, mediaRules };
+    return { ruleCount, atRules };
   });
 
   return result;
 }
 
-function assertMediaRules(mediaRules, expected) {
-  is(mediaRules.length, expected.length, "Length of the mediaRules is correct");
+function assertAtRules(atRules, expected) {
+  is(atRules.length, expected.length, "Length of the atRules is correct");
 
-  for (let i = 0; i < mediaRules.length; i++) {
+  for (let i = 0; i < atRules.length; i++) {
     is(
-      mediaRules[i].conditionText,
+      atRules[i].conditionText,
       expected[i].conditionText,
       "conditionText is correct"
     );
-    is(mediaRules[i].mediaText, expected[i].mediaText, "mediaText is correct");
-    is(mediaRules[i].matches, expected[i].matches, "matches is correct");
+    is(atRules[i].mediaText, expected[i].mediaText, "mediaText is correct");
+    is(atRules[i].matches, expected[i].matches, "matches is correct");
 
     if (expected[i].line !== undefined) {
-      is(mediaRules[i].line, expected[i].line, "line is correct");
+      is(atRules[i].line, expected[i].line, "line is correct");
     }
 
     if (expected[i].column !== undefined) {
-      is(mediaRules[i].column, expected[i].column, "column is correct");
+      is(atRules[i].column, expected[i].column, "column is correct");
     }
   }
 }
@@ -528,7 +538,7 @@ async function assertResource(resource, expected) {
   is(resource.disabled, expected.disabled, "disabled is correct");
   is(resource.constructed, expected.constructed, "constructed is correct");
   is(resource.ruleCount, expected.ruleCount, "ruleCount is correct");
-  assertMediaRules(resource.mediaRules, expected.mediaRules);
+  assertAtRules(resource.atRules, expected.atRules);
 }
 
 function assertUpdate(update, expected) {
@@ -542,4 +552,10 @@ function assertUpdate(update, expected) {
   if (expected.event?.cause) {
     is(update.event?.cause, expected.event.cause, "cause is correct");
   }
+}
+
+function getResourceTimingCount(tab) {
+  return ContentTask.spawn(tab.linkedBrowser, [], () => {
+    return content.performance.getEntriesByType("resource").length;
+  });
 }

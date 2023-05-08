@@ -22,15 +22,15 @@ declare namespace MockedExports {
    */
   interface KnownModules {
     Services: typeof import("Services");
-    "resource://gre/modules/AppConstants.jsm": typeof import("resource://gre/modules/AppConstants.jsm");
+    "resource://gre/modules/AppConstants.sys.mjs": typeof import("resource://gre/modules/AppConstants.sys.mjs");
     "resource:///modules/CustomizableUI.jsm": typeof import("resource:///modules/CustomizableUI.jsm");
     "resource:///modules/CustomizableWidgets.jsm": typeof import("resource:///modules/CustomizableWidgets.jsm");
     "resource://devtools/shared/loader/Loader.sys.mjs": typeof import("resource://devtools/shared/loader/Loader.sys.mjs");
     "resource://devtools/client/performance-new/popup/background.jsm.js": typeof import("resource://devtools/client/performance-new/popup/background.jsm.js");
     "resource://devtools/shared/loader/browser-loader.js": any;
-    "resource://devtools/client/performance-new/popup/menu-button.jsm.js": typeof import("devtools/client/performance-new/popup/menu-button.jsm.js");
-    "resource://devtools/client/performance-new/typescript-lazy-load.jsm.js": typeof import("devtools/client/performance-new/typescript-lazy-load.jsm.js");
-    "resource://devtools/client/performance-new/popup/panel.jsm.js": typeof import("devtools/client/performance-new/popup/panel.jsm.js");
+    "resource://devtools/client/performance-new/popup/menu-button.jsm.js": typeof import("resource://devtools/client/performance-new/popup/menu-button.jsm.js");
+    "resource://devtools/client/performance-new/typescript-lazy-load.jsm.js": typeof import("resource://devtools/client/performance-new/typescript-lazy-load.jsm.js");
+    "resource://devtools/client/performance-new/popup/panel.jsm.js": typeof import("resource://devtools/client/performance-new/popup/panel.jsm.js");
     "resource://devtools/client/performance-new/symbolication.jsm.js": typeof import("resource://devtools/client/performance-new/symbolication.jsm.js");
     "resource:///modules/PanelMultiView.jsm": typeof import("resource:///modules/PanelMultiView.jsm");
   }
@@ -147,6 +147,11 @@ declare namespace MockedExports {
   }
 
   type Services = {
+    env: {
+      set: (name: string, value: string) => void;
+      get: (name: string) => string;
+      exists: (name: string) => boolean;
+    },
     prefs: nsIPrefBranch;
     profiler: {
       StartProfiler: (
@@ -200,7 +205,7 @@ declare namespace MockedExports {
     decorate: (target: object) => void;
   };
 
-  const AppConstantsJSM: {
+  const AppConstantsSYSMJS: {
     AppConstants: {
       platform: string;
     };
@@ -215,8 +220,6 @@ declare namespace MockedExports {
     eventTarget: null;
     principal: PrincipalStub;
   }
-
-  const WebChannelJSM: any;
 
   // TS-TODO
   const CustomizableUIJSM: any;
@@ -244,20 +247,7 @@ declare namespace MockedExports {
     };
   }
 
-  // This class is needed by the Cc importing mechanism. e.g.
-  // Cc["@mozilla.org/process/environment;1"].getService(Ci.nsIEnvironment);
-  class nsIEnvironment {}
-
-  interface Environment {
-    exists(envName: string): boolean;
-    get(envName: string): string;
-    set(envName: string, value: string): void;
-  }
-
   interface Cc {
-    "@mozilla.org/process/environment;1": {
-      getService(service: nsIEnvironment): Environment;
-    };
     "@mozilla.org/filepicker;1": {
       createInstance(instance: nsIFilePicker): FilePicker;
     };
@@ -265,7 +255,6 @@ declare namespace MockedExports {
 
   interface Ci {
     nsIFilePicker: nsIFilePicker;
-    nsIEnvironment: nsIEnvironment;
   }
 
   interface Cu {
@@ -302,27 +291,27 @@ interface PathUtilsInterface {
   isAbsolute: (path: string) => boolean;
 }
 
-declare module "devtools/client/shared/vendor/react" {
+declare module "resource://devtools/client/shared/vendor/react.js" {
   import * as React from "react";
   export = React;
 }
 
-declare module "devtools/client/shared/vendor/react-dom-factories" {
+declare module "resource://devtools/client/shared/vendor/react-dom-factories.js" {
   import * as ReactDomFactories from "react-dom-factories";
   export = ReactDomFactories;
 }
 
-declare module "devtools/client/shared/vendor/redux" {
+declare module "resource://devtools/client/shared/vendor/redux.js" {
   import * as Redux from "redux";
   export = Redux;
 }
 
-declare module "devtools/client/shared/vendor/react-redux" {
+declare module "resource://devtools/client/shared/vendor/react-redux.js" {
   import * as ReactRedux from "react-redux";
   export = ReactRedux;
 }
 
-declare module "devtools/shared/event-emitter2" {
+declare module "resource://devtools/shared/event-emitter2.js" {
   export = MockedExports.EventEmitter;
 }
 
@@ -334,12 +323,8 @@ declare module "ChromeUtils" {
   export = ChromeUtils;
 }
 
-declare module "resource://gre/modules/AppConstants.jsm" {
-  export = MockedExports.AppConstantsJSM;
-}
-
-declare module "resource://gre/modules/WebChannel.jsm" {
-  export = MockedExports.WebChannelJSM;
+declare module "resource://gre/modules/AppConstants.sys.mjs" {
+  export = MockedExports.AppConstantsSYSMJS;
 }
 
 declare module "resource://devtools/client/performance-new/popup/background.jsm.js" {

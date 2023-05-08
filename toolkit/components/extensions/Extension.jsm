@@ -43,14 +43,19 @@ var EXPORTED_SYMBOLS = [
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  ExtensionDNR: "resource://gre/modules/ExtensionDNR.sys.mjs",
+  ExtensionDNRStore: "resource://gre/modules/ExtensionDNRStore.sys.mjs",
+  E10SUtils: "resource://gre/modules/E10SUtils.sys.mjs",
   Log: "resource://gre/modules/Log.sys.mjs",
+  SITEPERMS_ADDON_TYPE:
+    "resource://gre/modules/addons/siteperms-addon-utils.sys.mjs",
 });
 
 XPCOMUtils.defineLazyModuleGetters(lazy, {
@@ -58,7 +63,6 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
   AddonManagerPrivate: "resource://gre/modules/AddonManager.jsm",
   AddonSettings: "resource://gre/modules/addons/AddonSettings.jsm",
   AsyncShutdown: "resource://gre/modules/AsyncShutdown.jsm",
-  E10SUtils: "resource://gre/modules/E10SUtils.jsm",
   ExtensionPermissions: "resource://gre/modules/ExtensionPermissions.jsm",
   ExtensionPreferencesManager:
     "resource://gre/modules/ExtensionPreferencesManager.jsm",
@@ -519,6 +523,12 @@ var ExtensionAddonObserver = {
       lazy.ExtensionScriptingStore.clearOnUninstall(addon.id)
     );
 
+    // Clear the DNR API's rules data persisted on disk (if any).
+    lazy.AsyncShutdown.profileChangeTeardown.addBlocker(
+      `Clear declarativeNetRequest store for ${addon.id}`,
+      lazy.ExtensionDNRStore.clearOnUninstall(uuid)
+    );
+
     if (!Services.prefs.getBoolPref(LEAVE_STORAGE_PREF, false)) {
       // Clear browser.storage.local backends.
       lazy.AsyncShutdown.profileChangeTeardown.addBlocker(
@@ -621,12 +631,13 @@ class ExtensionData {
    * A factory function that allows the construction of ExtensionData, with
    * the isPrivileged flag computed asynchronously.
    *
-   * @param {nsIURI} rootURI
+   * @param {object} options
+   * @param {nsIURI} options.rootURI
    *  The URI pointing to the extension root.
-   * @param {function(type, id)} checkPrivileged
+   * @param {function(type, id)} options.checkPrivileged
    *  An (async) function that takes the addon type and addon ID and returns
    *  whether the given add-on is privileged.
-   * @param {boolean} temporarilyInstalled
+   * @param {boolean} options.temporarilyInstalled
    *  whether the given add-on is installed as temporary.
    * @returns {ExtensionData}
    */
@@ -664,6 +675,7 @@ class ExtensionData {
 
   /**
    * Report an error about the extension's manifest file.
+   *
    * @param {string} message The error message
    */
   manifestError(message) {
@@ -672,6 +684,7 @@ class ExtensionData {
 
   /**
    * Report a warning about the extension's manifest file.
+   *
    * @param {string} message The warning message
    */
   manifestWarning(message) {
@@ -835,7 +848,7 @@ class ExtensionData {
    *
    * @param {Array} permissionsArray
    * @param {Array} [hostPermissions]
-   * @returns {Object} permissions object
+   * @returns {object} permissions object
    */
   permissionsObject(permissionsArray = [], hostPermissions = []) {
     let permissions = new Set();
@@ -1005,10 +1018,10 @@ class ExtensionData {
    * to optional.  This also handles any updates required for permission removal.
    *
    * @param {string} id The id of the addon being updated
-   * @param {Object} oldPermissions
-   * @param {Object} oldOptionalPermissions
-   * @param {Object} newPermissions
-   * @param {Object} newOptionalPermissions
+   * @param {object} oldPermissions
+   * @param {object} oldOptionalPermissions
+   * @param {object} newPermissions
+   * @param {object} newOptionalPermissions
    */
   static async migratePermissions(
     id,
@@ -1253,10 +1266,16 @@ class ExtensionData {
 
     manifest = normalized.value;
 
-    // browser_specific_settings is documented, but most internal code is written
-    // using applications.  Use browser_specific_settings if it is in the manifest.  If
-    // both are set, we probably should make it an error, but we don't know if addons
-    // in the wild have done that, so let the chips fall where they may.
+    // `browser_specific_settings` is the recommended key to use in the
+    // manifest, and the only possible choice in MV3+. For MV2 extensions, we
+    // still allow `applications`, though. Because `applications` used to be
+    // the only key in the distant past, most internal code is written using
+    // applications. That's why we end up re-assigning `browser_specific_settings`
+    // to `applications` below.
+    //
+    // Also, when a MV3+ extension specifies `applications`, the key isn't
+    // recognized and therefore filtered out from the normalized manifest as
+    // part of the JSONSchema normalization.
     if (manifest.browser_specific_settings?.gecko) {
       if (manifest.applications) {
         this.manifestWarning(
@@ -1838,18 +1857,37 @@ class ExtensionData {
   }
 
   /**
+   * @param {string} origin
+   * @returns {boolean}       If this is one of the "all sites" permission.
+   */
+  static isAllSitesPermission(origin) {
+    try {
+      let info = ExtensionData.classifyOriginPermissions([origin], true);
+      return !!info.allUrls;
+    } catch (e) {
+      // Passed string is not an origin permission.
+      return false;
+    }
+  }
+
+  /**
+   * @typedef {object} HostPermissions
+   * @param {string} allUrls   permission used to obtain all urls access
+   * @param {Set} wildcards    set contains permissions with wildcards
+   * @param {Set} sites        set contains explicit host permissions
+   * @param {Map} wildcardsMap mapping origin wildcards to labels
+   * @param {Map} sitesMap     mapping origin patterns to labels
+   */
+
+  /**
    * Classify host permissions
-   * @param {array<string>} origins
+   *
+   * @param {Array<string>} origins
    *                        permission origins
    * @param {boolean}       ignoreNonWebSchemes
    *                        return only these schemes: *, http, https, ws, wss
    *
-   * @returns {object}
-   *   @param {string} .allUrls   permission used to obtain all urls access
-   *   @param {Set} .wildcards    set contains permissions with wildcards
-   *   @param {Set} .sites        set contains explicit host permissions
-   *   @param {Map} .wildcardsMap mapping origin wildcards to labels
-   *   @param {Map} .sitesMap     mapping origin patterns to labels
+   * @returns {HostPermissions}
    */
   static classifyOriginPermissions(origins = [], ignoreNonWebSchemes = false) {
     let allUrls = null,
@@ -1910,13 +1948,13 @@ class ExtensionData {
    *
    * @param {object} info Information about the permissions being requested.
    *
-   * @param {array<string>} info.permissions.origins
+   * @param {Array<string>} info.permissions.origins
    *                        Origin permissions requested.
-   * @param {array<string>} info.permissions.permissions
+   * @param {Array<string>} info.permissions.permissions
    *                        Regular (non-origin) permissions requested.
-   * @param {array<string>} info.optionalPermissions.origins
+   * @param {Array<string>} info.optionalPermissions.origins
    *                        Optional origin permissions listed in the manifest.
-   * @param {array<string>} info.optionalPermissions.permissions
+   * @param {Array<string>} info.optionalPermissions.permissions
    *                        Optional (non-origin) permissions listed in the manifest.
    * @param {boolean} info.unsigned
    *                  True if the prompt is for installing an unsigned addon.
@@ -1936,7 +1974,7 @@ class ExtensionData {
    * @param {boolean} options.buildOptionalOrigins
    *                  Wether to build optional origins Maps for permission
    *                  controls.  Defaults to false.
-   * @param {function} options.getKeyForPermission
+   * @param {Function} options.getKeyForPermission
    *                   An optional callback function that returns the locale key for a given
    *                   permission name (set by default to a callback returning the locale
    *                   key following the default convention `webextPerms.description.PERMNAME`).
@@ -1988,13 +2026,32 @@ class ExtensionData {
       );
     }
 
-    // Generate a map of site_permission names to permission strings for site
-    // permissions.  Since SitePermission addons cannot have regular permissions,
-    // we reuse msgs to pass the strings to the permissions panel.
+    // Synthetic addon install can only grant access to a single permission so we can have
+    // a less-generic message than addons with site permissions.
     // NOTE: this is used as part of the synthetic addon install flow implemented for the
     // SitePermissionAddonProvider.
     // (and so it should not be removed as part of Bug 1789718 changes, while this additional note should be).
+    if (info.addon?.type === lazy.SITEPERMS_ADDON_TYPE) {
+      // We simplify the origin to make it more user friendly. The origin is assured to be
+      // available because the SitePermsAddon install is always expected to be triggered
+      // from a website, making the siteOrigin always available through the installing principal.
+      const host = new URL(info.siteOrigin).hostname;
+
+      // messages are specific to the type of gated permission being installed
+      result.header = bundle.formatStringFromName(
+        `webextSitePerms.headerWithGatedPerms.${info.sitePermissions[0]}`,
+        [host]
+      );
+      result.text = bundle.GetStringFromName(
+        `webextSitePerms.descriptionGatedPerms`
+      );
+
+      return result;
+    }
+
+    // TODO(Bug 1789718): Remove after the deprecated XPIProvider-based implementation is also removed.
     if (info.sitePermissions) {
+      // Generate a map of site_permission names to permission strings for site permissions.
       for (let permission of info.sitePermissions) {
         try {
           result.msgs.push(
@@ -2014,16 +2071,15 @@ class ExtensionData {
         }
       }
 
-      // Generate header message
+      // We simplify the origin to make it more user friendly.  The origin is
+      // assured to be available via schema requirement.
+      const host = new URL(info.siteOrigin).hostname;
+
       headerKey = info.unsigned
         ? "webextSitePerms.headerUnsignedWithPerms"
         : "webextSitePerms.headerWithPerms";
-      // We simplify the origin to make it more user friendly.  The origin is
-      // assured to be available via schema requirement.
-      result.header = bundle.formatStringFromName(headerKey, [
-        "<>",
-        new URL(info.siteOrigin).hostname,
-      ]);
+      result.header = bundle.formatStringFromName(headerKey, ["<>", host]);
+
       return result;
     }
 
@@ -2373,7 +2429,8 @@ let pendingExtensions = new Map();
 /**
  * This class is the main representation of an active WebExtension
  * in the main process.
- * @extends ExtensionData
+ *
+ * @augments ExtensionData
  */
 class Extension extends ExtensionData {
   constructor(addonData, startupReason, updateReason) {
@@ -2413,7 +2470,7 @@ class Extension extends ExtensionData {
       updateReason ||
       ["ADDON_UPGRADE", "ADDON_DOWNGRADE"].includes(startupReason)
     ) {
-      StartupCache.clearAddonData(addonData.id);
+      this.startupClearCachePromise = StartupCache.clearAddonData(addonData.id);
     }
 
     this.remote = !WebExtensionPolicy.isExtensionProcess;
@@ -2650,7 +2707,8 @@ class Extension extends ExtensionData {
     lazy.AddonManagerPrivate.setAddonStartupData(this.id, this.startupData);
   }
 
-  parseManifest() {
+  async parseManifest() {
+    await this.startupClearCachePromise;
     return StartupCache.manifests.get(this.manifestCacheKey, () =>
       super.parseManifest()
     );
@@ -3161,6 +3219,16 @@ class Extension extends ExtensionData {
         }
       }
 
+      // Initialize DNR for the extension, only if the extension
+      // has the required DNR permissions and without blocking
+      // the extension startup on DNR being fully initialized.
+      if (
+        this.hasPermission("declarativeNetRequest") ||
+        this.hasPermission("declarativeNetRequestWithHostAccess")
+      ) {
+        lazy.ExtensionDNR.ensureInitialized(this);
+      }
+
       resolveReadyPromise(this.policy);
 
       // The "startup" Management event sent on the extension instance itself
@@ -3347,6 +3415,10 @@ class Extension extends ExtensionData {
       });
     }
     return this._optionalOrigins;
+  }
+
+  get hasBrowserActionUI() {
+    return this.manifest.browser_action || this.manifest.action;
   }
 }
 

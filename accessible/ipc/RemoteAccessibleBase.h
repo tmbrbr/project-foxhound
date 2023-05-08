@@ -26,6 +26,10 @@ class DocAccessibleParent;
 class RemoteAccessible;
 enum class RelationType;
 
+/**
+ * The base type for an accessibility tree node that originated in the parent
+ * process.
+ */
 template <class Derived>
 class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
  public:
@@ -193,11 +197,13 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
 
   virtual already_AddRefed<nsAtom> DisplayStyle() const override;
 
-  virtual Maybe<float> Opacity() const override;
+  virtual float Opacity() const override;
 
   virtual void LiveRegionAttributes(nsAString* aLive, nsAString* aRelevant,
                                     Maybe<bool>* aAtomic,
                                     nsAString* aBusy) const override;
+
+  virtual Maybe<bool> ARIASelected() const override;
 
   virtual uint8_t ActionCount() const override;
 
@@ -258,6 +264,19 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
 
   void ApplyCache(CacheUpdateType aUpdateType, AccAttributes* aFields) {
     const nsTArray<bool> relUpdatesNeeded = PreProcessRelations(aFields);
+    if (auto maybeViewportCache =
+            aFields->GetAttribute<nsTArray<uint64_t>>(nsGkAtoms::viewport)) {
+      // Updating the viewport cache means the offscreen state of this
+      // document's accessibles has changed. Update the HashSet we use for
+      // checking offscreen state here.
+      MOZ_ASSERT(IsDoc(),
+                 "Fetched the viewport cache from a non-doc accessible?");
+      AsDoc()->mOnScreenAccessibles.Clear();
+      for (auto id : *maybeViewportCache) {
+        AsDoc()->mOnScreenAccessibles.Insert(id);
+      }
+    }
+
     if (aUpdateType == CacheUpdateType::Initial) {
       mCachedFields = aFields;
     } else {
@@ -335,6 +354,8 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
   RefPtr<const AccAttributes> GetCachedTextAttributes();
   RefPtr<const AccAttributes> GetCachedARIAAttributes() const;
 
+  nsString GetCachedHTMLNameAttribute() const;
+
   virtual HyperTextAccessibleBase* AsHyperTextBase() override {
     return IsHyperText() ? static_cast<HyperTextAccessibleBase*>(this)
                          : nullptr;
@@ -348,11 +369,24 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
   // HyperTextAccessibleBase
   virtual already_AddRefed<AccAttributes> DefaultTextAttributes() override;
 
-  virtual void InvalidateCachedHyperTextOffsets() override {
+  /**
+   * Invalidate cached HyperText offsets. This should be called whenever a
+   * child is added or removed or the text of a text leaf child is changed.
+   * Although GetChildOffset can either fully or partially invalidate the
+   * offsets cache, calculating which offset to invalidate is not worthwhile
+   * because a client might not even query offsets. This is in contrast to
+   * LocalAccessible, where the offsets are always needed to fire text change
+   * events. For RemoteAccessible, it's cheaper overall to just rebuild the
+   * offsets cache when a client next needs it.
+   */
+  void InvalidateCachedHyperTextOffsets() {
     if (mCachedFields) {
       mCachedFields->Remove(nsGkAtoms::offset);
     }
   }
+
+  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf);
+  virtual size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf);
 
  protected:
   RemoteAccessibleBase(uint64_t aID, Derived* aParent,
@@ -392,11 +426,14 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
 
   virtual AccGroupInfo* GetOrCreateGroupInfo() override;
 
+  virtual void GetPositionAndSetSize(int32_t* aPosInSet,
+                                     int32_t* aSetSize) override;
+
   virtual bool HasPrimaryAction() const override;
 
   nsAtom* GetPrimaryAction() const;
 
-  virtual const nsTArray<int32_t>& GetCachedHyperTextOffsets() const override;
+  virtual nsTArray<int32_t>& GetCachedHyperTextOffsets() override;
 
  private:
   uintptr_t mParent;

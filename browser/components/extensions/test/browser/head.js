@@ -29,6 +29,7 @@
  *          navigateTab historyPushState promiseWindowRestored
  *          getIncognitoWindow startIncognitoMonitorExtension
  *          loadTestSubscript awaitBrowserLoaded backgroundColorSetOnRoot
+ *          getScreenAt roundCssPixcel getCssAvailRect isRectContained
  */
 
 // There are shutdown issues for which multiple rejections are left uncaught.
@@ -38,8 +39,8 @@
 // NOTE: Allowing rejections on an entire directory should be avoided.
 //       Normally you should use "expectUncaughtRejection" to flag individual
 //       failures.
-const { PromiseTestUtils } = ChromeUtils.import(
-  "resource://testing-common/PromiseTestUtils.jsm"
+const { PromiseTestUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/PromiseTestUtils.sys.mjs"
 );
 PromiseTestUtils.allowMatchingRejectionsGlobally(
   /Message manager disconnected/
@@ -52,14 +53,14 @@ PromiseTestUtils.allowMatchingRejectionsGlobally(
 const { AppUiTestDelegate, AppUiTestInternals } = ChromeUtils.import(
   "resource://testing-common/AppUiTestDelegate.jsm"
 );
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const { CustomizableUI } = ChromeUtils.import(
   "resource:///modules/CustomizableUI.jsm"
 );
-const { Preferences } = ChromeUtils.import(
-  "resource://gre/modules/Preferences.jsm"
+const { Preferences } = ChromeUtils.importESModule(
+  "resource://gre/modules/Preferences.sys.mjs"
 );
 const { ClientEnvironmentBase } = ChromeUtils.import(
   "resource://gre/modules/components-utils/ClientEnvironment.jsm"
@@ -87,6 +88,11 @@ function loadTestSubscript(filePath) {
   Services.scriptloader.loadSubScript(new URL(filePath, gTestPath).href, this);
 }
 
+// Ensure when we turn off topsites in the next few lines,
+// we don't hit any remote endpoints.
+Services.prefs
+  .getDefaultBranch("browser.newtabpage.activity-stream.")
+  .setStringPref("discoverystream.endpointSpocsClear", "");
 // Leaving Top Sites enabled during these tests would create site screenshots
 // and update pinned Top Sites unnecessarily.
 Services.prefs
@@ -329,8 +335,10 @@ var awaitExtensionPanel = function(extension, win = window, awaitLoad = true) {
   return AppUiTestDelegate.awaitExtensionPanel(win, extension.id, awaitLoad);
 };
 
-function getCustomizableUIPanelID() {
-  return CustomizableUI.AREA_FIXED_OVERFLOW_PANEL;
+function getCustomizableUIPanelID(win = window) {
+  return win.gUnifiedExtensions.isEnabled
+    ? CustomizableUI.AREA_ADDONS
+    : CustomizableUI.AREA_FIXED_OVERFLOW_PANEL;
 }
 
 function getBrowserActionWidget(extension) {
@@ -343,7 +351,9 @@ function getBrowserActionPopup(extension, win = window) {
   if (group.areaType == CustomizableUI.TYPE_TOOLBAR) {
     return win.document.getElementById("customizationui-widget-panel");
   }
-  return win.PanelUI.overflowPanel;
+  return win.gUnifiedExtensions.isEnabled
+    ? win.gUnifiedExtensions.panel
+    : win.PanelUI.overflowPanel;
 }
 
 var showBrowserAction = function(extension, win = window) {
@@ -364,13 +374,15 @@ async function triggerBrowserActionWithKeyboard(
   await showBrowserAction(extension, win);
 
   let group = getBrowserActionWidget(extension);
-  let node = group.forWindow(win).node;
+  let node = group.forWindow(win).node.firstElementChild;
 
   if (group.areaType == CustomizableUI.TYPE_TOOLBAR) {
     await focusButtonAndPressKey(key, node, modifiers);
-  } else if (group.areaType == CustomizableUI.TYPE_MENU_PANEL) {
+  } else if (group.areaType == CustomizableUI.TYPE_PANEL) {
     // Use key navigation so that the PanelMultiView doesn't ignore key events
-    let panel = win.document.getElementById("widget-overflow");
+    let panel = win.gUnifiedExtensions.isEnabled
+      ? win.gUnifiedExtensions.panel
+      : win.document.getElementById("widget-overflow");
     while (win.document.activeElement != node) {
       EventUtils.synthesizeKey("KEY_ArrowDown");
       ok(
@@ -411,11 +423,14 @@ async function toggleBookmarksToolbar(visible = true) {
   );
 }
 
-async function openContextMenuInPopup(extension, selector = "body") {
-  let contentAreaContextMenu = document.getElementById(
-    "contentAreaContextMenu"
-  );
-  let browser = await awaitExtensionPanel(extension);
+async function openContextMenuInPopup(
+  extension,
+  selector = "body",
+  win = window
+) {
+  let doc = win.document;
+  let contentAreaContextMenu = doc.getElementById("contentAreaContextMenu");
+  let browser = await awaitExtensionPanel(extension, win);
 
   // Ensure that the document layout has been flushed before triggering the mouse event
   // (See Bug 1519808 for a rationale).
@@ -513,9 +528,10 @@ async function openContextMenu(selector = "#img1", win = window) {
   return contentAreaContextMenu;
 }
 
-async function closeContextMenu(contextMenu) {
+async function closeContextMenu(contextMenu, win = window) {
+  let doc = win.document;
   let contentAreaContextMenu =
-    contextMenu || document.getElementById("contentAreaContextMenu");
+    contextMenu || doc.getElementById("contentAreaContextMenu");
   let popupHiddenPromise = BrowserTestUtils.waitForEvent(
     contentAreaContextMenu,
     "popuphidden"
@@ -993,11 +1009,61 @@ async function getIncognitoWindow(url = "about:privatebrowsing") {
  *
  * @returns {boolean} True if the window's background-color is set on :root
  *   rather than #navigator-toolbox.
- **/
+ */
 function backgroundColorSetOnRoot() {
   const os = ClientEnvironmentBase.os;
   if (!os.isWindows) {
     return false;
   }
   return os.windowsVersion < 10;
+}
+
+function getScreenAt(left, top, width, height) {
+  const screenManager = Cc["@mozilla.org/gfx/screenmanager;1"].getService(
+    Ci.nsIScreenManager
+  );
+  return screenManager.screenForRect(left, top, width, height);
+}
+
+function roundCssPixcel(pixel, screen) {
+  return Math.floor(
+    Math.floor(pixel * screen.defaultCSSScaleFactor) /
+      screen.defaultCSSScaleFactor
+  );
+}
+
+function getCssAvailRect(screen) {
+  const availDeviceLeft = {};
+  const availDeviceTop = {};
+  const availDeviceWidth = {};
+  const availDeviceHeight = {};
+  screen.GetAvailRect(
+    availDeviceLeft,
+    availDeviceTop,
+    availDeviceWidth,
+    availDeviceHeight
+  );
+  const factor = screen.defaultCSSScaleFactor;
+  const left = Math.floor(availDeviceLeft.value / factor);
+  const top = Math.floor(availDeviceTop.value / factor);
+  const width = Math.floor(availDeviceWidth.value / factor);
+  const height = Math.floor(availDeviceHeight.value / factor);
+  return {
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+  };
+}
+
+function isRectContained(actualRect, maxRect) {
+  is(
+    `top=${actualRect.top >= maxRect.top},bottom=${actualRect.bottom <=
+      maxRect.bottom},left=${actualRect.left >=
+      maxRect.left},right=${actualRect.right <= maxRect.right}`,
+    "top=true,bottom=true,left=true,right=true",
+    `Dimension must be inside, top:${actualRect.top}>=${maxRect.top}, bottom:${actualRect.bottom}<=${maxRect.bottom}, left:${actualRect.left}>=${maxRect.left}, right:${actualRect.right}<=${maxRect.right}`
+  );
 }

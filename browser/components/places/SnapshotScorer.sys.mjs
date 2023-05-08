@@ -18,7 +18,7 @@ XPCOMUtils.defineLazyGetter(lazy, "logConsole", function() {
   return console.createInstance({
     prefix: "SnapshotSelector",
     maxLogLevel: Services.prefs.getBoolPref(
-      "browser.snapshots.scorer.log",
+      "browser.places.snapshots.scorer.log",
       false
     )
       ? "Debug"
@@ -59,7 +59,7 @@ export const SnapshotScorer = new (class SnapshotScorer {
    *   A map of function suffixes to relevancy points. The suffixes are prefixed
    *   with `_score`. Each function will be called in turn to obtain the score
    *   for that item with the result multiplied by the relevancy points.
-   *   This map is filled from the `browser.snapshots.score.` preferences.
+   *   This map is filled from the `browser.places.snapshots.score.` preferences.
    */
   #RELEVANCY_POINTS = new Map();
 
@@ -77,7 +77,7 @@ export const SnapshotScorer = new (class SnapshotScorer {
       4
     );
 
-    let branch = Services.prefs.getBranch("browser.snapshots.score.");
+    let branch = Services.prefs.getBranch("browser.places.snapshots.score.");
     for (let name of branch.getChildList("")) {
       this.#RELEVANCY_POINTS.set(name, branch.getIntPref(name, 0));
     }
@@ -297,6 +297,7 @@ export const SnapshotScorer = new (class SnapshotScorer {
    * Calculates points based on how many times the snapshot has been visited.
    *
    * @param {Snapshot} snapshot
+   *   The snapshot used for calculation
    * @returns {number}
    */
   _scoreVisit(snapshot) {
@@ -312,7 +313,9 @@ export const SnapshotScorer = new (class SnapshotScorer {
    * the current session.
    *
    * @param {Snapshot} snapshot
+   *   The snapshot used for calculation
    * @param {Set} currentSessionUrls
+   *   The urls of the current session
    * @returns {number}
    */
   _scoreCurrentSession(snapshot, currentSessionUrls) {
@@ -323,6 +326,7 @@ export const SnapshotScorer = new (class SnapshotScorer {
    * Calculates points based on if the user persisted the snapshot.
    *
    * @param {Snapshot} snapshot
+   *   The snapshot used for calculation
    * @returns {number}
    */
   _scoreIsUserPersisted(snapshot) {
@@ -333,6 +337,7 @@ export const SnapshotScorer = new (class SnapshotScorer {
    * Calculates points based on if the user removed the snapshot.
    *
    * @param {Snapshot} snapshot
+   *   The snapshot used for calculation
    * @returns {number}
    */
   _scoreIsUserRemoved(snapshot) {

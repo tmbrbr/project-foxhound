@@ -3,8 +3,8 @@
 
 "use strict";
 
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 
 ChromeUtils.defineESModuleGetters(this, {
@@ -128,9 +128,9 @@ add_setup(async function setupTestCommon() {
  */
 registerCleanupFunction(async () => {
   AppMenuNotifications.removeNotification(/.*/);
-  gEnv.set("MOZ_TEST_SKIP_UPDATE_STAGE", "");
-  gEnv.set("MOZ_TEST_SLOW_SKIP_UPDATE_STAGE", "");
-  gEnv.set("MOZ_TEST_STAGING_ERROR", "");
+  Services.env.set("MOZ_TEST_SKIP_UPDATE_STAGE", "");
+  Services.env.set("MOZ_TEST_SLOW_SKIP_UPDATE_STAGE", "");
+  Services.env.set("MOZ_TEST_STAGING_ERROR", "");
   UpdateListener.reset();
   AppMenuNotifications.removeNotification(/.*/);
   reloadUpdateManagerData(true);
@@ -539,7 +539,13 @@ function runDoorhangerUpdateTest(params, steps) {
       return step();
     }
 
-    const { notificationId, button, checkActiveUpdate, pageURLs } = step;
+    const {
+      notificationId,
+      button,
+      checkActiveUpdate,
+      pageURLs,
+      expectedStateOverride,
+    } = step;
     return (async function() {
       if (!params.popupShown && !PanelUI.isNotificationPanelOpen) {
         await BrowserTestUtils.waitForEvent(
@@ -552,6 +558,21 @@ function runDoorhangerUpdateTest(params, steps) {
         shownNotificationId,
         notificationId,
         "The right notification showed up."
+      );
+
+      let expectedState = Ci.nsIApplicationUpdateService.STATE_IDLE;
+      if (expectedStateOverride) {
+        expectedState = expectedStateOverride;
+      } else if (notificationId == "update-restart") {
+        expectedState = Ci.nsIApplicationUpdateService.STATE_PENDING;
+      }
+      let actualState = gAUS.currentState;
+      is(
+        actualState,
+        expectedState,
+        `The current update state should be ` +
+          `"${gAUS.getStateName(expectedState)}". Actual: ` +
+          `"${gAUS.getStateName(actualState)}"`
       );
 
       if (checkActiveUpdate) {
@@ -590,9 +611,9 @@ function runDoorhangerUpdateTest(params, steps) {
 
   return (async function() {
     if (params.slowStaging) {
-      gEnv.set("MOZ_TEST_SLOW_SKIP_UPDATE_STAGE", "1");
+      Services.env.set("MOZ_TEST_SLOW_SKIP_UPDATE_STAGE", "1");
     } else {
-      gEnv.set("MOZ_TEST_SKIP_UPDATE_STAGE", "1");
+      Services.env.set("MOZ_TEST_SKIP_UPDATE_STAGE", "1");
     }
     await SpecialPowers.pushPrefEnv({
       set: [
@@ -604,15 +625,18 @@ function runDoorhangerUpdateTest(params, steps) {
 
     await setupTestUpdater();
 
+    let baseURL = URL_HTTP_UPDATE_SJS;
+    if (params.baseURL) {
+      baseURL = params.baseURL;
+    }
     let queryString = params.queryString ? params.queryString : "";
     let updateURL =
-      URL_HTTP_UPDATE_SJS +
+      baseURL +
       "?detailsURL=" +
       gDetailsURL +
       queryString +
       getVersionParams(params.version);
     setUpdateURL(updateURL);
-
     if (params.checkAttempts) {
       // Perform a background check doorhanger test.
       executeSoon(() => {
@@ -662,6 +686,8 @@ function runAboutDialogUpdateTest(params, steps) {
       continueFile,
       downloadInfo,
       forceApply,
+      noContinue,
+      expectedStateOverride,
     } = step;
     return (async function() {
       await TestUtils.waitForCondition(
@@ -683,6 +709,45 @@ function runAboutDialogUpdateTest(params, steps) {
         "The panel should be visible"
       );
 
+      if (
+        panelId == "downloading" &&
+        gAUS.currentState == Ci.nsIApplicationUpdateService.STATE_IDLE
+      ) {
+        // Now that `AUS.downloadUpdate` is async, we start showing the
+        // downloading panel while `AUS.downloadUpdate` is still resolving.
+        // But the below checks assume that this resolution has already
+        // happened. So we need to wait for things to actually resolve.
+        debugDump("Waiting for downloading state to actually start");
+        await gAUS.stateTransition;
+
+        // Check that the checks that we made above are still valid.
+        selectedPanel = aboutDialog.gAppUpdater.selectedPanel;
+        is(selectedPanel.id, panelId, "The panel ID should equal " + panelId);
+        ok(
+          BrowserTestUtils.is_visible(selectedPanel),
+          "The panel should be visible"
+        );
+      }
+
+      let expectedState = Ci.nsIApplicationUpdateService.STATE_IDLE;
+      if (expectedStateOverride) {
+        expectedState = expectedStateOverride;
+      } else if (panelId == "apply") {
+        expectedState = Ci.nsIApplicationUpdateService.STATE_PENDING;
+      } else if (panelId == "downloading") {
+        expectedState = Ci.nsIApplicationUpdateService.STATE_DOWNLOADING;
+      } else if (panelId == "applying") {
+        expectedState = Ci.nsIApplicationUpdateService.STATE_STAGING;
+      }
+      let actualState = gAUS.currentState;
+      is(
+        actualState,
+        expectedState,
+        `The current update state should be ` +
+          `"${gAUS.getStateName(expectedState)}". Actual: ` +
+          `"${gAUS.getStateName(actualState)}"`
+      );
+
       if (checkActiveUpdate) {
         let activeUpdate =
           checkActiveUpdate.state == STATE_DOWNLOADING
@@ -702,10 +767,11 @@ function runAboutDialogUpdateTest(params, steps) {
         ok(!gUpdateManager.readyUpdate, "There should not be a ready update");
       }
 
-      if (panelId == "downloading") {
+      // Some tests just want to stop at the downloading state. These won't
+      // include a continue file in that state.
+      if (panelId == "downloading" && continueFile) {
         for (let i = 0; i < downloadInfo.length; ++i) {
           let data = downloadInfo[i];
-          // The About Dialog tests always specify a continue file.
           await continueFileHandler(continueFile);
           let patch = getPatchOfType(
             data.patchType,
@@ -774,8 +840,9 @@ function runAboutDialogUpdateTest(params, steps) {
         );
       }
 
+      // Automatically click the download button unless `noContinue` was passed.
       let buttonPanels = ["downloadAndInstall", "apply"];
-      if (buttonPanels.includes(panelId)) {
+      if (buttonPanels.includes(panelId) && !noContinue) {
         let buttonEl = selectedPanel.querySelector("button");
         await TestUtils.waitForCondition(
           () => aboutDialog.document.activeElement == buttonEl,
@@ -792,7 +859,7 @@ function runAboutDialogUpdateTest(params, steps) {
   }
 
   return (async function() {
-    gEnv.set("MOZ_TEST_SLOW_SKIP_UPDATE_STAGE", "1");
+    Services.env.set("MOZ_TEST_SLOW_SKIP_UPDATE_STAGE", "1");
     await SpecialPowers.pushPrefEnv({
       set: [
         [PREF_APP_UPDATE_DISABLEDFORTESTING, false],
@@ -802,9 +869,13 @@ function runAboutDialogUpdateTest(params, steps) {
 
     await setupTestUpdater();
 
+    let baseURL = URL_HTTP_UPDATE_SJS;
+    if (params.baseURL) {
+      baseURL = params.baseURL;
+    }
     let queryString = params.queryString ? params.queryString : "";
     let updateURL =
-      URL_HTTP_UPDATE_SJS +
+      baseURL +
       "?detailsURL=" +
       gDetailsURL +
       queryString +
@@ -879,6 +950,7 @@ function runAboutPrefsUpdateTest(params, steps) {
       continueFile,
       downloadInfo,
       forceApply,
+      expectedStateOverride,
     } = step;
     return (async function() {
       await SpecialPowers.spawn(
@@ -905,6 +977,50 @@ function runAboutPrefsUpdateTest(params, steps) {
         }
       );
 
+      if (
+        panelId == "downloading" &&
+        gAUS.currentState == Ci.nsIApplicationUpdateService.STATE_IDLE
+      ) {
+        // Now that `AUS.downloadUpdate` is async, we start showing the
+        // downloading panel while `AUS.downloadUpdate` is still resolving.
+        // But the below checks assume that this resolution has already
+        // happened. So we need to wait for things to actually resolve.
+        debugDump("Waiting for downloading state to actually start");
+        await gAUS.stateTransition;
+
+        // Check that the checks that we made above are still valid.
+        await SpecialPowers.spawn(
+          tab.linkedBrowser,
+          [{ panelId }],
+          ({ panelId }) => {
+            is(
+              content.gAppUpdater.selectedPanel.id,
+              panelId,
+              "The panel ID should equal " + panelId
+            );
+          }
+        );
+      }
+
+      let expectedState = Ci.nsIApplicationUpdateService.STATE_IDLE;
+      if (expectedStateOverride) {
+        expectedState = expectedStateOverride;
+      } else if (panelId == "apply") {
+        expectedState = Ci.nsIApplicationUpdateService.STATE_PENDING;
+      } else if (panelId == "downloading") {
+        expectedState = Ci.nsIApplicationUpdateService.STATE_DOWNLOADING;
+      } else if (panelId == "applying") {
+        expectedState = Ci.nsIApplicationUpdateService.STATE_STAGING;
+      }
+      let actualState = gAUS.currentState;
+      is(
+        actualState,
+        expectedState,
+        `The current update state should be ` +
+          `"${gAUS.getStateName(expectedState)}". Actual: ` +
+          `"${gAUS.getStateName(actualState)}"`
+      );
+
       if (checkActiveUpdate) {
         let activeUpdate =
           checkActiveUpdate.state == STATE_DOWNLOADING
@@ -925,6 +1041,9 @@ function runAboutPrefsUpdateTest(params, steps) {
       }
 
       if (panelId == "downloading") {
+        if (!downloadInfo) {
+          logTestInfo("no downloadinfo, possible error?");
+        }
         for (let i = 0; i < downloadInfo.length; ++i) {
           let data = downloadInfo[i];
           // The About Dialog tests always specify a continue file.
@@ -1036,7 +1155,7 @@ function runAboutPrefsUpdateTest(params, steps) {
   }
 
   return (async function() {
-    gEnv.set("MOZ_TEST_SLOW_SKIP_UPDATE_STAGE", "1");
+    Services.env.set("MOZ_TEST_SLOW_SKIP_UPDATE_STAGE", "1");
     await SpecialPowers.pushPrefEnv({
       set: [
         [PREF_APP_UPDATE_DISABLEDFORTESTING, false],
@@ -1046,9 +1165,13 @@ function runAboutPrefsUpdateTest(params, steps) {
 
     await setupTestUpdater();
 
+    let baseURL = URL_HTTP_UPDATE_SJS;
+    if (params.baseURL) {
+      baseURL = params.baseURL;
+    }
     let queryString = params.queryString ? params.queryString : "";
     let updateURL =
-      URL_HTTP_UPDATE_SJS +
+      baseURL +
       "?detailsURL=" +
       gDetailsURL +
       queryString +
@@ -1142,7 +1265,7 @@ function removeUpdateSettingsIni() {
 function runTelemetryUpdateTest(updateParams, event, stageFailure = false) {
   return (async function() {
     Services.telemetry.clearScalars();
-    gEnv.set("MOZ_TEST_SKIP_UPDATE_STAGE", "1");
+    Services.env.set("MOZ_TEST_SKIP_UPDATE_STAGE", "1");
     await SpecialPowers.pushPrefEnv({
       set: [[PREF_APP_UPDATE_DISABLEDFORTESTING, false]],
     });

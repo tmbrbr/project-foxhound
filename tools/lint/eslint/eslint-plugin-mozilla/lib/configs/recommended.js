@@ -61,6 +61,12 @@ module.exports = {
       },
     },
     {
+      files: ["**/*.sys.mjs"],
+      rules: {
+        "mozilla/use-static-import": "error",
+      },
+    },
+    {
       excludedFiles: ["**/*.sys.mjs"],
       files: ["**/*.mjs"],
       rules: {
@@ -71,6 +77,7 @@ module.exports = {
     {
       files: ["**/*.mjs"],
       rules: {
+        "mozilla/use-static-import": "error",
         // This rule defaults to not allowing "use strict" in module files since
         // they are always loaded in strict mode.
         strict: "error",
@@ -145,6 +152,7 @@ module.exports = {
     "mozilla/import-browser-window-globals": "error",
     "mozilla/import-globals": "error",
     "mozilla/no-compare-against-boolean-literals": "error",
+    "mozilla/no-cu-reportError": "error",
     "mozilla/no-define-cc-etc": "error",
     "mozilla/no-throw-cr-literal": "error",
     "mozilla/no-useless-parameters": "error",

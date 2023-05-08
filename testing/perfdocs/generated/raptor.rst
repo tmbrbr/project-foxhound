@@ -47,7 +47,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: :jandem and SpiderMonkey Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **expected**: pass
    * **gecko profile entries**: 14000000
    * **gecko profile interval**: 1
@@ -143,6 +143,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+      * - **browsertime-benchmark-safari-ares6**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -236,7 +241,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: PerfTest Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **expected**: pass
    * **fetch task**: assorted-dom
    * **gecko profile entries**: 2000000
@@ -332,6 +337,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+      * - **browsertime-benchmark-safari-assorted-dom**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -425,7 +435,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: :jandem and SpiderMonkey Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **expected**: pass
    * **fetch task**: jetstream2
    * **gecko profile entries**: 14000000
@@ -522,6 +532,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+      * - **browsertime-benchmark-safari-jetstream2**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -805,7 +820,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: :jgilbert and Graphics(gfx) Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **expected**: pass
    * **gecko profile entries**: 8000000
    * **gecko profile interval**: 1
@@ -899,6 +914,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+      * - **browsertime-benchmark-safari-motionmark-animometer**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -992,7 +1012,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: :jgilbert and Graphics(gfx) Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **expected**: pass
    * **gecko profile entries**: 8000000
    * **gecko profile interval**: 1
@@ -1086,6 +1106,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+      * - **browsertime-benchmark-safari-motionmark-htmlsuite**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -1350,7 +1375,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: SpiderMonkey Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **expected**: pass
    * **gecko profile entries**: 14000000
    * **gecko profile interval**: 1
@@ -1411,115 +1436,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
-   .. list-table:: **test-android-hw-g5-7-0-arm7-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-g5-7-0-arm7-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-fenix-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-geckoview-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-chrome-m-nofis**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-fenix-nofis**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-geckoview-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -1529,16 +1445,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - autoland
         - mozilla-release
         - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
       * - **browsertime-speedometer-mobile-fenix-nofis**
         - ❌
         - ❌
@@ -1560,16 +1466,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - autoland
         - mozilla-release
         - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
       * - **browsertime-speedometer-mobile-chrome-m-nofis**
         - ❌
         - ❌
@@ -1669,6 +1565,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+      * - **browsertime-benchmark-safari-speedometer**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -1819,115 +1720,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
-   .. list-table:: **test-android-hw-g5-7-0-arm7-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-g5-7-0-arm7-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-fenix-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-geckoview-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-chrome-m-nofis**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-fenix-nofis**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-speedometer-mobile-geckoview-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -1937,16 +1729,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - autoland
         - mozilla-release
         - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
       * - **browsertime-speedometer-mobile-fenix-nofis**
         - ❌
         - ❌
@@ -1968,16 +1750,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - autoland
         - mozilla-release
         - mozilla-beta
-      * - **browsertime-power-fenix-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-speedometer-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
       * - **browsertime-speedometer-mobile-chrome-m-nofis**
         - ❌
         - ❌
@@ -2077,6 +1849,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+      * - **browsertime-benchmark-safari-speedometer**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -2170,7 +1947,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: :emelio and Layout Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **expected**: pass
    * **gecko profile entries**: 8000000
    * **gecko profile interval**: 1
@@ -2266,6 +2043,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+      * - **browsertime-benchmark-safari-stylebench**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -2359,7 +2141,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: :jandem and SpiderMonkey Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **expected**: pass
    * **gecko profile entries**: 8000000
    * **gecko profile interval**: 1
@@ -2453,6 +2235,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+      * - **browsertime-benchmark-safari-sunspider**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -2741,53 +2528,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - mozilla-release
         - mozilla-beta
       * - **browsertime-unity-webgl-mobile-chrome-m-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-unity-webgl-mobile-fenix-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-unity-webgl-mobile-geckoview-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-unity-webgl-mobile-fenix-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-unity-webgl-mobile-geckoview-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-unity-webgl-mobile-chrome-m-nofis**
         - ✅
         - ❌
         - ❌
@@ -2932,6 +2672,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+        - ❌
+      * - **browsertime-benchmark-safari-unity-webgl**
+        - ❌
+        - ❌
+        - ❌
         - ❌
 
 
@@ -3022,7 +2767,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: :jgilbert and Graphics(gfx) Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **expected**: pass
    * **fetch task**: unity-webgl
    * **gecko profile entries**: 8000000
@@ -3057,53 +2802,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-unity-webgl-mobile-chrome-m-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-unity-webgl-mobile-fenix-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-unity-webgl-mobile-geckoview-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-unity-webgl-mobile-fenix-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-unity-webgl-mobile-geckoview-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -3257,6 +2955,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ✅
         - ✅
         - ✅
+        - ❌
+      * - **browsertime-benchmark-safari-unity-webgl**
+        - ❌
+        - ❌
+        - ❌
         - ❌
 
 
@@ -4721,48 +4424,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-mobile-fenix-youtube-playback-h264-sfr-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-mobile-geckoview-youtube-playback-h264-sfr-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-mobile-fenix-youtube-playback-h264-sfr-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-mobile-geckoview-youtube-playback-h264-sfr-nofis**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -4980,48 +4641,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-mobile-fenix-youtube-playback-hfr-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-mobile-geckoview-youtube-playback-hfr-nofis**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-mobile-fenix-youtube-playback-hfr-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-mobile-geckoview-youtube-playback-hfr-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -5323,48 +4942,6 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    * **unit**: score
    * **use live sites**: true
    * **Test Task**:
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-mobile-fenix-youtube-playback-vp9-sfr-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-mobile-geckoview-youtube-playback-vp9-sfr-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-mobile-fenix-youtube-playback-vp9-sfr-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-mobile-geckoview-youtube-playback-vp9-sfr-nofis**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-
 
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
@@ -6016,7 +5593,7 @@ Browsertime tests that use a custom pageload test script. These use the pageload
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: null.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test script**: None
    * **test url**: `<None>`__
    * **type**: pageload
@@ -6196,7 +5773,7 @@ Browsertime tests that use a custom pageload test script. These use the pageload
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm5-linux-firefox-welcome.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test script**: welcome.js
    * **test url**: `<about:welcome>`__
    * **type**: pageload
@@ -6345,7 +5922,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -6355,7 +5932,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-amazon.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.amazon.com/Acer-A515-46-R14K-Quad-Core-Processor-Backlit/dp/B08VKNVDDR/ref=sr_1_3?dchild=1&keywords=laptop&qid=1627047187&sr=8-3>`__
    * **test url**: `<https://www.amazon.com/s?k=laptop&ref=nb_sb_noss_1>`__
    * **type**: pageload
@@ -6460,118 +6037,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
       * - **browsertime-tp6m-live-geckoview-amazon-nofis**
         - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-amazon**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-amazon-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-profiling-geckoview-amazon-nofis**
-        - ✅
         - ❌
         - ❌
         - ❌
@@ -6836,6 +6301,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-amazon**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
       * - **browsertime-tp6-profiling-firefox-amazon**
         - ✅
         - ❌
@@ -6995,7 +6465,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -7005,7 +6475,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm5-linux-firefox-bing-search.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.bing.com/search?q=barack+obama>`__
    * **type**: pageload
    * **unit**: ms
@@ -7150,6 +6620,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-bing-search**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-bing-search**
         - ❌
         - ❌
         - ❌
@@ -7308,7 +6783,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -7318,7 +6793,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-buzzfeed.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.buzzfeed.com/quizzes>`__
    * **test url**: `<https://www.buzzfeed.com/>`__
    * **type**: pageload
@@ -7502,7 +6977,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -7512,7 +6987,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-cnn.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.cnn.com/weather>`__
    * **test url**: `<https://www.cnn.com/2021/03/22/weather/climate-change-warm-waters-lake-michigan/index.html>`__
    * **type**: pageload
@@ -7567,113 +7042,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -8097,7 +7465,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -8107,7 +7475,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-ebay.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.ebay.com/deals>`__
    * **test url**: `<https://www.ebay.com/>`__
    * **type**: pageload
@@ -8233,6 +7601,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-ebay**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-ebay**
         - ❌
         - ❌
         - ❌
@@ -8371,7 +7744,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -8381,7 +7754,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-espn.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.espn.com/nba/draft/news>`__
    * **test url**: `<http://www.espn.com/nba/story/_/page/allstarweekend25788027/the-comparison-lebron-james-michael-jordan-their-own-words>`__
    * **type**: pageload
@@ -8436,113 +7809,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-chrome-m-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-chrome-m-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-espn**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-espn-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-fenix-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -8886,7 +8152,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -8896,7 +8162,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-expedia.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://groups.expedia.com/Group-Rate/?locale=en_US&ol=1>`__
    * **test url**: `<https://expedia.com/Hotel-Search?destination=New+York%2C+New+York&latLong=40.756680%2C-73.986470&regionId=178293&startDate=&endDate=&rooms=1&_xpid=11905%7C1&adults=2>`__
    * **type**: pageload
@@ -8926,53 +8192,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -9221,7 +8440,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -9231,7 +8450,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-linux-firefox-facebook.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.facebook.com/marketplace/?ref=bookmark>`__
    * **test url**: `<https://www.facebook.com>`__
    * **type**: pageload
@@ -9286,113 +8505,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-chrome-m-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-chrome-m-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-facebook**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-facebook-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-fenix-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -9682,6 +8794,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-facebook**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -9816,7 +8933,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -9826,7 +8943,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm5-linux-firefox-fandom.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.fandom.com/articles/fallout-76-will-live-and-die-on-the-creativity-of-its-playerbase>`__
    * **type**: pageload
    * **unit**: ms
@@ -10129,7 +9246,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -10140,7 +9257,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-google-docs.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://docs.google.com/document/d/1vUnn0ePU-ynArE1OdxyEHXR2G0sl74ja_st_4OOzlgE/preview>`__
    * **test url**: `<https://docs.google.com/document/d/1US-07msg12slQtI_xchzYxcKlTs6Fp7WqIc6W5GK5M8/edit?usp=sharing>`__
    * **type**: pageload
@@ -10266,6 +9383,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-google-docs**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-google-docs**
         - ❌
         - ❌
         - ❌
@@ -10404,7 +9526,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -10414,7 +9536,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm5-linux-firefox-google-mail.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test url**: `<https://mail.google.com/>`__
    * **type**: pageload
    * **unit**: ms
@@ -10677,7 +9799,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -10687,7 +9809,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm5-linux-firefox-google-search.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.google.com/search?hl=en&q=barack+obama&cad=h>`__
    * **type**: pageload
    * **unit**: ms
@@ -10812,6 +9934,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-google-search**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-google-search**
         - ❌
         - ❌
         - ❌
@@ -10950,7 +10077,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -11110,6 +10237,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-google-slides**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -11264,7 +10396,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -11274,7 +10406,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-imdb.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.imdb.com/title/tt0084967/episodes/?ref_=tt_ov_epl>`__
    * **test url**: `<https://www.imdb.com/title/tt0084967/?ref_=nv_sr_2>`__
    * **type**: pageload
@@ -11329,113 +10461,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-imdb**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-imdb-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -11725,6 +10750,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-imdb**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -11859,7 +10889,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -11869,7 +10899,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-imgur.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **preferences**: {"media.autoplay.default": 5, "media.autoplay.ask-permission": true, "media.autoplay.blocking_policy": 1, "media.autoplay.block-webaudio": true, "media.allowed-to-play.enabled": false, "media.block-autoplay-until-in-foreground": true}
    * **secondary url**: `<https://imgur.com/gallery/L13Ci>`__
    * **test url**: `<https://imgur.com/gallery/m5tYJL6>`__
@@ -12134,7 +11164,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -12144,7 +11174,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-linux-firefox-instagram.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.instagram.com/nobelprize_org/>`__
    * **test url**: `<https://www.instagram.com/>`__
    * **type**: pageload
@@ -12199,113 +11229,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-instagram**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-instagram-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -12689,7 +11612,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -12699,7 +11622,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-linux-firefox-linkedin.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.linkedin.com/in/thommy-harris-hk-385723106/>`__
    * **test url**: `<https://www.linkedin.com/feed/>`__
    * **type**: pageload
@@ -12825,6 +11748,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-linkedin**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-linkedin**
         - ❌
         - ❌
         - ❌
@@ -12963,7 +11891,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -12973,7 +11901,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-microsoft.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://support.microsoft.com/en-us>`__
    * **test url**: `<https://www.microsoft.com/en-us/>`__
    * **type**: pageload
@@ -13099,6 +12027,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-microsoft**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-microsoft**
         - ❌
         - ❌
         - ❌
@@ -13237,7 +12170,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -13247,7 +12180,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-linux-firefox-netflix.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.netflix.com/title/699257>`__
    * **test url**: `<https://www.netflix.com/title/80117263>`__
    * **type**: pageload
@@ -13511,7 +12444,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -13521,7 +12454,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-nytimes.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.nytimes.com/section/opinion/columnists>`__
    * **test url**: `<https://www.nytimes.com/2020/02/19/opinion/surprise-medical-bill.html>`__
    * **type**: pageload
@@ -13551,53 +12484,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -13846,7 +12732,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -13856,7 +12742,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-office.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.office.com/>`__
    * **test url**: `<https://www.office.com/launch/powerpoint?auth=1>`__
    * **type**: pageload
@@ -14040,7 +12926,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -14050,7 +12936,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm5-linux-firefox-live.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test url**: `<https://outlook.live.com/mail/inbox>`__
    * **type**: pageload
    * **unit**: ms
@@ -14175,6 +13061,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-outlook**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-outlook**
         - ❌
         - ❌
         - ❌
@@ -14313,7 +13204,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -14323,7 +13214,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm5-linux-firefox-paypal.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.paypal.com/myaccount/summary/>`__
    * **type**: pageload
    * **unit**: ms
@@ -14448,6 +13339,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-paypal**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-paypal**
         - ❌
         - ❌
         - ❌
@@ -14586,7 +13482,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -14596,7 +13492,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-linux-firefox-pinterest.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.pinterest.com/today/best/halloween-costumes-for-your-furry-friends/75787/>`__
    * **test url**: `<https://pinterest.com/>`__
    * **type**: pageload
@@ -14722,6 +13618,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-pinterest**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-pinterest**
         - ❌
         - ❌
         - ❌
@@ -14860,7 +13761,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -14870,7 +13771,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-linux-firefox-reddit.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.reddit.com/r/technology/>`__
    * **test url**: `<https://www.reddit.com/r/technology/comments/9sqwyh/we_posed_as_100_senators_to_run_ads_on_facebook/>`__
    * **type**: pageload
@@ -14925,113 +13826,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-reddit**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-reddit-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -15321,6 +14115,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-reddit**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -15455,7 +14254,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -15465,7 +14264,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-linux-firefox-tumblr.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.tumblr.com/tagged/funny+cats?sort=top>`__
    * **test url**: `<https://www.tumblr.com/dashboard>`__
    * **type**: pageload
@@ -15591,6 +14390,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-tumblr**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-tumblr**
         - ❌
         - ❌
         - ❌
@@ -15729,7 +14533,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -15739,7 +14543,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-twitch.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **preferences**: {"media.autoplay.default": 5, "media.autoplay.ask-permission": true, "media.autoplay.blocking_policy": 1, "media.autoplay.block-webaudio": true, "media.allowed-to-play.enabled": false, "media.block-autoplay-until-in-foreground": true}
    * **secondary url**: `<https://www.twitch.tv/gmashley>`__
    * **test url**: `<https://www.twitch.tv/videos/894226211>`__
@@ -15866,6 +14670,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-twitch**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-twitch**
         - ❌
         - ❌
         - ❌
@@ -16004,7 +14813,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -16014,7 +14823,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm5-linux-firefox-twitter.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test url**: `<https://twitter.com/BarackObama>`__
    * **type**: pageload
    * **unit**: ms
@@ -16159,6 +14968,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-twitter**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-twitter**
         - ❌
         - ❌
         - ❌
@@ -16317,7 +15131,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -16327,7 +15141,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-wikia.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://marvel.fandom.com/wiki/Celestials>`__
    * **test url**: `<https://marvel.fandom.com/wiki/Black_Panther>`__
    * **type**: pageload
@@ -16511,7 +15325,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -16521,7 +15335,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-wikipedia.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://en.wikipedia.org/wiki/Joe_Biden>`__
    * **test url**: `<https://en.wikipedia.org/wiki/Barack_Obama>`__
    * **type**: pageload
@@ -16576,113 +15390,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-wikipedia**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-wikipedia-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -16992,6 +15699,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-wikipedia**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -17146,7 +15858,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -17156,7 +15868,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm5-linux-firefox-yahoo-mail.manifest
-   * **playback version**: 5.1.1
+   * **playback version**: 8.1.1
    * **test url**: `<https://mail.yahoo.com/>`__
    * **type**: pageload
    * **unit**: ms
@@ -17459,7 +16171,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -17469,7 +16181,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-youtube.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **secondary url**: `<https://www.youtube.com/watch?v=JrdEMERq8MA>`__
    * **test url**: `<https://www.youtube.com>`__
    * **type**: pageload
@@ -17574,118 +16286,6 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
       * - **browsertime-tp6m-live-geckoview-youtube-nofis**
         - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-youtube**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-youtube-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-profiling-geckoview-youtube-nofis**
-        - ✅
         - ❌
         - ❌
         - ❌
@@ -17925,6 +16525,11 @@ Tests for page-load performance. The links direct to the actual websites that ar
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-youtube**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -18065,7 +16670,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **accept zero vismet**: true
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 10
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -18076,7 +16681,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **page timeout**: 60000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm7-linux-firefox-cnn-nav.manifest
-   * **playback version**: 7.0.4
+   * **playback version**: 8.1.1
    * **test cmds**:  ["measure.start", "landing"], ["navigate", "https://www.cnn.com"], ["wait.byTime", 4000], ["measure.stop", ""], ["measure.start", "world"], ["click.byXpathAndWait", "/html/body/div[5]/div/div/header/div/div[1]/div/div[2]/nav/ul/li[2]/a"], ["wait.byTime", 1000], ["measure.stop", ""],
    * **test url**: `<https://www.cnn.com/>`__
    * **type**: pageload
@@ -18261,7 +16866,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **accept zero vismet**: true
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 10
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -18272,7 +16877,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **page timeout**: 90000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-windows-firefox-facebook-nav.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test cmds**:  ["measure.start", "landing"], ["navigate", "https://www.facebook.com/"], ["wait.byTime", 5000], ["measure.stop", ""], ["measure.start", "marketplace"], ["navigate", "https://www.facebook.com/marketplace"], ["wait.byTime", 5000], ["measure.stop", ""], ["measure.start", "groups"], ["navigate", "https://www.facebook.com/groups/discover/"], ["wait.byTime", 5000], ["measure.stop", ""], ["measure.start", "friends"], ["navigate", "https://www.facebook.com/friends/"], ["wait.byTime", 5000], ["measure.stop", ""],
    * **test url**: `<https://www.facebook.com>`__
    * **type**: pageload
@@ -18457,7 +17062,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **accept zero vismet**: true
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 10
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -18468,7 +17073,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **page timeout**: 240000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-windows-firefox-reddit-billgates-ama.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test cmds**:  ["measure.start", "billg-ama"], ["navigate", "https://www.reddit.com/r/IAmA/comments/m8n4vt/im_bill_gates_cochair_of_the_bill_and_melinda/"], ["wait.byTime", 5000], ["measure.stop", ""], ["measure.start", "members"], ["click.byXpathAndWait", "/html/body/div[1]/div/div[2]/div[2]/div/div[3]/div[2]/div/div[1]/div/div[4]/div[1]/div"], ["wait.byTime", 1000], ["measure.stop", ""],
    * **test url**: `<https://www.reddit.com/>`__
    * **type**: pageload
@@ -18653,7 +17258,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **accept zero vismet**: true
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 10
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -18664,7 +17269,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **page timeout**: 90000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-windows-firefox-reddit-billgates-post.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test cmds**:  ["measure.start", "billg"], ["navigate", "https://www.reddit.com/user/thisisbillgates/"], ["wait.byTime", 500], ["measure.stop", ""], ["measure.start", "posts"], ["click.byXpathAndWait", "/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[2]/div[2]/div/div/div/a[2]"], ["wait.byTime", 500], ["measure.stop", ""], ["measure.start", "comments"], ["click.byXpathAndWait", "/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[2]/div[2]/div/div/div/a[3]"], ["wait.byTime", 500], ["measure.stop", ""], ["wait.byTime", 500],
    * **test url**: `<https://www.reddit.com/user/thisisbillgates/>`__
    * **type**: pageload
@@ -18849,7 +17454,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **accept zero vismet**: true
    * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, chromium
+   * **apps**: firefox, chrome, chromium, safari
    * **browser cycles**: 10
    * **expected**: pass
    * **gecko profile entries**: 14000000
@@ -18860,7 +17465,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    * **page timeout**: 90000
    * **playback**: mitmproxy
    * **playback pageset manifest**: mitm6-windows-firefox-reddit-billgates-post.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test cmds**:  ["measure.start", "billg"], ["navigate", "https://www.reddit.com/user/thisisbillgates/"], ["wait.byTime", 500], ["measure.stop", ""], ["click.byXpathAndWait", "/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[2]/div[2]/div/div/div/a[3]"], ["wait.byTime", 500], ["measure.start", "hot"], ["click.byXpathAndWait", "/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[2]/div[4]/div[1]/div[1]/div[2]/a[2]"], ["wait.byTime", 500], ["measure.stop", ""], ["measure.start", "top"], ["click.byXpathAndWait", "/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[2]/div[4]/div[1]/div[1]/div[2]/a[3]"], ["wait.byTime", 500], ["measure.stop", ""], ["wait.byTime", 500],
    * **test url**: `<https://www.reddit.com/user/thisisbillgates/>`__
    * **type**: pageload
@@ -19108,53 +17713,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-booking-sf-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-booking-sf-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-booking-sf-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-booking-sf-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-booking-sf-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -19269,113 +17827,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -19918,113 +18369,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-ampstories**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-ampstories-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-ampstories-nofis**
-        - ❌
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -20199,53 +18543,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-discord-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-discord-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-discord-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-discord-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-discord-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -20335,53 +18632,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-expedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -20689,53 +18939,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-fashionbeans-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-fashionbeans-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-fashionbeans-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-fashionbeans-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-fashionbeans-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -20825,53 +19028,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-google-accounts-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-google-accounts-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-google-accounts-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-google-accounts-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-google-accounts-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -21011,53 +19167,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-imdb-firefox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-imdb-firefox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-imdb-firefox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-imdb-firefox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-imdb-firefox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -21172,53 +19281,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-medium-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-medium-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-medium-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-medium-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-medium-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -21308,53 +19370,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-nytimes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -21662,53 +19677,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-people-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-people-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-people-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-people-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-people-article-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -21798,53 +19766,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-reddit-thread-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-reddit-thread-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-reddit-thread-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-reddit-thread-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-reddit-thread-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -21984,53 +19905,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-rumble-fox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-rumble-fox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-rumble-fox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-rumble-fox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-rumble-fox-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -22120,53 +19994,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-stackoverflow-question-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-stackoverflow-question-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-stackoverflow-question-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-stackoverflow-question-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-stackoverflow-question-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -22306,53 +20133,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-urbandictionary-define-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-urbandictionary-define-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-urbandictionary-define-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-urbandictionary-define-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-urbandictionary-define-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -22467,53 +20247,6 @@ A set of test pages that are run as live sites instead of recorded versions. The
         - ❌
 
 
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-fenix-wikia-marvel-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-wikia-marvel-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-live-chrome-m-wikia-marvel-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-wikia-marvel-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-wikia-marvel-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
    .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -22582,7 +20315,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-allrecipes.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.allrecipes.com/>`__
    * **type**: pageload
    * **unit**: ms
@@ -22636,113 +20369,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-chrome-m-allrecipes**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-chrome-m-allrecipes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-allrecipes**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-allrecipes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-allrecipes**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-allrecipes-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-allrecipes**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-allrecipes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-allrecipes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-allrecipes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-fenix-allrecipes**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-allrecipes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-allrecipes**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-allrecipes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-allrecipes**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-allrecipes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-allrecipes-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -22926,7 +20552,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-amazon.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.amazon.com>`__
    * **type**: pageload
    * **unit**: ms
@@ -23030,118 +20656,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
         - ❌
       * - **browsertime-tp6m-live-geckoview-amazon-nofis**
         - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-amazon**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-amazon**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-amazon-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-amazon-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-profiling-geckoview-amazon-nofis**
-        - ✅
         - ❌
         - ❌
         - ❌
@@ -23406,6 +20920,11 @@ Page-load performance test suite on Android. The links direct to the actual webs
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-amazon**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
       * - **browsertime-tp6-profiling-firefox-amazon**
         - ✅
         - ❌
@@ -23573,7 +21092,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-amazon-search.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.amazon.com/s/ref=nb_sb_noss_2/139-6317191-5622045?url=search-alias%3Daps&field-keywords=mobile+phone>`__
    * **type**: pageload
    * **unit**: ms
@@ -23627,113 +21146,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-chrome-m-amazon-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-chrome-m-amazon-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-amazon-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-amazon-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-amazon-search**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-amazon-search-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-amazon-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-amazon-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-amazon-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-amazon-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-fenix-amazon-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-amazon-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-amazon-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-amazon-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-amazon-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-amazon-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-amazon-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -23917,7 +21329,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-bing.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.bing.com/>`__
    * **type**: pageload
    * **unit**: ms
@@ -23971,113 +21383,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-bing**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-bing-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-bing**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-bing-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-bing**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-bing-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-bing-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-bing-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-bing-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-bing**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-bing**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-bing-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-bing**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-bing-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-bing-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-bing-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-bing**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -24261,7 +21566,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-bing-search-restaurants.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.bing.com/search?q=restaurants+in+exton+pa+19341>`__
    * **type**: pageload
    * **unit**: ms
@@ -24315,113 +21620,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-bing-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-bing-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-bing-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-bing-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-bing-search-restaurants**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-bing-search-restaurants-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-bing-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-bing-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-bing-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-bing-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-bing-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-bing-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-bing-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-bing-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-bing-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-bing-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-bing-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -24605,7 +21803,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-booking.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.booking.com/>`__
    * **type**: pageload
    * **unit**: ms
@@ -24659,113 +21857,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-booking**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-booking-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-booking**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-booking-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-booking**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-booking-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-booking-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-booking-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-booking-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-booking**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-booking**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-booking-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-booking**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-booking-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-booking-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-booking-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-booking**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -24949,7 +22040,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-cnn.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://cnn.com>`__
    * **type**: pageload
    * **unit**: ms
@@ -25003,113 +22094,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -25541,7 +22525,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-cnn-ampstories.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://cnn.com/ampstories/us/why-hurricane-michael-is-a-monster-unlike-any-other>`__
    * **type**: pageload
    * **unit**: ms
@@ -25595,113 +22579,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-ampstories**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-ampstories-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-ampstories-nofis**
-        - ❌
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-cnn-ampstories-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-cnn-ampstories**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -25885,7 +22762,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-dailymail.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.dailymail.co.uk/sciencetech/article-9749081/Experts-say-Hubble-repair-despite-NASA-insisting-multiple-options-fix.html>`__
    * **type**: pageload
    * **unit**: ms
@@ -25939,113 +22816,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-dailymail**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-dailymail-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-dailymail**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-dailymail-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-dailymail**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-dailymail-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-dailymail-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-dailymail-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-dailymail-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-dailymail**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-dailymail**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-dailymail-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-dailymail**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-dailymail-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-dailymail-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-dailymail-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-dailymail**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -26229,7 +22999,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-ebay-kleinanzeigen.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://m.ebay-kleinanzeigen.de>`__
    * **type**: pageload
    * **unit**: ms
@@ -26283,113 +23053,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-ebay-kleinanzeigen**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-ebay-kleinanzeigen-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-ebay-kleinanzeigen**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-ebay-kleinanzeigen-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-ebay-kleinanzeigen**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-ebay-kleinanzeigen-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-ebay-kleinanzeigen-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-ebay-kleinanzeigen-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-ebay-kleinanzeigen-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-ebay-kleinanzeigen**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-ebay-kleinanzeigen**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-ebay-kleinanzeigen-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-ebay-kleinanzeigen**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-ebay-kleinanzeigen-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-ebay-kleinanzeigen-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-ebay-kleinanzeigen-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-ebay-kleinanzeigen**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -26573,7 +23236,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-ebay-kleinanzeigen-search.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://m.ebay-kleinanzeigen.de/s-anzeigen/auf-zeit-wg-berlin/zimmer/c199-l3331>`__
    * **type**: pageload
    * **unit**: ms
@@ -26627,113 +23290,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-ebay-kleinanzeigen-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-ebay-kleinanzeigen-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-ebay-kleinanzeigen-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-ebay-kleinanzeigen-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-ebay-kleinanzeigen-search**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-ebay-kleinanzeigen-search-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-ebay-kleinanzeigen-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-ebay-kleinanzeigen-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-ebay-kleinanzeigen-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-ebay-kleinanzeigen-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-ebay-kleinanzeigen-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-ebay-kleinanzeigen-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-ebay-kleinanzeigen-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-ebay-kleinanzeigen-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-ebay-kleinanzeigen-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-ebay-kleinanzeigen-search-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-ebay-kleinanzeigen-search**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -26917,7 +23473,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-espn.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<http://www.espn.com/nba/story/_/page/allstarweekend25788027/the-comparison-lebron-james-michael-jordan-their-own-words>`__
    * **type**: pageload
    * **unit**: ms
@@ -26971,113 +23527,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-chrome-m-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-chrome-m-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-espn**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-espn-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-fenix-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-espn**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-espn-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -27430,7 +23879,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-g5-fenix-facebook.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://m.facebook.com>`__
    * **type**: pageload
    * **unit**: ms
@@ -27484,113 +23933,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-chrome-m-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-chrome-m-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-facebook**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-facebook-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-fenix-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-facebook**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-facebook-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -27880,6 +24222,11 @@ Page-load performance test suite on Android. The links direct to the actual webs
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-facebook**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -28022,7 +24369,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-facebook-cristiano.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://m.facebook.com/Cristiano>`__
    * **type**: pageload
    * **unit**: ms
@@ -28076,113 +24423,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-facebook-cristiano**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-facebook-cristiano-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-facebook-cristiano**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-facebook-cristiano-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-facebook-cristiano**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-facebook-cristiano-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-facebook-cristiano-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-facebook-cristiano-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-facebook-cristiano-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-facebook-cristiano**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-facebook-cristiano**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-facebook-cristiano-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-facebook-cristiano**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-facebook-cristiano-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-facebook-cristiano-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-facebook-cristiano-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-facebook-cristiano**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -28367,7 +24607,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-g5-fenix-google.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.google.com>`__
    * **type**: pageload
    * **unit**: ms
@@ -28421,113 +24661,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-chrome-m-google**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-chrome-m-google-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-google**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-google-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-google**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-google-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-google**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-google-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-google-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-google-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-fenix-google**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-google-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-google**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-google-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-google**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-google-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-google-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -28711,7 +24844,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-google-maps.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.google.com/maps?force=pwa>`__
    * **type**: pageload
    * **unit**: ms
@@ -28765,113 +24898,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-google-maps**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-google-maps-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-google-maps**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-google-maps-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-google-maps**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-google-maps-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-google-maps-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-google-maps-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-google-maps-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-google-maps**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-google-maps**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-google-maps-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-google-maps**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-google-maps-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-google-maps-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-google-maps-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-google-maps**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -29056,7 +25082,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-g5-fenix-google-search-restaurants.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.google.com/search?q=restaurants+near+me>`__
    * **type**: pageload
    * **unit**: ms
@@ -29110,113 +25136,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-google-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-google-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-google-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-google-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-google-search-restaurants**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-google-search-restaurants-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-google-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-google-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-google-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-google-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-google-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-google-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-google-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-google-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-google-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-google-search-restaurants-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-google-search-restaurants**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -29400,7 +25319,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-imdb.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://m.imdb.com/>`__
    * **type**: pageload
    * **unit**: ms
@@ -29454,113 +25373,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-imdb**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-imdb-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-imdb-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-imdb**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -29850,6 +25662,11 @@ Page-load performance test suite on Android. The links direct to the actual webs
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-imdb**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -29992,8 +25809,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page cycles**: 25
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
-   * **playback pageset manifest**: mitm6-g5-fenix-instagram.manifest
-   * **playback version**: 6.0.2
+   * **playback pageset manifest**: mitm8-android-gve-instagram.manifest
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.instagram.com>`__
    * **type**: pageload
    * **unit**: ms
@@ -30047,113 +25864,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-instagram**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-instagram-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-instagram-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-instagram**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -30545,7 +26255,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-microsoft-support.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://support.microsoft.com/en-us>`__
    * **type**: pageload
    * **unit**: ms
@@ -30599,113 +26309,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-chrome-m-microsoft-support**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-chrome-m-microsoft-support-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-microsoft-support**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-microsoft-support-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-microsoft-support**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-microsoft-support-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-microsoft-support**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-microsoft-support-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-microsoft-support-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-microsoft-support-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-fenix-microsoft-support**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-microsoft-support-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-microsoft-support**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-microsoft-support-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-microsoft-support**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-microsoft-support-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-microsoft-support-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -30889,7 +26492,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-reddit.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.reddit.com>`__
    * **type**: pageload
    * **unit**: ms
@@ -30943,113 +26546,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-reddit**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-reddit-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-reddit-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-reddit**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -31339,6 +26835,11 @@ Page-load performance test suite on Android. The links direct to the actual webs
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-reddit**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -31481,7 +26982,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-sina.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.sina.com.cn/>`__
    * **type**: pageload
    * **unit**: ms
@@ -31525,88 +27026,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-sina**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-sina-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-sina**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-sina-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-sina**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-sina-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-sina**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-sina**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-sina-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-sina**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-sina-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-sina**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -31750,7 +27169,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-stackoverflow.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://stackoverflow.com/>`__
    * **type**: pageload
    * **unit**: ms
@@ -31804,113 +27223,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-stackoverflow**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-stackoverflow-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-stackoverflow**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-stackoverflow-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-stackoverflow**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-stackoverflow-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-stackoverflow-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-stackoverflow-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-stackoverflow-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-stackoverflow**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-stackoverflow**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-stackoverflow-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-stackoverflow**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-stackoverflow-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-stackoverflow-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-stackoverflow-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-stackoverflow**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -32093,8 +27405,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page cycles**: 25
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
-   * **playback pageset manifest**: mitm6-android-fenix-web-de.manifest
-   * **playback version**: 6.0.2
+   * **playback pageset manifest**: mitm7-android-gve-p2-web-de.manifest
+   * **playback version**: 8.1.1
    * **test url**: `<https://web.de/magazine/politik/politologe-glaubt-grossen-koalition-herbst-knallen-33563566>`__
    * **type**: pageload
    * **unit**: ms
@@ -32148,113 +27460,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-web-de**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-web-de-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -32438,7 +27643,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-wikipedia.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://en.m.wikipedia.org/wiki/Main_Page>`__
    * **type**: pageload
    * **unit**: ms
@@ -32492,113 +27697,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-wikipedia**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-wikipedia-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-wikipedia-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-wikipedia**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -32904,6 +28002,11 @@ Page-load performance test suite on Android. The links direct to the actual webs
         - ❌
         - ❌
       * - **browsertime-tp6-live-firefox-wikipedia**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6-live-safari-wikipedia**
         - ❌
         - ❌
         - ❌
@@ -33070,7 +28173,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-youtube.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://m.youtube.com>`__
    * **type**: pageload
    * **unit**: ms
@@ -33174,118 +28277,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
         - ❌
       * - **browsertime-tp6m-live-geckoview-youtube-nofis**
         - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-youtube**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-youtube**
-        - ✅
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-youtube-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-youtube-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-profiling-geckoview-youtube-nofis**
-        - ✅
         - ❌
         - ❌
         - ❌
@@ -33525,6 +28516,11 @@ Page-load performance test suite on Android. The links direct to the actual webs
         - ❌
         - ❌
         - ❌
+      * - **browsertime-tp6-live-safari-youtube**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -33667,7 +28663,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
    * **page timeout**: 60000
    * **playback**: mitmproxy-android
    * **playback pageset manifest**: mitm6-android-fenix-youtube-watch.manifest
-   * **playback version**: 6.0.2
+   * **playback version**: 8.1.1
    * **test url**: `<https://www.youtube.com/watch?v=COU5T-Wafa4>`__
    * **type**: pageload
    * **unit**: ms
@@ -33721,113 +28717,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
    .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-chrome-m-youtube-watch**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-chrome-m-youtube-watch-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-youtube-watch**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-youtube-watch-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-youtube-watch**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-youtube-watch-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-youtube-watch**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-youtube-watch-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-youtube-watch-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-youtube-watch-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-essential-fenix-youtube-watch**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-fenix-youtube-watch-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-youtube-watch**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-geckoview-youtube-watch-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-essential-refbrow-youtube-watch**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-youtube-watch-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-youtube-watch-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -34017,134 +28906,6 @@ Tests that perform a specific action (a scenario), i.e. idle application, idle a
    * **test url**: `<about:blank>`__
    * **type**: scenario
    * **unit**: scenarioComplete
-   * **Test Task**:
-
-   .. list-table:: **test-android-hw-g5-7-0-arm7-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-g5-7-0-arm7-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-arm7-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
 
 .. dropdown:: idle-bg
    :container: + anchor-id-idle-bg-s
@@ -34163,134 +28924,6 @@ Tests that perform a specific action (a scenario), i.e. idle application, idle a
    * **test url**: `<about:blank>`__
    * **type**: scenario
    * **unit**: scenarioComplete
-   * **Test Task**:
-
-   .. list-table:: **test-android-hw-g5-7-0-arm7-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-g5-7-0-arm7-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-android-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-arm7-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-p2-8-0-arm7-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-power-fenix-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-power-geckoview-idle-bg-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
 
 .. dropdown:: raptor-scn-power-idle-bg-fenix
    :container: + anchor-id-raptor-scn-power-idle-bg-fenix-s

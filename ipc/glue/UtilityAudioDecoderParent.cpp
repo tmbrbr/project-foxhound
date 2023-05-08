@@ -18,6 +18,7 @@
 #  include "WMFUtils.h"
 
 #  include "mozilla/sandboxTarget.h"
+#  include "mozilla/ipc/UtilityProcessImpl.h"
 #endif  // defined(XP_WIN) && defined(MOZ_SANDBOX)
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -66,28 +67,28 @@ UtilityAudioDecoderParent::~UtilityAudioDecoderParent() {
 
 /* static */
 void UtilityAudioDecoderParent::GenericPreloadForSandbox() {
-#if defined(MOZ_SANDBOX) && defined(OS_WIN)
+#if defined(MOZ_SANDBOX) && defined(XP_WIN) && defined(MOZ_FFVPX)
   // Preload AV dlls so we can enable Binary Signature Policy
   // to restrict further dll loads.
-  ::LoadLibraryW(L"mozavcodec.dll");
-  ::LoadLibraryW(L"mozavutil.dll");
-#endif  // defined(MOZ_SANDBOX) && defined(OS_WIN)
+  UtilityProcessImpl::LoadLibraryOrCrash(L"mozavcodec.dll");
+  UtilityProcessImpl::LoadLibraryOrCrash(L"mozavutil.dll");
+#endif  // defined(MOZ_SANDBOX) && defined(XP_WIN) && defined(MOZ_FFVPX)
 }
 
 /* static */
 void UtilityAudioDecoderParent::WMFPreloadForSandbox() {
 #if defined(MOZ_SANDBOX) && defined(OS_WIN)
-  ::LoadLibraryW(L"mfplat.dll");
-  ::LoadLibraryW(L"mf.dll");
-
+  // mfplat.dll and mf.dll will be preloaded by
+  // wmf::MediaFoundationInitializer::HasInitialized()
 #  if defined(DEBUG)
   // WMF Shutdown on debug build somehow requires this
-  ::LoadLibraryW(L"ole32.dll");
+  UtilityProcessImpl::LoadLibraryOrCrash(L"ole32.dll");
 #  endif  // defined(DEBUG)
 
   auto rv = wmf::MediaFoundationInitializer::HasInitialized();
   if (!rv) {
     NS_WARNING("Failed to init Media Foundation in the Utility process");
+    return;
   }
 #endif  // defined(MOZ_SANDBOX) && defined(OS_WIN)
 }

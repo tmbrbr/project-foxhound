@@ -454,6 +454,11 @@ nsCSPBaseSrc* nsCSPParser::keywordSource() {
     return new nsCSPKeywordSrc(CSP_UTF16KeywordToEnum(mCurToken));
   }
 
+  if (StaticPrefs::security_csp_unsafe_hashes_enabled() &&
+      CSP_IsKeyword(mCurToken, CSP_UNSAFE_HASHES)) {
+    return new nsCSPKeywordSrc(CSP_UTF16KeywordToEnum(mCurToken));
+  }
+
   if (CSP_IsKeyword(mCurToken, CSP_UNSAFE_ALLOW_REDIRECTS)) {
     if (!CSP_IsDirective(mCurDir[0],
                          nsIContentSecurityPolicy::NAVIGATE_TO_DIRECTIVE)) {
@@ -1070,10 +1075,13 @@ void nsCSPParser::directive() {
       nsAutoString srcStr;
       srcs[i]->toString(srcStr);
       // Even though we invalidate all of the srcs internally, we don't want to
-      // log messages for the srcs: (1) strict-dynamic, (2) unsafe-inline, (3)
-      // nonces, and (4) hashes
+      // log messages for the srcs: 'strict-dynamic', 'unsafe-inline',
+      // 'unsafe-hashes', nonces, and hashes, because those still apply even
+      // with 'strict-dynamic'.
+      // TODO the comment seems wrong 'unsafe-eval' vs 'unsafe-inline'.
       if (!srcStr.EqualsASCII(CSP_EnumToUTF8Keyword(CSP_STRICT_DYNAMIC)) &&
           !srcStr.EqualsASCII(CSP_EnumToUTF8Keyword(CSP_UNSAFE_EVAL)) &&
+          !srcStr.EqualsASCII(CSP_EnumToUTF8Keyword(CSP_UNSAFE_HASHES)) &&
           !StringBeginsWith(
               srcStr, nsDependentString(CSP_EnumToUTF16Keyword(CSP_NONCE))) &&
           !StringBeginsWith(srcStr, u"'sha"_ns)) {
@@ -1089,13 +1097,19 @@ void nsCSPParser::directive() {
       logWarningErrorToConsole(nsIScriptError::warningFlag,
                                "strictDynamicButNoHashOrNonce", params);
     }
-  } else if (mHasHashOrNonce && mUnsafeInlineKeywordSrc &&
-             (cspDir->equals(nsIContentSecurityPolicy::SCRIPT_SRC_DIRECTIVE) ||
-              cspDir->equals(
-                  nsIContentSecurityPolicy::SCRIPT_SRC_ELEM_DIRECTIVE) ||
-              cspDir->equals(
-                  nsIContentSecurityPolicy::SCRIPT_SRC_ATTR_DIRECTIVE) ||
-              cspDir->equals(nsIContentSecurityPolicy::STYLE_SRC_DIRECTIVE))) {
+  }
+
+  // From https://w3c.github.io/webappsec-csp/#allow-all-inline
+  // follows that when either a hash or nonce is specified, 'unsafe-inline'
+  // should not apply.
+  if (mHasHashOrNonce && mUnsafeInlineKeywordSrc &&
+      (cspDir->isDefaultDirective() ||
+       cspDir->equals(nsIContentSecurityPolicy::SCRIPT_SRC_DIRECTIVE) ||
+       cspDir->equals(nsIContentSecurityPolicy::SCRIPT_SRC_ELEM_DIRECTIVE) ||
+       cspDir->equals(nsIContentSecurityPolicy::SCRIPT_SRC_ATTR_DIRECTIVE) ||
+       cspDir->equals(nsIContentSecurityPolicy::STYLE_SRC_DIRECTIVE) ||
+       cspDir->equals(nsIContentSecurityPolicy::STYLE_SRC_ELEM_DIRECTIVE) ||
+       cspDir->equals(nsIContentSecurityPolicy::STYLE_SRC_ATTR_DIRECTIVE))) {
     mUnsafeInlineKeywordSrc->invalidate();
 
     // Log to the console that unsafe-inline will be ignored.

@@ -21,6 +21,7 @@
 #include "nsWrapperCache.h"
 
 class nsIGlobalObject;
+class nsIURI;
 
 namespace mozilla {
 
@@ -40,6 +41,7 @@ class OffscreenCanvas;
 class OwningMaybeSharedArrayBufferViewOrMaybeSharedArrayBuffer;
 class Promise;
 class SVGImageElement;
+class StructuredCloneHolder;
 class VideoColorSpace;
 class VideoFrame;
 enum class VideoPixelFormat : uint8_t;
@@ -52,6 +54,11 @@ struct VideoFrameCopyToOptions;
 
 namespace mozilla::dom {
 
+struct VideoFrameImageData {
+  const RefPtr<layers::Image> mImage;
+  const nsCOMPtr<nsIURI> mURI;
+};
+
 class VideoFrame final : public nsISupports, public nsWrapperCache {
  public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -61,7 +68,7 @@ class VideoFrame final : public nsISupports, public nsWrapperCache {
   VideoFrame(nsIGlobalObject* aParent, const RefPtr<layers::Image>& aImage,
              const VideoPixelFormat& aFormat, gfx::IntSize aCodedSize,
              gfx::IntRect aVisibleRect, gfx::IntSize aDisplaySize,
-             Maybe<uint64_t>&& aDuration, Maybe<int64_t>&& aTimestamp,
+             Maybe<uint64_t>&& aDuration, int64_t aTimestamp,
              const VideoColorSpaceInit& aColorSpace);
 
   VideoFrame(const VideoFrame& aOther);
@@ -121,7 +128,7 @@ class VideoFrame final : public nsISupports, public nsWrapperCache {
 
   Nullable<uint64_t> GetDuration() const;
 
-  Nullable<int64_t> GetTimestamp() const;
+  int64_t Timestamp() const;
 
   already_AddRefed<VideoColorSpace> ColorSpace() const;
 
@@ -135,6 +142,14 @@ class VideoFrame final : public nsISupports, public nsWrapperCache {
   already_AddRefed<VideoFrame> Clone(ErrorResult& aRv);
 
   void Close();
+
+  // [Serializable] implementations: {Read, Write}StructuredClone
+  static JSObject* ReadStructuredClone(JSContext* aCx, nsIGlobalObject* aGlobal,
+                                       JSStructuredCloneReader* aReader,
+                                       const VideoFrameImageData& aImage);
+
+  bool WriteStructuredClone(JSStructuredCloneWriter* aWriter,
+                            StructuredCloneHolder* aHolder) const;
 
  public:
   // A VideoPixelFormat wrapper providing utilities for VideoFrame.
@@ -191,7 +206,7 @@ class VideoFrame final : public nsISupports, public nsWrapperCache {
   gfx::IntSize mDisplaySize;
 
   Maybe<uint64_t> mDuration;  // Nothing() after `Close()`d
-  Maybe<int64_t> mTimestamp;  // Nothing() after `Close()`d
+  int64_t mTimestamp;
   VideoColorSpaceInit mColorSpace;
 };
 

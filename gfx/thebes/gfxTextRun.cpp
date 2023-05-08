@@ -407,7 +407,7 @@ bool gfxTextRun::GetAdjustedSpacingArray(
   memset(aSpacing->Elements(), 0, sizeof(gfxFont::Spacing) * spacingOffset);
   GetAdjustedSpacing(this, aSpacingRange, aProvider,
                      aSpacing->Elements() + spacingOffset);
-  memset(aSpacing->Elements() + aSpacingRange.end - aRange.start, 0,
+  memset(aSpacing->Elements() + spacingOffset + aSpacingRange.Length(), 0,
          sizeof(gfxFont::Spacing) * (aRange.end - aSpacingRange.end));
   return true;
 }
@@ -733,7 +733,7 @@ void gfxTextRun::DrawEmphasisMarks(gfxContext* aContext, gfxTextRun* aMark,
   params.direction = GetDirection();
   params.isVertical = IsVertical();
 
-  float& inlineCoord = params.isVertical ? aPt.y : aPt.x;
+  float& inlineCoord = params.isVertical ? aPt.y.value : aPt.x.value;
   float direction = params.direction;
 
   GlyphRunIterator iter(this, aRange);
@@ -1829,7 +1829,8 @@ void gfxTextRun::Dump(FILE* out) {
         line += " offsets=";
         for (uint32_t j = 0; j < count; j++) {
           auto offset = GetDetailedGlyphs(i)[j].mOffset;
-          line.AppendPrintf(j ? ",(%g,%g)" : "(%g,%g)", offset.x, offset.y);
+          line.AppendPrintf(j ? ",(%g,%g)" : "(%g,%g)", offset.x.value,
+                            offset.y.value);
         }
       } else {
         line += " (no glyphs)";
@@ -1884,7 +1885,8 @@ gfxFontGroup::gfxFontGroup(nsPresContext* aPresContext,
                            const gfxFontStyle* aStyle, nsAtom* aLanguage,
                            bool aExplicitLanguage,
                            gfxTextPerfMetrics* aTextPerf,
-                           gfxUserFontSet* aUserFontSet, gfxFloat aDevToCssSize)
+                           gfxUserFontSet* aUserFontSet, gfxFloat aDevToCssSize,
+                           StyleFontVariantEmoji aVariantEmoji)
     : mPresContext(aPresContext),  // Note that aPresContext may be null!
       mFamilyList(aFontFamilyList),
       mStyle(*aStyle),
@@ -1899,6 +1901,17 @@ gfxFontGroup::gfxFontGroup(nsPresContext* aPresContext,
       mLastPrefFirstFont(false),
       mSkipDrawing(false),
       mExplicitLanguage(aExplicitLanguage) {
+  switch (aVariantEmoji) {
+    case StyleFontVariantEmoji::Normal:
+    case StyleFontVariantEmoji::Unicode:
+      break;
+    case StyleFontVariantEmoji::Text:
+      mEmojiPresentation = eFontPresentation::Text;
+      break;
+    case StyleFontVariantEmoji::Emoji:
+      mEmojiPresentation = eFontPresentation::EmojiExplicit;
+      break;
+  }
   // We don't use SetUserFontSet() here, as we want to unconditionally call
   // BuildFontList() rather than only do UpdateUserFonts() if it changed.
   mCurrGeneration = GetGeneration();
@@ -1958,7 +1971,7 @@ void gfxFontGroup::BuildFontList() {
 
   // build the fontlist from the specified families
   for (const auto& f : fonts) {
-    if (f.mFamily.mIsShared) {
+    if (f.mFamily.mShared) {
       AddFamilyToFontList(f.mFamily.mShared, f.mGeneric);
     } else {
       AddFamilyToFontList(f.mFamily.mUnshared, f.mGeneric);
@@ -1975,9 +1988,9 @@ void gfxFontGroup::AddPlatformFont(const nsACString& aName, bool aQuotedName,
   if (mUserFontSet) {
     // Add userfonts to the fontlist whether already loaded
     // or not. Loading is initiated during font matching.
-    gfxFontFamily* family = mUserFontSet->LookupFamily(aName);
+    RefPtr<gfxFontFamily> family = mUserFontSet->LookupFamily(aName);
     if (family) {
-      aFamilyList.AppendElement(family);
+      aFamilyList.AppendElement(std::move(family));
       return;
     }
   }
@@ -2153,7 +2166,7 @@ already_AddRefed<gfxFont> gfxFontGroup::GetDefaultFont() {
              "invalid default font returned by GetDefaultFont");
 
   gfxFontEntry* fe = nullptr;
-  if (family.mIsShared) {
+  if (family.mShared) {
     fontlist::Family* fam = family.mShared;
     if (!fam->IsInitialized()) {
       // If this fails, FindFaceForStyle will just safely return nullptr
@@ -3100,24 +3113,28 @@ already_AddRefed<gfxFont> gfxFontGroup::FindFontForChar(
   eFontPresentation presentation = eFontPresentation::Any;
   EmojiPresentation emojiPresentation = GetEmojiPresentation(aCh);
   if (emojiPresentation != TextOnly) {
-    // If the prefer-emoji selector is present, or if it's a default-emoji char
-    // and the prefer-text selector is NOT present, or if there's a skin-tone
-    // modifier, we specifically look for a font with a color glyph.
-    // If the prefer-text selector is present, we specifically look for a font
-    // that will provide a monochrome glyph.
-    // Otherwise, we'll accept either color or monochrome font-family entries,
-    // so that a color font can be explicitly applied via font-family even to
-    // characters that are not inherently emoji-style.
+    // Default presentation from the font-variant-emoji property.
+    presentation = mEmojiPresentation;
+    // If the prefer-emoji selector is present, or if it's a default-emoji
+    // char and the prefer-text selector is NOT present, or if there's a
+    // skin-tone modifier, we specifically look for a font with a color
+    // glyph.
+    // If the prefer-text selector is present, we specifically look for a
+    // font that will provide a monochrome glyph.
+    // Otherwise, we'll accept either color or monochrome font-family
+    // entries, so that a color font can be explicitly applied via font-
+    // family even to characters that are not inherently emoji-style.
     if (aNextCh == kVariationSelector16 ||
-        (aNextCh >= kEmojiSkinToneFirst && aNextCh <= kEmojiSkinToneLast)) {
-      // Emoji presentation is explicitly requested by a variation selector or
-      // the presence of a skin-tone codepoint.
+        (aNextCh >= kEmojiSkinToneFirst && aNextCh <= kEmojiSkinToneLast) ||
+        gfxFontUtils::IsEmojiFlagAndTag(aCh, aNextCh)) {
+      // Emoji presentation is explicitly requested by a variation selector
+      // or the presence of a skin-tone codepoint.
       presentation = eFontPresentation::EmojiExplicit;
     } else if (emojiPresentation == EmojiPresentation::EmojiDefault &&
                aNextCh != kVariationSelector15) {
       // Emoji presentation is the default for this Unicode character. but we
-      // will allow an explicitly-specified webfont to apply to it, regardless
-      // of its glyph type.
+      // will allow an explicitly-specified webfont to apply to it,
+      // regardless of its glyph type.
       presentation = eFontPresentation::EmojiDefault;
     } else if (aNextCh == kVariationSelector15) {
       // Text presentation is explicitly requested.
@@ -3736,7 +3753,7 @@ already_AddRefed<gfxFont> gfxFontGroup::WhichPrefFontSupportsChar(
       }
 
       gfxFontEntry* fe = nullptr;
-      if (family.mIsShared) {
+      if (family.mShared) {
         fontlist::Family* fam = family.mShared;
         if (!fam->IsInitialized()) {
           Unused << pfl->InitializeFamily(fam);
@@ -3760,12 +3777,16 @@ already_AddRefed<gfxFont> gfxFontGroup::WhichPrefFontSupportsChar(
         if (!prefFont) {
           continue;
         }
+        if (aPresentation == eFontPresentation::EmojiExplicit &&
+            !prefFont->HasColorGlyphFor(aCh, aNextCh)) {
+          continue;
+        }
       }
 
       // If the char was not available, see if we can fall back to an
       // alternative face in the same family.
       if (!prefFont) {
-        prefFont = family.mIsShared
+        prefFont = family.mShared
                        ? FindFallbackFaceForChar(family.mShared, aCh, aNextCh,
                                                  aPresentation)
                        : FindFallbackFaceForChar(family.mUnshared, aCh, aNextCh,

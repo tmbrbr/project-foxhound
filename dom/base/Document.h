@@ -204,6 +204,7 @@ struct LangGroupFontPrefs;
 class PendingAnimationTracker;
 class PermissionDelegateHandler;
 class PresShell;
+class ScrollTimelineAnimationTracker;
 class ServoStyleSet;
 enum class StyleOrigin : uint8_t;
 class SMILAnimationController;
@@ -321,6 +322,7 @@ enum BFCacheStatus {
 
 namespace mozilla::net {
 class ChannelEventQueue;
+class EarlyHintConnectArgs;
 }  // namespace mozilla::net
 
 // Must be kept in sync with xpcom/rust/xpcom/src/interfaces/nonidl.rs
@@ -1166,6 +1168,15 @@ class Document : public nsINode,
    */
   void GetHeaderData(nsAtom* aHeaderField, nsAString& aData) const;
   void SetHeaderData(nsAtom* aheaderField, const nsAString& aData);
+
+  /**
+   * Set Early Hint data, moves the arrays into the function, leaving the
+   * passed variables empty
+   */
+  void SetEarlyHints(nsTArray<net::EarlyHintConnectArgs>&& aEarlyHints);
+  const nsTArray<net::EarlyHintConnectArgs>& GetEarlyHints() const {
+    return mEarlyHints;
+  }
 
   /**
    * Create a new presentation shell that will use aContext for its
@@ -2765,6 +2776,19 @@ class Document : public nsINode,
   // will never be nullptr.
   PendingAnimationTracker* GetOrCreatePendingAnimationTracker();
 
+  // Gets the tracker for scroll-linked animations that are waiting to start.
+  // Returns nullptr if there is no scroll-linked animation tracker for this
+  // document which will be the case if there have never been any scroll-linked
+  // animations in the document.
+  ScrollTimelineAnimationTracker* GetScrollTimelineAnimationTracker() {
+    return mScrollTimelineAnimationTracker;
+  }
+
+  // Gets the tracker for scroll-linked animations that are waiting to start and
+  // creates it if it doesn't already exist. As a result, the return value
+  // will never be nullptr.
+  ScrollTimelineAnimationTracker* GetOrCreateScrollTimelineAnimationTracker();
+
   /**
    * Prevents user initiated events from being dispatched to the document and
    * subdocuments.
@@ -2990,7 +3014,7 @@ class Document : public nsINode,
                          bool aLinkPreload, const TimeStamp& aInitTimestamp);
   void PreLoadImage(nsIURI* uri, const nsAString& aCrossOriginAttr,
                     ReferrerPolicyEnum aReferrerPolicy, bool aIsImgSet,
-                    bool aLinkPreload);
+                    bool aLinkPreload, uint64_t aEarlyHintPreloaderId);
 
   /**
    * Called by images to forget an image preload when they start doing
@@ -3006,7 +3030,8 @@ class Document : public nsINode,
                                   const nsAString& aCrossOriginAttr,
                                   ReferrerPolicyEnum aReferrerPolicy,
                                   const nsAString& aIntegrity,
-                                  css::StylePreloadKind);
+                                  css::StylePreloadKind,
+                                  uint64_t aEarlyHintPreloaderId);
 
   /**
    * Called by the chrome registry to load style sheets.
@@ -3754,6 +3779,10 @@ class Document : public nsINode,
   }
   DOMIntersectionObserver& EnsureLazyLoadImageObserver();
 
+  DOMIntersectionObserver& EnsureContentVisibilityObserver();
+  void ObserveForContentVisibility(Element&);
+  void UnobserveForContentVisibility(Element&);
+
   ResizeObserver* GetLastRememberedSizeObserver() {
     return mLastRememberedSizeObserver;
   }
@@ -4072,6 +4101,12 @@ class Document : public nsINode,
   void SetDidHitCompleteSheetCache() { mDidHitCompleteSheetCache = true; }
 
   bool DidHitCompleteSheetCache() const { return mDidHitCompleteSheetCache; }
+
+  bool ShouldResistFingerprinting() const {
+    return mShouldResistFingerprinting;
+  }
+
+  void RecomputeResistFingerprinting();
 
  protected:
   // Returns the WindowContext for the document that we will contribute
@@ -4519,6 +4554,7 @@ class Document : public nsINode,
   // GetPermissionDelegateHandler
   RefPtr<PermissionDelegateHandler> mPermissionDelegateHandler;
 
+  bool mCachedStateObjectValid : 1;
   bool mBlockAllMixedContent : 1;
   bool mBlockAllMixedContentPreloads : 1;
   bool mUpgradeInsecureRequests : 1;
@@ -4813,6 +4849,29 @@ class Document : public nsINode,
   // Set the true if a completed cached stylesheet was created for the document.
   bool mDidHitCompleteSheetCache : 1;
 
+  // Whether we have initialized mShouldReportUseCounters and
+  // mShouldSendPageUseCounters, and sent any needed message to the parent
+  // process to indicate that use counter data will be sent at some later point.
+  bool mUseCountersInitialized : 1;
+
+  // Whether this document should report use counters.
+  bool mShouldReportUseCounters : 1;
+
+  // Whether this document should send page use counters.  Set to true after
+  // we've called SendExpectPageUseCounters on the top-level WindowGlobal.
+  bool mShouldSendPageUseCounters : 1;
+
+  // Whether the user has interacted with the document or not:
+  bool mUserHasInteracted : 1;
+
+  // We constantly update the user-interaction anti-tracking permission at any
+  // user-interaction using a timer. This boolean value is set to true when this
+  // timer is scheduled.
+  bool mHasUserInteractionTimerScheduled : 1;
+
+  // Whether we should resist fingerprinting.
+  bool mShouldResistFingerprinting : 1;
+
   uint8_t mPendingFullscreenRequests;
 
   uint8_t mXMLDeclarationBits;
@@ -4992,7 +5051,7 @@ class Document : public nsINode,
   nsString mBaseTarget;
 
   nsCOMPtr<nsIStructuredCloneContainer> mStateObjectContainer;
-  Maybe<JS::Heap<JS::Value>> mStateObjectCached;
+  JS::Heap<JS::Value> mCachedStateObject;
 
   uint32_t mInSyncOperationCount;
 
@@ -5018,26 +5077,6 @@ class Document : public nsINode,
 
   // The CSS property use counters.
   UniquePtr<StyleUseCounters> mStyleUseCounters;
-
-  // Whether we have initialized mShouldReportUseCounters and
-  // mShouldSendPageUseCounters, and sent any needed message to the parent
-  // process to indicate that use counter data will be sent at some later point.
-  bool mUseCountersInitialized : 1;
-
-  // Whether this document should report use counters.
-  bool mShouldReportUseCounters : 1;
-
-  // Whether this document should send page use counters.  Set to true after
-  // we've called SendExpectPageUseCounters on the top-level WindowGlobal.
-  bool mShouldSendPageUseCounters : 1;
-
-  // Whether the user has interacted with the document or not:
-  bool mUserHasInteracted;
-
-  // We constantly update the user-interaction anti-tracking permission at any
-  // user-interaction using a timer. This boolean value is set to true when this
-  // timer is scheduled.
-  bool mHasUserInteractionTimerScheduled;
 
   TimeStamp mPageUnloadingEventTimeStamp;
 
@@ -5089,6 +5128,8 @@ class Document : public nsINode,
   class HeaderData;
   UniquePtr<HeaderData> mHeaderData;
 
+  nsTArray<net::EarlyHintConnectArgs> mEarlyHints;
+
   nsRevocableEventPtr<nsRunnableMethod<Document, void, false>>
       mPendingTitleChangeEvent;
 
@@ -5112,6 +5153,10 @@ class Document : public nsINode,
   RefPtr<DOMIntersectionObserver> mLazyLoadImageObserver;
   // Used to measure how effective the lazyload thresholds are.
   RefPtr<DOMIntersectionObserver> mLazyLoadImageObserverViewport;
+
+  // Used for detecting when `content-visibility: auto` elements are near
+  // or far from the viewport.
+  RefPtr<DOMIntersectionObserver> mContentVisibilityObserver;
 
   // ResizeObserver for storing and removing the last remembered size.
   // @see {@link https://drafts.csswg.org/css-sizing-4/#last-remembered}
@@ -5139,6 +5184,10 @@ class Document : public nsINode,
   // Tracker for animations that are waiting to start.
   // nullptr until GetOrCreatePendingAnimationTracker is called.
   RefPtr<PendingAnimationTracker> mPendingAnimationTracker;
+
+  // Tracker for scroll-linked animations that are waiting to start.
+  // nullptr until GetOrCreateScrollTimelineAnimationTracker is called.
+  RefPtr<ScrollTimelineAnimationTracker> mScrollTimelineAnimationTracker;
 
   // A document "without a browsing context" that owns the content of
   // HTMLTemplateElement.
@@ -5455,8 +5504,6 @@ nsresult NS_NewDOMDocument(
     const nsAString& aQualifiedName, mozilla::dom::DocumentType* aDoctype,
     nsIURI* aDocumentURI, nsIURI* aBaseURI, nsIPrincipal* aPrincipal,
     bool aLoadedAsData, nsIGlobalObject* aEventObject, DocumentFlavor aFlavor);
-
-nsresult NS_NewPluginDocument(mozilla::dom::Document** aInstancePtrResult);
 
 inline mozilla::dom::Document* nsINode::GetOwnerDocument() const {
   mozilla::dom::Document* ownerDoc = OwnerDoc();

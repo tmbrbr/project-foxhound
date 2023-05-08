@@ -7,8 +7,8 @@
 // This is loaded into all XUL windows. Wrap in a block to prevent
 // leaking to window scope.
 {
-  const { AppConstants } = ChromeUtils.import(
-    "resource://gre/modules/AppConstants.jsm"
+  const { AppConstants } = ChromeUtils.importESModule(
+    "resource://gre/modules/AppConstants.sys.mjs"
   );
 
   const { XPCOMUtils } = ChromeUtils.importESModule(
@@ -59,9 +59,9 @@
   Object.defineProperty(lazy, "SessionStore", {
     configurable: true,
     get() {
-      const kURL = "resource:///modules/sessionstore/SessionStore.jsm";
-      if (Cu.isModuleLoaded(kURL)) {
-        let { SessionStore } = ChromeUtils.import(kURL);
+      const kURL = "resource:///modules/sessionstore/SessionStore.sys.mjs";
+      if (Cu.isESModuleLoaded(kURL)) {
+        let { SessionStore } = ChromeUtils.importESModule(kURL);
         // eslint-disable-next-line mozilla/valid-lazy
         Object.defineProperty(lazy, "SessionStore", {
           value: SessionStore,
@@ -102,6 +102,9 @@
       this._documentContentType = null;
 
       this._inPermitUnload = new WeakSet();
+
+      this._originalURI = null;
+      this._showingSearchTerms = false;
 
       /**
        * These are managed by the tabbrowser:
@@ -228,6 +231,10 @@
       };
 
       this._documentURI = null;
+
+      this._originalURI = null;
+
+      this._showingSearchTerms = false;
 
       this._documentContentType = null;
 
@@ -714,6 +721,24 @@
       return 2;
     }
 
+    set originalURI(aURI) {
+      if (aURI instanceof Ci.nsIURI) {
+        this._originalURI = aURI;
+      }
+    }
+
+    get originalURI() {
+      return this._originalURI;
+    }
+
+    set showingSearchTerms(val) {
+      this._showingSearchTerms = !!val;
+    }
+
+    get showingSearchTerms() {
+      return this._showingSearchTerms;
+    }
+
     _wrapURIChangeCall(fn) {
       if (!this.isRemoteBrowser) {
         this.isNavigating = true;
@@ -777,6 +802,7 @@
       let {
         referrerInfo,
         triggeringPrincipal,
+        triggeringRemoteType,
         postData,
         headers,
         csp,
@@ -788,6 +814,7 @@
         Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
       let loadURIOptions = {
         triggeringPrincipal,
+        triggeringRemoteType,
         csp,
         referrerInfo,
         loadFlags,
@@ -1022,8 +1049,9 @@
     }
 
     /**
-     * This is necessary because the destructor doesn't always get called when
-     * we are removed from a tabbrowser. This will be explicitly called by tabbrowser.
+     * This is necessary because custom elements don't have a "real" destructor.
+     * This method is called explicitly by tabbrowser, when changing remoteness,
+     * and when we're disconnected or the window unloads.
      */
     destroy() {
       elementsToDestroyOnUnload.delete(this);
@@ -1193,6 +1221,24 @@
       }
     }
 
+    _acquireAutoScrollWakeLock() {
+      const pm = Cc["@mozilla.org/power/powermanagerservice;1"].getService(
+        Ci.nsIPowerManagerService
+      );
+      this._autoScrollWakelock = pm.newWakeLock("autoscroll", window);
+    }
+
+    _releaseAutoScrollWakeLock() {
+      if (this._autoScrollWakelock) {
+        try {
+          this._autoScrollWakelock.unlock();
+        } catch (e) {
+          // Ignore error since wake lock is already unlocked
+        }
+        this._autoScrollWakelock = null;
+      }
+    }
+
     stopScroll() {
       if (this._autoScrollBrowsingContext) {
         window.removeEventListener("mousemove", this, true);
@@ -1228,6 +1274,7 @@
         }
 
         this._autoScrollBrowsingContext = null;
+        this._releaseAutoScrollWakeLock();
       }
     }
 
@@ -1339,6 +1386,7 @@
       this._startX = screenX;
       this._startY = screenY;
       this._autoScrollBrowsingContext = browsingContext;
+      this._acquireAutoScrollWakeLock();
 
       window.addEventListener("mousemove", this, true);
       window.addEventListener("mousedown", this, true);
@@ -1531,6 +1579,7 @@
             "_contentPrincipal",
             "_contentPartitionedPrincipal",
             "_isSyntheticDocument",
+            "_originalURI",
           ]
         );
       }

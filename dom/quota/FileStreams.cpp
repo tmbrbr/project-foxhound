@@ -24,16 +24,18 @@ namespace mozilla::dom::quota {
 
 template <class FileStreamBase>
 NS_IMETHODIMP FileQuotaStream<FileStreamBase>::SetEOF() {
-  QM_TRY(MOZ_TO_RESULT(FileStreamBase::SetEOF()));
-
+  // If the stream is not quota tracked, or on an early or late stage in the
+  // lifecycle, mQuotaObject is null. Under these circumstances,
+  // we don't check the quota limit in order to avoid breakage.
   if (mQuotaObject) {
-    int64_t offset;
+    int64_t offset = 0;
     QM_TRY(MOZ_TO_RESULT(FileStreamBase::Tell(&offset)));
 
-    DebugOnly<bool> res =
-        mQuotaObject->MaybeUpdateSize(offset, /* aTruncate */ true);
-    MOZ_ASSERT(res);
+    QM_TRY(OkIf(mQuotaObject->MaybeUpdateSize(offset, /* aTruncate */ true)),
+           NS_ERROR_FILE_NO_DEVICE_SPACE);
   }
+
+  QM_TRY(MOZ_TO_RESULT(FileStreamBase::SetEOF()));
 
   return NS_OK;
 }
@@ -89,42 +91,47 @@ NS_IMETHODIMP FileQuotaStreamWithWrite<FileStreamBase>::Write(
   return NS_OK;
 }
 
-Result<NotNull<RefPtr<FileInputStream>>, nsresult> CreateFileInputStream(
+Result<MovingNotNull<nsCOMPtr<nsIInputStream>>, nsresult> CreateFileInputStream(
     PersistenceType aPersistenceType, const OriginMetadata& aOriginMetadata,
     Client::Type aClientType, nsIFile* aFile, int32_t aIOFlags, int32_t aPerm,
     int32_t aBehaviorFlags) {
-  const auto stream = MakeNotNull<RefPtr<FileInputStream>>(
-      aPersistenceType, aOriginMetadata, aClientType);
+  auto stream = MakeRefPtr<FileInputStream>(aPersistenceType, aOriginMetadata,
+                                            aClientType);
 
   QM_TRY(MOZ_TO_RESULT(stream->Init(aFile, aIOFlags, aPerm, aBehaviorFlags)));
 
-  return stream;
+  return WrapMovingNotNullUnchecked(
+      nsCOMPtr<nsIInputStream>(std::move(stream)));
 }
 
-Result<NotNull<RefPtr<FileOutputStream>>, nsresult> CreateFileOutputStream(
-    PersistenceType aPersistenceType, const OriginMetadata& aOriginMetadata,
-    Client::Type aClientType, nsIFile* aFile, int32_t aIOFlags, int32_t aPerm,
-    int32_t aBehaviorFlags) {
-  const auto stream = MakeNotNull<RefPtr<FileOutputStream>>(
-      aPersistenceType, aOriginMetadata, aClientType);
+Result<MovingNotNull<nsCOMPtr<nsIOutputStream>>, nsresult>
+CreateFileOutputStream(PersistenceType aPersistenceType,
+                       const OriginMetadata& aOriginMetadata,
+                       Client::Type aClientType, nsIFile* aFile,
+                       int32_t aIOFlags, int32_t aPerm,
+                       int32_t aBehaviorFlags) {
+  auto stream = MakeRefPtr<FileOutputStream>(aPersistenceType, aOriginMetadata,
+                                             aClientType);
 
   QM_TRY(MOZ_TO_RESULT(stream->Init(aFile, aIOFlags, aPerm, aBehaviorFlags)));
 
-  return stream;
+  return WrapMovingNotNullUnchecked(
+      nsCOMPtr<nsIOutputStream>(std::move(stream)));
 }
 
-Result<NotNull<RefPtr<FileRandomAccessStream>>, nsresult>
+Result<MovingNotNull<nsCOMPtr<nsIRandomAccessStream>>, nsresult>
 CreateFileRandomAccessStream(PersistenceType aPersistenceType,
                              const OriginMetadata& aOriginMetadata,
                              Client::Type aClientType, nsIFile* aFile,
                              int32_t aIOFlags, int32_t aPerm,
                              int32_t aBehaviorFlags) {
-  const auto stream = MakeNotNull<RefPtr<FileRandomAccessStream>>(
+  auto stream = MakeRefPtr<FileRandomAccessStream>(
       aPersistenceType, aOriginMetadata, aClientType);
 
   QM_TRY(MOZ_TO_RESULT(stream->Init(aFile, aIOFlags, aPerm, aBehaviorFlags)));
 
-  return stream;
+  return WrapMovingNotNullUnchecked(
+      nsCOMPtr<nsIRandomAccessStream>(std::move(stream)));
 }
 
 }  // namespace mozilla::dom::quota

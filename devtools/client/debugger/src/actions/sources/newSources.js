@@ -16,6 +16,7 @@ import {
 } from "../../client/firefox/create";
 import { toggleBlackBox } from "./blackbox";
 import { syncBreakpoint } from "../breakpoints";
+import { createLocation } from "../../utils/location";
 import { loadSourceText } from "./loadSourceText";
 import { togglePrettyPrint } from "./prettyPrint";
 import { selectLocation, setBreakableLines } from "../sources";
@@ -35,6 +36,7 @@ import {
   getPendingBreakpointsForSource,
   getContext,
   getSourceTextContent,
+  getSourceActor,
 } from "../../selectors";
 
 import { prefs } from "../../utils/prefs";
@@ -100,8 +102,9 @@ function loadSourceMap(cx, sourceActor) {
       console.error(e);
     }
 
-    if (!data) {
-      // If this source doesn't have a sourcemap, enable it for pretty printing
+    if (!data || !data.length) {
+      // If this source doesn't have a sourcemap or there are no original files
+      // existing, enable it for pretty printing
       dispatch({
         type: "CLEAR_SOURCE_ACTOR_MAP_URL",
         cx,
@@ -138,7 +141,7 @@ function checkSelectedSource(cx, sourceId) {
     if (rawPendingUrl === source.url) {
       if (isPrettyURL(pendingUrl)) {
         const prettySource = await dispatch(togglePrettyPrint(cx, source.id));
-        dispatch(checkPendingBreakpoints(cx, prettySource.id));
+        dispatch(checkPendingBreakpoints(cx, prettySource.id, null));
         return;
       }
 
@@ -154,7 +157,7 @@ function checkSelectedSource(cx, sourceId) {
   };
 }
 
-function checkPendingBreakpoints(cx, sourceId) {
+function checkPendingBreakpoints(cx, sourceId, sourceActorId) {
   return async ({ dispatch, getState }) => {
     // source may have been modified by selectLocation
     const source = getSource(getState(), sourceId);
@@ -171,9 +174,9 @@ function checkPendingBreakpoints(cx, sourceId) {
       return;
     }
 
+    const sourceActor = getSourceActor(getState(), sourceActorId);
     // load the source text if there is a pending breakpoint for it
-    await dispatch(loadSourceText({ cx, source }));
-
+    await dispatch(loadSourceText(cx, source, sourceActor));
     await dispatch(setBreakableLines(cx, source.id));
 
     await Promise.all(
@@ -232,7 +235,7 @@ export function newOriginalSources(originalSourcesInfo) {
     await dispatch(checkNewSources(cx, sources));
 
     for (const source of sources) {
-      dispatch(checkPendingBreakpoints(cx, source.id));
+      dispatch(checkPendingBreakpoints(cx, source.id, null));
     }
 
     return sources;
@@ -294,11 +297,15 @@ export function newGeneratedSources(sourceResources) {
     dispatch(insertSourceActors(newSourceActors));
 
     for (const newSourceActor of newSourceActors) {
+      const location = createLocation({
+        sourceId: newSourceActor.source.id,
+        sourceActorId: newSourceActor.actor,
+      });
       // Fetch breakable lines for new HTML scripts
       // when the HTML file has started loading
       if (
         isInlineScript(newSourceActor) &&
-        getSourceTextContent(getState(), newSourceActor.source) != null
+        getSourceTextContent(getState(), location) != null
       ) {
         dispatch(setBreakableLines(cx, newSourceActor.source)).catch(error => {
           if (!(error instanceof ContextError)) {
@@ -315,8 +322,8 @@ export function newGeneratedSources(sourceResources) {
       // We would like to sync breakpoints after we are done
       // loading source maps as sometimes generated and original
       // files share the same paths.
-      for (const { source } of newSourceActors) {
-        dispatch(checkPendingBreakpoints(cx, source));
+      for (const { source, actor } of newSourceActors) {
+        dispatch(checkPendingBreakpoints(cx, source, actor));
       }
     })();
 

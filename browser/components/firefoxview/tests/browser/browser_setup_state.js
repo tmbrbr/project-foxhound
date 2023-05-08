@@ -5,9 +5,6 @@ const { TabsSetupFlowManager } = ChromeUtils.importESModule(
   "resource:///modules/firefox-view-tabs-setup-manager.sys.mjs"
 );
 
-const MOBILE_PROMO_DISMISSED_PREF =
-  "browser.tabs.firefox-view.mobilePromo.dismissed";
-
 const FXA_CONTINUE_EVENT = [
   ["firefoxview", "entered", "firefoxview", undefined],
   ["firefoxview", "fxa_continue", "sync", undefined],
@@ -20,7 +17,6 @@ const FXA_MOBILE_EVENT = [
 
 var gMockFxaDevices = null;
 var gUIStateStatus;
-var gUIStateSyncEnabled;
 
 function promiseSyncReady() {
   let service = Cc["@mozilla.org/weave/service;1"].getService(Ci.nsISupports)
@@ -29,35 +25,6 @@ function promiseSyncReady() {
 }
 
 var gSandbox;
-function setupMocks({ fxaDevices = null, state, syncEnabled = true }) {
-  gUIStateStatus = state || UIState.STATUS_SIGNED_IN;
-  gUIStateSyncEnabled = syncEnabled;
-  if (gSandbox) {
-    gSandbox.restore();
-  }
-  const sandbox = (gSandbox = sinon.createSandbox());
-  gMockFxaDevices = fxaDevices;
-  sandbox.stub(fxAccounts.device, "recentDeviceList").get(() => fxaDevices);
-  sandbox.stub(UIState, "get").callsFake(() => {
-    return {
-      status: gUIStateStatus,
-      // Sometimes syncEnabled is not present on UIState, for example when the user signs
-      // out the state is just { status: "not_configured" }
-      ...(gUIStateSyncEnabled != undefined && {
-        syncEnabled: gUIStateSyncEnabled,
-      }),
-    };
-  });
-  sandbox
-    .stub(Weave.Service.clientsEngine, "getClientByFxaDeviceId")
-    .callsFake(fxaDeviceId => {
-      let target = gMockFxaDevices.find(c => c.id == fxaDeviceId);
-      return target ? target.clientRecord : null;
-    });
-  sandbox.stub(Weave.Service.clientsEngine, "getClientType").returns("desktop");
-
-  return sandbox;
-}
 
 async function setupWithDesktopDevices() {
   const sandbox = setupMocks({
@@ -82,20 +49,12 @@ async function setupWithDesktopDevices() {
   });
   return sandbox;
 }
-
-async function tearDown(sandbox) {
-  sandbox?.restore();
-  Services.prefs.clearUserPref("services.sync.lastTabFetch");
-  Services.prefs.clearUserPref(MOBILE_PROMO_DISMISSED_PREF);
-}
-
 add_setup(async function() {
   registerCleanupFunction(() => {
     // reset internal state so it doesn't affect the next tests
     TabsSetupFlowManager.resetInternalState();
   });
 
-  await promiseSyncReady();
   // gSync.init() is called in a requestIdleCallback. Force its initialization.
   gSync.init();
 
@@ -184,7 +143,6 @@ add_task(async function test_signed_in() {
     await waitForVisibleSetupStep(browser, {
       expectedVisible: "#tabpickup-steps-view2",
     });
-
     is(
       fxAccounts.device.recentDeviceList?.length,
       1,
@@ -221,6 +179,33 @@ add_task(async function test_signed_in() {
     );
   });
   await tearDown(sandbox);
+});
+
+add_task(async function test_support_links() {
+  await clearAllParentTelemetryEvents();
+  setupMocks({
+    state: UIState.STATUS_SIGNED_IN,
+    fxaDevices: [
+      {
+        id: 1,
+        name: "This Device",
+        isCurrentDevice: true,
+        type: "desktop",
+      },
+    ],
+  });
+  await withFirefoxView({ win: window }, async browser => {
+    Services.obs.notifyObservers(null, UIState.ON_UPDATE);
+    await waitForVisibleSetupStep(browser, {
+      expectedVisible: "#tabpickup-steps-view2",
+    });
+    const { document } = browser.contentWindow;
+    const container = document.getElementById("tab-pickup-container");
+    const supportLinks = Array.from(
+      container.querySelectorAll("a[href]")
+    ).filter(a => !!a.href);
+    is(supportLinks.length, 2, "Support links have non-empty hrefs");
+  });
 });
 
 add_task(async function test_2nd_desktop_connected() {
@@ -635,81 +620,6 @@ add_task(async function test_mobile_promo_windows() {
   await tearDown(sandbox);
 });
 
-add_task(async function test_keyboard_focus_after_tab_pickup_opened() {
-  // Reset various things touched by other tests in this file so that
-  // we have a sufficiently clean environment.
-
-  TabsSetupFlowManager.resetInternalState();
-
-  // Ensure that the tab-pickup section doesn't need to be opened.
-  Services.prefs.clearUserPref(
-    "browser.tabs.firefox-view.ui-state.tab-pickup.open"
-  );
-
-  // make sure the feature tour doesn't get in the way
-  await SpecialPowers.pushPrefEnv({
-    set: [
-      [
-        "browser.firefox-view.feature-tour",
-        JSON.stringify({
-          screen: `FEATURE_CALLOUT_1`,
-          complete: true,
-        }),
-      ],
-    ],
-  });
-
-  // Let's be deterministic about the basic UI state!
-  const sandbox = setupMocks({
-    state: UIState.STATUS_NOT_CONFIGURED,
-    syncEnabled: false,
-  });
-
-  await BrowserTestUtils.withNewTab(
-    {
-      gBrowser,
-      url: "about:firefoxview",
-    },
-    async browser => {
-      const { document } = browser.contentWindow;
-
-      is(
-        document.activeElement.localName,
-        "body",
-        "document body element is initially focused"
-      );
-
-      const tab = () => {
-        info("Tab keypress synthesized");
-        EventUtils.synthesizeKey("KEY_Tab");
-      };
-
-      tab();
-
-      let tabPickupContainer = document.querySelector(
-        "#tab-pickup-container summary.page-section-header"
-      );
-      is(
-        document.activeElement,
-        tabPickupContainer,
-        "tab pickup container header has focus"
-      );
-
-      tab();
-
-      is(
-        document.activeElement.id,
-        "firefoxview-tabpickup-step-signin-primarybutton",
-        "tab pickup primary button has focus"
-      );
-    }
-  );
-
-  // cleanup time
-  await tearDown(sandbox);
-  await SpecialPowers.popPrefEnv();
-});
-
 async function mockFxaDeviceConnected(win) {
   // We use an existing tab to navigate to the final "device connected" url
   // in order to fake the fxa device sync process
@@ -734,6 +644,9 @@ async function mockFxaDeviceConnected(win) {
 add_task(async function test_close_device_connected_tab() {
   // test that when a device has been connected to sync we close
   // that tab after the user is directed back to firefox view
+
+  // Ensure we are in the correct state to start the task.
+  TabsSetupFlowManager.resetInternalState();
   await SpecialPowers.pushPrefEnv({
     set: [["identity.fxaccounts.remote.root", "https://example.org/"]],
   });

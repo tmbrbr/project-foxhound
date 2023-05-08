@@ -81,7 +81,17 @@ describe("project text search", () => {
     const source1 = await dispatch(
       actions.newGeneratedSource(makeSource("bar"))
     );
-    await dispatch(actions.loadSourceText({ cx, source: source1 }));
+    const sourceActor1 = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      source1.id
+    );
+
+    await dispatch(
+      actions.loadGeneratedSourceText({
+        cx,
+        sourceActor: sourceActor1,
+      })
+    );
 
     await dispatch(actions.togglePrettyPrint(cx, source1.id));
 
@@ -97,7 +107,12 @@ describe("project text search", () => {
     const source = await dispatch(
       actions.newGeneratedSource(makeSource("bar"))
     );
-    await dispatch(actions.loadSourceText({ cx, source }));
+    const sourceActor = selectors.getFirstSourceActorForGeneratedSource(
+      getState(),
+      source.id
+    );
+
+    await dispatch(actions.loadGeneratedSourceText({ cx, sourceActor }));
 
     dispatch(actions.addSearchQuery(cx, "bla"));
 
@@ -105,9 +120,8 @@ describe("project text search", () => {
     if (!barSource) {
       throw new Error("no barSource");
     }
-    const sourceId = barSource.id;
 
-    await dispatch(actions.searchSource(cx, sourceId, "bla"), "bla");
+    await dispatch(actions.searchSource(cx, barSource, sourceActor, "bla"));
 
     const results = getTextSearchResults(getState());
 

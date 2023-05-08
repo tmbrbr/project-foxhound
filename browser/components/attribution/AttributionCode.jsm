@@ -17,8 +17,8 @@ const AttributionIOUtils = {
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-const { AppConstants } = ChromeUtils.import(
-  "resource://gre/modules/AppConstants.jsm"
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
 );
 const lazy = {};
 ChromeUtils.defineModuleGetter(
@@ -27,11 +27,13 @@ ChromeUtils.defineModuleGetter(
   "resource:///modules/MacAttribution.jsm"
 );
 XPCOMUtils.defineLazyGetter(lazy, "log", () => {
-  let { ConsoleAPI } = ChromeUtils.import("resource://gre/modules/Console.jsm");
+  let { ConsoleAPI } = ChromeUtils.importESModule(
+    "resource://gre/modules/Console.sys.mjs"
+  );
   let consoleOptions = {
     // tip: set maxLogLevel to "debug" and use lazy.log.debug() to create
-    // detailed messages during development. See LOG_LEVELS in Console.jsm for
-    // details.
+    // detailed messages during development. See LOG_LEVELS in Console.sys.mjs
+    // for details.
     maxLogLevel: "error",
     maxLogLevelPref: "browser.attribution.loglevel",
     prefix: "AttributionCode",
@@ -86,17 +88,14 @@ var AttributionCode = {
       try {
         file = Services.dirsvc.get("UpdRootD", Ci.nsIFile);
       } catch (ex) {
-        let env = Cc["@mozilla.org/process/environment;1"].getService(
-          Ci.nsIEnvironment
-        );
         // It's most common to test for the profile dir, even though we actually
         // are using the temp dir.
         if (
           ex instanceof Ci.nsIException &&
           ex.result == Cr.NS_ERROR_FAILURE &&
-          env.exists("XPCSHELL_TEST_PROFILE_DIR")
+          Services.env.exists("XPCSHELL_TEST_PROFILE_DIR")
         ) {
-          let path = env.get("XPCSHELL_TEST_TEMP_DIR");
+          let path = Services.env.get("XPCSHELL_TEST_TEMP_DIR");
           file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
           file.initWithPath(path);
           file.append("nested_UpdRootD_1");
@@ -436,10 +435,7 @@ var AttributionCode = {
    * Does nothing if called from outside of an xpcshell test.
    */
   _clearCache() {
-    let env = Cc["@mozilla.org/process/environment;1"].getService(
-      Ci.nsIEnvironment
-    );
-    if (env.exists("XPCSHELL_TEST_PROFILE_DIR")) {
+    if (Services.env.exists("XPCSHELL_TEST_PROFILE_DIR")) {
       gCachedAttrData = null;
     }
   },

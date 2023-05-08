@@ -85,7 +85,8 @@ static char16_t GetBidiOverride(ComputedStyle* aComputedStyle) {
     return kLRO;
   }
   const nsStyleTextReset* text = aComputedStyle->StyleTextReset();
-  if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_BIDI_OVERRIDE) {
+  if (text->mUnicodeBidi == StyleUnicodeBidi::BidiOverride ||
+      text->mUnicodeBidi == StyleUnicodeBidi::IsolateOverride) {
     return StyleDirection::Rtl == vis->mDirection ? kRLO : kLRO;
   }
   return 0;
@@ -104,21 +105,21 @@ static char16_t GetBidiOverride(ComputedStyle* aComputedStyle) {
 static char16_t GetBidiControl(ComputedStyle* aComputedStyle) {
   const nsStyleVisibility* vis = aComputedStyle->StyleVisibility();
   const nsStyleTextReset* text = aComputedStyle->StyleTextReset();
-  if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_EMBED) {
-    return StyleDirection::Rtl == vis->mDirection ? kRLE : kLRE;
-  }
-  if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_ISOLATE) {
-    if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_BIDI_OVERRIDE) {
-      // isolate-override
+  switch (text->mUnicodeBidi) {
+    case StyleUnicodeBidi::Embed:
+      return StyleDirection::Rtl == vis->mDirection ? kRLE : kLRE;
+    case StyleUnicodeBidi::Isolate:
+      // <bdi> element already has its directionality set from content so
+      // we never need to return kFSI.
+      return StyleDirection::Rtl == vis->mDirection ? kRLI : kLRI;
+    case StyleUnicodeBidi::IsolateOverride:
+    case StyleUnicodeBidi::Plaintext:
       return kFSI;
-    }
-    // <bdi> element already has its directionality set from content so
-    // we never need to return kFSI.
-    return StyleDirection::Rtl == vis->mDirection ? kRLI : kLRI;
+    case StyleUnicodeBidi::Normal:
+    case StyleUnicodeBidi::BidiOverride:
+      break;
   }
-  if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
-    return kFSI;
-  }
+
   return 0;
 }
 
@@ -649,8 +650,8 @@ static void SplitInlineAncestors(nsContainerFrame* aParent,
       // The parent's continuation adopts the siblings after the split.
       MOZ_ASSERT(!newParent->IsBlockFrameOrSubclass(),
                  "blocks should not be IsBidiSplittable");
-      newParent->InsertFrames(nsIFrame::kNoReflowPrincipalList, nullptr,
-                              nullptr, tail);
+      newParent->InsertFrames(FrameChildListID::NoReflowPrincipal, nullptr,
+                              nullptr, std::move(tail));
 
       // While passing &aLine to InsertFrames for a non-block isn't harmful
       // because it's a no-op, it doesn't really make sense.  However, the
@@ -664,11 +665,10 @@ static void SplitInlineAncestors(nsContainerFrame* aParent,
         parentLine = nullptr;
       }
 
-      // The list name kNoReflowPrincipalList would indicate we don't want
-      // reflow
-      nsFrameList temp(newParent, newParent);
-      grandparent->InsertFrames(nsIFrame::kNoReflowPrincipalList, parent,
-                                parentLine, temp);
+      // The list name FrameChildListID::NoReflowPrincipal would indicate we
+      // don't want reflow
+      grandparent->InsertFrames(FrameChildListID::NoReflowPrincipal, parent,
+                                parentLine, nsFrameList(newParent, newParent));
     }
 
     frame = parent;
@@ -760,11 +760,11 @@ static void CreateContinuation(nsIFrame* aFrame,
   *aNewFrame = presShell->FrameConstructor()->CreateContinuingFrame(
       aFrame, parent, aIsFluid);
 
-  // The list name kNoReflowPrincipalList would indicate we don't want reflow
+  // The list name FrameChildListID::NoReflowPrincipal would indicate we don't
+  // want reflow
   // XXXbz this needs higher-level framelist love
-  nsFrameList temp(*aNewFrame, *aNewFrame);
-  parent->InsertFrames(nsIFrame::kNoReflowPrincipalList, aFrame, parentLine,
-                       temp);
+  parent->InsertFrames(FrameChildListID::NoReflowPrincipal, aFrame, parentLine,
+                       nsFrameList(*aNewFrame, *aNewFrame));
 
   if (!aIsFluid) {
     // Split inline ancestor frames
@@ -1389,7 +1389,7 @@ void nsBidiPresUtils::TraverseFrames(nsIFrame* aCurrentFrame,
     } else {
       // For a non-leaf frame, recurse into TraverseFrames
       nsIFrame* kid = frame->PrincipalChildList().FirstChild();
-      MOZ_ASSERT(!frame->GetChildList(nsIFrame::kOverflowList).FirstChild(),
+      MOZ_ASSERT(!frame->GetChildList(FrameChildListID::Overflow).FirstChild(),
                  "should have drained the overflow list above");
       if (kid) {
         TraverseFrames(kid, aBpd);
@@ -2475,8 +2475,8 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(
 /* static */
 BidiEmbeddingLevel nsBidiPresUtils::BidiLevelFromStyle(
     ComputedStyle* aComputedStyle) {
-  if (aComputedStyle->StyleTextReset()->mUnicodeBidi &
-      NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
+  if (aComputedStyle->StyleTextReset()->mUnicodeBidi ==
+      StyleUnicodeBidi::Plaintext) {
     return BidiEmbeddingLevel::DefaultLTR();
   }
 

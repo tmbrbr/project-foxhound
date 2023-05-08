@@ -53,20 +53,6 @@ XPCOMUtils.defineLazyServiceGetter(
   "@mozilla.org/xpcom/debug;1",
   "nsIDebug2"
 );
-Object.defineProperty(lazy, "gCrashReporter", {
-  get() {
-    delete this.gCrashReporter;
-    try {
-      let reporter = Cc["@mozilla.org/xre/app-info;1"].getService(
-        Ci.nsICrashReporter
-      );
-      return (this.gCrashReporter = reporter);
-    } catch (ex) {
-      return (this.gCrashReporter = null);
-    }
-  },
-  configurable: true,
-});
 
 // `true` if this is a content process, `false` otherwise.
 // It would be nicer to go through `Services.appinfo`, but some tests need to be
@@ -87,6 +73,18 @@ var DELAY_CRASH_MS = Services.prefs.getIntPref(PREF_DELAY_CRASH_MS, 60 * 1000); 
 Services.prefs.addObserver(PREF_DELAY_CRASH_MS, function() {
   DELAY_CRASH_MS = Services.prefs.getIntPref(PREF_DELAY_CRASH_MS);
 });
+
+/**
+ * Any addBlocker calls that failed. We add this into barrier wait
+ * crash annotations to help with debugging. When we fail to add
+ * shutdown blockers that can break shutdown. We track these globally
+ * rather than per barrier because one failure mode is when the
+ * barrier has already finished by the time addBlocker is invoked -
+ * but the failure to add the blocker may result in later barriers
+ * waiting indefinitely, so the debug information is still useful
+ * for those later barriers. See bug 1801674 for more context.
+ */
+let gBrokenAddBlockers = [];
 
 /**
  * A set of Promise that supports waiting.
@@ -699,6 +697,7 @@ function Barrier(name) {
      */
     addBlocker: (name, condition, details) => {
       if (typeof name != "string") {
+        gBrokenAddBlockers.push("No-name blocker");
         throw new TypeError("Expected a human-readable name as first argument");
       }
       if (details && typeof details == "function") {
@@ -709,26 +708,35 @@ function Barrier(name) {
         details = {};
       }
       if (typeof details != "object") {
+        gBrokenAddBlockers.push(`${name} - invalid details`);
         throw new TypeError(
           "Expected an object as third argument to `addBlocker`, got " + details
         );
       }
       if (!this._waitForMe) {
+        gBrokenAddBlockers.push(`${name} - ${this._name} finished`);
         throw new Error(
           `Phase "${this._name}" is finished, it is too late to register completion condition "${name}"`
         );
       }
       debug(`Adding blocker ${name} for phase ${this._name}`);
 
-      // Normalize the details
+      try {
+        this.client._internalAddBlocker(name, condition, details);
+      } catch (ex) {
+        gBrokenAddBlockers.push(`${name} - ${ex.message}`);
+        throw ex;
+      }
+    },
 
-      let fetchState = details.fetchState || null;
+    _internalAddBlocker: (
+      name,
+      condition,
+      { fetchState = null, filename = null, lineNumber = null, stack = null }
+    ) => {
       if (fetchState != null && typeof fetchState != "function") {
         throw new TypeError("Expected a function for option `fetchState`");
       }
-      let filename = details.filename || null;
-      let lineNumber = details.lineNumber || null;
-      let stack = details.stack || null;
 
       // Split the condition between a trigger function and a promise.
 
@@ -1001,14 +1009,15 @@ Barrier.prototype = Object.freeze({
             " ensure that we do not leave the user with an unresponsive" +
             " process draining resources.";
           fatalerr(msg);
-          if (lazy.gCrashReporter && lazy.gCrashReporter.enabled) {
-            let data = {
-              phase: topic,
-              conditions: state,
-            };
-            lazy.gCrashReporter.annotateCrashReport(
+          if (gBrokenAddBlockers.length) {
+            fatalerr(
+              "Broken addBlocker calls: " + JSON.stringify(gBrokenAddBlockers)
+            );
+          }
+          if (Services.appinfo.crashReporterEnabled) {
+            Services.appinfo.annotateCrashReport(
               "AsyncShutdownTimeout",
-              JSON.stringify(data)
+              JSON.stringify(this._gatherCrashReportTimeoutData(topic, state))
             );
           } else {
             warn("No crash reporter available");
@@ -1041,6 +1050,14 @@ Barrier.prototype = Object.freeze({
     }
 
     return promise;
+  },
+
+  _gatherCrashReportTimeoutData(phase, conditions) {
+    let data = { phase, conditions };
+    if (gBrokenAddBlockers.length) {
+      data.brokenAddBlockers = gBrokenAddBlockers;
+    }
+    return data;
   },
 
   _removeBlocker(condition) {

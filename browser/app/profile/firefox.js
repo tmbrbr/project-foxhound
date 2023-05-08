@@ -73,6 +73,9 @@ pref("xpinstall.signatures.devInfoURL", "https://wiki.mozilla.org/Addons/Extensi
 // Enable extensionStorage storage actor by default
 pref("devtools.storage.extensionStorage.enabled", true);
 
+// Enable the unified extensions UI by default.
+pref("extensions.unifiedExtensions.enabled", true);
+
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/language-tools/");
 
@@ -144,7 +147,7 @@ pref("app.update.notifyDuringDownload", false);
 // default value to migrate to the new location that this data is now stored
 // (which is in a file in the update directory). Because of this, this pref
 // should no longer be used directly. Instead, getAppUpdateAutoEnabled and
-// getAppUpdateAutoEnabled from UpdateUtils.jsm should be used.
+// getAppUpdateAutoEnabled from UpdateUtils.sys.mjs should be used.
 #ifndef XP_WIN
   pref("app.update.auto", true);
 #endif
@@ -401,8 +404,15 @@ pref("browser.urlbar.suggest.calculator",           false);
   pref("browser.urlbar.suggest.quickactions", true);
   pref("browser.urlbar.shortcuts.quickactions", true);
   pref("browser.urlbar.quickactions.showPrefs", true);
-  pref("browser.urlbar.quickactions.showInZeroPrefix", true);
+  pref("browser.urlbar.quickactions.showInZeroPrefix", false);
 #endif
+
+// Feature gate pref for weather suggestions in the urlbar.
+pref("browser.urlbar.weather.featureGate", false);
+
+// If `browser.urlbar.weather.featureGate` is true, this controls whether
+// weather suggestions are turned on.
+pref("browser.urlbar.suggest.weather", true);
 
 // When `browser.urlbar.bestMatch.enabled` is true, this controls whether best
 // match results are shown in the urlbar. This pref is exposed to the user in
@@ -491,14 +501,26 @@ pref("browser.urlbar.switchTabs.adoptIntoActiveWindow", false);
 // should be opened in new tabs by default.
 pref("browser.urlbar.openintab", false);
 
+// Enable three-dot options button and menu for eligible results.
+pref("browser.urlbar.resultMenu", false);
+
 // If true, we show tail suggestions when available.
 pref("browser.urlbar.richSuggestions.tail", true);
 
 // If true, top sites may include sponsored ones.
 pref("browser.urlbar.sponsoredTopSites", false);
 
-// If true, show the search term in the URL bar for the users default engine.
-pref("browser.urlbar.showSearchTerms", false);
+// Global toggle for whether the show search terms feature
+// can be used at all, and enabled/disabled by the user.
+#ifdef NIGHTLY_BUILD
+pref("browser.urlbar.showSearchTerms.featureGate", true);
+#else
+pref("browser.urlbar.showSearchTerms.featureGate", false);
+#endif
+
+// If true, show the search term in the Urlbar while on
+// a default search engine results page.
+pref("browser.urlbar.showSearchTerms.enabled", true);
 
 // Controls the empty search behavior in Search Mode:
 //  0 - Show nothing
@@ -513,6 +535,9 @@ pref("browser.urlbar.shortcuts.tabs", true);
 pref("browser.urlbar.shortcuts.history", true);
 
 pref("browser.urlbar.eventTelemetry.enabled", false);
+
+// Whether search engagement telemetry should be recorded.
+pref("browser.urlbar.searchEngagementTelemetry.enabled", false);
 
 // When we send events to Urlbar extensions, we wait this amount of time in
 // milliseconds for them to respond before timing out.
@@ -555,6 +580,9 @@ pref("browser.urlbar.bestMatch.enabled", false);
 // Whether best match results can be blocked. This pref is a fallback for the
 // Nimbus variable `bestMatchBlockingEnabled`.
 pref("browser.urlbar.bestMatch.blockingEnabled", false);
+
+// Enable site specific search result.
+pref("browser.urlbar.contextualSearch.enabled", false);
 
 pref("browser.altClickSave", false);
 
@@ -958,16 +986,7 @@ pref("browser.history_swipe_animation.disabled", false);
   // scrolling to shift+wheel.
   pref("mousewheel.with_shift.action", 1);
   pref("mousewheel.with_alt.action", 2);
-  // On MacOS X, control+wheel is typically handled by system and we don't
-  // receive the event.  So, command key which is the main modifier key for
-  // acceleration is the best modifier for zoom-in/out.  However, we should keep
-  // the control key setting for backward compatibility.
-  pref("mousewheel.with_meta.action", 3); // command key on Mac
-  // Disable control-/meta-modified horizontal wheel events, since those are
-  // used on Mac as part of modified swipe gestures (e.g. Left swipe+Cmd is
-  // "go back" in a new tab).
-  pref("mousewheel.with_control.action.override_x", 0);
-  pref("mousewheel.with_meta.action.override_x", 0);
+  pref("mousewheel.with_control.action", 1);
 #else
   // On the other platforms (non-macOS), user may use legacy mouse which
   // supports only vertical wheel but want to scroll horizontally.  For such
@@ -977,9 +996,8 @@ pref("browser.history_swipe_animation.disabled", false);
   // is better for consistency with macOS users.
   pref("mousewheel.with_shift.action", 4);
   pref("mousewheel.with_alt.action", 2);
-  pref("mousewheel.with_meta.action", 1); // win key on Win, Super/Hyper on Linux
 #endif
-pref("mousewheel.with_control.action",3);
+
 pref("mousewheel.with_win.action", 1);
 
 pref("browser.xul.error_pages.expert_bad_cert", false);
@@ -1247,13 +1265,6 @@ pref("browser.bookmarks.editDialog.delayedApply.enabled", false);
   // See - security/sandbox/win/src/sandboxbroker/sandboxBroker.cpp
   // SetSecurityLevelForContentProcess() for what the different settings mean.
   pref("security.sandbox.content.level", 6);
-
-  // This controls the strength of the Windows GPU process sandbox.  Changes
-  // will require restart.
-  // For information on what the level number means, see
-  // SetSecurityLevelForGPUProcess() in
-  // security/sandbox/win/src/sandboxbroker/sandboxBroker.cpp
-  pref("security.sandbox.gpu.level", 0);
 #endif
 
 #if defined(XP_MACOSX) && defined(MOZ_SANDBOX)
@@ -1541,9 +1552,9 @@ pref("browser.newtabpage.activity-stream.fxaccounts.endpoint", "https://accounts
 pref("browser.newtabpage.activity-stream.improvesearch.topSiteSearchShortcuts", true);
 
 // ASRouter provider configuration
-pref("browser.newtabpage.activity-stream.asrouter.providers.cfr", "{\"id\":\"cfr\",\"enabled\":true,\"type\":\"remote-settings\",\"bucket\":\"cfr\",\"updateCycleInMs\":3600000}");
-pref("browser.newtabpage.activity-stream.asrouter.providers.whats-new-panel", "{\"id\":\"whats-new-panel\",\"enabled\":true,\"type\":\"remote-settings\",\"bucket\":\"whats-new-panel\",\"updateCycleInMs\":3600000}");
-pref("browser.newtabpage.activity-stream.asrouter.providers.message-groups", "{\"id\":\"message-groups\",\"enabled\":true,\"type\":\"remote-settings\",\"bucket\":\"message-groups\",\"updateCycleInMs\":3600000}");
+pref("browser.newtabpage.activity-stream.asrouter.providers.cfr", "{\"id\":\"cfr\",\"enabled\":true,\"type\":\"remote-settings\",\"collection\":\"cfr\",\"updateCycleInMs\":3600000}");
+pref("browser.newtabpage.activity-stream.asrouter.providers.whats-new-panel", "{\"id\":\"whats-new-panel\",\"enabled\":true,\"type\":\"remote-settings\",\"collection\":\"whats-new-panel\",\"updateCycleInMs\":3600000}");
+pref("browser.newtabpage.activity-stream.asrouter.providers.message-groups", "{\"id\":\"message-groups\",\"enabled\":true,\"type\":\"remote-settings\",\"collection\":\"message-groups\",\"updateCycleInMs\":3600000}");
 // This url, if changed, MUST continue to point to an https url. Pulling arbitrary content to inject into
 // this page over http opens us up to a man-in-the-middle attack that we'd rather not face. If you are a downstream
 // repackager of this code using an alternate snippet url, please keep your users safe
@@ -1589,6 +1600,8 @@ pref("browser.newtabpage.activity-stream.discoverystream.sponsored-collections.e
 // Changes the spoc content.
 pref("browser.newtabpage.activity-stream.discoverystream.spocAdTypes", "");
 pref("browser.newtabpage.activity-stream.discoverystream.spocZoneIds", "");
+pref("browser.newtabpage.activity-stream.discoverystream.spocTopsitesAdTypes", "");
+pref("browser.newtabpage.activity-stream.discoverystream.spocTopsitesZoneIds", "");
 pref("browser.newtabpage.activity-stream.discoverystream.spocSiteId", "");
 
 pref("browser.newtabpage.activity-stream.discoverystream.sendToPocket.enabled", false);
@@ -1649,12 +1662,16 @@ pref("browser.aboutwelcome.templateMR", true);
 pref("browser.messaging-system.whatsNewPanel.enabled", true);
 
 // Experiment Manager
-// See Console.jsm LOG_LEVELS for all possible values
+// See Console.sys.mjs LOG_LEVELS for all possible values
 pref("messaging-system.log", "warn");
 pref("messaging-system.rsexperimentloader.enabled", true);
 pref("messaging-system.rsexperimentloader.collection_id", "nimbus-desktop-experiments");
 pref("nimbus.debug", false);
 pref("nimbus.validation.enabled", true);
+
+// Nimbus QA prefs. Used to monitor pref-setting test experiments.
+pref("nimbus.qa.pref-1", "default");
+pref("nimbus.qa.pref-2", "default");
 
 // Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);
@@ -1787,9 +1804,6 @@ pref("media.gmp.trial-create.enabled", true);
 pref("media.gmp-gmpopenh264.visible", true);
 pref("media.gmp-gmpopenh264.enabled", true);
 
-// Set Firefox to block autoplay, asking for permission by default.
-pref("media.autoplay.default", 1); // 0=Allowed, 1=Blocked, 5=All Blocked
-
 // Block WebAudio from playing automatically.
 pref("media.autoplay.block-webaudio", true);
 
@@ -1810,7 +1824,9 @@ pref("browser.translation.engine", "Google");
 // Determines if Telemetry pings can be archived locally.
 pref("toolkit.telemetry.archive.enabled", false);
 // Enables sending the shutdown ping when Firefox shuts down.
-pref("toolkit.telemetry.shutdownPingSender.enabled", false);
+pref("toolkit.telemetry.shutdownPingSender.enabled", true);
+// Enables using the `pingsender` background task.
+pref("toolkit.telemetry.shutdownPingSender.backgroundtask.enabled", false);
 // Enables sending the shutdown ping using the pingsender from the first session.
 pref("toolkit.telemetry.shutdownPingSender.enabledFirstSession", false);
 // Enables sending a duplicate of the first shutdown ping from the first session.
@@ -1941,7 +1957,7 @@ pref("browser.contentblocking.report.show_mobile_app", true);
 pref("browser.send_to_device_locales", "de,en-GB,en-US,es-AR,es-CL,es-ES,es-MX,fr,id,pl,pt-BR,ru,zh-TW");
 
 // Avoid advertising in certain regions. Comma separated string of two letter ISO 3166-1 country codes.
-// We're currently blocking all of Ukraine (ua), but would prefer to block just Crimea (ua-43). Currently, the Mozilla Location Service APIs used by Region.jsm only exposes the country, not the subdivision.
+// We're currently blocking all of Ukraine (ua), but would prefer to block just Crimea (ua-43). Currently, the Mozilla Location Service APIs used by Region.sys.mjs only exposes the country, not the subdivision.
 pref("browser.vpn_promo.disallowed_regions", "ae,by,cn,cu,iq,ir,kp,om,ru,sd,sy,tm,tr,ua");
 
 // Default to enabling VPN promo messages to be shown when specified and allowed
@@ -2075,6 +2091,10 @@ pref("extensions.experiments.enabled", false);
   pref("dom.ipc.processPriorityManager.enabled", true);
 #endif
 
+#if defined(XP_WIN)
+  pref("dom.ipc.processPriorityManager.backgroundUsesEcoQoS", true);
+#endif
+
 // Don't limit how many nodes we care about on desktop:
 pref("reader.parse-node-limit", 0);
 
@@ -2111,10 +2131,29 @@ pref("dom.ipc.processPrelaunch.enabled", false);
 pref("dom.ipc.processPrelaunch.enabled", true);
 #endif
 
+pref("browser.migrate.brave.enabled", true);
+pref("browser.migrate.canary.enabled", true);
+
+pref("browser.migrate.chrome.enabled", true);
 // See comments in bug 1340115 on how we got to these numbers.
 pref("browser.migrate.chrome.history.limit", 2000);
 pref("browser.migrate.chrome.history.maxAgeInDays", 180);
-pref("browser.migrate.showBookmarksToolbarAfterMigration", true);
+
+pref("browser.migrate.chrome-beta.enabled", true);
+pref("browser.migrate.chrome-dev.enabled", true);
+pref("browser.migrate.chromium.enabled", true);
+pref("browser.migrate.chromium-360se.enabled", true);
+pref("browser.migrate.chromium-edge.enabled", true);
+pref("browser.migrate.chromium-edge-beta.enabled", true);
+pref("browser.migrate.edge.enabled", true);
+pref("browser.migrate.firefox.enabled", true);
+pref("browser.migrate.ie.enabled", true);
+pref("browser.migrate.safari.enabled", true);
+pref("browser.migrate.opera.enabled", false);
+pref("browser.migrate.vivaldi.enabled", false);
+pref("browser.migrate.opera-gx.enabled", false);
+
+pref("browser.migrate.content-modal.enabled", false);
 
 pref("extensions.pocket.api", "api.getpocket.com");
 pref("extensions.pocket.enabled", true);
@@ -2161,8 +2200,8 @@ pref("signon.suggestImportCount", 3);
 pref("print.use_simplify_page", true);
 
 // Space separated list of URLS that are allowed to send objects (instead of
-// only strings) through webchannels. This list is duplicated in mobile/android/app/mobile.js
-pref("webchannel.allowObject.urlWhitelist", "https://content.cdn.mozilla.net https://support.mozilla.org https://install.mozilla.org");
+// only strings) through webchannels. Bug 1275612 tracks removing this pref and capability.
+pref("webchannel.allowObject.urlWhitelist", "https://content.cdn.mozilla.net https://install.mozilla.org");
 
 // Whether or not the browser should scan for unsubmitted
 // crash reports, and then show a notification for submitting
@@ -2497,8 +2536,8 @@ pref("devtools.storage.enabled", true);
 // Enable the Style Editor.
 pref("devtools.styleeditor.enabled", true);
 pref("devtools.styleeditor.autocompletion-enabled", true);
-pref("devtools.styleeditor.showMediaSidebar", true);
-pref("devtools.styleeditor.mediaSidebarWidth", 238);
+pref("devtools.styleeditor.showAtRulesSidebar", true);
+pref("devtools.styleeditor.atRulesSidebarWidth", 238);
 pref("devtools.styleeditor.navSidebarWidth", 245);
 pref("devtools.styleeditor.transitions", true);
 
@@ -2705,19 +2744,19 @@ pref("svg.context-properties.content.allowed-domains", "profile.accounts.firefox
 // A set of scores for rating the relevancy of snapshots. The suffixes after the
 // last decimal are prefixed by `_score` and reference the functions called in
 // SnapshotScorer.
-pref("browser.snapshots.score.Visit", 1);
-pref("browser.snapshots.score.CurrentSession", 1);
-pref("browser.snapshots.score.IsUserPersisted", 1);
-pref("browser.snapshots.score.IsUserRemoved", -10);
+pref("browser.places.snapshots.score.Visit", 1);
+pref("browser.places.snapshots.score.CurrentSession", 1);
+pref("browser.places.snapshots.score.IsUserPersisted", 1);
+pref("browser.places.snapshots.score.IsUserRemoved", -10);
 
 // A set of weights for the snapshot recommendation sources. The suffixes after
 // the last decimal map to the keys of `Snapshots.recommendationSources`.
-pref("browser.snapshots.source.CommonReferrer", 3);
-pref("browser.snapshots.source.Overlapping", 3);
-pref("browser.snapshots.source.TimeOfDay", 3);
+pref("browser.places.snapshots.source.CommonReferrer", 3);
+pref("browser.places.snapshots.source.Overlapping", 3);
+pref("browser.places.snapshots.source.TimeOfDay", 3);
 
 // Other preferences affecting snapshots scoring.
-pref("browser.snapshots.relevancy.timeOfDayIntervalSeconds", 3600);
+pref("browser.places.snapshots.relevancy.timeOfDayIntervalSeconds", 3600);
 
 // Expiration days for snapshots.
 pref("browser.places.snapshots.expiration.days", 210);
@@ -2732,16 +2771,13 @@ pref("browser.firefox-view.view-count", 0);
 
 // If the user has seen the pdf.js feature tour this value reflects the tour
 // message id, the id of the last screen they saw, and whether they completed the tour
-pref("browser.pdfjs.feature-tour", "{\"message\":\"PDF_JS_FEATURE_TOUR\",\"screen\":\"\",\"complete\":false}");
+pref("browser.pdfjs.feature-tour", "{\"screen\":\"\",\"complete\":false}");
 
 // Enables cookie banner handling in Nightly in Private Browsing Mode. See
 // StaticPrefList.yaml for a description of the prefs.
 #ifdef NIGHTLY_BUILD
   pref("cookiebanners.service.mode.privateBrowsing", 1);
-  pref("cookiebanners.bannerClicking.enabled", true);
 #endif
 
-// We only want to enable this pref for Desktop nightlies.
-#ifdef NIGHTLY_BUILD
-  pref("dom.sitepermsaddon-provider.enabled", true);
-#endif
+// Enables the cookie banner desktop UI.
+pref("cookiebanners.ui.desktop.enabled", false);
