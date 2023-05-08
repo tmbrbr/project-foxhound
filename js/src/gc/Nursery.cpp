@@ -1911,10 +1911,10 @@ void js::Nursery::sweepMapAndSetObjects() {
 }
 
 void js::Nursery::sweepStrings() {
-  auto fop = runtime()->defaultFreeOp();
+  auto gcx = runtime()->gcContext();
 
   for (auto str : stringsWithNurseryMemory_) {
-    JSString::sweepAfterMinorGC(fop, str);
+    JSString::sweepAfterMinorGC(gcx, str);
   }
   stringsWithNurseryMemory_.clearAndFree();
 }

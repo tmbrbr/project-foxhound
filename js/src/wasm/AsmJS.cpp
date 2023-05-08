@@ -3168,13 +3168,7 @@ static bool CheckModuleProcessingDirectives(ModuleValidator<Unit>& m) {
       return true;
     }
 
-<<<<<<< HEAD
-    // TODO: Taintfox: change this to .str()
-    if (!IsIgnoredDirectiveName(m.cx(),
-                                ts.anyCharsAccess().currentToken().atom())) {
-=======
     if (!IsIgnoredDirectiveName(ts.anyCharsAccess().currentToken().atom())) {
->>>>>>> e2956def6c181ca7375897992c5c821a5a6c886d
       return m.failCurrentOffset("unsupported processing directive");
     }
 

@@ -263,6 +263,11 @@ class SourceText final : public TaintableString {
                                        AutoStableStringChars& linearChars,
                                        const StringTaint& taint);
 
+  [[nodiscard]] bool initMaybeBorrowed(JSContext* cx,
+                                       AutoStableStringChars& linearChars) {
+    return initMaybeBorrowed(cx, linearChars, EmptyTaint);
+  }
+
   /**
    * Access the encapsulated data using a code unit type.
    *

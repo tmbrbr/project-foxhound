@@ -332,7 +332,6 @@ class nsHtml5StreamParser final : public nsISupports {
 
   void SwitchDecoderIfAsciiSoFar(NotNull<const Encoding*> aEncoding)
       MOZ_REQUIRES(mTokenizerMutex);
-  ;
 
   size_t CountGts();
 
@@ -345,10 +344,10 @@ class nsHtml5StreamParser final : public nsISupports {
   void DoStopRequest();
 
   void DoDataAvailableBuffer(mozilla::Buffer<uint8_t>&& aBuffer, const StringTaint& aTaint)
-      REQUIRES(mTokenizerMutex);
+      MOZ_REQUIRES(mTokenizerMutex);
 
   void DoDataAvailable(mozilla::Span<const uint8_t> aBuffer, const StringTaint& aTaint)
-      REQUIRES(mTokenizerMutex);
+      MOZ_REQUIRES(mTokenizerMutex);
 
   static nsresult CopySegmentsToParserNoTaint(nsIInputStream* aInStream,
                                        void* aClosure, const char* aFromSegment,
@@ -356,7 +355,7 @@ class nsHtml5StreamParser final : public nsISupports {
                                        uint32_t* aWriteCount)
       MOZ_REQUIRES(mTokenizerMutex);
 
-    static nsresult CopySegmentsToParser(nsITaintawareInputStream *aInStream,
+static nsresult CopySegmentsToParser(nsITaintawareInputStream *aInStream,
                                          void *aClosure,
                                          const char *aFromSegment,
                                          uint32_t aToOffset,
@@ -386,13 +385,13 @@ class nsHtml5StreamParser final : public nsISupports {
    * Push bytes from network when there is no Unicode decoder yet
    */
   nsresult SniffStreamBytes(mozilla::Span<const uint8_t> aFromSegment,
-                            bool aEof, const StringTaint& aTaint) REQUIRES(mTokenizerMutex);
+                            bool aEof, const StringTaint& aTaint) MOZ_REQUIRES(mTokenizerMutex);
 
   /**
    * Push bytes from network when there is a Unicode decoder already
    */
   nsresult WriteStreamBytes(mozilla::Span<const uint8_t> aFromSegment, const StringTaint& aTaint)
-      REQUIRES(mTokenizerMutex);
+      MOZ_REQUIRES(mTokenizerMutex);
 
   /**
    * Set up the Unicode decoder and write the sniffing buffer into it
@@ -407,7 +406,7 @@ class nsHtml5StreamParser final : public nsISupports {
    */
   nsresult SetupDecodingAndWriteSniffingBufferAndCurrentSegment(
       mozilla::Span<const uint8_t> aPrefix,
-      mozilla::Span<const uint8_t> aFromSegment, const StringTaint& aTaint) REQUIRES(mTokenizerMutex);
+      mozilla::Span<const uint8_t> aFromSegment, const StringTaint& aTaint) MOZ_REQUIRES(mTokenizerMutex);
 
   /**
    * Initialize the Unicode decoder, mark the BOM as the source and

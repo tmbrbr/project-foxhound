@@ -455,8 +455,12 @@ class JSString : public js::gc::CellWithLengthAndFlags {
 #endif
         return;
       }
-      d.taint_ = taint;
+      setTaint(taint);
     }
+  }
+
+  void setTaint(const StringTaint& taint) {
+    d.taint_ = taint;
   }
 
   // Direct access to the associated taint information.
@@ -670,7 +674,7 @@ class JSString : public js::gc::CellWithLengthAndFlags {
   }
 
   /* Taintfox: enable cleanup of strings in nursery */
-  static void sweepAfterMinorGC(JSFreeOp* fop, JSString* str);
+  static void sweepAfterMinorGC(JS::GCContext* gcx, JSString* str);
 
  private:
   // To help avoid writing Spectre-unsafe code, we only allow MacroAssembler

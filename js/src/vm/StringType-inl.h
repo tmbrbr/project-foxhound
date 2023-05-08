@@ -230,9 +230,9 @@ inline JSDependentString::JSDependentString(JSLinearString* base, size_t start,
   // TaintFox: copy taint information from the base string.
   this->initTaint();
   if (optTaint != nullptr) {
-    this->setTaint(cx, *optTaint);
+    this->setTaint(*optTaint);
   } else if (base->isTainted()) {
-    this->setTaint(cx, base->taint().safeSubTaint(start, start + length));
+    this->setTaint(base->taint().safeSubTaint(start, start + length));
   }
 }
 
