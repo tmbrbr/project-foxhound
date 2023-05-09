@@ -38,7 +38,6 @@
 #include "js/Array.h"
 #include "js/Conversions.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
-#include "js/friend/StackLimits.h"    // js::AutoCheckRecursionLimit
 #if !JS_HAS_INTL_API
 #  include "js/LocaleSensitive.h"
 #endif
@@ -656,7 +655,6 @@ static bool str_unescape(JSContext* cx, unsigned argc, Value* vp) {
   // Step 3.
   JSStringBuilder sb(cx);
   if (str->hasTwoByteChars() && !sb.ensureTwoByteChars()) {
-    sb.failure();
     return false;
   }
 
@@ -675,7 +673,6 @@ static bool str_unescape(JSContext* cx, unsigned argc, Value* vp) {
     unescapeFailed = !Unescape(sb, str->twoByteRange(nogc), str->taint(), &newtaint);
   }
   if (unescapeFailed) {
-    sb.failure();
     return false;
   }
 
@@ -684,7 +681,6 @@ static bool str_unescape(JSContext* cx, unsigned argc, Value* vp) {
   if (!sb.empty()) {
     result = sb.finishString();
     if (!result) {
-      sb.failure();
       return false;
     }
   } else {
@@ -695,7 +691,6 @@ static bool str_unescape(JSContext* cx, unsigned argc, Value* vp) {
   newtaint.extend(op);
   result->setTaint(cx, newtaint);
 
-  sb.ok();
   args.rval().setString(result);
   return true;
 }
@@ -807,19 +802,13 @@ const JSClass StringObject::class_ = {
  */
 static MOZ_ALWAYS_INLINE JSString* ToStringForStringFunction(
     JSContext* cx, const char* funName, HandleValue thisv) {
-  AutoCheckRecursionLimit recursion(cx);
-  if (!recursion.check(cx)) {
-    return nullptr;
-  }
-
   if (thisv.isString()) {
     return thisv.toString();
   }
 
   if (thisv.isObject()) {
-    RootedObject obj(cx, &thisv.toObject());
-    if (obj->is<StringObject>()) {
-      StringObject* nobj = &obj->as<StringObject>();
+    if (thisv.toObject().is<StringObject>()) {
+      StringObject* nobj = &thisv.toObject().as<StringObject>();
       // We have to make sure that the ToPrimitive call from ToString
       // would be unobservable.
       if (HasNoToPrimitiveMethodPure(nobj, cx) &&
@@ -857,16 +846,13 @@ MOZ_ALWAYS_INLINE bool str_toSource_impl(JSContext* cx, const CallArgs& args) {
   JSStringBuilder sb(cx);
   if (!sb.append("(new String(") ||
       !sb.append(quoted.get(), strlen(quoted.get())) || !sb.append("))")) {
-    sb.failure();
     return false;
   }
 
   JSString* result = sb.finishString();
   if (!result) {
-    sb.failure();
     return false;
   }
-  sb.ok();
   args.rval().setString(result);
   return true;
 }
@@ -3279,13 +3265,11 @@ static JSLinearString* InterpretDollarReplacement(
    */
   JSStringBuilder newReplaceChars(cx);
   if (repstr->hasTwoByteChars() && !newReplaceChars.ensureTwoByteChars()) {
-    newReplaceChars.failure();
     return nullptr;
   }
 
   if (!newReplaceChars.reserve(textstr->length() - patternLength +
                                repstr->length())) {
-    newReplaceChars.failure();
     return nullptr;
   }
 
@@ -3307,13 +3291,7 @@ static JSLinearString* InterpretDollarReplacement(
     return nullptr;
   }
 
-  auto* result = newReplaceChars.finishString();
-  if (!result) {
-    newReplaceChars.failure();
-    return nullptr;
-  }
-  newReplaceChars.ok();
-  return result;
+  return newReplaceChars.finishString();
 }
 
 template <typename StrChar, typename RepChar>
@@ -3410,49 +3388,37 @@ JSString* js::StringFlatReplaceString(JSContext* cx, HandleString string,
   JSStringBuilder sb(cx);
   if (linearStr->hasTwoByteChars()) {
     if (!sb.ensureTwoByteChars()) {
-      sb.failure();
       return nullptr;
     }
     if (linearRepl->hasTwoByteChars()) {
       if (!StrFlatReplaceGlobal<char16_t, char16_t>(cx, linearStr, linearPat,
                                                     linearRepl, sb)) {
-        sb.failure();
         return nullptr;
       }
     } else {
       if (!StrFlatReplaceGlobal<char16_t, Latin1Char>(cx, linearStr, linearPat,
                                                       linearRepl, sb)) {
-        sb.failure();
         return nullptr;
       }
     }
   } else {
     if (linearRepl->hasTwoByteChars()) {
       if (!sb.ensureTwoByteChars()) {
-        sb.failure();
         return nullptr;
       }
       if (!StrFlatReplaceGlobal<Latin1Char, char16_t>(cx, linearStr, linearPat,
                                                       linearRepl, sb)) {
-        sb.failure();
         return nullptr;
       }
     } else {
       if (!StrFlatReplaceGlobal<Latin1Char, Latin1Char>(
               cx, linearStr, linearPat, linearRepl, sb)) {
-        sb.failure();
         return nullptr;
       }
     }
   }
 
-  auto* result = sb.finishString();
-  if (!result) {
-    sb.failure();
-    return nullptr;
-  }
-  sb.ok();
-  return result;
+  return sb.finishString();
 }
 
 JSString* js::str_replace_string_raw(JSContext* cx, HandleString string,
@@ -3609,7 +3575,6 @@ static JSString* ReplaceAll(JSContext* cx, JSLinearString* string,
   if constexpr (std::is_same_v<StrChar, char16_t> ||
                 std::is_same_v<RepChar, char16_t>) {
     if (!result.ensureTwoByteChars()) {
-      result.failure();
       return nullptr;
     }
   }
@@ -3621,18 +3586,11 @@ static JSString* ReplaceAll(JSContext* cx, JSLinearString* string,
         nogc, string, searchString, replaceString, position, result);
   }
   if (internalFailure) {
-    result.failure();
     return nullptr;
   }
 
   // Step 16.
-  auto* resultString = result.finishString();
-  if (!resultString) {
-    result.failure();
-    return nullptr;
-  }
-  result.ok();
-  return resultString;
+  return result.finishString();
 }
 
 template <typename StrChar, typename RepChar>
@@ -3725,7 +3683,6 @@ static JSString* ReplaceAllInterleave(JSContext* cx, JSLinearString* string,
   if constexpr (std::is_same_v<StrChar, char16_t> ||
                 std::is_same_v<RepChar, char16_t>) {
     if (!result.ensureTwoByteChars()) {
-      result.failure();
       return nullptr;
     }
   }
@@ -3737,18 +3694,11 @@ static JSString* ReplaceAllInterleave(JSContext* cx, JSLinearString* string,
         nogc, cx, string, replaceString, result);
   }
   if (internalFailure) {
-    result.failure();
     return nullptr;
   }
 
   // Step 16.
-  auto* resultString = result.finishString();
-  if (!resultString) {
-    result.failure();
-    return nullptr;
-  }
-  result.ok();
-  return resultString;
+  return result.finishString();
 }
 
 // String.prototype.replaceAll (Stage 3 proposal)
@@ -4567,7 +4517,6 @@ static inline bool TransferBufferToString(JSContext* cx, JSStringBuilder& sb, JS
   if (!sb.empty()) {
     str = sb.finishString();
     if (!str) {
-      sb.failure();
       return false;
     }
   } else if (str->isTainted()) {
@@ -4576,7 +4525,6 @@ static inline bool TransferBufferToString(JSContext* cx, JSStringBuilder& sb, JS
       return false;
   }
   str->setTaint(cx, taint);
-  sb.ok();
   rval.setString(str);
 
   return true;
@@ -4717,13 +4665,11 @@ static MOZ_ALWAYS_INLINE bool Encode(JSContext* cx, Handle<JSLinearString*> str,
   }
 
   if (res == Encode_Failure) {
-    sb.failure();
     return false;
   }
 
   if (res == Encode_BadUri) {
     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_BAD_URI);
-    sb.failure();
     return false;
   }
 
@@ -4883,13 +4829,11 @@ static bool Decode(JSContext* cx, Handle<JSLinearString*> str,
   }
 
   if (res == Decode_Failure) {
-    sb.failure();
     return false;
   }
 
   if (res == Decode_BadUri) {
     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_BAD_URI);
-    sb.failure();
     return false;
   }
 
@@ -4955,25 +4899,16 @@ JSString* js::EncodeURI(JSContext* cx, const char* chars, size_t length) {
   EncodeResult result = Encode(sb, reinterpret_cast<const Latin1Char*>(chars),
                                length, js_isUriReservedPlusPound, EmptyTaint);
   if (result == EncodeResult::Encode_Failure) {
-    sb.failure();
     return nullptr;
   }
   if (result == EncodeResult::Encode_BadUri) {
-    sb.failure();
     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_BAD_URI);
     return nullptr;
   }
   if (sb.empty()) {
-    sb.ok();
     return NewStringCopyN<CanGC>(cx, chars, length);
   }
-  auto* resultString = sb.finishString();
-  if (!resultString) {
-    sb.failure();
-    return nullptr;
-  }
-  sb.ok();
-  return resultString;
+  return sb.finishString();
 }
 
 static bool FlatStringMatchHelper(JSContext* cx, HandleString str,

@@ -5725,9 +5725,11 @@ bool CacheIRCompiler::emitStoreTypedArrayElement(ObjOperandId objId,
     spectreScratch.emplace(allocator, masm);
   }
 
-  FailurePath* failure;
-  if (!addFailurePath(&failure)) {
-    return false;
+  FailurePath* failure = nullptr;
+  if (!handleOOB) {
+    if (!addFailurePath(&failure)) {
+      return false;
+    }
   }
 
   // Bounds check.

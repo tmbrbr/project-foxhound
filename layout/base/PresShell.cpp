@@ -153,7 +153,6 @@
 // For style data reconstruction
 #include "nsStyleChangeList.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsMenuFrame.h"
 #include "nsTreeBodyFrame.h"
 #include "XULTreeElement.h"
 #include "nsMenuPopupFrame.h"
@@ -587,63 +586,6 @@ class MOZ_STACK_CLASS AutoPointerEventTargetUpdater final {
   nsIContent** mTargetContent;
 };
 
-void PresShell::DirtyRootsList::Add(nsIFrame* aFrame) {
-  // Is this root already scheduled for reflow?
-  // FIXME: This could possibly be changed to a uniqueness assertion, with some
-  // work in ResizeReflowIgnoreOverride (and maybe others?)
-  if (mList.Contains(aFrame)) {
-    // We don't expect frame to change depths.
-    MOZ_ASSERT(aFrame->GetDepthInFrameTree() ==
-               mList[mList.IndexOf(aFrame)].mDepth);
-    return;
-  }
-
-  mList.InsertElementSorted(
-      FrameAndDepth{aFrame, aFrame->GetDepthInFrameTree()},
-      FrameAndDepth::CompareByReverseDepth{});
-}
-
-void PresShell::DirtyRootsList::Remove(nsIFrame* aFrame) {
-  mList.RemoveElement(aFrame);
-}
-
-nsIFrame* PresShell::DirtyRootsList::PopShallowestRoot() {
-  // List is sorted in order of decreasing depth, so there are no deeper
-  // frames than the last one.
-  const FrameAndDepth& lastFAD = mList.PopLastElement();
-  nsIFrame* frame = lastFAD.mFrame;
-  // We don't expect frame to change depths.
-  MOZ_ASSERT(frame->GetDepthInFrameTree() == lastFAD.mDepth);
-  return frame;
-}
-
-void PresShell::DirtyRootsList::Clear() { mList.Clear(); }
-
-bool PresShell::DirtyRootsList::Contains(nsIFrame* aFrame) const {
-  return mList.Contains(aFrame);
-}
-
-bool PresShell::DirtyRootsList::IsEmpty() const { return mList.IsEmpty(); }
-
-bool PresShell::DirtyRootsList::FrameIsAncestorOfDirtyRoot(
-    nsIFrame* aFrame) const {
-  MOZ_ASSERT(aFrame);
-
-  // Look for a path from any dirty roots to aFrame, following GetParent().
-  // This check mirrors what FrameNeedsReflow() would have done if the reflow
-  // root didn't get in the way.
-  for (nsIFrame* dirtyFrame : mList) {
-    do {
-      if (dirtyFrame == aFrame) {
-        return true;
-      }
-      dirtyFrame = dirtyFrame->GetParent();
-    } while (dirtyFrame);
-  }
-
-  return false;
-}
-
 bool PresShell::sDisableNonTestMouseEvents = false;
 
 LazyLogModule PresShell::gLog("PresShell");
@@ -856,7 +798,9 @@ PresShell::PresShell(Document* aDocument)
       mForceUseLegacyNonPrimaryDispatch(false),
       mInitializedWithClickEventDispatchingBlacklist(false),
       mMouseLocationWasSetBySynthesizedMouseEventForTests(false),
-      mHasTriedFastUnsuppress(false) {
+      mHasTriedFastUnsuppress(false),
+      mProcessingReflowCommands(false),
+      mPendingDidDoReflow(false) {
   MOZ_LOG(gLog, LogLevel::Debug, ("PresShell::PresShell this=%p", this));
   MOZ_ASSERT(aDocument);
 
@@ -2154,6 +2098,7 @@ bool PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight,
   // Now, we may have been destroyed by the destructor of
   // `nsAutoCauseReflowNotifier`.
 
+  mPendingDidDoReflow = true;
   DidDoReflow(true);
 
   // the reflow above should've set our bsize if it was NS_UNCONSTRAINEDSIZE,
@@ -4184,29 +4129,29 @@ void PresShell::CancelPostedReflowCallbacks() {
 }
 
 void PresShell::HandlePostedReflowCallbacks(bool aInterruptible) {
-  bool shouldFlush = false;
-
-  while (mFirstCallbackEventRequest) {
-    nsCallbackEventRequest* node = mFirstCallbackEventRequest;
-    mFirstCallbackEventRequest = node->next;
-    if (!mFirstCallbackEventRequest) {
-      mLastCallbackEventRequest = nullptr;
-    }
-    nsIReflowCallback* callback = node->callback;
-    FreeByObjectID(eArenaObjectID_nsCallbackEventRequest, node);
-    if (callback) {
-      if (callback->ReflowFinished()) {
+  while (true) {
+    // Call all our callbacks, tell us if we need to flush again.
+    bool shouldFlush = false;
+    while (mFirstCallbackEventRequest) {
+      nsCallbackEventRequest* node = mFirstCallbackEventRequest;
+      mFirstCallbackEventRequest = node->next;
+      if (!mFirstCallbackEventRequest) {
+        mLastCallbackEventRequest = nullptr;
+      }
+      nsIReflowCallback* callback = node->callback;
+      FreeByObjectID(eArenaObjectID_nsCallbackEventRequest, node);
+      if (callback && callback->ReflowFinished()) {
         shouldFlush = true;
       }
     }
-  }
 
-  FlushType flushType =
-      aInterruptible ? FlushType::InterruptibleLayout : FlushType::Layout;
-  if (shouldFlush && !mIsDestroying && nsContentUtils::IsSafeToRunScript()) {
-    // We don't want to flush when not allowed to run script (e.g., like when
-    // running container query updates), since that trivially executes script.
-    // We'll flush layout again at the end of that process if necessary.
+    if (!shouldFlush || mIsDestroying) {
+      return;
+    }
+
+    // The flush might cause us to have more callbacks.
+    const auto flushType =
+        aInterruptible ? FlushType::InterruptibleLayout : FlushType::Layout;
     FlushPendingNotifications(flushType);
   }
 }
@@ -4454,10 +4399,10 @@ void PresShell::DoFlushPendingNotifications(mozilla::ChangesToFlush aFlush) {
     FlushPendingScrollResnap();
 
     if (MOZ_LIKELY(!mIsDestroying)) {
-      // Try to trigger pending scroll-linked animations after we flush
+      // Try to trigger pending scroll-driven animations after we flush
       // style and layout (if any). If we try to trigger them after flushing
       // style but the frame tree is not ready, we will check them again after
-      // we flush layout because the requirement to trigger scroll-linked
+      // we flush layout because the requirement to trigger scroll-driven
       // animations is that the associated scroll containers are ready (i.e. the
       // scroll-timeline is active), and this depends on the readiness of the
       // scrollable frame and the primary frame of the scroll container.
@@ -4687,7 +4632,7 @@ void PresShell::NotifyCounterStylesAreDirty() {
 }
 
 bool PresShell::FrameIsAncestorOfDirtyRoot(nsIFrame* aFrame) const {
-  return mDirtyRoots.FrameIsAncestorOfDirtyRoot(aFrame);
+  return mDirtyRoots.FrameIsAncestorOfAnyElement(aFrame);
 }
 
 void PresShell::ReconstructFrames() {
@@ -5915,7 +5860,6 @@ void PresShell::ProcessSynthMouseMoveEvent(bool aFromScroll) {
                          WidgetMouseEvent::eSynthesized);
   event.mRefPoint =
       LayoutDeviceIntPoint::FromAppUnitsToNearest(refpoint, viewAPD);
-  event.mTime = PR_IntervalNow();
   // XXX set event.mModifiers ?
   // XXX mnakano I think that we should get the latest information from widget.
 
@@ -6128,7 +6072,7 @@ void PresShell::MarkFramesInSubtreeApproximatelyVisible(
           }
         }
       }
-      MarkFramesInSubtreeApproximatelyVisible(child, r);
+      MarkFramesInSubtreeApproximatelyVisible(child, r, aRemoveOnly);
     }
   }
 }
@@ -8909,12 +8853,11 @@ bool PresShell::EventHandler::AdjustContextMenuKeyEvent(
     WidgetMouseEvent* aMouseEvent) {
   // if a menu is open, open the context menu relative to the active item on the
   // menu.
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm) {
+  if (nsXULPopupManager* pm = nsXULPopupManager::GetInstance()) {
     nsIFrame* popupFrame = pm->GetTopPopup(ePopupTypeMenu);
     if (popupFrame) {
-      nsIFrame* itemFrame =
-          (static_cast<nsMenuPopupFrame*>(popupFrame))->GetCurrentMenuItem();
+      nsIFrame* itemFrame = (static_cast<nsMenuPopupFrame*>(popupFrame))
+                                ->GetCurrentMenuItemFrame();
       if (!itemFrame) itemFrame = popupFrame;
 
       nsCOMPtr<nsIWidget> widget = popupFrame->GetNearestWidget();
@@ -9488,9 +9431,22 @@ void PresShell::WillDoReflow() {
 }
 
 void PresShell::DidDoReflow(bool aInterruptible) {
+  MOZ_ASSERT(mPendingDidDoReflow);
+  if (!nsContentUtils::IsSafeToRunScript()) {
+    // If we're reflowing while script-blocked (e.g. from container query
+    // updates), defer our reflow callbacks until the end of our next layout
+    // flush.
+    SetNeedLayoutFlush();
+    return;
+  }
+
+  auto clearPendingDidDoReflow =
+      MakeScopeExit([&] { mPendingDidDoReflow = false; });
+
   mHiddenContentInForcedLayout.Clear();
 
   HandlePostedReflowCallbacks(aInterruptible);
+
   if (mIsDestroying) {
     return;
   }
@@ -9828,12 +9784,18 @@ void PresShell::DoVerifyReflow() {
 #define NS_LONG_REFLOW_TIME_MS 5000
 
 bool PresShell::ProcessReflowCommands(bool aInterruptible) {
-  if (mDirtyRoots.IsEmpty() && !mShouldUnsuppressPainting) {
+  if (mDirtyRoots.IsEmpty() && !mShouldUnsuppressPainting &&
+      !mPendingDidDoReflow) {
     // Nothing to do; bail out
     return true;
   }
 
-  mozilla::TimeStamp timerStart = mozilla::TimeStamp::Now();
+  const bool wasProcessingReflowCommands = mProcessingReflowCommands;
+  auto restoreProcessingReflowCommands = MakeScopeExit(
+      [&] { mProcessingReflowCommands = wasProcessingReflowCommands; });
+  mProcessingReflowCommands = true;
+
+  auto timerStart = mozilla::TimeStamp::Now();
   bool interrupted = false;
   if (!mDirtyRoots.IsEmpty()) {
 #ifdef DEBUG
@@ -9849,68 +9811,68 @@ bool PresShell::ProcessReflowCommands(bool aInterruptible) {
             : (PRIntervalTime)0;
 
     // Scope for the reflow entry point
-    {
-      nsAutoScriptBlocker scriptBlocker;
-      WillDoReflow();
-      AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Reflow);
-      nsViewManager::AutoDisableRefresh refreshBlocker(mViewManager);
+    nsAutoScriptBlocker scriptBlocker;
+    WillDoReflow();
+    AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Reflow);
+    nsViewManager::AutoDisableRefresh refreshBlocker(mViewManager);
 
-      OverflowChangedTracker overflowTracker;
+    OverflowChangedTracker overflowTracker;
 
-      do {
-        // Send an incremental reflow notification to the target frame.
-        nsIFrame* target = mDirtyRoots.PopShallowestRoot();
+    do {
+      // Send an incremental reflow notification to the target frame.
+      nsIFrame* target = mDirtyRoots.PopShallowestRoot();
 
-        if (!target->IsSubtreeDirty()) {
-          // It's not dirty anymore, which probably means the notification
-          // was posted in the middle of a reflow (perhaps with a reflow
-          // root in the middle).  Don't do anything.
-          continue;
-        }
-
-        interrupted = !DoReflow(target, aInterruptible, &overflowTracker);
-
-        // Keep going until we're out of reflow commands, or we've run
-        // past our deadline, or we're interrupted.
-      } while (!interrupted && !mDirtyRoots.IsEmpty() &&
-               (!aInterruptible || PR_IntervalNow() < deadline));
-
-      interrupted = !mDirtyRoots.IsEmpty();
-
-      overflowTracker.Flush();
-
-      if (!interrupted) {
-        // We didn't get interrupted. Go ahead and perform scroll anchor
-        // adjustments.
-        FlushPendingScrollAnchorAdjustments();
+      if (!target->IsSubtreeDirty()) {
+        // It's not dirty anymore, which probably means the notification
+        // was posted in the middle of a reflow (perhaps with a reflow
+        // root in the middle).  Don't do anything.
+        continue;
       }
-    }
 
-    // Exiting the scriptblocker might have killed us
-    if (!mIsDestroying) {
-      DidDoReflow(aInterruptible);
-    }
+      interrupted = !DoReflow(target, aInterruptible, &overflowTracker);
 
-    // DidDoReflow might have killed us
-    if (!mIsDestroying) {
+      // Keep going until we're out of reflow commands, or we've run
+      // past our deadline, or we're interrupted.
+    } while (!interrupted && !mDirtyRoots.IsEmpty() &&
+             (!aInterruptible || PR_IntervalNow() < deadline));
+
+    interrupted = !mDirtyRoots.IsEmpty();
+
+    overflowTracker.Flush();
+
+    if (!interrupted) {
+      // We didn't get interrupted. Go ahead and perform scroll anchor
+      // adjustments.
+      FlushPendingScrollAnchorAdjustments();
+    }
+    mPendingDidDoReflow = true;
+  }
+
+  // Exiting the scriptblocker might have killed us. If we were processing
+  // scroll commands, let the outermost call deal with it.
+  if (!mIsDestroying && mPendingDidDoReflow && !wasProcessingReflowCommands) {
+    DidDoReflow(aInterruptible);
+  }
+
+  // DidDoReflow might have killed us
+  if (!mIsDestroying) {
 #ifdef DEBUG
-      if (VerifyReflowFlags::DumpCommands & gVerifyReflowFlags) {
-        printf("\nPresShell::ProcessReflowCommands() finished: this=%p\n",
-               (void*)this);
-      }
-      DoVerifyReflow();
+    if (VerifyReflowFlags::DumpCommands & gVerifyReflowFlags) {
+      printf("\nPresShell::ProcessReflowCommands() finished: this=%p\n",
+             (void*)this);
+    }
+    DoVerifyReflow();
 #endif
 
-      // If any new reflow commands were enqueued during the reflow, schedule
-      // another reflow event to process them.  Note that we want to do this
-      // after DidDoReflow(), since that method can change whether there are
-      // dirty roots around by flushing, and there's no point in posting a
-      // reflow event just to have the flush revoke it.
-      if (!mDirtyRoots.IsEmpty()) {
-        MaybeScheduleReflow();
-        // And record that we might need flushing
-        SetNeedLayoutFlush();
-      }
+    // If any new reflow commands were enqueued during the reflow, schedule
+    // another reflow event to process them.  Note that we want to do this
+    // after DidDoReflow(), since that method can change whether there are
+    // dirty roots around by flushing, and there's no point in posting a
+    // reflow event just to have the flush revoke it.
+    if (!mDirtyRoots.IsEmpty()) {
+      MaybeScheduleReflow();
+      // And record that we might need flushing
+      SetNeedLayoutFlush();
     }
   }
 

@@ -1868,7 +1868,8 @@ bool HasNativeDataPropertyPure(JSContext* cx, JSObject* obj, Value* vp) {
     MOZ_ASSERT(!obj->getOpsLookupProperty());
 
     uint32_t index;
-    if (PropMap* map = obj->shape()->lookup(cx, id, &index)) {
+    if (PropMap* map =
+            obj->as<NativeObject>().shape()->lookup(cx, id, &index)) {
       if (JitOptions.enableWatchtowerMegamorphic) {
         PropertyInfo prop = map->getPropertyInfo(index);
         if (prop.isDataProperty()) {
@@ -2008,9 +2009,10 @@ static bool TryAddOrSetPlainObjectProperty(JSContext* cx,
     if (!proto->is<PlainObject>()) {
       return true;
     }
-    if (proto->as<PlainObject>().hasNonWritableOrAccessorPropExclProto()) {
+    PlainObject* plainProto = &proto->as<PlainObject>();
+    if (plainProto->hasNonWritableOrAccessorPropExclProto()) {
       uint32_t index;
-      if (PropMap* map = proto->shape()->lookup(cx, key, &index)) {
+      if (PropMap* map = plainProto->shape()->lookup(cx, key, &index)) {
         PropertyInfo prop = map->getPropertyInfo(index);
         if (!prop.isDataProperty() || !prop.writable()) {
           return true;
@@ -2018,7 +2020,7 @@ static bool TryAddOrSetPlainObjectProperty(JSContext* cx,
         break;
       }
     }
-    proto = proto->as<PlainObject>().staticPrototype();
+    proto = plainProto->staticPrototype();
   }
 
 #ifdef DEBUG
@@ -2203,7 +2205,7 @@ void AllocateAndInitTypedArrayBuffer(JSContext* cx, TypedArrayObject* obj,
   // Negative numbers or zero will bail out to the slow path, which in turn will
   // raise an invalid argument exception or create a correct object with zero
   // elements.
-  const size_t maxByteLength = TypedArrayObject::maxByteLength();
+  constexpr size_t maxByteLength = TypedArrayObject::MaxByteLength;
   if (count <= 0 || size_t(count) > maxByteLength / obj->bytesPerElement()) {
     obj->setFixedSlot(TypedArrayObject::LENGTH_SLOT, PrivateValue(size_t(0)));
     return;

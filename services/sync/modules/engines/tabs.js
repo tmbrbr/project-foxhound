@@ -78,7 +78,6 @@ function TabEngine(service) {
 }
 
 TabEngine.prototype = {
-  __proto__: BridgedEngine.prototype,
   _trackerObj: TabTracker,
   syncPriority: 3,
 
@@ -92,7 +91,8 @@ TabEngine.prototype = {
       recent_clients: {},
     };
 
-    let tabs = await TabProvider.getAllTabs(true);
+    // We shouldn't upload tabs past what the server will accept
+    let tabs = await this.getTabsWithinPayloadSize();
     await this._rustStore.setLocalTabs(
       tabs.map(tab => {
         // rust wants lastUsed in MS but the provider gives it in seconds
@@ -209,6 +209,20 @@ TabEngine.prototype = {
     }
   },
 
+  async getTabsWithinPayloadSize() {
+    let tabs = await TabProvider.getAllTabs(true);
+    const maxPayloadSize = this.service.getMaxRecordPayloadSize();
+    let records = Utils.tryFitItems(tabs, maxPayloadSize);
+
+    if (records.length != tabs.length) {
+      this._log.warn(
+        `Can't fit all tabs in sync payload: have ${tabs.length}, but can only fit ${records.length}.`
+      );
+    }
+
+    return records;
+  },
+
   // Support for "quick writes"
   _engineLock: Utils.lock,
   _engineLocked: false,
@@ -319,7 +333,6 @@ TabEngine.prototype = {
 
       Async.checkAppReady();
       await this._uploadOutgoing();
-      telemetryRecord.onEngineApplied(name, 1);
       telemetryRecord.onEngineStop(name, null);
       return true;
     } catch (ex) {
@@ -348,6 +361,7 @@ TabEngine.prototype = {
     }
   },
 };
+Object.setPrototypeOf(TabEngine.prototype, BridgedEngine.prototype);
 
 const TabProvider = {
   getWindowEnumerator() {
@@ -431,8 +445,6 @@ function TabTracker(name, engine) {
   this._unregisterListeners = Utils.bind2(this, this._unregisterListeners);
 }
 TabTracker.prototype = {
-  __proto__: Tracker.prototype,
-
   QueryInterface: ChromeUtils.generateQI(["nsIObserver"]),
 
   clearChangedIDs() {
@@ -615,3 +627,4 @@ TabTracker.prototype = {
     }
   },
 };
+Object.setPrototypeOf(TabTracker.prototype, Tracker.prototype);
