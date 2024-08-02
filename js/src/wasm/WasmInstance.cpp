@@ -264,9 +264,15 @@ bool Instance::callImport(JSContext* cx, uint32_t funcImportIndex,
         return false;
       }
 
+<<<<<<< HEAD
       //TODO(0drai): This is where we taint the input arguments for JS Calls issued from Wasm (import),
       //however, these values are expected to be primitive values and **not objects**,
       //which leads to undesired behavior.
+=======
+      //TODO(SAM): This is where we would like to the taint
+      //the input arguments, however, these values are
+      //expected to be primitive values and **not objects**.
+>>>>>>> 9c07ff52b9a5 (added wasm tainting)
       //Could be related to #216.
 
       double d;
@@ -302,7 +308,11 @@ bool Instance::callImport(JSContext* cx, uint32_t funcImportIndex,
       return false;
     }
 
+<<<<<<< HEAD
     //TODO(0drai): see above
+=======
+    //TODO(SAM): wont work, see above
+>>>>>>> 9c07ff52b9a5 (added wasm tainting)
       double d;
       if (ToNumber(cx, argValue, &d)){
       JSObject* number = NumberObject::createTainted(
@@ -2712,7 +2722,11 @@ bool wasm::ResultsToJSValue(JSContext* cx, ResultType type,
   if (!stackResultsLoc) {
     // A single result: we're done.
 
+<<<<<<< HEAD
     //TODO(0drai): for Wasm Calls issued from Wasm (export), same issue as above
+=======
+    //TODO(SAM): see above
+>>>>>>> 9c07ff52b9a5 (added wasm tainting)
     double d;
     if (ToNumber(cx, rval, &d)) {
       JSObject* number = NumberObject::createTainted(
@@ -2748,7 +2762,11 @@ bool wasm::ResultsToJSValue(JSContext* cx, ResultType type,
     }
   }
 
+<<<<<<< HEAD
   //TODO(0drai): see above
+=======
+  //TODO(SAM): see above
+>>>>>>> 9c07ff52b9a5 (added wasm tainting)
   for (uint32_t i = 0; i < array->length(); i++) {
     const auto* element = &array->getDenseElement(i);
     if (!element->isNumber()) {
