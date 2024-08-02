@@ -277,3 +277,26 @@ if (typeof assertNumberNotTainted === 'undefined') {
         }
     }
 }
+
+if (typeof assertArrayTainted === 'undefined') {
+    // Assert that the given number is tainted.
+    var assertArrayTainted = function(arr) {
+        if (!arr.taint || arr.taint.length == 0) {
+            throw Error("Array [" + arr + "] is not tainted");
+        }
+    }
+}
+
+if (typeof randomStringAlphLowercase === 'undefined') {
+  // Assert that the given number is not tainted.
+  var randomStringAlphLowercase = function(length) {
+    const chars = "abcdefghijklmnopqrstuvwxyz";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      result += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return result;
+  }
+}
+
+// vim: set ts=2 sts=2 sw=2 et:
