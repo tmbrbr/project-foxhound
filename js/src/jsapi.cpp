@@ -4934,11 +4934,27 @@ JS_PUBLIC_API void
 JS_ReportTaintSink(JSContext* cx, JS::HandleValue value, const char* sink, JS::HandleValue arg)
 {
   if (value.isString()) {
+    std::cout << "It is a string" << std::endl;
     JSString *str = value.toString();
     if (str) {
       JS::RootedString strobj(cx, str);
+      str->dump();
       JS_ReportTaintSink(cx, strobj, sink, arg);
     }
+  }
+
+  if(value.isObject()){
+    JS::RootedString jsonString(cx, JS::ToString(cx, value));
+    // char* utf8Chars = JS_EncodeStringToUTF8(cx, jsonString);
+    // std::cout << "It is an object" << std::endl;
+    // NativeObject *obj = MaybeNativeObject(value.toObjectOrNull());
+    // if (obj) {
+    //   for (size_t i = 0; i < obj->slotSpan(); i++) {
+    //     JS::Value slot = obj->getSlot(i);
+    //     std::cout << slot.asRawBits() << std::endl;
+    //     JS_ReportTaintSink(cx, RootedValue(cx, slot), sink, arg);
+    //   }
+    // }
   }
 }
 
