@@ -453,18 +453,36 @@ static MOZ_ALWAYS_INLINE bool GetObjectElementOperation(
       }
     }
 
+    // TODO(0drai) if the key is a tainted number, we should(?) to unbox
+    // it and use the unboxed value as key, which is most likely the desired behavior.
+    RootedId id(cx);
     if (isTaintedNumber(key)) {
       taint = getNumberTaint(key);
-    }
-    
-    RootedId id(cx);
-    if (!ToPropertyKey(cx, key, &id)) {
-      return false;
-    }
-    if (!GetProperty(cx, obj, receiver, id, res)) {
-      return false;
+      double tmp = key.toObject().as<NumberObject>().unbox();
+      RootedValue v(cx, NumberValue(tmp));
+
+      if (!ToPropertyKey(cx, v, &id)) {
+        return false;
+      }
+      if (!GetProperty(cx, obj, receiver, id, res)) {
+        return false;
+      }
+    } else {
+
+      if (!ToPropertyKey(cx, key, &id)) {
+        return false;
+      }
+      if (!GetProperty(cx, obj, receiver, id, res)) {
+        return false;
+      }
     }
   } while (false);
+
+  // TaintFox: If the object is a ainted number, we should propagate the taint to
+  // the result.
+  if (!taint && JS::isTaintedArray(*obj)){
+      taint = JS::getArrayTaint(*obj);
+  }
 
   // TaintFox: add taint information to looked up element.
   if (taint) {
