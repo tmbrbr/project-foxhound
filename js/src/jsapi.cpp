@@ -4942,118 +4942,86 @@ JS_ReportTaintSink(JSContext* cx, JS::HandleValue value, const char* sink, JS::H
       JS_ReportTaintSink(cx, strobj, sink, arg);
     }
   }
-  if(value.isObject()){
-    std::cout << "THIS IS AN OBJECT" << std::endl;
-    JS::Rooted<JS::IdVector> props(cx, JS::IdVector(cx));
-      JS_Enumerate(cx, RootedObject(cx, &value.toObject()), &props);
-      for (size_t i = 0; i < props.length(); i++) {
-        std::cout << "THIS IS PROPS LOOP" << std::endl;
-        JS::RootedId id(cx, props[i]);
-        JS::RootedValue keyVal(cx);
-        JS_IdToValue(cx, id, &keyVal);
-        if(keyVal.isString()){
-          keyVal.toString()->dump();
-        }
-        if(keyVal.isNumber()){
-          std::cout << "KEYVAL IS A NUMBER: " << keyVal.toNumber() << std::endl;
-          if(isTaintedNumber(keyVal)){
-            std::cout << "KEYVAL IS TAINTED NUMBER: " << keyVal.toNumber() << std::endl;
-            // JS_ReportTaintSink(cx, RootedValue(cx, keyVal), sink, arg);
-          }
-        }
-
-        JS_ReportTaintSink(cx, keyVal, sink, arg);
-      }
-    NativeObject *obj = MaybeNativeObject(value.toObjectOrNull());
-    if (obj) {
-      for (size_t i = 0; i < obj->slotSpan(); i++) {
-        std::cout << "THIS IS SLOT LOOP" << std::endl;
-        JS::Value slot = obj->getSlot(i);
-        JS_ReportTaintSink(cx, RootedValue(cx, slot), sink, arg);
-      }
-    }
-  }
-
-  if(isTaintedNumber(value)){
-    std::cout << "It is a tainted number!!" << std::endl;
+  else if(isTaintedNumber(value)){
     NumberObject& number = value.toObject().as<NumberObject>();
-    // JS_ReportTaintSink(cx, &number, sink, arg);
-      const unsigned TAINT_REPORT_FUNCTION_SLOT = 5;
+    const unsigned TAINT_REPORT_FUNCTION_SLOT = 5;
 
-      MOZ_ASSERT(!cx->isExceptionPending());
+    MOZ_ASSERT(!cx->isExceptionPending());
 
-      // Print a message to stdout. Also include the current JS backtrace.
-      auto flow = number.taint();
+    // Print a message to stdout. Also include the current JS backtrace.
+    auto flow = number.taint();
 
-      std::cerr << "!!! Tainted flow into " << sink << " from " << flow.source().name() << " !!!" << std::endl;
-      // DumpBacktrace(cx);
+    std::cerr << "!!! Tainted flow into " << sink << " from " << flow.source().name() << " !!!" << std::endl;
+    // DumpBacktrace(cx);
 
-      // Report a warning to show up on the web console
-      JS_ReportWarningUTF8(cx, "Tainted flow from %s into %s!", flow.source().name(), sink);
+    // Report a warning to show up on the web console
+    JS_ReportWarningUTF8(cx, "Tainted flow from %s into %s!", flow.source().name(), sink);
 
-      // Extend the taint flow to include the sink function
-      number.taint().extend(TaintOperationFromContext(cx, sink, true, arg, true));
+    // Extend the taint flow to include the sink function
+    number.taint().extend(TaintOperationFromContext(cx, sink, true, arg, true));
 
-      // Trigger a custom event that can be caught by an extension.
-      // To simplify things, this part is implemented in JavaScript. Since we don't want to recompile
-      // this code everytime we detect a tainted flow, we store the compiled function into a reserved
-      // slot of the current global object.
-      RootedFunction report(cx);
+    // Trigger a custom event that can be caught by an extension.
+    // To simplify things, this part is implemented in JavaScript. Since we don't want to recompile
+    // this code everytime we detect a tainted flow, we store the compiled function into a reserved
+    // slot of the current global object.
+    RootedFunction report(cx);
 
-      JSObject* global = cx->global();
+    JSObject* global = cx->global();
 
-      RootedValue slot(cx, JS::GetReservedSlot(global, TAINT_REPORT_FUNCTION_SLOT));
-      if (slot.isUndefined()) {
-        // Need to compile.
-        const char* argnames[3] = {"str", "sink", "stack"};
-        const char* funbody =
-          "if (typeof window !== 'undefined' && typeof document !== 'undefined') {\n"
-          "    var t = window;\n"
-          "    if (location.protocol == 'javascript:' || location.protocol == 'data:' || location.protocol == 'about:') {\n"
-          "        t = parent.window;\n"
-          "    }\n"
-          "    var pl;\n"
-          "    try {\n"
-          "        pl = parent.location.href;\n"
-          "    } catch (e) {\n"
-          "        pl = 'different origin';\n"
-          "    }\n"
-          "    var e = document.createEvent('CustomEvent');\n"
-          "    e.initCustomEvent('__taintreport', true, false, {\n"
-          "        subframe: t !== window,\n"
-          "        loc: location.href,\n"
-          "        parentloc: pl,\n"
-          "        referrer: document.referrer,\n"
-          "        str: str,\n"
-          "        sink: sink,\n"
-          "        stack: stack\n"
-          "    });\n"
-          "    t.dispatchEvent(e);\n"
-          "}";
-        CompileOptions options(cx);
-        options.setFile("taint_reporting.js");
+    RootedValue slot(cx, JS::GetReservedSlot(global, TAINT_REPORT_FUNCTION_SLOT));
+    if (slot.isUndefined()) {
+      // Need to compile.
+      const char* argnames[3] = {"str", "sink", "stack"};
+      const char* funbody =
+        "if (typeof window !== 'undefined' && typeof document !== 'undefined') {\n"
+        "    var t = window;\n"
+        "    if (location.protocol == 'javascript:' || location.protocol == 'data:' || location.protocol == 'about:') {\n"
+        "        t = parent.window;\n"
+        "    }\n"
+        "    var pl;\n"
+        "    try {\n"
+        "        pl = parent.location.href;\n"
+        "    } catch (e) {\n"
+        "        pl = 'different origin';\n"
+        "    }\n"
+        "    var e = document.createEvent('CustomEvent');\n"
+        "    e.initCustomEvent('__taintreport', true, false, {\n"
+        "        subframe: t !== window,\n"
+        "        loc: location.href,\n"
+        "        parentloc: pl,\n"
+        "        referrer: document.referrer,\n"
+        "        str: str,\n"
+        "        sink: sink,\n"
+        "        stack: stack\n"
+        "    });\n"
+        "    t.dispatchEvent(e);\n"
+        "}";
+      CompileOptions options(cx);
+      options.setFile("taint_reporting.js");
 
-        RootedObjectVector emptyScopeChain(cx);
-        report = CompileFunctionUtf8(cx, emptyScopeChain,
-                                     options, "ReportTaintSink", 3,
-                                     argnames, funbody, strlen(funbody));
-        MOZ_ASSERT(report);
+      RootedObjectVector emptyScopeChain(cx);
+      report = CompileFunctionUtf8(cx, emptyScopeChain,
+                                    options, "ReportTaintSink", 3,
+                                    argnames, funbody, strlen(funbody));
+      MOZ_ASSERT(report);
 
-        // Store the compiled function into the current global object.
-        JS_SetReservedSlot(global, TAINT_REPORT_FUNCTION_SLOT, ObjectValue(*report));
-      } else {
-        report = JS_ValueToFunction(cx, slot);
-      }
+      // Store the compiled function into the current global object.
+      JS_SetReservedSlot(global, TAINT_REPORT_FUNCTION_SLOT, ObjectValue(*report));
+    } else {
+      report = JS_ValueToFunction(cx, slot);
+    }
 
-      RootedObject stack(cx);
-      if (!JS::CaptureCurrentStack(cx, &stack,
-                                   JS::StackCapture(JS::AllFrames()))) {
-        JS_ReportErrorUTF8(cx, "Invalid stack object in CaptureCurrentStack!");
-        return;
-      }
+    RootedObject stack(cx);
+    bool error = false;
+    if (!JS::CaptureCurrentStack(cx, &stack,
+                                  JS::StackCapture(JS::AllFrames()))) {
+      JS_ReportErrorUTF8(cx, "Invalid stack object in CaptureCurrentStack!");
+      error = true;
+    }
 
+    if(!error){
       JS::RootedValueArray<3> arguments(cx);
-      arguments[0].setNumber(5);
+      arguments[0].setNumber(number.unbox());
       arguments[1].setString(NewStringCopyZ<CanGC>(cx, sink));
       if (stack) {
         arguments[2].setObject(*stack);
@@ -5064,7 +5032,22 @@ JS_ReportTaintSink(JSContext* cx, JS::HandleValue value, const char* sink, JS::H
       RootedValue rval(cx);
       JS_CallFunction(cx, nullptr, report, arguments, &rval);
       MOZ_ASSERT(!cx->isExceptionPending());
+    }
   }
+  else if(value.isObject()){
+    std::cout << "THIS IS AN OBJECT" << std::endl;
+    JS::Rooted<JS::IdVector> props(cx, JS::IdVector(cx));
+    JS::RootedObject rootedObj(cx, &value.toObject());
+    JS_Enumerate(cx, rootedObj, &props);
+    for (size_t i = 0; i < props.length(); i++) {
+      std::cout << "THIS IS PROPS LOOP" << std::endl;
+      JS::RootedId id(cx, props[i]);
+      JS::RootedValue val(cx);
+      JS_GetPropertyById(cx, rootedObj, id, &val);
+      JS_ReportTaintSink(cx, val, sink, arg);
+    }
+  }
+
 
 }
 
