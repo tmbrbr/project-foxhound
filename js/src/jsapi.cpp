@@ -4934,11 +4934,9 @@ JS_PUBLIC_API void
 JS_ReportTaintSink(JSContext* cx, JS::HandleValue value, const char* sink, JS::HandleValue arg)
 {
   if (value.isString()) {
-    std::cout << "It is a string" << std::endl;
     JSString *str = value.toString();
     if (str) {
       JS::RootedString strobj(cx, str);
-      str->dump();
       JS_ReportTaintSink(cx, strobj, sink, arg);
     }
   }
@@ -5035,12 +5033,10 @@ JS_ReportTaintSink(JSContext* cx, JS::HandleValue value, const char* sink, JS::H
     }
   }
   else if(value.isObject()){
-    std::cout << "THIS IS AN OBJECT" << std::endl;
     JS::Rooted<JS::IdVector> props(cx, JS::IdVector(cx));
     JS::RootedObject rootedObj(cx, &value.toObject());
     JS_Enumerate(cx, rootedObj, &props);
     for (size_t i = 0; i < props.length(); i++) {
-      std::cout << "THIS IS PROPS LOOP" << std::endl;
       JS::RootedId id(cx, props[i]);
       JS::RootedValue val(cx);
       JS_GetPropertyById(cx, rootedObj, id, &val);
