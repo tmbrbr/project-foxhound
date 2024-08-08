@@ -1,0 +1,77 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Test HTML Message Port Taint Sink</title>
+    <script src="/tests/SimpleTest/SimpleTest.js"></script>
+    <link rel="stylesheet" href="/tests/SimpleTest/test.css"/>
+    <script>
+
+      let string_content = "hello";
+      let sink_name = "MessagePort.PostMessage";
+      let number_of_tainted_flows = 1;
+
+      let i = 0;
+      
+      SimpleTest.waitForExplicitFinish();
+      addEventListener("__taintreport", (report) => {
+          is(report.detail.str, string_content, "Check sink string content");
+
+          let flow = report.detail.str.taint[0].flow;
+          is(flow[0].operation, sink_name);
+
+          i += 1;
+          if (i >= number_of_tainted_flows) {
+            SimpleTest.finish();
+          }
+      }, false);
+
+      let taint_string = String.tainted(string_content);
+
+      // Worker script as a Blob
+      const workerScript = `
+          self.onmessage = (event) => {
+            if (event.data === 'initialize') {
+                // Retrieve the port from the message
+                const port = event.ports[0];
+
+                // Listen for messages on the port
+                port.onmessage = (event) => {
+                    console.log(JSON.stringify(event));
+                    port.postMessage("Received the event");
+                };
+
+                // Send an initial message back to the main page
+                port.postMessage('Worker initialized and ready.');
+            }
+        };
+      `;
+      if (window.Worker) {
+        const blob = new Blob([workerScript], { type: 'application/javascript' });
+          const workerUrl = URL.createObjectURL(blob);
+
+          const worker = new Worker(workerUrl);
+
+          const channel = new MessageChannel();
+
+          // Send one of the ports to the worker
+          worker.postMessage('initialize', [channel.port1]);
+
+          // Listen for messages from the worker
+          channel.port2.onmessage = (event) => {
+              console.log('Message received from worker:', event.data);
+          };
+
+          channel.port2.postMessage(taint_string);
+        } else {
+            console.error('No support for workers');
+        }
+    </script>
+  </head>
+  <body>
+    <p id="display"></p>
+    <div id="content" style="display: none"></div>
+    <p id="test"></p>
+    <button id="btn"></button>
+  </body>
+</html>

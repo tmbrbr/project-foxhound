@@ -4971,7 +4971,8 @@ JS_ReportTaintSink(JSContext* cx, JS::HandleValue value, const char* sink, JS::H
 }
 
 JS_PUBLIC_API void
-JS_ReportTaintSink(JSContext* cx, const char* sink, JS::HandleValue arg, TaintFlow flow, JS::HandleValue value, bool isNumber){
+JS_ReportTaintSink(JSContext* cx, const char* sink, JS::HandleValue arg, TaintFlow flow, JS::HandleValue value, bool isNumber)
+{
   const unsigned TAINT_REPORT_FUNCTION_SLOT = 5;
 
     MOZ_ASSERT(!cx->isExceptionPending());
