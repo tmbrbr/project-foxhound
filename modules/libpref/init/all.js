@@ -4158,6 +4158,7 @@ pref("tainting.sink.location.protocol", true);
 pref("tainting.sink.location.replace", true);
 pref("tainting.sink.location.search", true);
 pref("tainting.sink.media.src", true);
+pref("tainting.sink.MessagePort.PostMessage", true);
 pref("tainting.sink.navigator.sendBeacon(body)", true);
 pref("tainting.sink.navigator.sendBeacon(url)", true);
 pref("tainting.sink.object.data", true);
