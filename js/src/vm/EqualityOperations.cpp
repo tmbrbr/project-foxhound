@@ -8,6 +8,8 @@
 
 #include "mozilla/Assertions.h"  // MOZ_ASSERT, MOZ_ASSERT_IF
 
+#include <iostream>
+
 #include "jsnum.h"    // js::StringToNumber
 #include "jstypes.h"  // JS_PUBLIC_API
 
@@ -34,6 +36,18 @@ static bool EqualGivenSameType(JSContext* cx, JS::Handle<JS::Value> lval,
 
   if (lval.isString()) {
     return js::EqualStrings(cx, lval.toString(), rval.toString(), equal);
+  }
+  
+  // TaintFox: special case to handle strict equality of tainted numbers.
+  if (isAnyTaintedNumber(lval, rval) &&
+      (lval.isNumber() || isTaintedNumber(lval)) &&
+      (rval.isNumber() || isTaintedNumber(rval))) {
+    double l, r;
+    if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))
+      return false;
+
+    *equal = (l == r);
+    return true;
   }
 
   if (lval.isDouble()) {
