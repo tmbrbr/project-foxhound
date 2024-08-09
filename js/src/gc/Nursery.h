@@ -62,6 +62,7 @@ class HeapSlot;
 class JSONPrinter;
 class MapObject;
 class NumberObject;
+class BooleanObject;
 class SetObject;
 class JS_PUBLIC_API Sprinter;
 
@@ -328,6 +329,12 @@ class Nursery {
     MOZ_ASSERT_IF(!numberObjectsWithNurseryMemory_.empty(),
                   numberObjectsWithNurseryMemory_.back() != num);
     return numberObjectsWithNurseryMemory_.append(num);
+  }
+
+  bool addBooleanObjectWithNurseryMemory(BooleanObject* num) {
+    MOZ_ASSERT_IF(!booleanObjectsWithNurseryMemory_.empty(),
+                  booleanObjectsWithNurseryMemory_.back() != num);
+    return booleanObjectsWithNurseryMemory_.append(num);
   }
 
   bool addStringWithNurseryMemory(JSString* str) {
@@ -642,6 +649,7 @@ class Nursery {
   Vector<SetObject*, 0, SystemAllocPolicy> setsWithNurseryMemory_;
   Vector<JSString*,  0, SystemAllocPolicy> stringsWithNurseryMemory_;
   Vector<NumberObject*,  0, SystemAllocPolicy> numberObjectsWithNurseryMemory_;
+  Vector<BooleanObject*,  0, SystemAllocPolicy> booleanObjectsWithNurseryMemory_;
 
   UniquePtr<NurseryDecommitTask> decommitTask;
 

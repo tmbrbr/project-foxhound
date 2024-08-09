@@ -8582,7 +8582,9 @@ Taint(JSContext* cx, unsigned argc, Value* vp)
 
   if (args[0].isNumber()) {
     return Number_tainted(cx, argc, vp);
-  } else {
+  } else if(args[0].isBoolean()){
+    return bool_tainted(cx, argc, vp);
+  } else{
     return str_tainted(cx, argc, vp);
   }
 }

@@ -19,6 +19,7 @@
 #include "js/ErrorReport.h"
 #include "js/PropertyAndElement.h"  // JS_DefineFunctions
 #include "js/UniquePtr.h"
+#include "vm/BooleanObject.h"
 #include "vm/FrameIter.h"
 #include "vm/JSContext.h"
 #include "vm/JSFunction.h"
@@ -596,6 +597,38 @@ bool JS::getStringTaintObject(JSContext* cx, const StringTaint& taint, JS::Handl
     return false;
   
   return true;
+}
+
+bool JS::isTaintedBoolean(const Value& val)
+{
+    if (val.isObject() && val.toObject().is<BooleanObject>()) {
+        BooleanObject& boolean = val.toObject().as<BooleanObject>();
+        return boolean.isTainted();
+    }
+    return false;
+}
+
+TaintFlow JS::getBooleanTaint(const Value& val)
+{
+    if (val.isObject() && val.toObject().is<BooleanObject>()) {
+        BooleanObject& boolean = val.toObject().as<BooleanObject>();
+        return boolean.taint();
+    }
+    return TaintFlow();
+}
+
+bool JS::isAnyTaintedBoolean(const Value& val1, const Value& val2)
+{
+    return isTaintedBoolean(val1) || isTaintedBoolean(val2);
+}
+
+TaintFlow JS::getAnyBooleanTaint(const Value& val1, const Value& val2)
+{
+  if (isTaintedBoolean(val1)) {
+    return getBooleanTaint(val1);
+  } else {
+    return getBooleanTaint(val2);
+  }
 }
 
 // Print a message to stdout.

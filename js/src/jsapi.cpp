@@ -106,6 +106,7 @@
 
 #include "builtin/Promise-inl.h"
 #include "debugger/DebugAPI-inl.h"
+#include "vm/BooleanObject-inl.h"
 #include "vm/Compartment-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/IsGivenTypeObject-inl.h"  // js::IsGivenTypeObject
@@ -4880,6 +4881,9 @@ JS_MarkTaintSource(JSContext* cx, JS::MutableHandleValue value, const TaintOpera
   } else if (value.isNumber()) {
     double d = value.toNumber();
     value.setObject(*NumberObject::createTainted(cx, d, TaintFlow(op)));
+  } else if (value.isBoolean()) {
+    bool b = value.toBoolean();
+    value.setObject(*BooleanObject::createTainted(cx, b, TaintFlow(op)));
   } else if (value.isObject()) {
     // If it is an object, loop over contents
     // This function is used for convenience to taint all
