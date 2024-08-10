@@ -21,12 +21,12 @@ class BooleanObject : public NativeObject {
   static const unsigned PRIMITIVE_VALUE_SLOT = 0;
 
   /* Taintfox: Stores the Boolean object's taint information */
-  static const unsigned TAINT_SLOT = 2;
+  static const unsigned TAINT_SLOT = 1;
 
   static const ClassSpec classSpec_;
 
  public:
-  static const unsigned RESERVED_SLOTS = 1;
+  static const unsigned RESERVED_SLOTS = 2;
 
   static const JSClass class_;
 

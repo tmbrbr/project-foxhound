@@ -79,8 +79,22 @@ MOZ_ALWAYS_INLINE bool bool_toString_impl(JSContext* cx, const CallArgs& args) {
   // Step 1.
   bool b = ThisBooleanValue(args.thisv());
 
+  JSString* str = BooleanToString(cx, b);
+
+  // TaintFox: Propagate Boolean Taint to String
+  if (isTaintedBoolean(args.thisv())) {
+    // Atoms cannot be tainted. Atoms are created for ints<6bit and other
+    // common strings. If we are dealing with an Atom, wrap it inside a
+    // dependent String, which can be tainted.
+    if(str->isAtom()){
+      str = NewDependentString(cx,str,0,str->length());
+    }
+    SafeStringTaint newTaint(getBooleanTaint(args.thisv()),str->length());
+    str->setTaint(cx, newTaint);
+  }
+
   // Step 2.
-  args.rval().setString(BooleanToString(cx, b));
+  args.rval().setString(str);
   return true;
 }
 
