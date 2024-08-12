@@ -128,7 +128,7 @@ TaintFlow getBooleanTaint(const JS::Value& val);
 bool isAnyTaintedBoolean(const JS::Value& val1, const JS::Value& val2);
 
 // Extract the taint information from the first tainted number argument.
-TaintFlow getAnyBooleanTaint(const JS::Value& val1, const JS::Value& val2);
+TaintFlow getAnyBooleanTaint(const Value& val1, const Value& val2, const char* name);
 
 // Print a message to stdout.
 void TaintFoxReport(JSContext* cx, const char* msg);

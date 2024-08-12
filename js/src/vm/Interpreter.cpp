@@ -2557,9 +2557,10 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
     END_CASE(Pow)
 
     CASE(Not) {
-      bool cond = ToBoolean(REGS.stackHandleAt(-1));
-      REGS.sp--;
-      PUSH_BOOLEAN(!cond);
+      MutableHandleValue val = REGS.stackHandleAt(-1);
+      if (!NotOperation(cx, val, val)) {
+        goto error;
+      }
     }
     END_CASE(Not)
 
@@ -4636,6 +4637,10 @@ bool js::ModValues(JSContext* cx, MutableHandleValue lhs,
 bool js::PowValues(JSContext* cx, MutableHandleValue lhs,
                    MutableHandleValue rhs, MutableHandleValue res) {
   return PowOperation(cx, lhs, rhs, res);
+}
+
+bool js::NotValue(JSContext* cx, MutableHandleValue in, MutableHandleValue res) {
+  return NotOperation(cx, in, res);
 }
 
 bool js::BitNot(JSContext* cx, MutableHandleValue in, MutableHandleValue res) {

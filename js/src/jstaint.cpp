@@ -387,6 +387,8 @@ bool JS::isTaintedValue(const Value& val)
         return number.isTainted();
     } else if (val.isString()) {
         return val.toString()->isTainted();
+    } else if (isTaintedBoolean(val)){
+      return true;
     }
     return false;
 }
@@ -622,9 +624,14 @@ bool JS::isAnyTaintedBoolean(const Value& val1, const Value& val2)
     return isTaintedBoolean(val1) || isTaintedBoolean(val2);
 }
 
-TaintFlow JS::getAnyBooleanTaint(const Value& val1, const Value& val2)
+TaintFlow JS::getAnyBooleanTaint(const Value& val1, const Value& val2, const char* name)
 {
-  if (isTaintedBoolean(val1)) {
+  // add info for operation
+  // add getting combined taint flow
+  if (isTaintedBoolean(val1) && isTaintedBoolean(val2) && (val1 != val2)) {
+    // Use a very simple taint operation here to keep things fast
+    return TaintFlow::append(getBooleanTaint(val1), getBooleanTaint(val2), TaintOperation(name));
+  } else if (isTaintedBoolean(val1)) {
     return getBooleanTaint(val1);
   } else {
     return getBooleanTaint(val2);

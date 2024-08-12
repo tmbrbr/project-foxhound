@@ -27,6 +27,7 @@
 #  include "vm/RecordTupleShared.h"
 #endif
 
+#include "vm/BooleanObject-inl.h"
 #include "vm/GlobalObject-inl.h"
 #include "vm/JSAtomUtils-inl.h"  // PrimitiveValueToId, TypeName
 #include "vm/JSContext-inl.h"
@@ -978,6 +979,24 @@ static MOZ_ALWAYS_INLINE bool PowOperation(JSContext* cx,
   return true;
 }
 
+static MOZ_ALWAYS_INLINE bool NotOperation(JSContext* cx,
+                                              MutableHandleValue in,
+                                              MutableHandleValue out) {
+  // TaintFox: copy in since it is mutable.
+  RootedValue origIn(cx, in);
+
+  bool cond = ToBoolean(in);
+  bool result = !cond;
+
+  out.setBoolean(result);
+
+  // TaintFox: Taint propagation for not.
+  if (isTaintedBoolean(origIn)) {
+    out.setObject(*BooleanObject::createTainted(cx, result, getBooleanTaint(origIn)));
+  }
+  return true;
+}
+
 static MOZ_ALWAYS_INLINE bool BitNotOperation(JSContext* cx,
                                               MutableHandleValue in,
                                               MutableHandleValue out) {
@@ -1072,6 +1091,9 @@ static MOZ_ALWAYS_INLINE bool BitAndOperation(JSContext* cx,
   // TaintFox: Taint propagation for bitwise and.
   if (isAnyTaintedNumber(origLhs, origRhs)) {
     out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyNumberTaint(origLhs, origRhs, "&")));
+  }
+    if (isAnyTaintedBoolean(origLhs, origRhs)) {
+    out.setObject(*BooleanObject::createTainted(cx, out.toBoolean(), getAnyBooleanTaint(origLhs, origRhs, "&")));
   }
   return true;
 }

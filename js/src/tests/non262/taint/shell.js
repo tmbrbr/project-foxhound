@@ -278,6 +278,24 @@ if (typeof assertNumberNotTainted === 'undefined') {
     }
 }
 
+if (typeof assertBooleanTainted === 'undefined') {
+    // Assert that the given boolean is tainted.
+    var assertBooleanTainted = function(bool) {
+        if (!bool.taint || bool.taint.length == 0) {
+            throw Error("Boolean (" + bool + ") is not tainted");
+        }
+    }
+}
+
+if (typeof assertBooleanNotTainted === 'undefined') {
+    // Assert that the given number is not tainted.
+    var assertBooleanNotTainted = function(bool) {
+        if (bool.taint) {
+            throw Error("Boolean (" + bool + ") is tainted");
+        }
+    }
+}
+
 // The nearest representable values to +1.0.
 const ONE_PLUS_EPSILON = 1 + Math.pow(2, -52);  // 0.9999999999999999
 const ONE_MINUS_EPSILON = 1 - Math.pow(2, -53);  // 1.0000000000000002

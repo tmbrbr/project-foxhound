@@ -64,6 +64,20 @@ MOZ_ALWAYS_INLINE bool bool_toSource_impl(JSContext* cx, const CallArgs& args) {
   if (!str) {
     return false;
   }
+
+  // TaintFox: Propagate Boolean Taint to String
+  if (isTaintedBoolean(args.thisv())) {
+    // Atoms cannot be tainted. Atoms are created for ints<6bit and other
+    // common strings. If we are dealing with an Atom, wrap it inside a
+    // dependent String, which can be tainted.
+    if(str->isAtom()){
+      str = NewDependentString(cx,str,0,str->length());
+    }
+    SafeStringTaint newTaint(getBooleanTaint(args.thisv()),str->length());
+    str->setTaint(cx, newTaint);
+  }
+
+
   args.rval().setString(str);
   return true;
 }
@@ -107,7 +121,12 @@ static bool bool_toString(JSContext* cx, unsigned argc, Value* vp) {
 // 19.3.3.3 Boolean.prototype.valueOf ( )
 MOZ_ALWAYS_INLINE bool bool_valueOf_impl(JSContext* cx, const CallArgs& args) {
   // Step 1.
-  args.rval().setBoolean(ThisBooleanValue(args.thisv()));
+  // TaintFox: Propagate Boolean Taint to valueOf
+  if (isTaintedBoolean(args.thisv())) {
+    args.rval().setObject(args.thisv().toObject());
+  }else{
+    args.rval().setBoolean(ThisBooleanValue(args.thisv()));
+  }
   return true;
 }
 
@@ -154,7 +173,7 @@ static bool Boolean(JSContext* cx, unsigned argc, Value* vp) {
 static bool
 bool_taint_getter(JSContext* cx, unsigned argc, Value* vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
+  CallArgs args = CallArgsFromVp(argc, vp);
   args.rval().setNull();
 
   // This will be the case for unboxed booleans. In that case just return null.
@@ -226,6 +245,12 @@ JS_PUBLIC_API bool js::ToBooleanSlow(HandleValue v) {
     return true;
   }
 #endif
+
+  // TaintFox: ensures we return the value of the Boolean object
+  if (v.isObject() && v.toObject().is<BooleanObject>()) {
+    BooleanObject& boolean = v.toObject().as<BooleanObject>();
+    return boolean.unbox();
+  }
 
   MOZ_ASSERT(v.isObject());
   return !EmulatesUndefined(&v.toObject());
