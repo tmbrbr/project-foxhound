@@ -268,7 +268,11 @@ js::bool_tainted(JSContext* cx, unsigned argc, Value* vp)
       return false;
   }
 
-  JSObject* boolean = BooleanObject::createTainted(cx, ToBoolean(args.get(0)), TaintFlow(TaintOperation("manual taint source", { taintarg(cx, ToBoolean(args.get(0))) })));
+  bool b = ToBoolean(args.get(0));
+  TaintOperation op("manual taint source", { taintarg(cx, b)});
+  op.setSource();
+  JSObject* boolean = BooleanObject::createTainted(cx, b, TaintFlow(op));
+
   args.rval().setObject(*boolean);
 
   return true;

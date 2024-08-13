@@ -48,12 +48,13 @@ class BooleanObject : public NativeObject {
 
   static void sweepAfterMinorGC(JS::GCContext* gcx, BooleanObject* numobj);
 
-  TaintFlow taint() const {
-    TaintNode* head = getTaintNode();
-    if (head) {
-      head->addref();
+  const TaintFlow& taint() const {
+    TaintFlow* flow = getTaintFlow();
+    if (flow) {
+      // head->addref();
+      return *flow;
     }
-    return TaintFlow(head);
+    return TaintFlow::getEmptyTaintFlow();
   }
 
   void setTaint(const TaintFlow& taint) {

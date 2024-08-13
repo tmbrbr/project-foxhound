@@ -403,6 +403,9 @@ const TaintFlow& JS::getValueTaint(const Value& val)
           // Just return first taint range
           return range.flow();
         }
+    } else if (val.isObject() && val.toObject().is<BooleanObject>()) {
+        BooleanObject& boolean = val.toObject().as<BooleanObject>();
+        return boolean.taint();
     }
     return TaintFlow::getEmptyTaintFlow();
 }

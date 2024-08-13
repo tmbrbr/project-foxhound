@@ -104,11 +104,112 @@ function booleanTaintingAndTest() {
   assertEq(JSON.stringify(d && b), 'false');
 }
 
+function booleanTaintingStringConversionTest() {
+  var str = 'hello';
+
+  var a = taint(true);
+  var b = taint(false);
+  var c = true;
+  var d = false;
+
+  assertTainted(a + str);
+  assertEq(a + str, c + str);
+  assertTainted(str + b);
+  assertEq(str + b, str + d);
+}
+
+function booleanTaintingNumberOperationsTest() {
+  var num = 20;
+  var a = taint(true);
+  var b = taint(false);
+  var c = true;
+  var d = false;
+
+  assertTainted(num + a);
+  assertEq(num + a, num + c);
+  assertTainted(b + num);
+  assertEq(b + num, d + num);
+
+  assertTainted(num - a);
+  assertEq(num - a, num - c);
+  assertTainted(b - num);
+  assertEq(b - num, d - num);
+
+  assertTainted(num * a);
+  assertEq(num * a, num * c);
+  assertTainted(b * num);
+  assertEq(b * num, d * num);
+
+  assertTainted(num / a);
+  assertEq(num / a, num / c);
+  assertTainted(b / num);
+  assertEq(b / num, d / num);
+  //Testing division by zero
+  assertTainted(num / b);
+  assertEq(num / b, num / d);
+
+  assertTainted(num % a);
+  assertEq(num % a, num % c);
+  assertTainted(b % num);
+  assertEq(b % num, d % num);
+
+  assertTainted(num ** a);
+  assertEq(num ** a, num ** c);
+  assertTainted(b ** num);
+  assertEq(b ** num, d ** num);
+}
+
+function booleanTaintingBitwiseOperationsTest() {
+  var num = 20;
+  var a = taint(true);
+  var b = taint(false);
+  var c = true;
+  var d = false;
+
+  assertTainted(num & a);
+  assertEq(num & a, num & c);
+  assertTainted(b & num);
+  assertEq(b & num, d & num);
+
+  assertTainted(num | a);
+  assertEq(num | a, num | c);
+  assertTainted(b | num);
+  assertEq(b | num, d | num);
+
+  assertTainted(num ^ a);
+  assertEq(num ^ a, num ^ c);
+  assertTainted(b ^ num);
+  assertEq(b ^ num, d ^ num);
+
+  assertTainted(~a);
+  assertEq(~a, ~c);
+  assertTainted(~b);
+  assertEq(~b, ~d);
+
+  // assertTainted(num << a);
+  // assertEq(num << a, num << c);
+  // assertTainted(b << num);
+  // assertEq(b << num, d << num);
+
+  // assertTainted(num >> a);
+  // assertEq(num >> a, num >> c);
+  // assertTainted(b >> num);
+  // assertEq(b >> num, d >> num);
+
+  // assertTainted(num >>> a);
+  // assertEq(num >>> a, num >>> c);
+  // assertTainted(b >>> num);
+  // assertEq(b >>> num, d >>> num);
+}
+
 
 runTaintTest(booleanTaintingBasicTest);
 runTaintTest(booleanTaintingNegationTest);
 runTaintTest(booleanTaintingOrTest);
 runTaintTest(booleanTaintingAndTest);
+runTaintTest(booleanTaintingStringConversionTest);
+runTaintTest(booleanTaintingNumberOperationsTest);
+runTaintTest(booleanTaintingBitwiseOperationsTest);
 
 if (typeof reportCompare === 'function')
   reportCompare(true, true);
