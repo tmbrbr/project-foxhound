@@ -186,20 +186,20 @@ function booleanTaintingBitwiseOperationsTest() {
   assertTainted(~b);
   assertEq(~b, ~d);
 
-  // assertTainted(num << a);
-  // assertEq(num << a, num << c);
-  // assertTainted(b << num);
-  // assertEq(b << num, d << num);
+  assertTainted(num << a);
+  assertEq(num << a, num << c);
+  assertTainted(b << num);
+  assertEq(b << num, d << num);
 
-  // assertTainted(num >> a);
-  // assertEq(num >> a, num >> c);
-  // assertTainted(b >> num);
-  // assertEq(b >> num, d >> num);
+  assertTainted(num >> a);
+  assertEq(num >> a, num >> c);
+  assertTainted(b >> num);
+  assertEq(b >> num, d >> num);
 
-  // assertTainted(num >>> a);
-  // assertEq(num >>> a, num >>> c);
-  // assertTainted(b >>> num);
-  // assertEq(b >>> num, d >>> num);
+  assertTainted(num >>> a);
+  assertEq(num >>> a, num >>> c);
+  assertTainted(b >>> num);
+  assertEq(b >>> num, d >>> num);
 }
 
 

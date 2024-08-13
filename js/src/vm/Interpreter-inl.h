@@ -1090,13 +1090,19 @@ static MOZ_ALWAYS_INLINE bool BitNotOperation(JSContext* cx,
     return BigInt::bitNotValue(cx, in, out);
   }
 
-  out.setInt32(~in.toInt32());
+  int32_t result = in.toInt32();
+
+  // TaintFox: Taint propagation when bit not involves booleans
+  if(isTaintedBoolean(origIn)){
+    BooleanObject& boolean = origIn.toObject().as<BooleanObject>();
+    result = boolean.unbox()? 1 : 0;
+  }
+
+  out.setInt32(~result);
 
   // TaintFox: Taint propagation for bitwise not.
   if (isTaintedValue(origIn)) {
-    BooleanObject& boolean = in.toObject().as<BooleanObject>();
-    int32_t result = boolean.unbox()? -2 : -1;
-    out.setObject(*NumberObject::createTainted(cx, result, getValueTaint(origIn)));
+    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getValueTaint(origIn)));
   }
   return true;
 }
@@ -1231,16 +1237,29 @@ static MOZ_ALWAYS_INLINE bool BitLshOperation(JSContext* cx,
     return BigInt::lshValue(cx, lhs, rhs, out);
   }
 
+  int32_t leftNum = lhs.toInt32();
+  int32_t rightNum = rhs.toInt32();
+
+  // TaintFox: Taint propagation when bit left shift involves booleans.
+  if(isTaintedBoolean(origLhs)){
+    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
+    leftNum = boolean.unbox()? 1 : 0;
+  }
+  if(isTaintedBoolean(origRhs)){
+    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
+    rightNum = boolean.unbox()? 1 : 0;
+  }
+
   // Signed left-shift is undefined on overflow, so |lhs << (rhs & 31)| won't
   // work.  Instead, convert to unsigned space (where overflow is treated
   // modularly), perform the operation there, then convert back.
-  uint32_t left = static_cast<uint32_t>(lhs.toInt32());
-  uint8_t right = rhs.toInt32() & 31;
+  uint32_t left = static_cast<uint32_t>(leftNum);
+  uint8_t right = rightNum & 31;
   out.setInt32(mozilla::WrapToSigned(left << right));
 
   // TaintFox: Taint propagation for bitwise left shift.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyNumberTaint(origLhs, origRhs, "<<")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyValueTaint(origLhs, origRhs, "<<")));
   }
   return true;
 }
@@ -1261,11 +1280,24 @@ static MOZ_ALWAYS_INLINE bool BitRshOperation(JSContext* cx,
     return BigInt::rshValue(cx, lhs, rhs, out);
   }
 
-  out.setInt32(lhs.toInt32() >> (rhs.toInt32() & 31));
+  int32_t leftNum = lhs.toInt32();
+  int32_t rightNum = rhs.toInt32();
+
+  // TaintFox: Taint propagation when bit right shift involves booleans.
+  if(isTaintedBoolean(origLhs)){
+    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
+    leftNum = boolean.unbox()? 1 : 0;
+  }
+  if(isTaintedBoolean(origRhs)){
+    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
+    rightNum = boolean.unbox()? 1 : 0;
+  }
+
+  out.setInt32(leftNum >> (rightNum & 31));
 
   // TaintFox: Taint propagation for bitwise right shift.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyNumberTaint(origLhs, origRhs, ">>")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyValueTaint(origLhs, origRhs, ">>")));
   }
   return true;
 }
@@ -1293,12 +1325,23 @@ static MOZ_ALWAYS_INLINE bool UrshOperation(JSContext* cx,
   if (!ToUint32(cx, lhs, &left) || !ToInt32(cx, rhs, &right)) {
     return false;
   }
+
+  // TaintFox: Taint propagation when bit right shift involves booleans.
+  if(isTaintedBoolean(origLhs)){
+    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
+    left = uint32_t(boolean.unbox()? 1 : 0);
+  }
+  if(isTaintedBoolean(origRhs)){
+    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
+    right = boolean.unbox()? 1 : 0;
+  }
+
   left >>= right & 31;
   out.setNumber(uint32_t(left));
 
   // TaintFox: Taint propagation for unsigned right shift.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toNumber(), getAnyNumberTaint(origLhs, origRhs, ">>>")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toNumber(), getAnyValueTaint(origLhs, origRhs, ">>>")));
   }
   return true;
 }
