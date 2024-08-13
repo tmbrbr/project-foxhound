@@ -7300,7 +7300,7 @@
 # on the ones before it being enabled.
 - name: javascript.options.blinterp
   type: bool
-  value: true
+  value: false
   mirror: always  # LoadStartupJSPrefs
   do_not_use_directly: true
 
