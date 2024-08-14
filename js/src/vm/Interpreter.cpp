@@ -96,6 +96,9 @@ static MOZ_ALWAYS_INLINE bool LooseEqualityOp(JSContext* cx,
                                               InterpreterRegs& regs) {
   HandleValue rval = regs.stackHandleAt(-1);
   HandleValue lval = regs.stackHandleAt(-2);
+  RootedValue origLhs(cx, lval);
+  RootedValue origRhs(cx, rval);
+
   bool cond;
   if (!LooselyEqual(cx, lval, rval, &cond)) {
     return false;
@@ -103,6 +106,10 @@ static MOZ_ALWAYS_INLINE bool LooseEqualityOp(JSContext* cx,
   cond = (cond == Eq);
   regs.sp--;
   regs.sp[-1].setBoolean(cond);
+  // TaintFox: Taint propagation for equality.
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    regs.sp[-1].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(origLhs, origRhs, cond? "==" : "!=")));
+  }
   return true;
 }
 
@@ -2367,29 +2374,50 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
     }
     END_CASE(Ne)
 
-#define STRICT_EQUALITY_OP(OP, COND)                  \
+// Taintfox: Taint propagation added for strict equality
+#define STRICT_EQUALITY_OP(OP, COND, BOOLOBJ)                  \
   JS_BEGIN_MACRO                                      \
     HandleValue lval = REGS.stackHandleAt(-2);        \
     HandleValue rval = REGS.stackHandleAt(-1);        \
+    RootedValue origLhs(cx, lval);                    \
+    RootedValue origRhs(cx, rval);                    \
     bool equal;                                       \
     if (!js::StrictlyEqual(cx, lval, rval, &equal)) { \
       goto error;                                     \
     }                                                 \
     (COND) = equal OP true;                           \
+    if (isAnyTaintedValue(origLhs, origRhs)) {        \
+      (BOOLOBJ) = BooleanObject::createTainted(cx,    \
+      COND, getAnyValueTaint(origLhs, origRhs,        \
+      COND? "===" : "!=="));                          \
+    }                                                 \
     REGS.sp--;                                        \
   JS_END_MACRO
 
     CASE(StrictEq) {
       bool cond;
-      STRICT_EQUALITY_OP(==, cond);
-      REGS.sp[-1].setBoolean(cond);
+      BooleanObject* boolObj = NULL;
+      STRICT_EQUALITY_OP(==, cond, boolObj);
+      if(boolObj != NULL) {
+        REGS.sp[-1].setObject(*boolObj);
+      }
+      else{
+        REGS.sp[-1].setBoolean(cond);
+      }
+
     }
     END_CASE(StrictEq)
 
     CASE(StrictNe) {
       bool cond;
-      STRICT_EQUALITY_OP(!=, cond);
-      REGS.sp[-1].setBoolean(cond);
+      BooleanObject* boolObj = NULL;
+      STRICT_EQUALITY_OP(!=, cond, boolObj);
+      if(boolObj != NULL) {
+        REGS.sp[-1].setObject(*boolObj);
+      }
+      else{
+        REGS.sp[-1].setBoolean(cond);
+      }
     }
     END_CASE(StrictNe)
 

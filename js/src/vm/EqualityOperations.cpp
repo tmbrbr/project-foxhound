@@ -236,10 +236,10 @@ bool js::StrictlyEqual(JSContext* cx, JS::Handle<JS::Value> lval,
     return true;
   }
 
-  // TaintFox: special case to handle strict equality of tainted numbers.
-  if (isAnyTaintedNumber(lval, rval) &&
-      (lval.isNumber() || isTaintedNumber(lval)) &&
-      (rval.isNumber() || isTaintedNumber(rval))) {
+  // TaintFox: special case to handle strict equality of tainted numbers and booleans.
+  if (isAnyTaintedValue(lval, rval) &&
+      (lval.isNumber() || lval.isBoolean() || isTaintedValue(lval)) &&
+      (rval.isNumber() || rval.isBoolean() || isTaintedValue(rval))) {
     double l, r;
     if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))
       return false;

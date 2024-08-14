@@ -55,9 +55,17 @@ MOZ_ALWAYS_INLINE bool bool_toSource_impl(JSContext* cx, const CallArgs& args) {
   bool b = ThisBooleanValue(args.thisv());
 
   JSStringBuilder sb(cx);
-  if (!sb.append("(new Boolean(") || !BooleanToStringBuffer(b, sb) ||
-      !sb.append("))")) {
-    return false;
+
+  // TaintFox: Hide the fact that tainted booleans are BooleanObjects.
+  if (isTaintedBoolean(args.thisv())) {
+    if (!BooleanToStringBuffer(b, sb)) {
+      return true;
+    }
+  } else {
+    if (!sb.append("(new Boolean(") || !BooleanToStringBuffer(b, sb) ||
+        !sb.append("))")) {
+      return false;
+    }
   }
 
   JSString* str = sb.finishString();
@@ -122,11 +130,7 @@ static bool bool_toString(JSContext* cx, unsigned argc, Value* vp) {
 MOZ_ALWAYS_INLINE bool bool_valueOf_impl(JSContext* cx, const CallArgs& args) {
   // Step 1.
   // TaintFox: Propagate Boolean Taint to valueOf
-  if (isTaintedBoolean(args.thisv())) {
-    args.rval().setObject(args.thisv().toObject());
-  }else{
-    args.rval().setBoolean(ThisBooleanValue(args.thisv()));
-  }
+  args.rval().setBoolean(ThisBooleanValue(args.thisv()));
   return true;
 }
 
