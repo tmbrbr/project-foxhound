@@ -20,13 +20,11 @@ inline BooleanObject* BooleanObject::create(
     return nullptr;
   }
   obj->setPrimitiveValue(b);
-    // Taintfox: initialize the taint slot to null
+  // Taintfox: initialize the taint slot to null
   obj->initReservedSlot(TAINT_SLOT, PrivateValue(nullptr));
 
   return obj;
 }
-
-
 
 inline BooleanObject*
 BooleanObject::createTainted(JSContext* cx, bool b, const TaintFlow& taint, HandleObject proto /* = nullptr */)
@@ -50,7 +48,6 @@ inline void BooleanObject::finalize(JS::GCContext* gcx, JSObject* obj) {
     }
   }
 }
-
 
 inline void BooleanObject::sweepAfterMinorGC(JS::GCContext* gcx, BooleanObject *obj) {
   bool wasInsideNursery = IsInsideNursery(obj);

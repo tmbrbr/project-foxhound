@@ -288,7 +288,7 @@ if (typeof assertBooleanTainted === 'undefined') {
 }
 
 if (typeof assertBooleanNotTainted === 'undefined') {
-    // Assert that the given number is not tainted.
+    // Assert that the given boolean is not tainted.
     var assertBooleanNotTainted = function(bool) {
         if (bool.taint) {
             throw Error("Boolean (" + bool + ") is tainted");

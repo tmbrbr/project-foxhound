@@ -24,6 +24,7 @@
 #include "vm/JSObject.h"
 
 #include "vm/BooleanObject-inl.h"
+#include "vm/NumberObject-inl.h"
 
 using namespace js;
 
@@ -73,19 +74,6 @@ MOZ_ALWAYS_INLINE bool bool_toSource_impl(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  // TaintFox: Propagate Boolean Taint to String
-  if (isTaintedBoolean(args.thisv())) {
-    // Atoms cannot be tainted. Atoms are created for ints<6bit and other
-    // common strings. If we are dealing with an Atom, wrap it inside a
-    // dependent String, which can be tainted.
-    if(str->isAtom()){
-      str = NewDependentString(cx,str,0,str->length());
-    }
-    SafeStringTaint newTaint(getBooleanTaint(args.thisv()),str->length());
-    str->setTaint(cx, newTaint);
-  }
-
-
   args.rval().setString(str);
   return true;
 }
@@ -105,7 +93,7 @@ MOZ_ALWAYS_INLINE bool bool_toString_impl(JSContext* cx, const CallArgs& args) {
 
   // TaintFox: Propagate Boolean Taint to String
   if (isTaintedBoolean(args.thisv())) {
-    // Atoms cannot be tainted. Atoms are created for ints<6bit and other
+    // Atoms cannot be tainted. Atoms are created for ints<6bit> and other
     // common strings. If we are dealing with an Atom, wrap it inside a
     // dependent String, which can be tainted.
     if(str->isAtom()){
@@ -129,7 +117,6 @@ static bool bool_toString(JSContext* cx, unsigned argc, Value* vp) {
 // 19.3.3.3 Boolean.prototype.valueOf ( )
 MOZ_ALWAYS_INLINE bool bool_valueOf_impl(JSContext* cx, const CallArgs& args) {
   // Step 1.
-  // TaintFox: Propagate Boolean Taint to valueOf
   args.rval().setBoolean(ThisBooleanValue(args.thisv()));
   return true;
 }
@@ -149,6 +136,16 @@ static const JSFunctionSpec boolean_methods[] = {
 static bool Boolean(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
 
+  // TaintFox: Keeping the original value to see if there is a boolean taint
+  RootedValue origVal(cx, args[0]);
+
+  // TaintFox: create copy of string taint to be safe in case string is
+  // affected by garbage collection
+  SafeStringTaint taint;
+  if (args[0].isString()){
+    taint = args[0].toString()->taint().safeCopy();
+  }
+
   // Step 1.
   bool b = args.length() != 0 ? JS::ToBoolean(args[0]) : false;
 
@@ -160,16 +157,39 @@ static bool Boolean(JSContext* cx, unsigned argc, Value* vp) {
       return false;
     }
 
-    JSObject* obj = BooleanObject::create(cx, b, proto);
+    BooleanObject* obj = BooleanObject::create(cx, b, proto);
     if (!obj) {
       return false;
+    }
+
+    // Taintfox: this takes care of [new Boolean()] without the explicit new. If a tainted
+    // string  or Number was used as an argument, we create a tainted BooleanObject.
+    if (taint.hasTaint()) {
+      obj->setTaint(taint.begin()->flow());
+    } else if(origVal.isObject() && origVal.toObject().is<NumberObject>()) {
+      NumberObject& number = origVal.toObject().as<NumberObject>();
+      obj->setTaint(number.taint());
     }
 
     // Step 5.
     args.rval().setObject(*obj);
   } else {
-    // Step 2.
-    args.rval().setBoolean(b);
+
+    JSObject* obj;
+    // Taintfox: this takes care of [Boolean()] without the explicit new. If a tainted
+    // string  or Number was used as an argument, we create a tainted BooleanObject.
+    if (taint.hasTaint()) {
+      obj = BooleanObject::createTainted(cx, b, taint.begin()->flow());
+      args.rval().setObject(*obj);
+    } else if(origVal.isObject() && origVal.toObject().is<NumberObject>()) {
+      NumberObject& number = origVal.toObject().as<NumberObject>();
+      obj = BooleanObject::createTainted(cx, b, number.taint());
+      args.rval().setObject(*obj);
+    }
+    else{
+      // Step 2.
+      args.rval().setBoolean(b);
+    }
   }
   return true;
 }
@@ -250,10 +270,15 @@ JS_PUBLIC_API bool js::ToBooleanSlow(HandleValue v) {
   }
 #endif
 
-  // TaintFox: ensures we return the value of the Boolean object
+  // TaintFox: ensures we return the value of the Boolean or Number object.
+  // Otherwise it would return if the object is defined or not
   if (v.isObject() && v.toObject().is<BooleanObject>()) {
     BooleanObject& boolean = v.toObject().as<BooleanObject>();
     return boolean.unbox();
+  }
+  if (v.isObject() && v.toObject().is<NumberObject>()) {
+    NumberObject& number = v.toObject().as<NumberObject>();
+    return number.unbox() == 0 ? false : true;
   }
 
   MOZ_ASSERT(v.isObject());

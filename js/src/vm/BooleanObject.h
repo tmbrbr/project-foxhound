@@ -7,8 +7,6 @@
 #ifndef vm_BooleanObject_h
 #define vm_BooleanObject_h
 
-#include <iostream>
-
 #include "Taint.h"
 
 #include "builtin/Boolean.h"
@@ -51,7 +49,6 @@ class BooleanObject : public NativeObject {
   const TaintFlow& taint() const {
     TaintFlow* flow = getTaintFlow();
     if (flow) {
-      // head->addref();
       return *flow;
     }
     return TaintFlow::getEmptyTaintFlow();

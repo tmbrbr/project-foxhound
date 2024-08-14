@@ -118,16 +118,16 @@ bool getTaintFlowObject(JSContext* cx, const TaintFlow& flow, JS::Handle<JSObjec
 
 bool getStringTaintObject(JSContext* cx, const StringTaint& taint, JS::Handle<JSObject*> result);
 
-// Check if the argument value is a tainted number object.
+// Check if the argument value is a tainted boolean object.
 bool isTaintedBoolean(const JS::Value& val);
 
-// Extract the taint information from a number.
+// Extract the taint information from a boolean object.
 TaintFlow getBooleanTaint(const JS::Value& val);
 
-// Check if any of the argument values is a tainted number object.
+// Check if any of the argument values is a tainted boolean object.
 bool isAnyTaintedBoolean(const JS::Value& val1, const JS::Value& val2);
 
-// Extract the taint information from the first tainted number argument.
+// Extract the taint information from the tainted boolean arguments.
 TaintFlow getAnyBooleanTaint(const Value& val1, const Value& val2, const char* name);
 
 // Print a message to stdout.

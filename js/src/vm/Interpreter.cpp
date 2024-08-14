@@ -2585,6 +2585,7 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
     END_CASE(Pow)
 
     CASE(Not) {
+      // TaintFox: changed how Not case work so we can propagate the taint.
       MutableHandleValue val = REGS.stackHandleAt(-1);
       if (!NotOperation(cx, val, val)) {
         goto error;

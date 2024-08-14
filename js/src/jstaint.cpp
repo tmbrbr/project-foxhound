@@ -606,33 +606,30 @@ bool JS::getStringTaintObject(JSContext* cx, const StringTaint& taint, JS::Handl
 
 bool JS::isTaintedBoolean(const Value& val)
 {
-    if (val.isObject() && val.toObject().is<BooleanObject>()) {
-        BooleanObject& boolean = val.toObject().as<BooleanObject>();
-        return boolean.isTainted();
-    }
-    return false;
+  if (val.isObject() && val.toObject().is<BooleanObject>()) {
+      BooleanObject& boolean = val.toObject().as<BooleanObject>();
+      return boolean.isTainted();
+  }
+  return false;
 }
 
 TaintFlow JS::getBooleanTaint(const Value& val)
 {
-    if (val.isObject() && val.toObject().is<BooleanObject>()) {
-        BooleanObject& boolean = val.toObject().as<BooleanObject>();
-        return boolean.taint();
-    }
-    return TaintFlow();
+  if (val.isObject() && val.toObject().is<BooleanObject>()) {
+      BooleanObject& boolean = val.toObject().as<BooleanObject>();
+      return boolean.taint();
+  }
+  return TaintFlow();
 }
 
 bool JS::isAnyTaintedBoolean(const Value& val1, const Value& val2)
 {
-    return isTaintedBoolean(val1) || isTaintedBoolean(val2);
+  return isTaintedBoolean(val1) || isTaintedBoolean(val2);
 }
 
 TaintFlow JS::getAnyBooleanTaint(const Value& val1, const Value& val2, const char* name)
 {
-  // add info for operation
-  // add getting combined taint flow
   if (isTaintedBoolean(val1) && isTaintedBoolean(val2) && (val1 != val2)) {
-    // Use a very simple taint operation here to keep things fast
     return TaintFlow::append(getBooleanTaint(val1), getBooleanTaint(val2), TaintOperation(name));
   } else if (isTaintedBoolean(val1)) {
     return getBooleanTaint(val1);

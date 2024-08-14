@@ -8,10 +8,36 @@ function booleanTaintingBasicTest() {
     assertBooleanTainted(b);
     assertEq(a, c);
     assertEq(b, d);
-    assertEq(JSON.stringify(a), 'true');
-    assertEq(JSON.stringify(b), 'false');
+    assertEq(JSON.stringify(a), "true");
+    assertEq(JSON.stringify(b), "false");
     assertBooleanNotTainted(c);
     assertBooleanNotTainted(d);
+
+    assertBooleanTainted(Boolean(taint(1)));
+    assertBooleanTainted(Boolean(taint(0)));
+    assertBooleanTainted(new Boolean(taint(1)));
+    assertBooleanTainted(new Boolean(taint(0)));
+    assertEq(Boolean(taint(1)), Boolean(1));
+    assertEq(Boolean(taint(0)), Boolean(0));
+
+    // This is a limitation of the way boolean to source is implemented.
+    // The idea is that if a tainted boolean object is seen, the boolean
+    // value will be returned not the boolean Object itself. Hence why
+    // the output of these two functions are not what we expect.
+    assertNotEq(new Boolean(taint(1)), new Boolean(1));
+    assertNotEq(new Boolean(taint(0)), new Boolean(0));
+
+    assertBooleanTainted(Boolean(taint("true")));
+    assertBooleanTainted(Boolean(taint("false")));
+    assertBooleanTainted(new Boolean(taint("true")));
+    assertBooleanTainted(new Boolean(taint("false")));
+    // No matter what string is passed, if the string has a length bigger
+    // than 0, the boolean will be considered true.
+    assertEq(Boolean(taint("true")), Boolean("true"));
+    assertEq(Boolean(taint("false")), Boolean("false"));
+    //Same as before
+    assertNotEq(new Boolean(taint("true")), new Boolean("true"));
+    assertNotEq(new Boolean(taint("false")), new Boolean("false"));
 }
 
 function booleanTaintingEqualityTest() {
@@ -179,11 +205,11 @@ function booleanTaintingNegationTest() {
   var d = false;
 
   assertBooleanTainted(!a);
-  assertEq(JSON.stringify(!a), 'false');
   assertBooleanTainted(!b);
-  assertEq(JSON.stringify(!b), 'true');
   assertBooleanNotTainted(!c);
   assertBooleanNotTainted(!d);
+  assertEq(!a, !c);
+  assertEq(!b, !d);
 }
 
 function booleanTaintingOrTest() {
@@ -196,33 +222,35 @@ function booleanTaintingOrTest() {
   assertBooleanTainted(a || b);
   assertBooleanTainted(a || c);
   assertBooleanTainted(a || d);
-  assertEq(JSON.stringify(a || a), 'true');
-  assertEq(JSON.stringify(a || b), 'true');
-  assertEq(JSON.stringify(a || c), 'true');
-  assertEq(JSON.stringify(a || d), 'true');
+  assertEq(a || a, c);
+  assertEq(a || b, c);
+  assertEq(a || c, c);
+  assertEq(a || d, c);
 
   assertBooleanTainted(b || a);
   assertBooleanTainted(b || b);
+  // This is not tainted because of the way or operations are parsed.
+  // A detailed explination can be found in the documentation.
   assertBooleanNotTainted(b || c);
   assertBooleanNotTainted(b || d);
-  assertEq(JSON.stringify(b || a), 'true');
-  assertEq(JSON.stringify(b || b), 'false');
-  assertEq(JSON.stringify(b || c), 'true');
-  assertEq(JSON.stringify(b || d), 'false');
+  assertEq(b || a, c);
+  assertEq(b || b, d);
+  assertEq(b || c, c);
+  assertEq(b || d, d);
 
   assertBooleanNotTainted(c || a);
   assertBooleanNotTainted(c || b);
   assertBooleanNotTainted(c || c);
   assertBooleanNotTainted(c || d);
-  assertEq(JSON.stringify(c || a), 'true');
-  assertEq(JSON.stringify(c || b), 'true');
+  assertEq(c || a, c);
+  assertEq(c || b, c);
 
   assertBooleanTainted(d || a);
   assertBooleanTainted(d || b);
   assertBooleanNotTainted(d || c);
   assertBooleanNotTainted(d || d);
-  assertEq(JSON.stringify(d || a), 'true');
-  assertEq(JSON.stringify(d || b), 'false');
+  assertEq(d || a, c);
+  assertEq(d || b, d);
 }
 
 function booleanTaintingAndTest() {
@@ -233,35 +261,37 @@ function booleanTaintingAndTest() {
 
   assertBooleanTainted(a && a);
   assertBooleanTainted(a && b);
+  // This is not tainted because of the way or operations are parsed.
+  // A detailed explination can be found in the documentation.
   assertBooleanNotTainted(a && c);
   assertBooleanNotTainted(a && d);
-  assertEq(JSON.stringify(a && a), 'true');
-  assertEq(JSON.stringify(a && b), 'false');
-  assertEq(JSON.stringify(a && c), 'true');
-  assertEq(JSON.stringify(a && d), 'false');
+  assertEq(a && a, c);
+  assertEq(a && b, d);
+  assertEq(a && c, c);
+  assertEq(a && d, d);
 
   assertBooleanTainted(b && a);
   assertBooleanTainted(b && b);
   assertBooleanTainted(b && c);
   assertBooleanTainted(b && d);
-  assertEq(JSON.stringify(b && a), 'false');
-  assertEq(JSON.stringify(b && b), 'false');
-  assertEq(JSON.stringify(b && c), 'false');
-  assertEq(JSON.stringify(b && d), 'false');
+  assertEq(b && a, d);
+  assertEq(b && b, d);
+  assertEq(b && c, d);
+  assertEq(b && d, d);
 
   assertBooleanTainted(c && a);
   assertBooleanTainted(c && b);
   assertBooleanNotTainted(c && c);
   assertBooleanNotTainted(c && d);
-  assertEq(JSON.stringify(c && a), 'true');
-  assertEq(JSON.stringify(c && b), 'false');
+  assertEq(c && a, c);
+  assertEq(c && b, d);
 
   assertBooleanNotTainted(d && a);
   assertBooleanNotTainted(d && b);
   assertBooleanNotTainted(d && c);
   assertBooleanNotTainted(d && d);
-  assertEq(JSON.stringify(d && a), 'false');
-  assertEq(JSON.stringify(d && b), 'false');
+  assertEq(d && a, d);
+  assertEq(d && b, d);
 }
 
 function booleanTaintingStringConversionTest() {
@@ -273,23 +303,23 @@ function booleanTaintingStringConversionTest() {
   var d = false;
 
   assertTainted(a + str);
-  assertEq(a + str, c + str);
   assertTainted(str + b);
+  assertEq(a + str, c + str);
   assertEq(str + b, str + d);
 
   assertTainted(JSON.stringify(a));
-  assertEq(JSON.stringify(a), JSON.stringify(c));
   assertTainted(JSON.stringify(b + str));
+  assertEq(JSON.stringify(a), JSON.stringify(c));
   assertEq(JSON.stringify(b + str), JSON.stringify(d + str));
 
   assertTainted(String(a));
-  assertEq(String(a), String(c));
   assertTainted(String(b + str));
+  assertEq(String(a), String(c));
   assertEq(String(b + str), String(d + str));
 
   assertTainted(a.toString());
-  assertEq(a.toString(), c.toString());
   assertTainted(b.toString());
+  assertEq(a.toString(), c.toString());
   assertEq(b.toString(), d.toString());
 }
 
@@ -302,45 +332,45 @@ function booleanTaintingNumberOperationsTest() {
 
 
   assertNumberTainted(Number(a));
-  assertEq(Number(a), 1);
   assertNumberTainted(Number(b));
-  assertEq(Number(b), 0);
   assertNumberTainted(new Number(a));
-  assertEq(Number(a), 1);
   assertNumberTainted(new Number(b));
+  assertEq(Number(a), 1);
   assertEq(Number(b), 0);
+  assertEq(new Number(a), 1);
+  assertEq(new Number(b), 0);
 
   assertNumberTainted(num + a);
-  assertEq(num + a, num + c);
   assertNumberTainted(b + num);
+  assertEq(num + a, num + c);
   assertEq(b + num, d + num);
 
   assertNumberTainted(num - a);
-  assertEq(num - a, num - c);
   assertNumberTainted(b - num);
+  assertEq(num - a, num - c);
   assertEq(b - num, d - num);
 
   assertNumberTainted(num * a);
-  assertEq(num * a, num * c);
   assertNumberTainted(b * num);
+  assertEq(num * a, num * c);
   assertEq(b * num, d * num);
 
   assertNumberTainted(num / a);
-  assertEq(num / a, num / c);
   assertNumberTainted(b / num);
-  assertEq(b / num, d / num);
   //Testing division by zero
   assertNumberTainted(num / b);
+  assertEq(num / a, num / c);
+  assertEq(b / num, d / num);
   assertEq(num / b, num / d);
 
   assertNumberTainted(num % a);
-  assertEq(num % a, num % c);
   assertNumberTainted(b % num);
+  assertEq(num % a, num % c);
   assertEq(b % num, d % num);
 
   assertNumberTainted(num ** a);
-  assertEq(num ** a, num ** c);
   assertNumberTainted(b ** num);
+  assertEq(num ** a, num ** c);
   assertEq(b ** num, d ** num);
 }
 
@@ -352,38 +382,38 @@ function booleanTaintingBitwiseOperationsTest() {
   var d = false;
 
   assertNumberTainted(num & a);
-  assertEq(num & a, num & c);
   assertNumberTainted(b & num);
+  assertEq(num & a, num & c);
   assertEq(b & num, d & num);
 
   assertNumberTainted(num | a);
-  assertEq(num | a, num | c);
   assertNumberTainted(b | num);
+  assertEq(num | a, num | c);
   assertEq(b | num, d | num);
 
   assertNumberTainted(num ^ a);
-  assertEq(num ^ a, num ^ c);
   assertNumberTainted(b ^ num);
+  assertEq(num ^ a, num ^ c);
   assertEq(b ^ num, d ^ num);
 
   assertNumberTainted(~a);
-  assertEq(~a, ~c);
   assertNumberTainted(~b);
+  assertEq(~a, ~c);
   assertEq(~b, ~d);
 
   assertNumberTainted(num << a);
-  assertEq(num << a, num << c);
   assertNumberTainted(b << num);
+  assertEq(num << a, num << c);
   assertEq(b << num, d << num);
 
   assertNumberTainted(num >> a);
-  assertEq(num >> a, num >> c);
   assertNumberTainted(b >> num);
+  assertEq(num >> a, num >> c);
   assertEq(b >> num, d >> num);
 
   assertNumberTainted(num >>> a);
-  assertEq(num >>> a, num >>> c);
   assertNumberTainted(b >>> num);
+  assertEq(num >>> a, num >>> c);
   assertEq(b >>> num, d >>> num);
 }
 
