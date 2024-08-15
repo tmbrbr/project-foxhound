@@ -844,14 +844,8 @@ static MOZ_ALWAYS_INLINE bool AddOperation(JSContext* cx,
   double rightNum = rhs.toNumber();
 
   // TaintFox: Taint propagation when addition involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1.0 : 0.0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1.0 : 0.0;
-  }
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
 
   res.setNumber(leftNum + rightNum);
 
@@ -882,14 +876,8 @@ static MOZ_ALWAYS_INLINE bool SubOperation(JSContext* cx,
   double rightNum = rhs.toNumber();
 
   // TaintFox: Taint propagation when substraction involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1.0 : 0.0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1.0 : 0.0;
-  }
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
 
   res.setNumber(leftNum - rightNum);
   // TaintFox: Taint propagation when subtracting tainted numbers.
@@ -919,14 +907,8 @@ static MOZ_ALWAYS_INLINE bool MulOperation(JSContext* cx,
   double rightNum = rhs.toNumber();
 
   // TaintFox: Taint propagation when multiplying involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1.0 : 0.0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1.0 : 0.0;
-  }
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
 
   res.setNumber(leftNum * rightNum);
   // TaintFox: Taint propagation when multiplying tainted numbers.
@@ -956,14 +938,8 @@ static MOZ_ALWAYS_INLINE bool DivOperation(JSContext* cx,
   double rightNum = rhs.toNumber();
 
   // TaintFox: Taint propagation when dividing involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1.0 : 0.0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1.0 : 0.0;
-  }
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
 
   res.setNumber(NumberDiv(leftNum, rightNum));
 
@@ -1002,14 +978,8 @@ static MOZ_ALWAYS_INLINE bool ModOperation(JSContext* cx,
   double rightNum = rhs.toNumber();
 
   // TaintFox: Taint propagation when modding involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1.0 : 0.0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1.0 : 0.0;
-  }
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
 
   res.setNumber(NumberMod(leftNum, rightNum));
 
@@ -1040,14 +1010,8 @@ static MOZ_ALWAYS_INLINE bool PowOperation(JSContext* cx,
   double rightNum = rhs.toNumber();
 
   // TaintFox: Taint propagation when power involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1.0 : 0.0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1.0 : 0.0;
-  }
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
 
   res.setNumber(ecmaPow(leftNum, rightNum));
 
@@ -1093,10 +1057,7 @@ static MOZ_ALWAYS_INLINE bool BitNotOperation(JSContext* cx,
   int32_t result = in.toInt32();
 
   // TaintFox: Taint propagation when bit not involves booleans
-  if(isTaintedBoolean(origIn)){
-    BooleanObject& boolean = origIn.toObject().as<BooleanObject>();
-    result = boolean.unbox()? 1 : 0;
-  }
+  getTaintedBooleanAsIntIfExists(origIn, &result);
 
   out.setInt32(~result);
 
@@ -1127,14 +1088,8 @@ static MOZ_ALWAYS_INLINE bool BitXorOperation(JSContext* cx,
   int32_t rightNum = rhs.toInt32();
 
   // TaintFox: Taint propagation when bit xor involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1 : 0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1 : 0;
-  }
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
 
   out.setInt32(leftNum ^ rightNum);
 
@@ -1165,14 +1120,8 @@ static MOZ_ALWAYS_INLINE bool BitOrOperation(JSContext* cx,
   int32_t rightNum = rhs.toInt32();
 
   // TaintFox: Taint propagation when bit or involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1 : 0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1 : 0;
-  }
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
 
   out.setInt32(leftNum | rightNum);
 
@@ -1203,14 +1152,8 @@ static MOZ_ALWAYS_INLINE bool BitAndOperation(JSContext* cx,
   int32_t rightNum = rhs.toInt32();
 
   // TaintFox: Taint propagation when bit and involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1 : 0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1 : 0;
-  }
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
 
   out.setInt32(leftNum & rightNum);
 
@@ -1241,14 +1184,8 @@ static MOZ_ALWAYS_INLINE bool BitLshOperation(JSContext* cx,
   int32_t rightNum = rhs.toInt32();
 
   // TaintFox: Taint propagation when bit left shift involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1 : 0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1 : 0;
-  }
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
 
   // Signed left-shift is undefined on overflow, so |lhs << (rhs & 31)| won't
   // work.  Instead, convert to unsigned space (where overflow is treated
@@ -1284,14 +1221,8 @@ static MOZ_ALWAYS_INLINE bool BitRshOperation(JSContext* cx,
   int32_t rightNum = rhs.toInt32();
 
   // TaintFox: Taint propagation when bit right shift involves booleans.
-  if(isTaintedBoolean(origLhs)){
-    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
-    leftNum = boolean.unbox()? 1 : 0;
-  }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    rightNum = boolean.unbox()? 1 : 0;
-  }
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
 
   out.setInt32(leftNum >> (rightNum & 31));
 
@@ -1331,10 +1262,7 @@ static MOZ_ALWAYS_INLINE bool UrshOperation(JSContext* cx,
     BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
     left = uint32_t(boolean.unbox()? 1 : 0);
   }
-  if(isTaintedBoolean(origRhs)){
-    BooleanObject& boolean = origRhs.toObject().as<BooleanObject>();
-    right = boolean.unbox()? 1 : 0;
-  }
+  getTaintedBooleanAsIntIfExists(origRhs, &right);
 
   left >>= right & 31;
   out.setNumber(uint32_t(left));

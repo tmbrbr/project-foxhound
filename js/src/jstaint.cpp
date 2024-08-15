@@ -638,6 +638,22 @@ TaintFlow JS::getAnyBooleanTaint(const Value& val1, const Value& val2, const cha
   }
 }
 
+void JS::getTaintedBooleanAsDoubleIfExists(const Value& val, double* res)
+{
+  if(isTaintedBoolean(val)){
+    BooleanObject& boolean = val.toObject().as<BooleanObject>();
+    *res = boolean.unbox()? 1.0 : 0.0;
+  }
+}
+
+void JS::getTaintedBooleanAsIntIfExists(const Value& val, int32_t* res)
+{
+  if(isTaintedBoolean(val)){
+    BooleanObject& boolean = val.toObject().as<BooleanObject>();
+    *res = boolean.unbox()? 1 : 0;
+  }
+}
+
 // Print a message to stdout.
 void JS::TaintFoxReport(JSContext* cx, const char* msg)
 {

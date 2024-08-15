@@ -130,6 +130,12 @@ bool isAnyTaintedBoolean(const JS::Value& val1, const JS::Value& val2);
 // Extract the taint information from the tainted boolean arguments.
 TaintFlow getAnyBooleanTaint(const Value& val1, const Value& val2, const char* name);
 
+// Converts a boolean object to a 1.0 or 0.0 double representation
+void getTaintedBooleanAsDoubleIfExists(const Value& val, double* res);
+
+// Converts a boolean object to a 1.0 or 0.0 int representation
+void getTaintedBooleanAsIntIfExists(const Value& val, int32_t* res);
+
 // Print a message to stdout.
 void TaintFoxReport(JSContext* cx, const char* msg);
 
