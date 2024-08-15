@@ -177,7 +177,7 @@ bool js::str_taintedFromArray(JSContext* cx, unsigned argc, Value* vp)
 
   TaintFlow op = TaintFlow(TaintOperationFromContext(cx,op_chars.get(), true));
   TaintFlow arrayTaintFlow = JS::getValueTaint(args[2]);
-  TaintFlow combined = TaintFlow::append(op, arrayTaintFlow);
+  TaintFlow combined = TaintFlow::append(arrayTaintFlow, op);
 
   double taintFlowSize = 0;
 

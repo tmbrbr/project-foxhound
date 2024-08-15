@@ -113,7 +113,7 @@ bool js::Array_taintFromString(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  SafeStringTaint taint = str->taint();
+  TaintFlow taint = str->taint().at(0);
 
   RootedString opName(cx, args[1].toString());
   if (!opName) {
@@ -124,9 +124,12 @@ bool js::Array_taintFromString(JSContext* cx, unsigned argc, Value* vp) {
   if (!op_chars) {
     return false;
   }
-  TaintOperation op = TaintOperationFromContext(cx,op_chars.get(), true, str);
 
-  dataObj->as<ArrayBufferViewObject>().setTaint(op);
+  TaintFlow op =TaintOperationFromContext(cx,op_chars.get(), true, str);
+  TaintFlow arrayTaintFlow = JS::getValueTaint(args[2]);
+  auto combined = TaintFlow::append(taint, TaintFlow::append(op, arrayTaintFlow));
+
+  dataObj->as<ArrayBufferViewObject>().setTaint(combined);
 
   args.rval().setObject(*dataObj);
 

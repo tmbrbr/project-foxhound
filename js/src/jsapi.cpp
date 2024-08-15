@@ -4993,38 +4993,55 @@ JS_ReportTaintSink(JSContext* cx, JS::HandleString str, const char* sink, JS::Ha
   RootedValue slot(cx, JS::GetReservedSlot(global, TAINT_REPORT_FUNCTION_SLOT));
   if (slot.isUndefined()) {
     // Need to compile.
-    const char* argnames[4] = {"str", "sink", "stack", "hasWasm"};
-    const char* funbody =
-      "if (typeof window !== 'undefined' && typeof document !== 'undefined') {\n"
-      "    var t = window;\n"
-      "    if (location.protocol == 'javascript:' || location.protocol == 'data:' || location.protocol == 'about:') {\n"
-      "        t = parent.window;\n"
-      "    }\n"
-      "    var pl;\n"
-      "    try {\n"
-      "        pl = parent.location.href;\n"
-      "    } catch (e) {\n"
-      "        pl = 'different origin';\n"
-      "    }\n"
-      "    var e = document.createEvent('CustomEvent');\n"
-      "    e.initCustomEvent('__taintreport', true, false, {\n"
-      "        subframe: t !== window,\n"
-      "        loc: location.href,\n"
-      "        parentloc: pl,\n"
-      "        referrer: document.referrer,\n"
-      "        hasWasm: hasWasm,\n"
-      "        str: str,\n"
-      "        sink: sink,\n"
-      "        stack: stack\n"
-      "    });\n"
-      "    t.dispatchEvent(e);\n"
-      "}";
+    const char* argnames[5] = {"str", "sink", "stack", "hasWasm", "firstRange"};
+    const char* funbody =R"(
+      if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) {
+            self.postMessage({
+              type: "__taintreport",
+              detail: {
+                subframe: "worker",
+                loc: location.href,
+                parentloc: "",
+                referrer: "",
+                hasWasm: hasWasm,
+                str: str,
+                sink: sink,
+                stack: JSON.stringify(stack) || "",
+                firstRange: firstRange
+                }
+            });
+      } else if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+          var t = window;
+          if (location.protocol == 'javascript:' || location.protocol == 'data:' || location.protocol == 'about:') {
+              t = parent.window;
+          }
+          var pl;
+          try {
+              pl = parent.location.href;
+          } catch (e) {
+              pl = 'different origin';
+          }
+          var e = document.createEvent('CustomEvent');
+          e.initCustomEvent('__taintreport', true, false, {
+              subframe: t !== window,
+              loc: location.href,
+              parentloc: pl,
+              referrer: document.referrer,
+              hasWasm: hasWasm,
+              str: str,
+              sink: sink,
+              stack: stack,
+              firstRange: firstRange
+          });
+          t.dispatchEvent(e);
+      }
+    )";
     CompileOptions options(cx);
     options.setFile("taint_reporting.js");
 
     RootedObjectVector emptyScopeChain(cx);
     report = CompileFunctionUtf8(cx, emptyScopeChain,
-                                 options, "ReportTaintSink", 4,
+                                 options, "ReportTaintSink", 5,
                                  argnames, funbody, strlen(funbody));
     MOZ_ASSERT(report);
 
@@ -5041,7 +5058,7 @@ JS_ReportTaintSink(JSContext* cx, JS::HandleString str, const char* sink, JS::Ha
     return;
   }
 
-  JS::RootedValueArray<4> arguments(cx);
+  JS::RootedValueArray<5> arguments(cx);
   arguments[0].setString(str);
   arguments[1].setString(NewStringCopyZ<CanGC>(cx, sink));
   if (stack) {
@@ -5050,6 +5067,7 @@ JS_ReportTaintSink(JSContext* cx, JS::HandleString str, const char* sink, JS::Ha
     arguments[2].setUndefined();
   }
   arguments[3].setBoolean(hasWasm);
+  arguments[4].setString(NewStringCopyZ<CanGC>(cx, firstRange.flow().source().name()));
 
   RootedValue rval(cx);
   JS_CallFunction(cx, nullptr, report, arguments, &rval);
@@ -5062,16 +5080,10 @@ JS_ReportWasmTaintSink(JSContext* cx, JS::HandleValue arg, const char* sink)
 
   const unsigned TAINT_REPORT_FUNCTION_SLOT = 5;
 
-  if (!isTaintedValue(arg)){
-    printf(">>>>> isnot tained\n");
-    return;
-  }
-
   const TaintFlow taint = getValueTaint(arg);
 
   // Print a message to stdout. Also include the current JS backtrace.
   const char* firstRange = taint.source().name();
-  printf("firstRange: %s\n", firstRange);
 
   printf("!!! Tainted flow into %s from %s !!!\n", sink, firstRange);
   JS_ReportWarningUTF8(cx, "WASM Tainted flow from %s into %s!", firstRange, sink);
@@ -5082,39 +5094,74 @@ JS_ReportWasmTaintSink(JSContext* cx, JS::HandleValue arg, const char* sink)
 
   RootedValue slot(cx, JS::GetReservedSlot(global, TAINT_REPORT_FUNCTION_SLOT));
   if (slot.isUndefined()) {
-    // Need to compile.
-    const char* argnames[4] = {"str", "sink", "stack", "hasWasm"};
-    const char* funbody =
-      "if (typeof window !== 'undefined' && typeof document !== 'undefined') {\n"
-      "    var t = window;\n"
-      "    if (location.protocol == 'javascript:' || location.protocol == 'data:' || location.protocol == 'about:') {\n"
-      "        t = parent.window;\n"
-      "    }\n"
-      "    var pl;\n"
-      "    try {\n"
-      "        pl = parent.location.href;\n"
-      "    } catch (e) {\n"
-      "        pl = 'different origin';\n"
-      "    }\n"
-      "    var e = document.createEvent('CustomEvent');\n"
-      "    e.initCustomEvent('__taintreport', true, false, {\n"
-      "        subframe: t !== window,\n"
-      "        loc: location.href,\n"
-      "        parentloc: pl,\n"
-      "        referrer: document.referrer,\n"
-      "        hasWasm: hasWasm,\n"
-      "        str: str,\n"
-      "        sink: sink,\n"
-      "        stack: stack\n"
-      "    });\n"
-      "    t.dispatchEvent(e);\n"
-      "}";
+    const char* argnames[5] = {"str", "sink", "stack", "hasWasm", "firstRange"};
+    // NOTE: Workers cant access "document", thus we need to use a different approach to report taints.
+    // We use the postMessage API to send the taint report to the main thread.
+    // The main thread will then dispatch a custom event to the window object.
+    // Needs smth like this in playwright:
+    //
+    // ctx.addInitScript({ content: `
+    // const __worker = Worker;
+    // Worker = function(...args) {
+    //   const worker = new __worker(...args);
+    //   worker.addEventListener("message",  function(event) {
+    //       if (event.data.type === "__taintreport"){
+    //       __playwright_taint_report(event.data.detail)
+    //       }
+    //       });
+    //   return worker;
+    //
+    // }
+    // ` });
+
+    const char* funbody =R"(
+      if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) {
+            self.postMessage({
+              type: "__taintreport",
+              detail: {
+                subframe: "worker",
+                loc: location.href,
+                parentloc: "",
+                referrer: "",
+                hasWasm: hasWasm,
+                str: str,
+                sink: sink,
+                stack: JSON.stringify(stack) || "",
+                firstRange: firstRange
+                }
+            });
+      } else if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+          var t = window;
+          if (location.protocol == 'javascript:' || location.protocol == 'data:' || location.protocol == 'about:') {
+              t = parent.window;
+          }
+          var pl;
+          try {
+              pl = parent.location.href;
+          } catch (e) {
+              pl = 'different origin';
+          }
+          var e = document.createEvent('CustomEvent');
+          e.initCustomEvent('__taintreport', true, false, {
+              subframe: t !== window,
+              loc: location.href,
+              parentloc: pl,
+              referrer: document.referrer,
+              hasWasm: hasWasm,
+              str: str,
+              sink: sink,
+              stack: stack,
+              firstRange: firstRange
+          });
+          t.dispatchEvent(e);
+      }
+          )";
     CompileOptions options(cx);
     options.setFile("taint_reporting.js");
 
     RootedObjectVector emptyScopeChain(cx);
     report = CompileFunctionUtf8(cx, emptyScopeChain,
-                                 options, "ReportTaintSink", 4,
+                                 options, "ReportTaintSink", 5,
                                  argnames, funbody, strlen(funbody));
     MOZ_ASSERT(report);
 
@@ -5131,14 +5178,17 @@ JS_ReportWasmTaintSink(JSContext* cx, JS::HandleValue arg, const char* sink)
     return;
   }
 
-  JS::RootedValueArray<4> arguments(cx);
+  JS::RootedValueArray<5> arguments(cx);
   if (arg.isObject()){
     arguments[0].setObject(arg.toObject());
   } else if (arg.isString()){
     arguments[0].setString(arg.toString());
+  } else if (arg.isNumber()) {
+    arguments[0].setNumber(arg.toNumber());
   } else {
     arguments[0].setNull();
   }
+
   arguments[1].setString(NewStringCopyZ<CanGC>(cx, sink));
   if (stack) {
     arguments[2].setObject(*stack);
@@ -5146,6 +5196,7 @@ JS_ReportWasmTaintSink(JSContext* cx, JS::HandleValue arg, const char* sink)
     arguments[2].setUndefined();
   }
   arguments[3].setBoolean(true);
+  arguments[4].setString(NewStringCopyZ<CanGC>(cx, firstRange));
 
   RootedValue rval(cx);
   JS_CallFunction(cx, nullptr, report, arguments, &rval);
