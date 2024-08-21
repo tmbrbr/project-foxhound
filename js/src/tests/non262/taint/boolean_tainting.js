@@ -426,6 +426,141 @@ function booleanTaintingBitwiseOperationsTest() {
   assertEq(b >>> num, d >>> num);
 }
 
+function booleanTaintingComparisonOperationsTest() {
+  var num1 = taint(20);
+  var num2 = taint(30);
+  var num3 = 20;
+  var num4 = 30;
+
+  assertBooleanTainted(num1 < num1);
+  assertBooleanTainted(num1 < num2);
+  assertBooleanTainted(num1 < num3);
+  assertBooleanTainted(num1 < num4);
+  assertEq(num1 < num1, num3 < num3);
+  assertEq(num1 < num2, num3 < num4);
+  assertEq(num1 < num3, num3 < num3);
+  assertEq(num1 < num4, num3 < num4);
+
+  assertBooleanTainted(num2 < num1);
+  assertBooleanTainted(num2 < num2);
+  assertBooleanTainted(num2 < num3);
+  assertBooleanTainted(num2 < num4);
+  assertEq(num2 < num1, num4 < num3);
+  assertEq(num2 < num2, num4 < num4);
+  assertEq(num2 < num3, num4 < num3);
+  assertEq(num2 < num4, num4 < num4);
+
+  assertBooleanTainted(num3 < num1);
+  assertBooleanTainted(num3 < num2);
+  assertBooleanNotTainted(num3 < num3);
+  assertBooleanNotTainted(num3 < num4);
+  assertEq(num3 < num1, num3 < num3);
+  assertEq(num3 < num2, num3 < num4);
+
+  assertBooleanTainted(num4 < num1);
+  assertBooleanTainted(num4 < num2);
+  assertBooleanNotTainted(num4 < num3);
+  assertBooleanNotTainted(num4 < num4);
+  assertEq(num4 < num1, num4 < num3);
+  assertEq(num4 < num2, num4 < num4);
+
+  assertBooleanTainted(num1 <= num1);
+  assertBooleanTainted(num1 <= num2);
+  assertBooleanTainted(num1 <= num3);
+  assertBooleanTainted(num1 <= num4);
+  assertEq(num1 <= num1, num3 <= num3);
+  assertEq(num1 <= num2, num3 <= num4);
+  assertEq(num1 <= num3, num3 <= num3);
+  assertEq(num1 <= num4, num3 <= num4);
+
+  assertBooleanTainted(num2 <= num1);
+  assertBooleanTainted(num2 <= num2);
+  assertBooleanTainted(num2 <= num3);
+  assertBooleanTainted(num2 <= num4);
+  assertEq(num2 <= num1, num4 <= num3);
+  assertEq(num2 <= num2, num4 <= num4);
+  assertEq(num2 <= num3, num4 <= num3);
+  assertEq(num2 <= num4, num4 <= num4);
+
+  assertBooleanTainted(num3 <= num1);
+  assertBooleanTainted(num3 <= num2);
+  assertBooleanNotTainted(num3 <= num3);
+  assertBooleanNotTainted(num3 <= num4);
+  assertEq(num3 <= num1, num3 <= num3);
+  assertEq(num3 <= num2, num3 <= num4);
+
+  assertBooleanTainted(num4 <= num1);
+  assertBooleanTainted(num4 <= num2);
+  assertBooleanNotTainted(num4 <= num3);
+  assertBooleanNotTainted(num4 <= num4);
+  assertEq(num4 <= num1, num4 <= num3);
+  assertEq(num4 <= num2, num4 <= num4);
+
+  assertBooleanTainted(num1 > num1);
+  assertBooleanTainted(num1 > num2);
+  assertBooleanTainted(num1 > num3);
+  assertBooleanTainted(num1 > num4);
+  assertEq(num1 > num1, num3 > num3);
+  assertEq(num1 > num2, num3 > num4);
+  assertEq(num1 > num3, num3 > num3);
+  assertEq(num1 > num4, num3 > num4);
+
+  assertBooleanTainted(num2 > num1);
+  assertBooleanTainted(num2 > num2);
+  assertBooleanTainted(num2 > num3);
+  assertBooleanTainted(num2 > num4);
+  assertEq(num2 > num1, num4 > num3);
+  assertEq(num2 > num2, num4 > num4);
+  assertEq(num2 > num3, num4 > num3);
+  assertEq(num2 > num4, num4 > num4);
+
+  assertBooleanTainted(num3 > num1);
+  assertBooleanTainted(num3 > num2);
+  assertBooleanNotTainted(num3 > num3);
+  assertBooleanNotTainted(num3 > num4);
+  assertEq(num3 > num1, num3 > num3);
+  assertEq(num3 > num2, num3 > num4);
+
+  assertBooleanTainted(num4 > num1);
+  assertBooleanTainted(num4 > num2);
+  assertBooleanNotTainted(num4 > num3);
+  assertBooleanNotTainted(num4 > num4);
+  assertEq(num4 > num1, num4 > num3);
+  assertEq(num4 > num2, num4 > num4);
+
+  assertBooleanTainted(num1 >= num1);
+  assertBooleanTainted(num1 >= num2);
+  assertBooleanTainted(num1 >= num3);
+  assertBooleanTainted(num1 >= num4);
+  assertEq(num1 >= num1, num3 >= num3);
+  assertEq(num1 >= num2, num3 >= num4);
+  assertEq(num1 >= num3, num3 >= num3);
+  assertEq(num1 >= num4, num3 >= num4);
+
+  assertBooleanTainted(num2 >= num1);
+  assertBooleanTainted(num2 >= num2);
+  assertBooleanTainted(num2 >= num3);
+  assertBooleanTainted(num2 >= num4);
+  assertEq(num2 >= num1, num4 >= num3);
+  assertEq(num2 >= num2, num4 >= num4);
+  assertEq(num2 >= num3, num4 >= num3);
+  assertEq(num2 >= num4, num4 >= num4);
+
+  assertBooleanTainted(num3 >= num1);
+  assertBooleanTainted(num3 >= num2);
+  assertBooleanNotTainted(num3 >= num3);
+  assertBooleanNotTainted(num3 >= num4);
+  assertEq(num3 >= num1, num3 >= num3);
+  assertEq(num3 >= num2, num3 >= num4);
+
+  assertBooleanTainted(num4 >= num1);
+  assertBooleanTainted(num4 >= num2);
+  assertBooleanNotTainted(num4 >= num3);
+  assertBooleanNotTainted(num4 >= num4);
+  assertEq(num4 >= num1, num4 >= num3);
+  assertEq(num4 >= num2, num4 >= num4);
+}
+
 
 runTaintTest(booleanTaintingBasicTest);
 runTaintTest(booleanTaintingEqualityTest);
@@ -436,6 +571,7 @@ runTaintTest(booleanTaintingAndTest);
 runTaintTest(booleanTaintingStringConversionTest);
 runTaintTest(booleanTaintingNumberOperationsTest);
 runTaintTest(booleanTaintingBitwiseOperationsTest);
+runTaintTest(booleanTaintingComparisonOperationsTest);
 
 if (typeof reportCompare === 'function')
   reportCompare(true, true);

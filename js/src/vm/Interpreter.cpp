@@ -2439,11 +2439,22 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
       bool cond;
       MutableHandleValue lval = REGS.stackHandleAt(-2);
       MutableHandleValue rval = REGS.stackHandleAt(-1);
+
+      // TaintFox: taint propagation for less than equations.
+      rootValue0.set(lval);
+      rootValue1.set(rval);
+
       if (!LessThanOperation(cx, lval, rval, &cond)) {
         goto error;
       }
       TRY_BRANCH_AFTER_COND(cond, 2);
-      REGS.sp[-2].setBoolean(cond);
+
+      if(isAnyTaintedValue(rootValue0, rootValue1)) {
+         REGS.sp[-2].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(rootValue0, rootValue1, "<")));
+      }
+      else{
+        REGS.sp[-2].setBoolean(cond);
+      }
       REGS.sp--;
     }
     END_CASE(Lt)
@@ -2452,11 +2463,22 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
       bool cond;
       MutableHandleValue lval = REGS.stackHandleAt(-2);
       MutableHandleValue rval = REGS.stackHandleAt(-1);
+
+      // TaintFox: taint propagation for less than equal equations.
+      rootValue0.set(lval);
+      rootValue1.set(rval);
+
       if (!LessThanOrEqualOperation(cx, lval, rval, &cond)) {
         goto error;
       }
       TRY_BRANCH_AFTER_COND(cond, 2);
-      REGS.sp[-2].setBoolean(cond);
+
+      if(isAnyTaintedValue(rootValue0, rootValue1)) {
+         REGS.sp[-2].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(rootValue0, rootValue1, "<=")));
+      }
+      else{
+        REGS.sp[-2].setBoolean(cond);
+      }
       REGS.sp--;
     }
     END_CASE(Le)
@@ -2465,11 +2487,22 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
       bool cond;
       MutableHandleValue lval = REGS.stackHandleAt(-2);
       MutableHandleValue rval = REGS.stackHandleAt(-1);
+
+      // TaintFox: taint propagation for greater than equations.
+      rootValue0.set(lval);
+      rootValue1.set(rval);
+
       if (!GreaterThanOperation(cx, lval, rval, &cond)) {
         goto error;
       }
       TRY_BRANCH_AFTER_COND(cond, 2);
-      REGS.sp[-2].setBoolean(cond);
+
+      if(isAnyTaintedValue(rootValue0, rootValue1)) {
+         REGS.sp[-2].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(rootValue0, rootValue1, ">")));
+      }
+      else{
+        REGS.sp[-2].setBoolean(cond);
+      }
       REGS.sp--;
     }
     END_CASE(Gt)
@@ -2478,11 +2511,22 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
       bool cond;
       MutableHandleValue lval = REGS.stackHandleAt(-2);
       MutableHandleValue rval = REGS.stackHandleAt(-1);
+
+      // TaintFox: taint propagation for greater or equal than equations.
+      rootValue0.set(lval);
+      rootValue1.set(rval);
+
       if (!GreaterThanOrEqualOperation(cx, lval, rval, &cond)) {
         goto error;
       }
       TRY_BRANCH_AFTER_COND(cond, 2);
-      REGS.sp[-2].setBoolean(cond);
+
+      if(isAnyTaintedValue(rootValue0, rootValue1)) {
+         REGS.sp[-2].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(rootValue0, rootValue1, ">=")));
+      }
+      else{
+        REGS.sp[-2].setBoolean(cond);
+      }
       REGS.sp--;
     }
     END_CASE(Ge)
