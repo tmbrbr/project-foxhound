@@ -19,6 +19,7 @@
 #include "js/ErrorReport.h"
 #include "js/PropertyAndElement.h"  // JS_DefineFunctions
 #include "js/UniquePtr.h"
+#include "vm/BooleanObject.h"
 #include "vm/FrameIter.h"
 #include "vm/JSContext.h"
 #include "vm/JSFunction.h"
@@ -386,6 +387,8 @@ bool JS::isTaintedValue(const Value& val)
         return number.isTainted();
     } else if (val.isString()) {
         return val.toString()->isTainted();
+    } else if (isTaintedBoolean(val)){
+      return true;
     }
     return false;
 }
@@ -400,6 +403,9 @@ const TaintFlow& JS::getValueTaint(const Value& val)
           // Just return first taint range
           return range.flow();
         }
+    } else if (val.isObject() && val.toObject().is<BooleanObject>()) {
+        BooleanObject& boolean = val.toObject().as<BooleanObject>();
+        return boolean.taint();
     }
     return TaintFlow::getEmptyTaintFlow();
 }
@@ -596,6 +602,56 @@ bool JS::getStringTaintObject(JSContext* cx, const StringTaint& taint, JS::Handl
     return false;
   
   return true;
+}
+
+bool JS::isTaintedBoolean(const Value& val)
+{
+  if (val.isObject() && val.toObject().is<BooleanObject>()) {
+      BooleanObject& boolean = val.toObject().as<BooleanObject>();
+      return boolean.isTainted();
+  }
+  return false;
+}
+
+TaintFlow JS::getBooleanTaint(const Value& val)
+{
+  if (val.isObject() && val.toObject().is<BooleanObject>()) {
+      BooleanObject& boolean = val.toObject().as<BooleanObject>();
+      return boolean.taint();
+  }
+  return TaintFlow();
+}
+
+bool JS::isAnyTaintedBoolean(const Value& val1, const Value& val2)
+{
+  return isTaintedBoolean(val1) || isTaintedBoolean(val2);
+}
+
+TaintFlow JS::getAnyBooleanTaint(const Value& val1, const Value& val2, const char* name)
+{
+  if (isTaintedBoolean(val1) && isTaintedBoolean(val2) && (val1 != val2)) {
+    return TaintFlow::append(getBooleanTaint(val1), getBooleanTaint(val2), TaintOperation(name));
+  } else if (isTaintedBoolean(val1)) {
+    return getBooleanTaint(val1);
+  } else {
+    return getBooleanTaint(val2);
+  }
+}
+
+void JS::getTaintedBooleanAsDoubleIfExists(const Value& val, double* res)
+{
+  if(isTaintedBoolean(val)){
+    BooleanObject& boolean = val.toObject().as<BooleanObject>();
+    *res = boolean.unbox()? 1.0 : 0.0;
+  }
+}
+
+void JS::getTaintedBooleanAsIntIfExists(const Value& val, int32_t* res)
+{
+  if(isTaintedBoolean(val)){
+    BooleanObject& boolean = val.toObject().as<BooleanObject>();
+    *res = boolean.unbox()? 1 : 0;
+  }
 }
 
 // Print a message to stdout.

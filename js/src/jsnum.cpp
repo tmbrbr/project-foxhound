@@ -55,6 +55,7 @@
 #include "vm/JSObject.h"
 #include "vm/StaticStrings.h"
 
+#include "vm/BooleanObject-inl.h"
 #include "vm/Compartment-inl.h"  // For js::UnwrapAndTypeCheckThis
 #include "vm/GeckoProfiler-inl.h"
 #include "vm/JSAtomUtils-inl.h"  // BackfillIndexInCharBuffer
@@ -693,6 +694,9 @@ const JSClass NumberObject::class_ = {
 static bool Number(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
 
+  // TaintFox: Keeping the original value to see if there is a boolean taint
+  RootedValue origVal(cx, args[0]);
+
   // TaintFox: create copy of string taint to be safe in case string is
   // affected by garbage collection
   SafeStringTaint taint;
@@ -710,15 +714,17 @@ static bool Number(JSContext* cx, unsigned argc, Value* vp) {
     }
     MOZ_ASSERT(args[0].isNumber());
   }
-
   if (!args.isConstructing()) {
     if (args.length() > 0) {
 
       // Taintfox: this takes care of [Number()] without the explicit new. By
       // default it will output a number, not a NumberObject. If a tainted
-      // string was used as an argument, we create a tainted NumberObject.
+      // string  or boolean was used as an argument, we create a tainted NumberObject.
       if (taint.hasTaint()) {
         args.rval().setObject(*NumberObject::createTainted(cx, args[0].toNumber(), taint.begin()->flow()));
+      } else if(origVal.isObject() && origVal.toObject().is<BooleanObject>()) {
+        BooleanObject& boolean = origVal.toObject().as<BooleanObject>();
+        args.rval().setObject(*NumberObject::createTainted(cx, boolean.unbox()?1:0, boolean.taint()));
       } else{
         // Default branch from original code
         args.rval().set(args[0]);
@@ -736,11 +742,14 @@ static bool Number(JSContext* cx, unsigned argc, Value* vp) {
 
   double d = args.length() > 0 ? args[0].toNumber() : 0;
 
-  // Taintfox: this takes care of explicit [new Number()] if a string was used
+  // Taintfox: this takes care of explicit [new Number()] if a string or boolean was used
   // as an argument
   JSObject* obj;
   if (taint.hasTaint()) {
     obj = NumberObject::createTainted(cx, d, taint.begin()->flow());
+  } else if(origVal.isObject() && origVal.toObject().is<BooleanObject>()) {
+    BooleanObject& boolean = origVal.toObject().as<BooleanObject>();
+    obj = NumberObject::createTainted(cx, boolean.unbox()?1:0, boolean.taint());
   } else{
     // Default branch from original code
     obj = NumberObject::create(cx, d, proto);

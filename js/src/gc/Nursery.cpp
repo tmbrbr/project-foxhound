@@ -31,6 +31,7 @@
 #include "util/DifferentialTesting.h"
 #include "util/GetPidProvider.h"  // getpid()
 #include "util/Poison.h"
+#include "vm/BooleanObject.h"
 #include "vm/JSONPrinter.h"
 #include "vm/NumberObject.h"
 #include "vm/Realm.h"
@@ -39,6 +40,7 @@
 #include "gc/Heap-inl.h"
 #include "gc/Marking-inl.h"
 #include "gc/StableCellHasher-inl.h"
+#include "vm/BooleanObject-inl.h"
 #include "vm/GeckoProfiler-inl.h"
 #include "vm/NumberObject-inl.h"
 
@@ -2104,6 +2106,12 @@ void js::Nursery::sweepTaintableThings() {
     NumberObject::sweepAfterMinorGC(gcx, obj);
   }
   numberObjectsWithNurseryMemory_.clearAndFree();
+
+  // Boolean Objects
+  for (auto* obj : booleanObjectsWithNurseryMemory_) {
+    BooleanObject::sweepAfterMinorGC(gcx, obj);
+  }
+  booleanObjectsWithNurseryMemory_.clearAndFree();
 
 }
 

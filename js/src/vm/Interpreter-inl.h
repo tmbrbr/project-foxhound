@@ -27,6 +27,7 @@
 #  include "vm/RecordTupleShared.h"
 #endif
 
+#include "vm/BooleanObject-inl.h"
 #include "vm/GlobalObject-inl.h"
 #include "vm/JSAtomUtils-inl.h"  // PrimitiveValueToId, TypeName
 #include "vm/JSContext-inl.h"
@@ -771,15 +772,15 @@ static MOZ_ALWAYS_INLINE bool AddOperation(JSContext* cx,
   bool lIsString = lhs.isString();
   bool rIsString = rhs.isString();
 
-  // TaintFox: Cast to primitive if values are neither strings nor tainted numbers
+  // TaintFox: Cast to primitive if values are neither strings, tainted numbers nor tainted booleans
   // Required for some special cases like arrays
-  if (!lIsString && !isTaintedNumber(lhs)) {
+  if (!lIsString && !isTaintedValue(lhs)) {
     if (!ToPrimitive(cx, lhs)) {
       return false;
     }
     lIsString = lhs.isString();
   }
-  if (!rIsString && !isTaintedNumber(rhs)) {
+  if (!rIsString && !isTaintedValue(rhs)) {
     if (!ToPrimitive(cx, rhs)) {
       return false;
     }
@@ -839,7 +840,14 @@ static MOZ_ALWAYS_INLINE bool AddOperation(JSContext* cx,
     return BigInt::addValue(cx, lhs, rhs, res);
   }
 
-  res.setNumber(lhs.toNumber() + rhs.toNumber());
+  double leftNum = lhs.toNumber();
+  double rightNum = rhs.toNumber();
+
+  // TaintFox: Taint propagation when addition involves booleans.
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
+
+  res.setNumber(leftNum + rightNum);
 
   // TaintFox: Taint propagation when adding tainted numbers.
   if (isAnyTaintedValue(origLhs, origRhs)) {
@@ -864,9 +872,14 @@ static MOZ_ALWAYS_INLINE bool SubOperation(JSContext* cx,
     return BigInt::subValue(cx, lhs, rhs, res);
   }
 
+  double leftNum = lhs.toNumber();
+  double rightNum = rhs.toNumber();
 
+  // TaintFox: Taint propagation when substraction involves booleans.
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
 
-  res.setNumber(lhs.toNumber() - rhs.toNumber());
+  res.setNumber(leftNum - rightNum);
   // TaintFox: Taint propagation when subtracting tainted numbers.
   if (isAnyTaintedValue(origLhs, origRhs)) {
     res.setObject(*NumberObject::createTainted(cx, res.toNumber(), getAnyValueTaint(origLhs, origRhs, "-")));
@@ -890,7 +903,14 @@ static MOZ_ALWAYS_INLINE bool MulOperation(JSContext* cx,
     return BigInt::mulValue(cx, lhs, rhs, res);
   }
 
-  res.setNumber(lhs.toNumber() * rhs.toNumber());
+  double leftNum = lhs.toNumber();
+  double rightNum = rhs.toNumber();
+
+  // TaintFox: Taint propagation when multiplying involves booleans.
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
+
+  res.setNumber(leftNum * rightNum);
   // TaintFox: Taint propagation when multiplying tainted numbers.
   if (isAnyTaintedValue(origLhs, origRhs)) {
     res.setObject(*NumberObject::createTainted(cx, res.toNumber(), getAnyValueTaint(origLhs, origRhs, "*")));
@@ -914,7 +934,15 @@ static MOZ_ALWAYS_INLINE bool DivOperation(JSContext* cx,
     return BigInt::divValue(cx, lhs, rhs, res);
   }
 
-  res.setNumber(NumberDiv(lhs.toNumber(), rhs.toNumber()));
+  double leftNum = lhs.toNumber();
+  double rightNum = rhs.toNumber();
+
+  // TaintFox: Taint propagation when dividing involves booleans.
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
+
+  res.setNumber(NumberDiv(leftNum, rightNum));
+
   // TaintFox: Taint propagation when dividing tainted numbers.
   if (isAnyTaintedValue(origLhs, origRhs)) {
     res.setObject(*NumberObject::createTainted(cx, res.toNumber(), getAnyValueTaint(origLhs, origRhs, "/")));
@@ -946,10 +974,18 @@ static MOZ_ALWAYS_INLINE bool ModOperation(JSContext* cx,
     return BigInt::modValue(cx, lhs, rhs, res);
   }
 
-  res.setNumber(NumberMod(lhs.toNumber(), rhs.toNumber()));
+  double leftNum = lhs.toNumber();
+  double rightNum = rhs.toNumber();
+
+  // TaintFox: Taint propagation when modding involves booleans.
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
+
+  res.setNumber(NumberMod(leftNum, rightNum));
+
   // TaintFox: Taint propagation when modding tainted numbers.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    res.setObject(*NumberObject::createTainted(cx, res.toNumber(), getAnyNumberTaint(origLhs, origRhs, "%")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    res.setObject(*NumberObject::createTainted(cx, res.toNumber(), getAnyValueTaint(origLhs, origRhs, "%")));
   }
   return true;
 }
@@ -970,10 +1006,36 @@ static MOZ_ALWAYS_INLINE bool PowOperation(JSContext* cx,
     return BigInt::powValue(cx, lhs, rhs, res);
   }
 
-  res.setNumber(ecmaPow(lhs.toNumber(), rhs.toNumber()));
+  double leftNum = lhs.toNumber();
+  double rightNum = rhs.toNumber();
+
+  // TaintFox: Taint propagation when power involves booleans.
+  getTaintedBooleanAsDoubleIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsDoubleIfExists(origRhs, &rightNum);
+
+  res.setNumber(ecmaPow(leftNum, rightNum));
+
   // TaintFox: Taint propagation when taking power of tainted numbers.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    res.setObject(*NumberObject::createTainted(cx, res.toNumber(), getAnyNumberTaint(origLhs, origRhs, "**")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    res.setObject(*NumberObject::createTainted(cx, res.toNumber(), getAnyValueTaint(origLhs, origRhs, "**")));
+  }
+  return true;
+}
+
+static MOZ_ALWAYS_INLINE bool NotOperation(JSContext* cx,
+                                              MutableHandleValue in,
+                                              MutableHandleValue out) {
+  // TaintFox: copy in since it is mutable.
+  RootedValue origIn(cx, in);
+
+  bool cond = ToBoolean(in);
+  bool result = !cond;
+
+  out.setBoolean(result);
+
+  // TaintFox: Taint propagation for not.
+  if (isTaintedBoolean(origIn)) {
+    out.setObject(*BooleanObject::createTainted(cx, result, getBooleanTaint(origIn)));
   }
   return true;
 }
@@ -992,11 +1054,16 @@ static MOZ_ALWAYS_INLINE bool BitNotOperation(JSContext* cx,
     return BigInt::bitNotValue(cx, in, out);
   }
 
-  out.setInt32(~in.toInt32());
+  int32_t result = in.toInt32();
+
+  // TaintFox: Taint propagation when bit not involves booleans
+  getTaintedBooleanAsIntIfExists(origIn, &result);
+
+  out.setInt32(~result);
 
   // TaintFox: Taint propagation for bitwise not.
-  if (isTaintedNumber(origIn)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getNumberTaint(origIn)));
+  if (isTaintedValue(origIn)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getValueTaint(origIn)));
   }
   return true;
 }
@@ -1017,11 +1084,18 @@ static MOZ_ALWAYS_INLINE bool BitXorOperation(JSContext* cx,
     return BigInt::bitXorValue(cx, lhs, rhs, out);
   }
 
-  out.setInt32(lhs.toInt32() ^ rhs.toInt32());
+  int32_t leftNum = lhs.toInt32();
+  int32_t rightNum = rhs.toInt32();
+
+  // TaintFox: Taint propagation when bit xor involves booleans.
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
+
+  out.setInt32(leftNum ^ rightNum);
 
   // TaintFox: Taint propagation for bitwise xor.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyNumberTaint(origLhs, origRhs, "^")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyValueTaint(origLhs, origRhs, "^")));
   }
   return true;
 }
@@ -1042,11 +1116,18 @@ static MOZ_ALWAYS_INLINE bool BitOrOperation(JSContext* cx,
     return BigInt::bitOrValue(cx, lhs, rhs, out);
   }
 
-  out.setInt32(lhs.toInt32() | rhs.toInt32());
+  int32_t leftNum = lhs.toInt32();
+  int32_t rightNum = rhs.toInt32();
+
+  // TaintFox: Taint propagation when bit or involves booleans.
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
+
+  out.setInt32(leftNum | rightNum);
 
   // TaintFox: Taint propagation for bitwise or.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyNumberTaint(origLhs, origRhs, "|")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyValueTaint(origLhs, origRhs, "|")));
   }
   return true;
 }
@@ -1067,11 +1148,18 @@ static MOZ_ALWAYS_INLINE bool BitAndOperation(JSContext* cx,
     return BigInt::bitAndValue(cx, lhs, rhs, out);
   }
 
-  out.setInt32(lhs.toInt32() & rhs.toInt32());
+  int32_t leftNum = lhs.toInt32();
+  int32_t rightNum = rhs.toInt32();
+
+  // TaintFox: Taint propagation when bit and involves booleans.
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
+
+  out.setInt32(leftNum & rightNum);
 
   // TaintFox: Taint propagation for bitwise and.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyNumberTaint(origLhs, origRhs, "&")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyValueTaint(origLhs, origRhs, "&")));
   }
   return true;
 }
@@ -1092,16 +1180,23 @@ static MOZ_ALWAYS_INLINE bool BitLshOperation(JSContext* cx,
     return BigInt::lshValue(cx, lhs, rhs, out);
   }
 
+  int32_t leftNum = lhs.toInt32();
+  int32_t rightNum = rhs.toInt32();
+
+  // TaintFox: Taint propagation when bit left shift involves booleans.
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
+
   // Signed left-shift is undefined on overflow, so |lhs << (rhs & 31)| won't
   // work.  Instead, convert to unsigned space (where overflow is treated
   // modularly), perform the operation there, then convert back.
-  uint32_t left = static_cast<uint32_t>(lhs.toInt32());
-  uint8_t right = rhs.toInt32() & 31;
+  uint32_t left = static_cast<uint32_t>(leftNum);
+  uint8_t right = rightNum & 31;
   out.setInt32(mozilla::WrapToSigned(left << right));
 
   // TaintFox: Taint propagation for bitwise left shift.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyNumberTaint(origLhs, origRhs, "<<")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyValueTaint(origLhs, origRhs, "<<")));
   }
   return true;
 }
@@ -1122,11 +1217,18 @@ static MOZ_ALWAYS_INLINE bool BitRshOperation(JSContext* cx,
     return BigInt::rshValue(cx, lhs, rhs, out);
   }
 
-  out.setInt32(lhs.toInt32() >> (rhs.toInt32() & 31));
+  int32_t leftNum = lhs.toInt32();
+  int32_t rightNum = rhs.toInt32();
+
+  // TaintFox: Taint propagation when bit right shift involves booleans.
+  getTaintedBooleanAsIntIfExists(origLhs, &leftNum);
+  getTaintedBooleanAsIntIfExists(origRhs, &rightNum);
+
+  out.setInt32(leftNum >> (rightNum & 31));
 
   // TaintFox: Taint propagation for bitwise right shift.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyNumberTaint(origLhs, origRhs, ">>")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toInt32(), getAnyValueTaint(origLhs, origRhs, ">>")));
   }
   return true;
 }
@@ -1154,12 +1256,20 @@ static MOZ_ALWAYS_INLINE bool UrshOperation(JSContext* cx,
   if (!ToUint32(cx, lhs, &left) || !ToInt32(cx, rhs, &right)) {
     return false;
   }
+
+  // TaintFox: Taint propagation when bit right shift involves booleans.
+  if(isTaintedBoolean(origLhs)){
+    BooleanObject& boolean = origLhs.toObject().as<BooleanObject>();
+    left = uint32_t(boolean.unbox()? 1 : 0);
+  }
+  getTaintedBooleanAsIntIfExists(origRhs, &right);
+
   left >>= right & 31;
   out.setNumber(uint32_t(left));
 
   // TaintFox: Taint propagation for unsigned right shift.
-  if (isAnyTaintedNumber(origLhs, origRhs)) {
-    out.setObject(*NumberObject::createTainted(cx, out.toNumber(), getAnyNumberTaint(origLhs, origRhs, ">>")));
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    out.setObject(*NumberObject::createTainted(cx, out.toNumber(), getAnyValueTaint(origLhs, origRhs, ">>>")));
   }
   return true;
 }

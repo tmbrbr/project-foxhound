@@ -435,6 +435,12 @@ static bool PreprocessValue(JSContext* cx, HandleObject holder, KeyType key,
     } else if (cls == ESClass::Boolean || cls == ESClass::BigInt ||
                IF_RECORD_TUPLE(
                    obj->is<RecordObject>() || obj->is<TupleObject>(), false)) {
+
+      // TaintFox: Abort, if object is a tainted boolean, to prevent taint loss.
+      // special handling for tainted numbers at later stage (method Str())
+      if(cls == ESClass::Boolean && isTaintedBoolean(vp)){
+        return true;
+      }
       if (!Unbox(cx, obj, vp)) {
         return false;
       }
@@ -806,9 +812,9 @@ static bool SerializeJSONProperty(JSContext* cx, const Value& v,
   }
 
 
-  // TaintFox: Convert tainted number to string (internally propagates taint)
+  // TaintFox: Convert tainted number or booleans to string (internally propagates taint)
   // and append to string builder
-  if (isTaintedNumber(v)){
+  if (isTaintedValue(v)){
     HandleValue hv = HandleValue::fromMarkedLocation(&v);
     return scx->sb.append(JS::ToString(cx, hv));
   }

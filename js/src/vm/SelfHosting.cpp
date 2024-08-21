@@ -27,6 +27,7 @@
 
 #include "builtin/Array.h"
 #include "builtin/BigInt.h"
+#include "builtin/Boolean.h"
 #ifdef JS_HAS_INTL_API
 #  include "builtin/intl/Collator.h"
 #  include "builtin/intl/DateTimeFormat.h"
@@ -1894,6 +1895,17 @@ static bool taint_getNumberObjectValueIfTainted(JSContext* cx, unsigned argc,
   return true;
 }
 
+static bool taint_getBooleanObjectValueIfTainted(JSContext* cx, unsigned argc,
+                                                Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  if (JS::isTaintedBoolean(args[0])) {
+    args.rval().setBoolean(JS::ToBoolean(args[0]));
+  } else {
+    args.rval().set(args[0]);
+  }
+  return true;
+}
+
 static bool intrinsic_PromiseResolve(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 2);
@@ -2149,6 +2161,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
                     intrinsic_GetNextSetEntryForIterator, 2, 0,
                     IntrinsicGetNextSetEntryForIterator),
     JS_FN("GetNumberObjectValueIfTainted", taint_getNumberObjectValueIfTainted, 1, 0),
+    JS_FN("GetBooleanObjectValueIfTainted", taint_getBooleanObjectValueIfTainted, 1, 0),
     JS_FN("GetOwnPropertyDescriptorToArray", GetOwnPropertyDescriptorToArray, 2,
           0),
     JS_FN("GetStringDataProperty", intrinsic_GetStringDataProperty, 2, 0),

@@ -20,7 +20,41 @@ inline BooleanObject* BooleanObject::create(
     return nullptr;
   }
   obj->setPrimitiveValue(b);
+  // Taintfox: initialize the taint slot to null
+  obj->initReservedSlot(TAINT_SLOT, PrivateValue(nullptr));
+
   return obj;
+}
+
+inline BooleanObject*
+BooleanObject::createTainted(JSContext* cx, bool b, const TaintFlow& taint, HandleObject proto /* = nullptr */)
+{
+  BooleanObject* obj = create(cx, b, proto);
+  if (!obj) {
+    return nullptr;
+  }
+  obj->setTaint(taint);
+  return obj;
+}
+
+inline void BooleanObject::finalize(JS::GCContext* gcx, JSObject* obj) {
+  MOZ_ASSERT(gcx->onMainThread());
+  BooleanObject* numobj = static_cast<BooleanObject*>(obj);
+  if (obj) {
+    TaintFlow* flow = numobj->getTaintFlow();
+    if (flow) {
+      delete flow;
+      numobj->setReservedSlot(TAINT_SLOT, PrivateValue(nullptr));
+    }
+  }
+}
+
+inline void BooleanObject::sweepAfterMinorGC(JS::GCContext* gcx, BooleanObject *obj) {
+  bool wasInsideNursery = IsInsideNursery(obj);
+  if (wasInsideNursery && !IsForwarded(obj)) {
+    finalize(gcx, obj);
+    return;
+  }
 }
 
 }  // namespace js

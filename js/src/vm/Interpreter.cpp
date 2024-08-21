@@ -96,6 +96,9 @@ static MOZ_ALWAYS_INLINE bool LooseEqualityOp(JSContext* cx,
                                               InterpreterRegs& regs) {
   HandleValue rval = regs.stackHandleAt(-1);
   HandleValue lval = regs.stackHandleAt(-2);
+  RootedValue origLhs(cx, lval);
+  RootedValue origRhs(cx, rval);
+
   bool cond;
   if (!LooselyEqual(cx, lval, rval, &cond)) {
     return false;
@@ -103,6 +106,10 @@ static MOZ_ALWAYS_INLINE bool LooseEqualityOp(JSContext* cx,
   cond = (cond == Eq);
   regs.sp--;
   regs.sp[-1].setBoolean(cond);
+  // TaintFox: Taint propagation for equality.
+  if (isAnyTaintedValue(origLhs, origRhs)) {
+    regs.sp[-1].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(origLhs, origRhs, cond? "==" : "!=")));
+  }
   return true;
 }
 
@@ -954,6 +961,8 @@ JSType js::TypeOfValue(const Value& v) {
       // TaintFox: Hide the fact, that tainted numbers are number objects
       if (JS::isTaintedNumber(v)){
         return JSTYPE_NUMBER;
+      } else if(JS::isTaintedBoolean(v)){
+        return JSTYPE_BOOLEAN;
       }
       return TypeOfObject(&v.toObject());
 #ifdef ENABLE_RECORD_TUPLE
@@ -2367,29 +2376,50 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
     }
     END_CASE(Ne)
 
-#define STRICT_EQUALITY_OP(OP, COND)                  \
+// Taintfox: Taint propagation added for strict equality
+#define STRICT_EQUALITY_OP(OP, COND, BOOLOBJ)                  \
   JS_BEGIN_MACRO                                      \
     HandleValue lval = REGS.stackHandleAt(-2);        \
     HandleValue rval = REGS.stackHandleAt(-1);        \
+    RootedValue origLhs(cx, lval);                    \
+    RootedValue origRhs(cx, rval);                    \
     bool equal;                                       \
     if (!js::StrictlyEqual(cx, lval, rval, &equal)) { \
       goto error;                                     \
     }                                                 \
     (COND) = equal OP true;                           \
+    if (isAnyTaintedValue(origLhs, origRhs)) {        \
+      (BOOLOBJ) = BooleanObject::createTainted(cx,    \
+      COND, getAnyValueTaint(origLhs, origRhs,        \
+      COND? "===" : "!=="));                          \
+    }                                                 \
     REGS.sp--;                                        \
   JS_END_MACRO
 
     CASE(StrictEq) {
       bool cond;
-      STRICT_EQUALITY_OP(==, cond);
-      REGS.sp[-1].setBoolean(cond);
+      BooleanObject* boolObj = NULL;
+      STRICT_EQUALITY_OP(==, cond, boolObj);
+      if(boolObj != NULL) {
+        REGS.sp[-1].setObject(*boolObj);
+      }
+      else{
+        REGS.sp[-1].setBoolean(cond);
+      }
+
     }
     END_CASE(StrictEq)
 
     CASE(StrictNe) {
       bool cond;
-      STRICT_EQUALITY_OP(!=, cond);
-      REGS.sp[-1].setBoolean(cond);
+      BooleanObject* boolObj = NULL;
+      STRICT_EQUALITY_OP(!=, cond, boolObj);
+      if(boolObj != NULL) {
+        REGS.sp[-1].setObject(*boolObj);
+      }
+      else{
+        REGS.sp[-1].setBoolean(cond);
+      }
     }
     END_CASE(StrictNe)
 
@@ -2409,11 +2439,22 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
       bool cond;
       MutableHandleValue lval = REGS.stackHandleAt(-2);
       MutableHandleValue rval = REGS.stackHandleAt(-1);
+
+      // TaintFox: taint propagation for less than equations.
+      rootValue0.set(lval);
+      rootValue1.set(rval);
+
       if (!LessThanOperation(cx, lval, rval, &cond)) {
         goto error;
       }
       TRY_BRANCH_AFTER_COND(cond, 2);
-      REGS.sp[-2].setBoolean(cond);
+
+      if(isAnyTaintedValue(rootValue0, rootValue1)) {
+         REGS.sp[-2].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(rootValue0, rootValue1, "<")));
+      }
+      else{
+        REGS.sp[-2].setBoolean(cond);
+      }
       REGS.sp--;
     }
     END_CASE(Lt)
@@ -2422,11 +2463,22 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
       bool cond;
       MutableHandleValue lval = REGS.stackHandleAt(-2);
       MutableHandleValue rval = REGS.stackHandleAt(-1);
+
+      // TaintFox: taint propagation for less than equal equations.
+      rootValue0.set(lval);
+      rootValue1.set(rval);
+
       if (!LessThanOrEqualOperation(cx, lval, rval, &cond)) {
         goto error;
       }
       TRY_BRANCH_AFTER_COND(cond, 2);
-      REGS.sp[-2].setBoolean(cond);
+
+      if(isAnyTaintedValue(rootValue0, rootValue1)) {
+         REGS.sp[-2].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(rootValue0, rootValue1, "<=")));
+      }
+      else{
+        REGS.sp[-2].setBoolean(cond);
+      }
       REGS.sp--;
     }
     END_CASE(Le)
@@ -2435,11 +2487,22 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
       bool cond;
       MutableHandleValue lval = REGS.stackHandleAt(-2);
       MutableHandleValue rval = REGS.stackHandleAt(-1);
+
+      // TaintFox: taint propagation for greater than equations.
+      rootValue0.set(lval);
+      rootValue1.set(rval);
+
       if (!GreaterThanOperation(cx, lval, rval, &cond)) {
         goto error;
       }
       TRY_BRANCH_AFTER_COND(cond, 2);
-      REGS.sp[-2].setBoolean(cond);
+
+      if(isAnyTaintedValue(rootValue0, rootValue1)) {
+         REGS.sp[-2].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(rootValue0, rootValue1, ">")));
+      }
+      else{
+        REGS.sp[-2].setBoolean(cond);
+      }
       REGS.sp--;
     }
     END_CASE(Gt)
@@ -2448,11 +2511,22 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
       bool cond;
       MutableHandleValue lval = REGS.stackHandleAt(-2);
       MutableHandleValue rval = REGS.stackHandleAt(-1);
+
+      // TaintFox: taint propagation for greater or equal than equations.
+      rootValue0.set(lval);
+      rootValue1.set(rval);
+
       if (!GreaterThanOrEqualOperation(cx, lval, rval, &cond)) {
         goto error;
       }
       TRY_BRANCH_AFTER_COND(cond, 2);
-      REGS.sp[-2].setBoolean(cond);
+
+      if(isAnyTaintedValue(rootValue0, rootValue1)) {
+         REGS.sp[-2].setObject(*BooleanObject::createTainted(cx, cond, getAnyValueTaint(rootValue0, rootValue1, ">=")));
+      }
+      else{
+        REGS.sp[-2].setBoolean(cond);
+      }
       REGS.sp--;
     }
     END_CASE(Ge)
@@ -2557,9 +2631,11 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
     END_CASE(Pow)
 
     CASE(Not) {
-      bool cond = ToBoolean(REGS.stackHandleAt(-1));
-      REGS.sp--;
-      PUSH_BOOLEAN(!cond);
+      // TaintFox: changed how Not case work so we can propagate the taint.
+      MutableHandleValue val = REGS.stackHandleAt(-1);
+      if (!NotOperation(cx, val, val)) {
+        goto error;
+      }
     }
     END_CASE(Not)
 
@@ -4636,6 +4712,10 @@ bool js::ModValues(JSContext* cx, MutableHandleValue lhs,
 bool js::PowValues(JSContext* cx, MutableHandleValue lhs,
                    MutableHandleValue rhs, MutableHandleValue res) {
   return PowOperation(cx, lhs, rhs, res);
+}
+
+bool js::NotValue(JSContext* cx, MutableHandleValue in, MutableHandleValue res) {
+  return NotOperation(cx, in, res);
 }
 
 bool js::BitNot(JSContext* cx, MutableHandleValue in, MutableHandleValue res) {

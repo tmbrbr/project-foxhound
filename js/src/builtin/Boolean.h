@@ -18,6 +18,9 @@ class PropertyName;
 
 extern PropertyName* BooleanToString(JSContext* cx, bool b);
 
+// TaintFox: Exported for the js shell: taint(bool).
+bool bool_tainted(JSContext* cx, unsigned argc, Value* vp);
+
 }  // namespace js
 
 #endif /* builtin_Boolean_h */
