@@ -1049,6 +1049,8 @@ JS_ReportTaintSink(JSContext* cx, JS::HandleValue val, const char* sink);
 extern JS_PUBLIC_API void
 JS_ReportWasmTaintSink(JSContext* cx, JS::HandleValue args, const char* sink);
 
+JSFunction* generateReportFunction(JSContext* cx, JSObject* global);
+
 namespace JS {
 
 /**

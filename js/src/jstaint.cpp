@@ -384,6 +384,9 @@ bool JS::isTaintedArray(JSObject &obj){
   if (obj.canUnwrapAs<ArrayBufferViewObject>()) {
     ArrayBufferViewObject& abvo =  obj.unwrapAs<ArrayBufferViewObject>();
     return abvo.isTainted();
+  } else if (obj.canUnwrapAs<TypedArrayObject>()){
+    TypedArrayObject& abvo =  obj.unwrapAs<TypedArrayObject>();
+    return abvo.isTainted();
   }
 
   return false;
@@ -391,10 +394,13 @@ bool JS::isTaintedArray(JSObject &obj){
 
 const TaintFlow& JS::getArrayTaint(JSObject& obj)
 {
-    if (obj.canUnwrapAs<ArrayBufferViewObject>()) {
-      ArrayBufferViewObject& abvo =  obj.unwrapAs<ArrayBufferViewObject>();
-      return abvo.taint();
-    }
+  if (obj.canUnwrapAs<ArrayBufferViewObject>()) {
+    ArrayBufferViewObject& abvo =  obj.unwrapAs<ArrayBufferViewObject>();
+    return abvo.taint();
+  } else if (obj.canUnwrapAs<TypedArrayObject>()){
+    TypedArrayObject& abvo =  obj.unwrapAs<TypedArrayObject>();
+    return abvo.taint();
+  }
     return TaintFlow::getEmptyTaintFlow();
 }
 

@@ -2713,14 +2713,14 @@ bool wasm::ResultsToJSValue(JSContext* cx, ResultType type,
     // A single result: we're done.
 
     //TODO(0drai): for Wasm Calls issued from Wasm (export), same issue as above
-    /*double d;*/
-    /*if (ToNumber(cx, rval, &d)) {*/
-    /*  JSObject* number = NumberObject::createTainted(*/
-    /*      cx, d,*/
-    /*      TaintFlow(*/
-    /*        TaintOperation("WASM Export taint source", {taintarg(cx, d)})));*/
-    /*  rval.setObject(*number);*/
-    /*}*/
+    double d;
+    if (ToNumber(cx, rval, &d)) {
+      JSObject* number = NumberObject::createTainted(
+          cx, d,
+          TaintFlow(
+            TaintOperation("WASM Export taint source", {taintarg(cx, d)})));
+      rval.setObject(*number);
+    }
 
     return true;
   }
