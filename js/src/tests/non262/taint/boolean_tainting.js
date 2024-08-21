@@ -15,10 +15,14 @@ function booleanTaintingBasicTest() {
 
     assertBooleanTainted(Boolean(taint(1)));
     assertBooleanTainted(Boolean(taint(0)));
+    assertBooleanTainted(Boolean(taint(1.0)));
+    assertBooleanTainted(Boolean(taint(0.0)));
     assertBooleanTainted(new Boolean(taint(1)));
     assertBooleanTainted(new Boolean(taint(0)));
     assertEq(Boolean(taint(1)), Boolean(1));
     assertEq(Boolean(taint(0)), Boolean(0));
+    assertEq(Boolean(taint(1.0)), Boolean(1.0));
+    assertEq(Boolean(taint(0.0)), Boolean(0.0));
 
     // This is a limitation of the way boolean to source is implemented.
     // The idea is that if a tainted boolean object is seen, the boolean
@@ -38,6 +42,11 @@ function booleanTaintingBasicTest() {
     //Same as before
     assertNotEq(new Boolean(taint("true")), new Boolean("true"));
     assertNotEq(new Boolean(taint("false")), new Boolean("false"));
+
+    assertEq(typeof a, typeof a);
+    assertEq(typeof a, typeof b);
+    assertEq(typeof a, typeof c);
+    assertEq(typeof a, typeof d);
 }
 
 function booleanTaintingEqualityTest() {

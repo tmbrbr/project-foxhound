@@ -961,6 +961,8 @@ JSType js::TypeOfValue(const Value& v) {
       // TaintFox: Hide the fact, that tainted numbers are number objects
       if (JS::isTaintedNumber(v)){
         return JSTYPE_NUMBER;
+      } else if(JS::isTaintedBoolean(v)){
+        return JSTYPE_BOOLEAN;
       }
       return TypeOfObject(&v.toObject());
 #ifdef ENABLE_RECORD_TUPLE
