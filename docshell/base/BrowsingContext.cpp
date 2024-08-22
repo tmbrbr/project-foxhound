@@ -80,6 +80,7 @@
 #include "nsQueryObject.h"
 #include "nsSandboxFlags.h"
 #include "nsScriptError.h"
+#include "nsTaintingUtils.h"
 #include "nsThreadUtils.h"
 #include "xpcprivate.h"
 
@@ -2394,6 +2395,7 @@ void BrowsingContext::PostMessageMoz(JSContext* aCx,
                                      const Sequence<JSObject*>& aTransfer,
                                      nsIPrincipal& aSubjectPrincipal,
                                      ErrorResult& aError) {
+  ReportTaintSink(aCx, aMessage, "BrowsingContext.PostMessage");
   if (mIsDiscarded) {
     return;
   }
