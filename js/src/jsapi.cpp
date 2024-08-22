@@ -5133,6 +5133,7 @@ JSFunction* generateReportFunction(JSContext* cx,  JSObject* global){
       referrer: "",
       hasWasm: hasWasm,
       str: str,
+      taint: taint,
       sink: sink,
       stack: stack,
       firstRange: firstRange,
