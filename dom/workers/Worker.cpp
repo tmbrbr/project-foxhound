@@ -21,6 +21,7 @@
 #include "nsDebug.h"
 #include "mozilla/dom/WorkerStatus.h"
 #include "mozilla/RefPtr.h"
+#include "nsTaintingUtils.h"
 
 #ifdef XP_WIN
 #  undef PostMessage
@@ -86,6 +87,7 @@ JSObject* Worker::WrapObject(JSContext* aCx,
 void Worker::PostMessage(JSContext* aCx, JS::Handle<JS::Value> aMessage,
                          const Sequence<JSObject*>& aTransferable,
                          ErrorResult& aRv) {
+  ReportTaintSink(aCx, aMessage, "Worker.PostMessage");
   NS_ASSERT_OWNINGTHREAD(Worker);
 
   if (!mWorkerPrivate || mWorkerPrivate->ParentStatusProtected() > Running) {

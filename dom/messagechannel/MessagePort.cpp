@@ -30,6 +30,7 @@
 #include "mozilla/Unused.h"
 #include "nsContentUtils.h"
 #include "nsPresContext.h"
+#include "nsTaintingUtils.h"
 
 #ifdef XP_WIN
 #  undef PostMessage
@@ -284,6 +285,7 @@ JSObject* MessagePort::WrapObject(JSContext* aCx,
 void MessagePort::PostMessage(JSContext* aCx, JS::Handle<JS::Value> aMessage,
                               const Sequence<JSObject*>& aTransferable,
                               ErrorResult& aRv) {
+  ReportTaintSink(aCx, aMessage, "MessagePort.PostMessage");
   // We *must* clone the data here, or the JS::Value could be modified
   // by script
 
