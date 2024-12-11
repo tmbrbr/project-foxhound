@@ -399,7 +399,7 @@ DefaultJitOptions::DefaultJitOptions() {
   SET_DEFAULT(regexp_peephole_optimization, true);
 #endif
 // TAINTFOX: fully disabling inline caching which ensures the taint is not lost. Set to true to not use inline caches.
-  SET_DEFAULT(disableInlineCaches, true);
+  SET_DEFAULT(disableInlineCaches, false);
 }
 
 bool DefaultJitOptions::isSmallFunction(JSScript* script) const {
