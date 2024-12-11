@@ -493,6 +493,9 @@ static void MaybeTransition(JSContext* cx, BaselineFrame* frame,
 template <typename IRGenerator, typename... Args>
 static void TryAttachStub(const char* name, JSContext* cx, BaselineFrame* frame,
                           ICFallbackStub* stub, Args&&... args) {
+  if (JitOptions.disableInlineCaches) {
+    return;
+  }
   MaybeTransition(cx, frame, stub);
 
   if (stub->state().canAttachStub()) {

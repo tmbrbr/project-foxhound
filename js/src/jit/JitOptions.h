@@ -145,6 +145,8 @@ struct DefaultJitOptions {
   bool trace_regexp_parser;
   bool trace_regexp_peephole_optimization;
 
+  bool disableInlineCaches;
+
   DefaultJitOptions();
   bool isSmallFunction(JSScript* script) const;
 #ifdef ENABLE_PORTABLE_BASELINE_INTERP
