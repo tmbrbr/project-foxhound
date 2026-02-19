@@ -68,10 +68,7 @@ skip-if = ["xorigin"]
 skip-if = ["xorigin"]
 
 ["test_1331680_xhr.html"]
-skip-if = [
-  "verify",
-  "xorigin",
-]
+skip-if = ["xorigin"]
 
 ["test_1396395.html"]
 skip-if = [
@@ -100,9 +97,6 @@ support-files = [
 support-files = ["test_accept_header.sjs", "test_import_json_module.mjs"]
 
 ["test_anchor_query_encoding.html"]
-
-["test_android_content_uri.html"]
-skip-if = ["os != 'android'"]
 
 ["test_arraybufferinputstream.html"]
 
@@ -222,7 +216,6 @@ skip-if = [
 ]
 
 ["test_uri_scheme.html"]
-skip-if = ["verify && debug && os == 'mac'"]
 
 ["test_url_perf.html"]
 # test to check the performance of URL parsing.

@@ -24,10 +24,10 @@ add_task(async function () {
   let receivedResults = false;
   let firstSelectedElement;
   let delayResultsPromise = new Promise(resolve => {
-    gURLBar.controller.addQueryListener({
+    gURLBar.controller.addListener({
       async onQueryResults() {
         Assert.ok(!receivedResults, "Should execute only once");
-        gURLBar.controller.removeQueryListener(this);
+        gURLBar.controller.removeListener(this);
         receivedResults = true;
         // Store the corrent selection.
         firstSelectedElement = view.selectedElement;
@@ -63,8 +63,9 @@ add_task(async function () {
     value: "exa",
   });
   Assert.ok(receivedResults, "Results observer was invoked");
-  Assert.ok(
-    UrlbarTestUtils.getResultCount(window) > 0,
+  Assert.greater(
+    UrlbarTestUtils.getResultCount(window),
+    0,
     `There should be some results in the view.`
   );
   Assert.ok(view.isOpen, `The view should be open.`);

@@ -250,6 +250,7 @@ class ImmGCPtr {
     // wasm shouldn't be creating GC things
     MOZ_ASSERT(!IsCompilingWasm());
   }
+  explicit ImmGCPtr(const JSOffThreadAtom* atom) : ImmGCPtr(atom->raw()) {}
 
  private:
   ImmGCPtr() : value(0) {}
@@ -780,6 +781,18 @@ class MOZ_RAII AutoCreatedBy {
   inline ~AutoCreatedBy() {}
 };
 #endif
+
+// Base class for architecture specific ABIArgGenerator classes.
+class ABIArgGeneratorShared {
+ protected:
+  ABIKind kind_;
+  uint32_t stackOffset_;
+
+  explicit ABIArgGeneratorShared(ABIKind kind);
+
+ public:
+  uint32_t stackBytesConsumedSoFar() const { return stackOffset_; }
+};
 
 }  // namespace jit
 }  // namespace js

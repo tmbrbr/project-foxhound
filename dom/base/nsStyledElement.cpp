@@ -13,11 +13,13 @@
 #include "nsAttrValue.h"
 #include "nsAttrValueOrString.h"
 #include "nsAttrValueInlines.h"
+#include "mozilla/RefPtr.h"
 #include "mozilla/dom/BindContext.h"
 #include "mozilla/dom/CustomElementRegistry.h"
 #include "mozilla/dom/ElementInlines.h"
 #include "mozilla/dom/MutationEventBinding.h"
 #include "mozilla/dom/MutationObservers.h"
+#include "mozilla/dom/StylePropertyMap.h"
 #include "mozilla/InternalMutationEvent.h"
 #include "nsDOMCSSDeclaration.h"
 #include "nsDOMCSSAttrDeclaration.h"
@@ -141,6 +143,16 @@ nsICSSDeclaration* nsStyledElement::Style() {
   }
 
   return slots->mStyle;
+}
+
+StylePropertyMap* nsStyledElement::AttributeStyleMap() {
+  nsDOMSlots* slots = DOMSlots();
+
+  if (!slots->mAttributeStyleMap) {
+    slots->mAttributeStyleMap = MakeRefPtr<StylePropertyMap>(this);
+  }
+
+  return slots->mAttributeStyleMap;
 }
 
 nsresult nsStyledElement::ReparseStyleAttribute(bool aForceInDataDoc) {

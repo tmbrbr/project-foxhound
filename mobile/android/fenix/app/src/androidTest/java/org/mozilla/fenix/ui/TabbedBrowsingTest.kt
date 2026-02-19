@@ -7,6 +7,7 @@ package org.mozilla.fenix.ui
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import mozilla.components.concept.engine.mediasession.MediaSession
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.mozilla.fenix.customannotations.SkipLeaks
@@ -184,6 +185,7 @@ class TabbedBrowsingTest : TestSetup() {
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/903592
     @SmokeTest
     @Test
+    @SkipLeaks
     fun verifyCloseAllPrivateTabsNotificationTest() {
         val defaultWebPage = TestAssetHelper.getGenericAsset(mockWebServer, 1)
 
@@ -273,7 +275,6 @@ class TabbedBrowsingTest : TestSetup() {
             verifyPrivateBrowsingButtonIsSelected(isSelected = false)
             verifySyncedTabsButtonIsSelected(isSelected = false)
             verifyThreeDotButton()
-            verifyNormalTabCounter()
             verifyNormalTabsList()
             verifyFab()
             verifyTabThumbnail()
@@ -301,7 +302,6 @@ class TabbedBrowsingTest : TestSetup() {
             verifyPrivateBrowsingButtonIsSelected(true)
             verifySyncedTabsButtonIsSelected(false)
             verifyThreeDotButton()
-            verifyNormalTabCounter()
             verifyPrivateTabsList()
             verifyExistingOpenTabs(website.title)
             verifyTabCloseButton()
@@ -494,7 +494,7 @@ class TabbedBrowsingTest : TestSetup() {
         }
     }
 
-    // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/526244
+    @Ignore("Temporarily disabled: https://bugzilla.mozilla.org/show_bug.cgi?id=1972361")
     @Test
     fun privateModeStaysAsDefaultAfterRestartTest() {
         val defaultWebPage = TestAssetHelper.getGenericAsset(mockWebServer, 1)

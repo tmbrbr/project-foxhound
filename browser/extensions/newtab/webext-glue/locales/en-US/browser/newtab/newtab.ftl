@@ -5,11 +5,9 @@
 ### Firefox Home / New Tab strings for about:home / about:newtab.
 
 newtab-page-title = New Tab
-newtab-settings-button =
-    .title = Customize your New Tab page
-newtab-personalize-settings-icon-label =
-    .title = Personalize New Tab
-    .aria-label = Settings
+newtab-customize-panel-icon-button =
+    .title = Customize this page
+newtab-customize-panel-icon-button-label = Customize
 newtab-settings-dialog-label =
     .aria-label = Settings
 newtab-logo-and-wordmark =
@@ -48,6 +46,9 @@ newtab-topsites-add-search-engine-header = Add Search Engine
 newtab-topsites-add-shortcut-header = New Shortcut
 newtab-topsites-edit-shortcut-header = Edit Shortcut
 newtab-topsites-add-shortcut-label = Add Shortcut
+newtab-topsites-add-shortcut-title =
+    .title = Add Shortcut
+    .aria-label = Add Shortcut
 newtab-topsites-title-label = Title
 newtab-topsites-title-input =
     .placeholder = Enter a title
@@ -107,12 +108,10 @@ newtab-menu-dismiss = Dismiss
 newtab-menu-pin = Pin
 newtab-menu-unpin = Unpin
 newtab-menu-delete-history = Delete from History
-newtab-menu-save-to-pocket = Save to { -pocket-brand-name }
-newtab-menu-delete-pocket = Delete from { -pocket-brand-name }
-newtab-menu-archive-pocket = Archive in { -pocket-brand-name }
 newtab-menu-show-privacy-info = Our sponsors & your privacy
 newtab-menu-about-fakespot = About { -fakespot-brand-name }
-newtab-menu-report-content = Report this content
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Report
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Block
@@ -190,6 +189,9 @@ newtab-label-sponsored-by = Sponsored by { $sponsor }
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min
 
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponsored
+
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
 
@@ -265,6 +267,9 @@ newtab-custom-pocket-show-recent-saves = Show recent saves
 newtab-custom-weather-toggle =
   .label = Weather
   .description = Today’s forecast at a glance
+newtab-custom-trending-search-toggle =
+  .label = Trending searches
+  .description = Popular and frequently searched topics
 newtab-custom-close-button = Close
 newtab-custom-settings = Manage more settings
 
@@ -449,6 +454,9 @@ newtab-topic-selection-button-pick-interests = Pick your interests
 newtab-section-follow-button = Follow
 newtab-section-following-button = Following
 newtab-section-unfollow-button = Unfollow
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Fine-tune your feed
+newtab-section-follow-highlight-subtitle = Follow your interests to see more of what you like.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -485,6 +493,12 @@ newtab-custom-wallpaper-title = Custom wallpapers are here
 newtab-custom-wallpaper-subtitle = Upload your own wallpaper or pick a custom color to make { -brand-product-name } yours.
 newtab-custom-wallpaper-cta = Try it
 
+## Strings for new user activation custom wallpaper highlight
+
+newtab-new-user-custom-wallpaper-title = Choose a wallpaper to make { -brand-product-name } yours
+newtab-new-user-custom-wallpaper-subtitle = Make every new tab feel like home with custom wallpapers and colors.
+newtab-new-user-custom-wallpaper-cta = Try it now
+
 ## Strings for download mobile highlight
 
 newtab-download-mobile-highlight-title = Download { -brand-product-name } for mobile
@@ -494,6 +508,11 @@ newtab-download-mobile-highlight-body-variant-b = Pick up where you left off whe
 newtab-download-mobile-highlight-body-variant-c = Did you know you can take { -brand-product-name } on the go? Same browser. In your pocket.
 newtab-download-mobile-highlight-image =
     .aria-label = QR code to download { -brand-product-name } for mobile
+
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = Your favorites at your fingertips
+newtab-shortcuts-highlight-subtitle = Add a shortcut to keep your favorite sites one click away.
 
 ## Strings for reporting ads and content
 
@@ -517,3 +536,14 @@ newtab-report-cancel = Cancel
 newtab-report-submit = Submit
 newtab-toast-thanks-for-reporting =
     .message = Thank you for reporting this.
+
+## Strings for trending searches
+
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Trending searches
+newtab-trending-searches-show-trending =
+    .title = Show trending searches
+newtab-trending-searches-hide-trending =
+    .title = Hide trending searches
+newtab-trending-searches-learn-more = Learn more
+newtab-trending-searches-dismiss = Hide trending searches

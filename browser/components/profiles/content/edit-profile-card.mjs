@@ -57,11 +57,13 @@ import "chrome://global/content/elements/moz-button.mjs";
 // eslint-disable-next-line import/no-unassigned-import
 import "chrome://global/content/elements/moz-button-group.mjs";
 // eslint-disable-next-line import/no-unassigned-import
+import "chrome://global/content/elements/moz-visual-picker.mjs";
+// eslint-disable-next-line import/no-unassigned-import
 import "chrome://browser/content/profiles/avatar.mjs";
 // eslint-disable-next-line import/no-unassigned-import
 import "chrome://browser/content/profiles/profiles-theme-card.mjs";
 // eslint-disable-next-line import/no-unassigned-import
-import "chrome://browser/content/profiles/profiles-group.mjs";
+import "chrome://browser/content/profiles/profile-avatar-selector.mjs";
 
 const SAVE_NAME_TIMEOUT = 2000;
 const SAVED_MESSAGE_TIMEOUT = 5000;
@@ -85,16 +87,13 @@ export class EditProfileCard extends MozLitElement {
     doneButton: "#done-button",
     moreThemesLink: "#more-themes",
     headerAvatar: "#header-avatar",
-    avatarsPicker: "#avatars",
     themesPicker: "#themes",
+    avatarSelector: "profile-avatar-selector",
+    avatarSelectorLink: "#profile-avatar-selector-link",
   };
 
   updateNameDebouncer = null;
   clearSavedMessageTimer = null;
-
-  get avatars() {
-    return this.avatarsPicker.childElements;
-  }
 
   get themeCards() {
     return this.themesPicker.childElements;
@@ -119,6 +118,8 @@ export class EditProfileCard extends MozLitElement {
 
     window.addEventListener("beforeunload", this);
     window.addEventListener("pagehide", this);
+    document.addEventListener("Profiles:CustomAvatarUpload", this);
+    document.addEventListener("Profiles:AvatarSelected", this);
 
     this.init().then(() => (this.initialized = true));
   }
@@ -139,7 +140,25 @@ export class EditProfileCard extends MozLitElement {
     this.profiles = profiles;
     this.themes = themes;
 
+    if (this.profile.hasCustomAvatar) {
+      this.createAvatarURL();
+    }
+
     this.setFavicon();
+  }
+
+  createAvatarURL() {
+    if (this.profile.avatarURLs.url16) {
+      URL.revokeObjectURL(this.profile.avatarURLs.url16);
+      delete this.profile.avatarURLs.url16;
+      delete this.profile.avatarURLs.url80;
+    }
+
+    if (this.profile.avatarFiles?.file16) {
+      const objURL = URL.createObjectURL(this.profile.avatarFiles.file16);
+      this.profile.avatarURLs.url16 = objURL;
+      this.profile.avatarURLs.url80 = objURL;
+    }
   }
 
   async getUpdateComplete() {
@@ -156,26 +175,7 @@ export class EditProfileCard extends MozLitElement {
 
   setFavicon() {
     let favicon = document.getElementById("favicon");
-    favicon.href = `chrome://browser/content/profiles/assets/16_${this.profile.avatar}.svg`;
-  }
-
-  getAvatarL10nId(value) {
-    switch (value) {
-      case "book":
-        return "book-avatar";
-      case "briefcase":
-        return "briefcase-avatar";
-      case "flower":
-        return "flower-avatar";
-      case "heart":
-        return "heart-avatar";
-      case "shopping":
-        return "shopping-avatar";
-      case "star":
-        return "star-avatar";
-    }
-
-    return "";
+    favicon.href = this.profile.avatarURLs.url16;
   }
 
   handleEvent(event) {
@@ -192,6 +192,17 @@ export class EditProfileCard extends MozLitElement {
       }
       case "pagehide": {
         RPMSendAsyncMessage("Profiles:PageHide");
+        break;
+      }
+      case "Profiles:CustomAvatarUpload": {
+        let { file } = event.detail;
+        this.updateAvatar(file);
+        break;
+      }
+      case "Profiles:AvatarSelected": {
+        let { avatar } = event.detail;
+        this.updateAvatar(avatar);
+        break;
       }
     }
   }
@@ -239,8 +250,16 @@ export class EditProfileCard extends MozLitElement {
       return;
     }
 
-    this.profile.avatar = newAvatar;
-    RPMSendAsyncMessage("Profiles:UpdateProfileAvatar", this.profile);
+    let updatedProfile = await RPMSendQuery("Profiles:UpdateProfileAvatar", {
+      avatarOrFile: newAvatar,
+    });
+
+    this.profile = updatedProfile;
+
+    if (this.profile.hasCustomAvatar) {
+      this.createAvatarURL();
+    }
+
     this.requestUpdate();
     this.setFavicon();
   }
@@ -340,55 +359,69 @@ export class EditProfileCard extends MozLitElement {
       return null;
     }
 
-    return html`<profiles-group
+    return html`<moz-visual-picker
+      type="listbox"
       id="themes"
       value=${this.profile.themeId}
       data-l10n-id="edit-profile-page-theme-header-2"
       name="theme"
-      @click=${this.handleThemeClick}
+      @change=${this.handleThemeChange}
     >
       ${this.themes.map(
         t =>
-          html`<profiles-group-item
+          html`<moz-visual-picker-item
+            class="theme-item"
             l10nId=${ifDefined(t.dataL10nId)}
             name=${ifDefined(t.name)}
             value=${t.id}
           >
             <profiles-theme-card
+              aria-hidden="true"
               .theme=${t}
               value=${t.id}
             ></profiles-theme-card>
-          </profiles-group-item>`
+          </moz-visual-picker-item>`
       )}
-    </profiles-group>`;
+    </moz-visual-picker>`;
   }
 
-  handleThemeClick() {
+  handleThemeChange() {
     this.updateTheme(this.themesPicker.value);
   }
 
-  avatarsTemplate() {
-    let avatars = ["book", "briefcase", "flower", "heart", "shopping", "star"];
-
-    return html`<profiles-group
-      value=${this.profile.avatar}
-      data-l10n-id="edit-profile-page-avatar-header-2"
-      name="avatar"
-      id="avatars"
-      @click=${this.handleAvatarClick}
-      >${avatars.map(
-        avatar =>
-          html`<profiles-group-item
-            l10nId=${this.getAvatarL10nId(avatar)}
-            value=${avatar}
-            ><profiles-avatar value=${avatar}></profiles-avatar
-          ></profiles-group-item>`
-      )}</profiles-group
-    >`;
+  headerAvatarTemplate() {
+    return html`<div class="avatar-header-content">
+      <img
+        id="header-avatar"
+        data-l10n-id=${this.profile.avatarL10nId}
+        src=${this.profile.avatarURLs.url80}
+      />
+      <a
+        id="profile-avatar-selector-link"
+        tabindex="0"
+        @click=${this.toggleAvatarSelectorCard}
+        @keydown=${this.handleAvatarSelectorKeyDown}
+        data-l10n-id="edit-profile-page-avatar-selector-opener-link"
+      ></a>
+      <div class="avatar-selector-parent">
+        <profile-avatar-selector
+          hidden
+          value=${this.profile.avatar}
+        ></profile-avatar-selector>
+      </div>
+    </div>`;
   }
 
-  handleAvatarClick() {
-    this.updateAvatar(this.avatarsPicker.value);
+  toggleAvatarSelectorCard(event) {
+    event.stopPropagation();
+    this.avatarSelector.toggleHidden();
+  }
+
+  handleAvatarSelectorKeyDown(event) {
+    if (event.code === "Enter" || event.code === "Space") {
+      event.preventDefault();
+      this.toggleAvatarSelectorCard(event);
+    }
   }
 
   onDeleteClick() {
@@ -448,12 +481,7 @@ export class EditProfileCard extends MozLitElement {
       />
       <moz-card
         ><div id="edit-profile-card" aria-labelledby="profile-header">
-          <img
-            id="header-avatar"
-            data-l10n-id=${this.profile.avatarL10nId}
-            src="chrome://browser/content/profiles/assets/80_${this.profile
-              .avatar}.svg"
-          />
+          ${this.headerAvatarTemplate()}
           <div id="profile-content">
             ${this.headerTemplate()}${this.profilesNameTemplate()}
             ${this.themesTemplate()}
@@ -465,8 +493,6 @@ export class EditProfileCard extends MozLitElement {
               @click=${this.onMoreThemesClick}
               data-l10n-id="edit-profile-page-explore-themes"
             ></a>
-
-            ${this.avatarsTemplate()}
 
             <moz-button-group>${this.buttonsTemplate()}</moz-button-group>
           </div>

@@ -8,6 +8,9 @@
 newtab-page-title = 새 탭
 newtab-settings-button =
     .title = 새 탭 페이지 사용자 지정
+newtab-customize-panel-icon-button =
+    .title = 이 페이지 사용자 지정
+newtab-customize-panel-icon-button-label = 사용자 지정
 newtab-personalize-settings-icon-label =
     .title = 새 탭 개인화
     .aria-label = 설정
@@ -117,7 +120,8 @@ newtab-menu-delete-pocket = { -pocket-brand-name }에서 삭제
 newtab-menu-archive-pocket = { -pocket-brand-name }에 보관
 newtab-menu-show-privacy-info = 우리의 스폰서와 개인 정보 보호
 newtab-menu-about-fakespot = { -fakespot-brand-name } 정보
-newtab-menu-report-content = 이 콘텐츠 신고
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = 신고
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = 차단
@@ -181,7 +185,7 @@ newtab-label-download = 다운로드됨
 # This string is used in the story cards to indicate sponsored content
 # Variables:
 #   $sponsorOrSource (string) - The name of a company or their domain
-newtab-label-sponsored = { $sponsorOrSource } · 후원
+newtab-label-sponsored = { $sponsorOrSource } · 스폰서
 # This string is used at the bottom of story cards to indicate sponsored content
 # Variables:
 #   $sponsor (string) - The name of a sponsor
@@ -191,6 +195,8 @@ newtab-label-sponsored-by = { $sponsor } 후원
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead }분
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = 스폰서
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -311,6 +317,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = 날씨
     .description = 오늘의 일기예보를 한눈에 보기
+newtab-custom-trending-search-toggle =
+    .label = 인기 검색어
+    .description = 인기 있고 자주 검색되는 주제
 newtab-custom-close-button = 닫기
 newtab-custom-settings = 추가 설정
 
@@ -354,7 +363,7 @@ newtab-wallpaper-pink = 분홍색
 newtab-wallpaper-light-pink = 연분홍색
 newtab-wallpaper-red = 빨간색
 newtab-wallpaper-dark-blue = 진청색
-newtab-wallpaper-dark-purple = 진보라
+newtab-wallpaper-dark-purple = 진보라색
 newtab-wallpaper-dark-green = 진녹색
 newtab-wallpaper-brown = 갈색
 
@@ -494,6 +503,9 @@ newtab-topic-selection-button-pick-interests = 관심 분야를 선택하세요
 newtab-section-follow-button = 팔로우
 newtab-section-following-button = 팔로잉
 newtab-section-unfollow-button = 팔로우 취소
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = 피드를 미세 조정하세요
+newtab-section-follow-highlight-subtitle = 관심 분야를 팔로우하면 좋아하는 것을 더 많이 볼 수 있습니다.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -536,6 +548,11 @@ newtab-download-mobile-highlight-body-variant-c = 이동 중에도 { -brand-prod
 newtab-download-mobile-highlight-image =
     .aria-label = 모바일용 { -brand-product-name } 다운로드를 위한 QR 코드
 
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = 즐겨찾기를 간편하게
+newtab-shortcuts-highlight-subtitle = 바로 가기를 추가하여 한 번의 클릭으로 즐겨찾는 사이트를 이용하세요.
+
 ## Strings for reporting ads and content
 
 newtab-report-content-why-reporting-this =
@@ -558,3 +575,16 @@ newtab-report-cancel = 취소
 newtab-report-submit = 보내기
 newtab-toast-thanks-for-reporting =
     .message = 신고해 주셔서 감사합니다.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Google 트렌드
+newtab-trending-searches-show-trending =
+    .title = 인기 검색어 표시
+newtab-trending-searches-hide-trending =
+    .title = 인기 검색어 숨기기
+newtab-trending-searches-learn-more = 더 알아보기
+newtab-trending-searches-dismiss = 인기 검색어 숨기기
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = 인기 검색어

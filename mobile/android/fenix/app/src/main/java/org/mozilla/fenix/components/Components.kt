@@ -34,7 +34,6 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.autofill.AutofillConfirmActivity
 import org.mozilla.fenix.autofill.AutofillSearchActivity
 import org.mozilla.fenix.autofill.AutofillUnlockActivity
-import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.setup.checklist.SetupChecklistState
@@ -45,7 +44,9 @@ import org.mozilla.fenix.crashes.SettingsCrashReportCache
 import org.mozilla.fenix.datastore.pocketStoriesSelectedCategoriesDataStore
 import org.mozilla.fenix.distributions.DefaultDistributionBrowserStoreProvider
 import org.mozilla.fenix.distributions.DefaultDistributionProviderChecker
+import org.mozilla.fenix.distributions.DefaultDistributionSettings
 import org.mozilla.fenix.distributions.DistributionIdManager
+import org.mozilla.fenix.distributions.LegacyDistributionProviderChecker
 import org.mozilla.fenix.ext.asRecentTabs
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.filterState
@@ -68,6 +69,7 @@ import org.mozilla.fenix.perf.StartupActivityLog
 import org.mozilla.fenix.perf.StartupStateProvider
 import org.mozilla.fenix.perf.StrictModeManager
 import org.mozilla.fenix.perf.lazyMonitored
+import org.mozilla.fenix.reviewprompt.ReviewPromptMiddleware
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.isLargeScreenSize
 import org.mozilla.fenix.wifi.WifiConnectionMonitor
@@ -87,6 +89,7 @@ class Components(private val context: Context) {
         BackgroundServices(
             context,
             push,
+            context.settings(),
             analytics.crashReporter,
             core.lazyHistoryStorage,
             core.lazyBookmarksStorage,
@@ -202,7 +205,7 @@ class Components(private val context: Context) {
             browserStore = core.store,
             storage = DefaultPrivateBrowsingLockStorage(
                 preferences = settings.preferences,
-                privateBrowsingLockPrefKey = context.getString(R.string.pref_key_private_browsing_locked_enabled),
+                privateBrowsingLockPrefKey = context.getString(R.string.pref_key_private_browsing_locked),
             ),
         )
     }
@@ -210,10 +213,10 @@ class Components(private val context: Context) {
     val settings by lazyMonitored { Settings(context) }
     val fenixOnboarding by lazyMonitored { FenixOnboarding(context) }
 
-    val reviewPromptController by lazyMonitored {
-        ReviewPromptController(
+    val playStoreReviewPromptController by lazyMonitored {
+        PlayStoreReviewPromptController(
             manager = ReviewManagerFactory.create(context),
-            reviewSettings = FenixReviewSettings(settings),
+            numberOfAppLaunches = { settings.numberOfAppLaunches },
         )
     }
 
@@ -276,6 +279,7 @@ class Components(private val context: Context) {
                 HomeTelemetryMiddleware(),
                 SetupChecklistPreferencesMiddleware(DefaultSetupChecklistRepository(context)),
                 SetupChecklistTelemetryMiddleware(),
+                ReviewPromptMiddleware(settings),
             ),
         ).also {
             it.dispatch(AppAction.SetupChecklistAction.Init)
@@ -289,7 +293,7 @@ class Components(private val context: Context) {
             checklistItems = getSetupChecklistCollection(
                 settings = settings,
                 collection = type,
-                tabStripEnabled = context.isTabStripEnabled(),
+                tabStripEnabled = settings.isTabStripEnabled,
             ),
         )
     } else {
@@ -317,6 +321,8 @@ class Components(private val context: Context) {
             context = context,
             browserStoreProvider = DefaultDistributionBrowserStoreProvider(core.store),
             distributionProviderChecker = DefaultDistributionProviderChecker(context),
+            legacyDistributionProviderChecker = LegacyDistributionProviderChecker(context),
+            distributionSettings = DefaultDistributionSettings(settings),
         )
     }
 }

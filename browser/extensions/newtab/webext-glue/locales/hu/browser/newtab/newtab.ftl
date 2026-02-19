@@ -8,6 +8,9 @@
 newtab-page-title = Új lap
 newtab-settings-button =
     .title = Az Új lap oldal személyre szabása
+newtab-customize-panel-icon-button =
+    .title = Oldal testreszabása
+newtab-customize-panel-icon-button-label = Testreszabás
 newtab-personalize-settings-icon-label =
     .title = Új lap testreszabása
     .aria-label = Beállítások
@@ -117,7 +120,8 @@ newtab-menu-delete-pocket = Törlés a { -pocket-brand-name }ből
 newtab-menu-archive-pocket = Archiválás a { -pocket-brand-name }ben
 newtab-menu-show-privacy-info = Támogatóink és az Ön adatvédelme
 newtab-menu-about-fakespot = A { -fakespot-brand-name } névjegye
-newtab-menu-report-content = Tartalom jelentése
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Jelentés
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Tiltás
@@ -191,6 +195,8 @@ newtab-label-sponsored-by = Szponzorálta: { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } perc
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Szponzorált
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -312,6 +318,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Időjárás
     .description = A mai előrejelzés egy pillantásra
+newtab-custom-trending-search-toggle =
+    .label = Felkapott keresések
+    .description = Népszerű és gyakran keresett témák
 newtab-custom-close-button = Bezárás
 newtab-custom-settings = További beállítások kezelése
 
@@ -495,6 +504,9 @@ newtab-topic-selection-button-pick-interests = Válassza ki az érdeklődési k�
 newtab-section-follow-button = Követés
 newtab-section-following-button = Követés
 newtab-section-unfollow-button = Követés megszüntetése
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Finomhangolja a hírfolyamát
+newtab-section-follow-highlight-subtitle = Kövesse az érdeklődési köreit, hogy többet lásson abból, amit kedvel.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -529,6 +541,18 @@ newtab-custom-wallpaper-cta = Próbálja ki
 
 ## Strings for download mobile highlight
 
+newtab-download-mobile-highlight-title = Töltse le a mobilos { -brand-product-name }ot
+# "Scan the code" refers to scanning the QR code that appears above the body text that leads to Firefox for mobile download.
+newtab-download-mobile-highlight-body-variant-a = Olvassa le a kódot, hogy biztonságosan böngésszen útközben.
+newtab-download-mobile-highlight-body-variant-b = Folytassa ott, ahol abbahagyta, és szinkronizálja lapjait, jelszavait és egyebeit.
+newtab-download-mobile-highlight-body-variant-c = Tudta, hogy magával viheti a { -brand-product-name }ot? Ugyanaz a böngésző. A zsebében.
+newtab-download-mobile-highlight-image =
+    .aria-label = QR-kód a mobilos { -brand-product-name } letöltéséhez
+
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = A kedvencei egy karnyújtásnyira
+newtab-shortcuts-highlight-subtitle = Adjon hozzá egy indítót, hogy a kedvenc oldalai egy kattintásra legyenek.
 
 ## Strings for reporting ads and content
 
@@ -550,3 +574,18 @@ newtab-report-content-spam-misleading =
     .label = Kéretlen vagy félrevezető
 newtab-report-cancel = Mégse
 newtab-report-submit = Elküldés
+newtab-toast-thanks-for-reporting =
+    .message = Köszönjük, hogy bejelentette.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Felkapott a Google-ön
+newtab-trending-searches-show-trending =
+    .title = Felkapott keresések megjelenítése
+newtab-trending-searches-hide-trending =
+    .title = Felkapott keresések elrejtése
+newtab-trending-searches-learn-more = További tudnivalók
+newtab-trending-searches-dismiss = Felkapott keresések elrejtése
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Felkapott keresések

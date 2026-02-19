@@ -8,6 +8,9 @@
 newtab-page-title = Nueva pestaña
 newtab-settings-button =
     .title = Personaliza tu página de Nueva pestaña
+newtab-customize-panel-icon-button =
+    .title = Personalizar esta página
+newtab-customize-panel-icon-button-label = Personalizar
 newtab-personalize-settings-icon-label =
     .title = Personalizar nueva pestaña
     .aria-label = Ajustes
@@ -117,7 +120,8 @@ newtab-menu-delete-pocket = Eliminar de { -pocket-brand-name }
 newtab-menu-archive-pocket = Archivar en { -pocket-brand-name }
 newtab-menu-show-privacy-info = Nuestros patrocinadores y tu privacidad
 newtab-menu-about-fakespot = Acerca de { -fakespot-brand-name }
-newtab-menu-report-content = Reportar este contenido
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Reportar
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Bloquear
@@ -187,6 +191,8 @@ newtab-label-sponsored-by = Patrocinado por { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Patrocinado
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -308,6 +314,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Clima
     .description = El pronóstico del día de un vistazo
+newtab-custom-trending-search-toggle =
+    .label = Tendencias de búsquedas
+    .description = Temas populares y buscados frecuentemente
 newtab-custom-close-button = Cerrar
 newtab-custom-settings = Administrar más ajustes
 
@@ -491,6 +500,9 @@ newtab-topic-selection-button-pick-interests = Elige tus intereses
 newtab-section-follow-button = Seguir
 newtab-section-following-button = Siguiendo
 newtab-section-unfollow-button = Dejar de seguir
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Optimiza tu feed
+newtab-section-follow-highlight-subtitle = Sigue tus intereses para ver más de lo que te gusta.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -533,6 +545,11 @@ newtab-download-mobile-highlight-body-variant-c = ¿Sabías que puedes llevar { 
 newtab-download-mobile-highlight-image =
     .aria-label = Código QR para descargar { -brand-product-name } para móviles
 
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = Tus favoritos al alcance de tus dedos
+newtab-shortcuts-highlight-subtitle = Añade un acceso directo para tener tus sitios favoritos a un solo clic de distancia.
+
 ## Strings for reporting ads and content
 
 newtab-report-content-why-reporting-this =
@@ -555,3 +572,16 @@ newtab-report-cancel = Cancelar
 newtab-report-submit = Enviar
 newtab-toast-thanks-for-reporting =
     .message = Gracias por informar esto.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Tendencias en Google
+newtab-trending-searches-show-trending =
+    .title = Mostrar búsquedas de tendencia
+newtab-trending-searches-hide-trending =
+    .title = Ocultar búsquedas de tendencia
+newtab-trending-searches-learn-more = Aprender más
+newtab-trending-searches-dismiss = Ocultar búsquedas de tendencia
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Tendencias de búsquedas

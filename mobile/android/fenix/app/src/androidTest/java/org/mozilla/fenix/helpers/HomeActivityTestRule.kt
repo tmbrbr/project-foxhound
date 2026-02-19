@@ -51,8 +51,7 @@ class HomeActivityTestRule(
         initialTouchMode: Boolean = false,
         launchActivity: Boolean = true,
         skipOnboarding: Boolean = false,
-        isHomeOnboardingDialogEnabled: Boolean = settings.showHomeOnboardingDialog &&
-            FenixOnboarding(appContext).userHasBeenOnboarded(),
+        isHomepageHeaderEnabled: Boolean = true,
         isPocketEnabled: Boolean = settings.showPocketRecommendationsFeature,
         isRecentTabsFeatureEnabled: Boolean = settings.showRecentTabsFeature,
         isRecentlyVisitedFeatureEnabled: Boolean = settings.historyMetadataUIFeature,
@@ -67,9 +66,9 @@ class HomeActivityTestRule(
         isPageLoadTranslationsPromptEnabled: Boolean = false,
         isMicrosurveyEnabled: Boolean = settings.microsurveyFeatureEnabled,
         shouldUseBottomToolbar: Boolean = settings.shouldUseBottomToolbar,
-        isComposeHomepageEnabled: Boolean = true,
+        isUseNewCrashReporterDialog: Boolean = false,
     ) : this(initialTouchMode, launchActivity, skipOnboarding) {
-        this.isHomeOnboardingDialogEnabled = isHomeOnboardingDialogEnabled
+        this.isHomepageHeaderEnabled = isHomepageHeaderEnabled
         this.isPocketEnabled = isPocketEnabled
         this.isRecentTabsFeatureEnabled = isRecentTabsFeatureEnabled
         this.isRecentlyVisitedFeatureEnabled = isRecentlyVisitedFeatureEnabled
@@ -84,7 +83,7 @@ class HomeActivityTestRule(
         this.enableOrDisablePageLoadTranslationsPrompt(isPageLoadTranslationsPromptEnabled)
         this.isMicrosurveyEnabled = isMicrosurveyEnabled
         this.shouldUseBottomToolbar = shouldUseBottomToolbar
-        this.isComposeHomepageEnabled = isComposeHomepageEnabled
+        this.isUseNewCrashReporterDialog = isUseNewCrashReporterDialog
     }
 
     /**
@@ -131,10 +130,12 @@ class HomeActivityTestRule(
             initialTouchMode: Boolean = false,
             launchActivity: Boolean = true,
             skipOnboarding: Boolean = false,
+            useNewCrashReporterDialog: Boolean = false,
         ) = HomeActivityTestRule(
             initialTouchMode = initialTouchMode,
             launchActivity = launchActivity,
             skipOnboarding = skipOnboarding,
+            isHomepageHeaderEnabled = true,
             isPWAsPromptEnabled = false,
             isWallpaperOnboardingEnabled = false,
             isOpenInAppBannerEnabled = false,
@@ -143,6 +144,7 @@ class HomeActivityTestRule(
             // remove with https://bugzilla.mozilla.org/show_bug.cgi?id=1917640
             shouldUseBottomToolbar = true,
             isPageLoadTranslationsPromptEnabled = false,
+            isUseNewCrashReporterDialog = useNewCrashReporterDialog,
         )
     }
 }
@@ -168,8 +170,7 @@ class HomeActivityIntentTestRule internal constructor(
         initialTouchMode: Boolean = false,
         launchActivity: Boolean = true,
         skipOnboarding: Boolean = false,
-        isHomeOnboardingDialogEnabled: Boolean = settings.showHomeOnboardingDialog &&
-            FenixOnboarding(appContext).userHasBeenOnboarded(),
+        isHomepageHeaderEnabled: Boolean = true,
         isPocketEnabled: Boolean = settings.showPocketRecommendationsFeature,
         isRecentTabsFeatureEnabled: Boolean = settings.showRecentTabsFeature,
         isRecentlyVisitedFeatureEnabled: Boolean = settings.historyMetadataUIFeature,
@@ -185,9 +186,8 @@ class HomeActivityIntentTestRule internal constructor(
         isMicrosurveyEnabled: Boolean = settings.microsurveyFeatureEnabled,
         shouldUseBottomToolbar: Boolean = settings.shouldUseBottomToolbar,
         onboardingFeatureEnabled: Boolean = true,
-        isComposeHomepageEnabled: Boolean = true,
     ) : this(initialTouchMode, launchActivity, skipOnboarding) {
-        this.isHomeOnboardingDialogEnabled = isHomeOnboardingDialogEnabled
+        this.isHomepageHeaderEnabled = isHomepageHeaderEnabled
         this.isPocketEnabled = isPocketEnabled
         this.isRecentTabsFeatureEnabled = isRecentTabsFeatureEnabled
         this.isRecentlyVisitedFeatureEnabled = isRecentlyVisitedFeatureEnabled
@@ -203,7 +203,6 @@ class HomeActivityIntentTestRule internal constructor(
         this.isMicrosurveyEnabled = isMicrosurveyEnabled
         this.shouldUseBottomToolbar = shouldUseBottomToolbar
         this.onboardingFeatureEnabled = onboardingFeatureEnabled
-        this.isComposeHomepageEnabled = isComposeHomepageEnabled
     }
 
     private val longTapUserPreference = getLongPressTimeout()
@@ -259,8 +258,7 @@ class HomeActivityIntentTestRule internal constructor(
      * settings and override any changes made in the meantime.
      */
     fun updateCachedSettings() {
-        isHomeOnboardingDialogEnabled =
-            settings.showHomeOnboardingDialog && FenixOnboarding(appContext).userHasBeenOnboarded()
+        isHomepageHeaderEnabled = settings.showHomepageHeader
         isPocketEnabled = settings.showPocketRecommendationsFeature
         isRecentTabsFeatureEnabled = settings.showRecentTabsFeature
         isRecentlyVisitedFeatureEnabled = settings.historyMetadataUIFeature
@@ -274,7 +272,6 @@ class HomeActivityIntentTestRule internal constructor(
         isMenuRedesignCFREnabled = settings.shouldShowMenuCFR
         isMicrosurveyEnabled = settings.microsurveyFeatureEnabled
         shouldUseBottomToolbar = settings.shouldUseBottomToolbar
-        isComposeHomepageEnabled = settings.enableComposeHomepage
     }
 
     companion object {

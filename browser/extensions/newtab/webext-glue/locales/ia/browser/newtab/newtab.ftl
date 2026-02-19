@@ -8,6 +8,9 @@
 newtab-page-title = Nove scheda
 newtab-settings-button =
     .title = Personalisar tu pagina de nove scheda
+newtab-customize-panel-icon-button =
+    .title = Personalisar iste pagina
+newtab-customize-panel-icon-button-label = Personalisar
 newtab-personalize-settings-icon-label =
     .title = Personalisar le scheda nove
     .aria-label = Parametros
@@ -117,7 +120,8 @@ newtab-menu-delete-pocket = Deler de { -pocket-brand-name }
 newtab-menu-archive-pocket = Archivar in { -pocket-brand-name }
 newtab-menu-show-privacy-info = Nostre sponsores e tu vita private
 newtab-menu-about-fakespot = A proposito de { -fakespot-brand-name }
-newtab-menu-report-content = Reportar iste contento
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Reportar
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Blocar
@@ -127,9 +131,9 @@ newtab-menu-section-unfollow = Non plus sequer le argumento
 
 ## Context menu options for sponsored stories and new ad formats on New Tab.
 
-newtab-menu-manage-sponsored-content = Gerer contentos sponsorisate
+newtab-menu-manage-sponsored-content = Gerer contento sponsorisate
 newtab-menu-our-sponsors-and-your-privacy = Nostre sponsores e tu confidentialitate
-newtab-menu-report-this-ad = Reportar iste annuncio publicitari
+newtab-menu-report-this-ad = Reportar iste annuncio
 
 ## Message displayed in a modal window to explain privacy and provide context for sponsored content.
 
@@ -187,6 +191,8 @@ newtab-label-sponsored-by = Sponsorisate per { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponsorisate
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -308,6 +314,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Meteo
     .description = Prevision hodierne a un colpo de oculos
+newtab-custom-trending-search-toggle =
+    .label = Recercas popular
+    .description = Themas popular e frequentemente recercate
 newtab-custom-close-button = Clauder
 newtab-custom-settings = Gerer altere parametros
 
@@ -491,6 +500,9 @@ newtab-topic-selection-button-pick-interests = Selige tu interesses
 newtab-section-follow-button = Sequer
 newtab-section-following-button = Sequente
 newtab-section-unfollow-button = Non plus sequer
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Perfectiona tu fluxo
+newtab-section-follow-highlight-subtitle = Seque tu interesses pro vider plus de lo que te place.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -520,18 +532,23 @@ newtab-section-mangage-topics-blocked-topics = Blocate
 newtab-section-mangage-topics-blocked-topics-empty-state = Tu non ha ancora blocate alcun topico.
 newtab-custom-wallpaper-title = Ecce le fundos personalisate
 # 'Make firefox yours" means to customize or personalize
-newtab-custom-wallpaper-subtitle = Carga tu proprie fundo o selige un color personalisate pro tu { -brand-product-name }.
+newtab-custom-wallpaper-subtitle = Incarga tu proprie fundo o selige un color pro personalisar tu { -brand-product-name }.
 newtab-custom-wallpaper-cta = Prova lo
 
 ## Strings for download mobile highlight
 
 newtab-download-mobile-highlight-title = Discarga { -brand-product-name } pro apparatos mobile
 # "Scan the code" refers to scanning the QR code that appears above the body text that leads to Firefox for mobile download.
-newtab-download-mobile-highlight-body-variant-a = Scande le codice pro navigar al volo con securitate.
-newtab-download-mobile-highlight-body-variant-b = Reprende de ubi tu exiva quando tu synchronisa tu schedas, contrasignos, e altero.
-newtab-download-mobile-highlight-body-variant-c = Sape tu que tu pote prender { -brand-product-name } al volo?
+newtab-download-mobile-highlight-body-variant-a = Scanna le codice pro navigar con securitate quando tu es in cammino.
+newtab-download-mobile-highlight-body-variant-b = Reprende de ubi tu cessava quando tu synchronisa tu schedas, contrasignos, e plus.
+newtab-download-mobile-highlight-body-variant-c = Sape tu que tu pote prender { -brand-product-name } quando tu es in cammino? Le mesme navigator, in tu tasca.
 newtab-download-mobile-highlight-image =
-    .aria-label = Codice QR pro discargar { -brand-product-name } pro apparato mobile
+    .aria-label = Codice QR pro discargar { -brand-product-name } pro apparatos mobile
+
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = Tu preferentias a tu punctas de digitos
+newtab-shortcuts-highlight-subtitle = Adde un via-breve pro mantener tu sitos favorite a portata de clic.
 
 ## Strings for reporting ads and content
 
@@ -540,18 +557,31 @@ newtab-report-content-why-reporting-this =
 newtab-report-ads-reason-not-interested =
     .label = Io non es interessate
 newtab-report-ads-reason-inappropriate =
-    .label = Il es inappropriate
+    .label = Es inappropriate
 newtab-report-ads-reason-seen-it-too-many-times =
-    .label = Io lo ha vidite troppe vices
+    .label = Io lo ha vidite troppo de vices
 newtab-report-content-wrong-category =
-    .label = Mal categoria
+    .label = Categoria incorrecte
 newtab-report-content-outdated =
     .label = Obsolete
 newtab-report-content-inappropriate-offensive =
     .label = Inappropriate o offensive
 newtab-report-content-spam-misleading =
-    .label = Spam o fallace
+    .label = Spam o deception
 newtab-report-cancel = Cancellar
 newtab-report-submit = Inviar
 newtab-toast-thanks-for-reporting =
     .message = Gratias pro iste reporto.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Popular sur Google
+newtab-trending-searches-show-trending =
+    .title = Monstrar recercas popular
+newtab-trending-searches-hide-trending =
+    .title = Celar recercas popular
+newtab-trending-searches-learn-more = Pro saper plus
+newtab-trending-searches-dismiss = Celar recercas popular
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Recercas popular

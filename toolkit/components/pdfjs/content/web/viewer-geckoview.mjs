@@ -20,6 +20,10 @@
  * JavaScript code in this page
  */
 
+/**
+ * pdfjsVersion = 5.4.19
+ * pdfjsBuild = e0783cd07
+ */
 
 ;// ./web/pdfjs.js
 const {
@@ -870,7 +874,7 @@ const defaultOptions = {
     kind: OptionKind.API
   },
   workerPort: {
-    value: null,
+    value: globalThis.pdfjsPreloadedWorker || null,
     kind: OptionKind.WORKER
   },
   workerSrc: {
@@ -2704,7 +2708,7 @@ const FIRST_CHAR_SYLLABLES_REG_EXP = "[\\u1100-\\u1112\\ud7a4-\\ud7af\\ud84a\\ud
 const NFKC_CHARS_TO_NORMALIZE = new Map();
 let noSyllablesRegExp = null;
 let withSyllablesRegExp = null;
-function normalize(text) {
+function normalize(text, options = {}) {
   const syllablePositions = [];
   let m;
   while ((m = SYLLABLES_REG_EXP.exec(text)) !== null) {
@@ -2721,6 +2725,7 @@ function normalize(text) {
     }
   }
   const hasSyllables = syllablePositions.length > 0;
+  const ignoreDashEOL = options.ignoreDashEOL ?? false;
   let normalizationRegex;
   if (!hasSyllables && noSyllablesRegExp) {
     normalizationRegex = noSyllablesRegExp;
@@ -2815,6 +2820,11 @@ function normalize(text) {
       return p4;
     }
     if (p5) {
+      if (ignoreDashEOL) {
+        shiftOrigin += 1;
+        eol += 1;
+        return p5.slice(0, -1);
+      }
       const len = p5.length - 2;
       positions.push(i - shift + len, 1 + shift);
       shift += 1;
@@ -4018,6 +4028,7 @@ function composePage(pdfDocument, pageNumber, size, printContainer, printResolut
       }
       const renderContext = {
         canvasContext: ctx,
+        canvas: null,
         transform: [PRINT_UNITS, 0, 0, PRINT_UNITS, 0, 0],
         viewport: pdfPage.getViewport({
           scale: 1,
@@ -5019,7 +5030,9 @@ class Autolinker {
   static #regex;
   static findLinks(text) {
     this.#regex ??= /\b(?:https?:\/\/|mailto:|www\.)(?:[\S--[\p{P}<>]]|\/|[\S--[\[\]]]+[\S--[\p{P}<>]])+|\b[\S--[@\p{Ps}\p{Pe}<>]]+@([\S--[\p{P}<>]]+(?:\.[\S--[\p{P}<>]]+)+)/gmv;
-    const [normalizedText, diffs] = normalize(text);
+    const [normalizedText, diffs] = normalize(text, {
+      ignoreDashEOL: true
+    });
     const matches = normalizedText.matchAll(this.#regex);
     const links = [];
     for (const match of matches) {
@@ -5055,7 +5068,6 @@ class Autolinker {
 
 
 class BasePDFPageView {
-  #enableHWA = false;
   #loadingId = null;
   #minDurationToUpdateCanvas = 0;
   #renderError = null;
@@ -5072,7 +5084,6 @@ class BasePDFPageView {
   renderTask = null;
   resume = null;
   constructor(options) {
-    this.#enableHWA = #enableHWA in options ? options.#enableHWA : options.enableHWA || false;
     this.eventBus = options.eventBus;
     this.id = options.id;
     this.pageColors = options.pageColors || null;
@@ -5159,14 +5170,9 @@ class BasePDFPageView {
         onShow(canvas);
       }
     };
-    const ctx = canvas.getContext("2d", {
-      alpha: false,
-      willReadFrequently: !this.#enableHWA
-    });
     return {
       canvas,
-      prevCanvas,
-      ctx
+      prevCanvas
     };
   }
   #renderContinueCallback = cont => {
@@ -5426,8 +5432,7 @@ class PDFPageDetailView extends BasePDFPageView {
     const canvasWrapper = this.pageView._ensureCanvasWrapper();
     const {
       canvas,
-      prevCanvas,
-      ctx
+      prevCanvas
     } = this._createCanvas(newCanvas => {
       if (canvasWrapper.firstElementChild?.tagName === "CANVAS") {
         canvasWrapper.firstElementChild.after(newCanvas);
@@ -5454,7 +5459,7 @@ class PDFPageDetailView extends BasePDFPageView {
     style.height = `${area.height * 100 / height}%`;
     style.top = `${area.minY * 100 / height}%`;
     style.left = `${area.minX * 100 / width}%`;
-    const renderingPromise = this._drawCanvas(this.pageView._getRenderingContext(ctx, transform), () => {
+    const renderingPromise = this._drawCanvas(this.pageView._getRenderingContext(canvas, transform), () => {
       this.canvas?.remove();
       this.canvas = prevCanvas;
     }, () => {
@@ -6769,9 +6774,9 @@ class PDFPageView extends BasePDFPageView {
     }
     return canvasWrapper;
   }
-  _getRenderingContext(canvasContext, transform) {
+  _getRenderingContext(canvas, transform) {
     return {
-      canvasContext,
+      canvas,
       transform,
       viewport: this.viewport,
       annotationMode: this.#annotationMode,
@@ -6848,8 +6853,7 @@ class PDFPageView extends BasePDFPageView {
     this.#originalViewport = viewport;
     const {
       canvas,
-      prevCanvas,
-      ctx
+      prevCanvas
     } = this._createCanvas(newCanvas => {
       canvasWrapper.prepend(newCanvas);
     });
@@ -6878,7 +6882,7 @@ class PDFPageView extends BasePDFPageView {
       this.#scaleRoundY = sfy[1];
     }
     const transform = outputScale.scaled ? [outputScale.sx, 0, 0, outputScale.sy, 0, 0] : null;
-    const resultPromise = this._drawCanvas(this._getRenderingContext(ctx, transform), () => {
+    const resultPromise = this._drawCanvas(this._getRenderingContext(canvas, transform), () => {
       prevCanvas?.remove();
       this._resetCanvas();
     }, renderTask => {
@@ -7053,13 +7057,15 @@ class PDFViewer {
   #signatureManager = null;
   #supportsPinchToZoom = true;
   #textLayerMode = TextLayerMode.ENABLE;
+  #viewerAlert = null;
   constructor(options) {
-    const viewerVersion = "5.2.183";
+    const viewerVersion = "5.4.19";
     if (version !== viewerVersion) {
       throw new Error(`The API version "${version}" does not match the Viewer version "${viewerVersion}".`);
     }
     this.container = options.container;
     this.viewer = options.viewer || options.container.firstElementChild;
+    this.#viewerAlert = options.viewerAlert || null;
     this.#resizeObserver.observe(this.container);
     this.eventBus = options.eventBus;
     this.linkService = options.linkService || new SimpleLinkService();
@@ -7473,7 +7479,7 @@ class PDFViewer {
         if (pdfDocument.isPureXfa) {
           console.warn("Warning: XFA-editing is not implemented.");
         } else if (isValidAnnotationEditorMode(mode)) {
-          this.#annotationEditorUIManager = new AnnotationEditorUIManager(this.container, viewer, this.#altTextManager, this.#signatureManager, eventBus, pdfDocument, pageColors, this.#annotationEditorHighlightColors, this.#enableHighlightFloatingButton, this.#enableUpdatedAddImage, this.#enableNewAltTextWhenAddingImage, this.#mlManager, this.#editorUndoBar, this.#supportsPinchToZoom);
+          this.#annotationEditorUIManager = new AnnotationEditorUIManager(this.container, viewer, this.#viewerAlert, this.#altTextManager, this.#signatureManager, eventBus, pdfDocument, pageColors, this.#annotationEditorHighlightColors, this.#enableHighlightFloatingButton, this.#enableUpdatedAddImage, this.#enableNewAltTextWhenAddingImage, this.#mlManager, this.#editorUndoBar, this.#supportsPinchToZoom);
           eventBus.dispatch("annotationeditoruimanager", {
             source: this,
             uiManager: this.#annotationEditorUIManager
@@ -8493,7 +8499,8 @@ class PDFViewer {
   set annotationEditorMode({
     mode,
     editId = null,
-    isFromKeyboard = false
+    isFromKeyboard = false,
+    mustEnterInEditMode = false
   }) {
     if (!this.#annotationEditorUIManager) {
       throw new Error(`The AnnotationEditor is not enabled.`);
@@ -8515,7 +8522,7 @@ class PDFViewer {
     const updater = async () => {
       this.#cleanupSwitchAnnotationEditorMode();
       this.#annotationEditorMode = mode;
-      await this.#annotationEditorUIManager.updateMode(mode, editId, isFromKeyboard);
+      await this.#annotationEditorUIManager.updateMode(mode, editId, isFromKeyboard, mustEnterInEditMode);
       if (mode !== this.#annotationEditorMode || pdfDocument !== this.pdfDocument) {
         return;
       }
@@ -8867,6 +8874,7 @@ const PDFViewerApplication = {
         /*webpackIgnore: true*/
         /*@vite-ignore*/
         PDFWorker.workerSrc);
+        AppOptions.set("workerPort", null);
       } catch (ex) {
         console.error("_parseHashParams:", ex);
       }
@@ -8977,6 +8985,7 @@ const PDFViewerApplication = {
     const pdfViewer = this.pdfViewer = new PDFViewer({
       container,
       viewer,
+      viewerAlert: appConfig.viewerAlert,
       eventBus,
       renderingQueue,
       linkService,
@@ -9053,7 +9062,7 @@ const PDFViewerApplication = {
       this.imageAltTextSettings = new ImageAltTextSettings(appConfig.altTextSettingsDialog, overlayManager, eventBus, mlManager);
     }
     if (appConfig.documentProperties) {
-      this.pdfDocumentProperties = new PDFDocumentProperties(appConfig.documentProperties, overlayManager, eventBus, l10n, () => this._docFilename);
+      this.pdfDocumentProperties = new PDFDocumentProperties(appConfig.documentProperties, overlayManager, eventBus, l10n, () => this._docFilename, () => this._docTitle);
     }
     if (appConfig.secondaryToolbar?.cursorHandToolButton) {
       this.pdfCursorTools = new PDFCursorTools({
@@ -9265,6 +9274,19 @@ const PDFViewerApplication = {
   },
   get _docFilename() {
     return this._contentDispositionFilename || getPdfFilenameFromUrl(this.url);
+  },
+  get _docTitle() {
+    const {
+      documentInfo,
+      metadata
+    } = this;
+    const title = metadata?.get("dc:title");
+    if (title) {
+      if (title !== "Untitled" && !/[\uFFF0-\uFFFF]/g.test(title)) {
+        return title;
+      }
+    }
+    return documentInfo.Title;
   },
   _hideViewBookmark() {
     const {
@@ -9527,9 +9549,6 @@ const PDFViewerApplication = {
         this.eventBus.dispatch("documentinit", {
           source: this
         });
-        if (!this.isViewerEmbedded) {
-          pdfViewer.focus();
-        }
         await Promise.race([pagesPromise, new Promise(resolve => {
           setTimeout(resolve, FORCE_PAGES_LOADED_TIMEOUT);
         })]);
@@ -9666,18 +9685,18 @@ const PDFViewerApplication = {
     if (pdfDocument !== this.pdfDocument) {
       return;
     }
+    if (info.collectedSignatureCertificates) {
+      this.externalServices.reportTelemetry({
+        type: "signatureCertificates",
+        data: info.collectedSignatureCertificates
+      });
+    }
     this.documentInfo = info;
     this.metadata = metadata;
     this._contentDispositionFilename ??= contentDispositionFilename;
     this._contentLength ??= contentLength;
-    console.log(`PDF ${pdfDocument.fingerprints[0]} [${info.PDFFormatVersion} ` + `${(info.Producer || "-").trim()} / ${(info.Creator || "-").trim()}] ` + `(PDF.js: ${version || "?"} [${build || "?"}])`);
-    let pdfTitle = info.Title;
-    const metadataTitle = metadata?.get("dc:title");
-    if (metadataTitle) {
-      if (metadataTitle !== "Untitled" && !/[\uFFF0-\uFFFF]/g.test(metadataTitle)) {
-        pdfTitle = metadataTitle;
-      }
-    }
+    console.log(`PDF ${pdfDocument.fingerprints[0]} [${info.PDFFormatVersion} ` + `${(metadata?.get("pdf:producer") || info.Producer || "-").trim()} / ` + `${(metadata?.get("xmp:creatortool") || info.Creator || "-").trim()}` + `] (PDF.js: ${version || "?"} [${build || "?"}])`);
+    const pdfTitle = this._docTitle;
     if (pdfTitle) {
       this.setTitle(`${pdfTitle} - ${this._contentDispositionFilename || this._title}`);
     } else if (this._contentDispositionFilename) {
@@ -10449,7 +10468,7 @@ function onKeyDown(evt) {
   }
   const curElement = getActiveOrFocusedElement();
   const curElementTagName = curElement?.tagName.toUpperCase();
-  if (curElementTagName === "INPUT" || curElementTagName === "TEXTAREA" || curElementTagName === "SELECT" || curElementTagName === "BUTTON" && (evt.keyCode === 13 || evt.keyCode === 32) || curElement?.isContentEditable) {
+  if (curElementTagName === "INPUT" || curElementTagName === "TEXTAREA" || curElementTagName === "SELECT" || curElementTagName === "BUTTON" && evt.keyCode === 32 || curElement?.isContentEditable) {
     if (evt.keyCode !== 27) {
       return;
     }
@@ -10509,7 +10528,6 @@ function onKeyDown(evt) {
         }
         turnPage = 1;
         break;
-      case 13:
       case 32:
         if (!isViewerInPresentationMode) {
           turnOnlyIfPageFit = true;
@@ -10565,7 +10583,6 @@ function onKeyDown(evt) {
   }
   if (cmd === 4) {
     switch (evt.keyCode) {
-      case 13:
       case 32:
         if (!isViewerInPresentationMode && pdfViewer.currentScaleValue !== "page-fit") {
           break;
@@ -10609,8 +10626,6 @@ function beforeUnload(evt) {
 
 
 
-const pdfjsVersion = "5.2.183";
-const pdfjsBuild = "3f1ecc1ba";
 const AppConstants = null;
 window.PDFViewerApplication = PDFViewerApplication;
 window.PDFViewerApplicationConstants = AppConstants;

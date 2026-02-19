@@ -7,12 +7,12 @@
 #ifndef mozilla_DisplayPortUtils_h__
 #define mozilla_DisplayPortUtils_h__
 
+#include <cstdint>
+#include <iosfwd>
+
 #include "Units.h"
 #include "nsDisplayList.h"
 #include "nsRect.h"
-
-#include <cstdint>
-#include <iosfwd>
 
 class nsIContent;
 class nsIFrame;
@@ -278,6 +278,15 @@ class DisplayPortUtils {
   static bool MaybeCreateDisplayPort(
       nsDisplayListBuilder* aBuilder,
       ScrollContainerFrame* aScrollContainerFrame, RepaintMode aRepaintMode);
+
+  /**
+   * Step up one frame in the async scrollable ancestor chain, to be used in
+   * conjunction with GetAsyncScrollableAncestorFrame to walk the async
+   * scrollable ancestor chain. Note this doesn't go from one async scrollable
+   * frame to the next. Rather this walks all frame types, taking only one
+   * ancestor step per call.
+   */
+  static nsIFrame* OneStepInAsyncScrollableAncestorChain(nsIFrame* aFrame);
 
   /**
    * Sets a zero margin display port on all proper ancestors of aFrame that

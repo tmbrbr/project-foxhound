@@ -110,7 +110,7 @@ data class CollectionColors(
         @Composable
         fun colors(
             buttonBackgroundColor: Color = FirefoxTheme.colors.actionPrimary,
-            buttonTextColor: Color = FirefoxTheme.colors.iconActionPrimary,
+            buttonTextColor: Color = FirefoxTheme.colors.textActionPrimary,
             titleTextColor: Color = FirefoxTheme.colors.textPrimary,
             descriptionTextColor: Color = FirefoxTheme.colors.textSecondary,
         ) = CollectionColors(
@@ -141,7 +141,7 @@ data class CollectionColors(
             var buttonColor = FirefoxTheme.colors.actionPrimary
             var buttonTextColor = FirefoxTheme.colors.textActionPrimary
 
-            wallpaperState.composeRunIfWallpaperCardColorsAreAvailable { _, _ ->
+            wallpaperState.ComposeRunIfWallpaperCardColorsAreAvailable { _, _ ->
                 buttonColor = FirefoxTheme.colors.layer1
 
                 if (!isSystemInDarkTheme()) {

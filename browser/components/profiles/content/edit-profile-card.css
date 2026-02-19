@@ -20,6 +20,23 @@
   width: var(--header-avatar-size);
   height: var(--header-avatar-size);
   border-radius: var(--border-radius-circle);
+  border: var(--card-border);
+}
+
+.avatar-header-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-small);
+  align-items: center;
+
+  .avatar-selector-parent {
+    position: relative;
+  }
+
+  profile-avatar-selector {
+    position: absolute;
+    inset-inline-start: -140px;
+  }
 }
 
 #profile-name-area {
@@ -68,18 +85,10 @@
   color: var(--icon-color-success);
 }
 
-#themes::part(inputs) {
-  margin-top: var(--space-medium);
+.avatar-item {
+  --visual-picker-item-border-radius: var(--border-radius-circle);
 }
 
-#avatars::part(inputs) {
-  margin-top: var(--space-medium);
-}
-
-#avatars::part(inputs),
-#themes::part(inputs) {
-  flex-direction: row;
-  flex-wrap: wrap;
-  row-gap: var(--space-small);
-  column-gap: var(--space-medium);
+.theme-item {
+  --visual-picker-item-border-radius: 10px;
 }

@@ -6,7 +6,15 @@
 
 #include "DisplayPortUtils.h"
 
+#include <ostream>
+
 #include "FrameMetrics.h"
+#include "RetainedDisplayListBuilder.h"
+#include "WindowRenderer.h"
+#include "mozilla/PresShell.h"
+#include "mozilla/ScrollContainerFrame.h"
+#include "mozilla/StaticPrefs_layers.h"
+#include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/dom/BrowserChild.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/gfx/Point.h"
@@ -14,17 +22,9 @@
 #include "mozilla/layers/CompositorBridgeChild.h"
 #include "mozilla/layers/LayersMessageUtils.h"
 #include "mozilla/layers/PAPZ.h"
-#include "mozilla/PresShell.h"
-#include "mozilla/ScrollContainerFrame.h"
-#include "mozilla/StaticPrefs_layers.h"
-#include "mozilla/StaticPrefs_layout.h"
 #include "nsLayoutUtils.h"
 #include "nsPlaceholderFrame.h"
 #include "nsSubDocumentFrame.h"
-#include "RetainedDisplayListBuilder.h"
-#include "WindowRenderer.h"
-
-#include <ostream>
 
 namespace mozilla {
 
@@ -269,7 +269,7 @@ static nsRect GetDisplayPortFromMarginsData(
     // always using a 128 alignment, so the displayport multipliers are also
     // correspondingly smaller when WR is enabled to prevent the displayport
     // from becoming too big.
-    IntSize multiplier =
+    gfx::Size multiplier =
         layers::apz::GetDisplayportAlignmentMultiplier(screenRect.Size());
     alignment = ScreenSize(128 * multiplier.width, 128 * multiplier.height);
   }
@@ -702,15 +702,30 @@ void DisplayPortUtils::SetDisplayPortBase(nsIContent* aContent,
             ("Setting base rect %s for scrollId=%" PRIu64 "\n",
              ToString(aBase).c_str(), viewId));
   }
+  if (nsRect* baseData = static_cast<nsRect*>(
+          aContent->GetProperty(nsGkAtoms::DisplayPortBase))) {
+    *baseData = aBase;
+    return;
+  }
+
   aContent->SetProperty(nsGkAtoms::DisplayPortBase, new nsRect(aBase),
                         nsINode::DeleteProperty<nsRect>);
 }
 
 void DisplayPortUtils::SetDisplayPortBaseIfNotSet(nsIContent* aContent,
                                                   const nsRect& aBase) {
-  if (!aContent->GetProperty(nsGkAtoms::DisplayPortBase)) {
-    SetDisplayPortBase(aContent, aBase);
+  if (aContent->GetProperty(nsGkAtoms::DisplayPortBase)) {
+    return;
   }
+  if (MOZ_LOG_TEST(sDisplayportLog, LogLevel::Verbose)) {
+    ViewID viewId = nsLayoutUtils::FindOrCreateIDFor(aContent);
+    MOZ_LOG(sDisplayportLog, LogLevel::Verbose,
+            ("Setting base rect %s for scrollId=%" PRIu64 "\n",
+             ToString(aBase).c_str(), viewId));
+  }
+
+  aContent->SetProperty(nsGkAtoms::DisplayPortBase, new nsRect(aBase),
+                        nsINode::DeleteProperty<nsRect>);
 }
 
 void DisplayPortUtils::RemoveDisplayPort(nsIContent* aContent) {
@@ -816,11 +831,21 @@ bool DisplayPortUtils::MaybeCreateDisplayPort(
   }
   return false;
 }
+
+nsIFrame* DisplayPortUtils::OneStepInAsyncScrollableAncestorChain(
+    nsIFrame* aFrame) {
+  if (aFrame->StyleDisplay()->mPosition == StylePositionProperty::Fixed &&
+      nsLayoutUtils::IsReallyFixedPos(aFrame)) {
+    return aFrame->PresShell()->GetRootScrollContainerFrame();
+  }
+  return nsLayoutUtils::GetCrossDocParentFrameInProcess(aFrame);
+}
+
 void DisplayPortUtils::SetZeroMarginDisplayPortOnAsyncScrollableAncestors(
     nsIFrame* aFrame) {
   nsIFrame* frame = aFrame;
   while (frame) {
-    frame = nsLayoutUtils::GetParentOrPlaceholderForCrossDoc(frame);
+    frame = OneStepInAsyncScrollableAncestorChain(frame);
     if (!frame) {
       break;
     }
@@ -901,7 +926,7 @@ void DisplayPortUtils::ExpireDisplayPortOnAsyncScrollableAncestor(
     nsIFrame* aFrame) {
   nsIFrame* frame = aFrame;
   while (frame) {
-    frame = nsLayoutUtils::GetCrossDocParentFrameInProcess(frame);
+    frame = OneStepInAsyncScrollableAncestorChain(frame);
     if (!frame) {
       break;
     }

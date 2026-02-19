@@ -1,11 +1,13 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 package org.mozilla.focus.searchsuggestions.ui
 
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material.ContentAlpha
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
@@ -88,9 +90,8 @@ private fun SearchSuggestions(
     val components = components
 
     val icon = AppCompatResources.getDrawable(context, R.drawable.mozac_ic_search_24)?.toBitmap()
-    val provider = remember(context) {
+    val provider = remember {
         SearchSuggestionProvider(
-            context,
             components.store,
             components.searchUseCases.newPrivateTabSearch,
             components.client,
@@ -117,6 +118,12 @@ private fun SearchSuggestions(
             text = text,
             colors = AwesomeBarDefaults.colors(
                 background = focusColors.surface,
+                title = focusColors.onBackground,
+                description = focusColors.onBackground.copy(
+                    alpha = ContentAlpha.medium,
+                ),
+                autocompleteIcon = focusColors.onSurface,
+                groupTitle = focusColors.onBackground,
             ),
             providers = listOf(provider),
             onSuggestionClicked = onSuggestionClicked,

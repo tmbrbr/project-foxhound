@@ -10,6 +10,7 @@ support-files = [
 ]
 prefs = [
   "javascript.options.large_arraybuffers=true",
+  "javascript.options.experimental.arraybuffer_immutable=true",
 ]
 
 ["test_ByteString.html"]
@@ -104,6 +105,12 @@ skip-if = ["!debug"]
 tags = "webrtc"
 
 ["test_forOf.html"]
+
+["test_immutable_arraybufferview.html"]
+skip-if = [
+  "!debug",
+  "!nightly_build", # Bug 1952253
+]
 
 ["test_integers.html"]
 

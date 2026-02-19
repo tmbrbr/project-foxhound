@@ -109,7 +109,10 @@ var gBrowserInit = {
         extraOptions instanceof Ci.nsIWritablePropertyBag2 &&
         extraOptions.hasKey("taskbartab")
       ) {
-        window.document.documentElement.setAttribute("taskbartab", "");
+        window.document.documentElement.setAttribute(
+          "taskbartab",
+          extraOptions.getPropertyAsAString("taskbartab")
+        );
       }
     }
 
@@ -245,7 +248,7 @@ var gBrowserInit = {
     Win10TabletModeUpdater.init();
     CombinedStopReload.ensureInitialized();
     gPrivateBrowsingUI.init();
-    TaskbarTabUI.init(window);
+    TaskbarTabsChrome.init(window);
     BrowserPageActions.init();
     if (gToolbarKeyNavEnabled) {
       ToolbarKeyboardNavigator.init();
@@ -271,8 +274,15 @@ var gBrowserInit = {
 
       let swapBrowsers = () => {
         if (gBrowser.isTabGroupLabel(tabToAdopt)) {
+          // TODO bug 1967937: Merge this case with the tab group case below.
           gBrowser.adoptTabGroup(tabToAdopt.group, { elementIndex: 0 });
           gBrowser.removeTab(gBrowser.selectedTab);
+        } else if (gBrowser.isTabGroup(tabToAdopt)) {
+          // Via gBrowser.replaceGroupWithWindow
+          let tempBlankTab = gBrowser.selectedTab;
+          gBrowser.adoptTabGroup(tabToAdopt, { tabIndex: 0, selectTab: true });
+          gBrowser.removeTab(tempBlankTab);
+          Glean.tabgroup.groupInteractions.move_window.add(1);
         } else {
           if (tabToAdopt.group) {
             Glean.tabgroup.tabInteractions.remove_new_window.add();
@@ -403,6 +413,7 @@ var gBrowserInit = {
     BookmarkingUI.init();
     gURLBar.delayedStartupInit();
     gProtectionsHandler.init();
+    gTrustPanelHandler.init();
 
     let safeMode = document.getElementById("helpSafeMode");
     if (Services.appinfo.inSafeMode) {
@@ -500,7 +511,7 @@ var gBrowserInit = {
       }
 
       // Enable the Restore Last Session command if needed
-      RestoreLastSessionObserver.init();
+      gRestoreLastSessionObserver.init();
 
       SidebarController.startDelayedLoad();
 
@@ -715,7 +726,7 @@ var gBrowserInit = {
               window.arguments[8] ||
               Services.scriptSecurityManager.getSystemPrincipal(),
             allowInheritPrincipal: window.arguments[9],
-            csp: window.arguments[10],
+            policyContainer: window.arguments[10],
             fromExternal: true,
           });
         } catch (e) {}
@@ -729,7 +740,7 @@ var gBrowserInit = {
         //                 [7]: originStoragePrincipal (nsIPrincipal)
         //                 [8]: triggeringPrincipal (nsIPrincipal)
         //                 [9]: allowInheritPrincipal (bool)
-        //                 [10]: csp (nsIContentSecurityPolicy)
+        //                 [10]: policyContainer (nsIPolicyContainer)
         //                 [11]: nsOpenWindowInfo
         let userContextId =
           window.arguments[5] != undefined
@@ -800,7 +811,7 @@ var gBrowserInit = {
             // TODO fix allowInheritPrincipal to default to false.
             // Default to true unless explicitly set to false because of bug 1475201.
             allowInheritPrincipal: window.arguments[9] !== false,
-            csp: window.arguments[10],
+            policyContainer: window.arguments[10],
             forceAboutBlankViewerInCurrent: !!window.arguments[6],
             forceAllowDataURI,
             hasValidUserGestureActivation,
@@ -1058,6 +1069,7 @@ var gBrowserInit = {
       ctrlTab.uninit();
       gBrowserThumbnails.uninit();
       gProtectionsHandler.uninit();
+      gTrustPanelHandler.uninit();
       FullZoom.destroy();
 
       Services.obs.removeObserver(gIdentityHandler, "perm-changed");

@@ -28,7 +28,6 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import mozilla.appservices.RustComponentsInitializer
 import mozilla.appservices.autofill.AutofillApiException
 import mozilla.components.browser.state.action.SystemAction
 import mozilla.components.browser.state.selector.selectedTab
@@ -54,6 +53,7 @@ import mozilla.components.feature.webcompat.reporter.WebCompatReporterFeature
 import mozilla.components.lib.crash.CrashReporter
 import mozilla.components.service.fxa.manager.SyncEnginesStorage
 import mozilla.components.service.sync.logins.LoginsApiException
+import mozilla.components.support.AppServicesInitializer
 import mozilla.components.support.base.ext.areNotificationsEnabledSafe
 import mozilla.components.support.base.ext.isNotificationChannelEnabled
 import mozilla.components.support.base.facts.register
@@ -65,9 +65,7 @@ import mozilla.components.support.ktx.android.content.isMainProcess
 import mozilla.components.support.ktx.android.content.runOnlyInMainProcess
 import mozilla.components.support.locale.LocaleAwareApplication
 import mozilla.components.support.remotesettings.GlobalRemoteSettingsDependencyProvider
-import mozilla.components.support.rusterrors.initializeRustErrors
 import mozilla.components.support.rusthttp.RustHttpConfig
-import mozilla.components.support.rustlog.RustLog
 import mozilla.components.support.utils.BrowsersCache
 import mozilla.components.support.utils.logElapsedTime
 import mozilla.components.support.webextensions.WebExtensionSupport
@@ -83,7 +81,6 @@ import org.mozilla.fenix.GleanMetrics.Metrics
 import org.mozilla.fenix.GleanMetrics.PerfStartup
 import org.mozilla.fenix.GleanMetrics.Preferences
 import org.mozilla.fenix.GleanMetrics.SearchDefaultEngine
-import org.mozilla.fenix.GleanMetrics.TopSites
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.Core
 import org.mozilla.fenix.components.appstate.AppAction
@@ -115,7 +112,6 @@ import org.mozilla.fenix.session.VisibilityLifecycleCallback
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.isLargeScreenSize
 import org.mozilla.fenix.wallpapers.Wallpaper
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToLong
 
@@ -324,7 +320,7 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
 
         @OptIn(DelicateCoroutinesApi::class) // GlobalScope usage
         fun queueInitStorageAndServices() {
-            components.performance.visualCompletenessQueue.queue.runIfReadyOrQueue {
+            queue.runIfReadyOrQueue {
                 GlobalScope.launch(IO) {
                     logger.info("Running post-visual completeness tasks...")
                     logElapsedTime(logger, "Storage initialization") {
@@ -398,15 +394,17 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
         }
 
         @OptIn(DelicateCoroutinesApi::class) // GlobalScope usage
-        fun queueReviewPrompt() {
-            GlobalScope.launch(IO) {
-                components.reviewPromptController.trackApplicationLaunch()
+        fun queueIncrementNumberOfAppLaunches() {
+            queue.runIfReadyOrQueue {
+                GlobalScope.launch(IO) {
+                    settings().numberOfAppLaunches += 1
+                }
             }
         }
 
         @OptIn(DelicateCoroutinesApi::class) // GlobalScope usage
         fun queueRestoreLocale() {
-            components.performance.visualCompletenessQueue.queue.runIfReadyOrQueue {
+            queue.runIfReadyOrQueue {
                 GlobalScope.launch(IO) {
                     components.useCases.localeUseCases.restore()
                 }
@@ -455,7 +453,7 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
         // startup path, before the UI finishes drawing (i.e. visual completeness).
         queueInitStorageAndServices()
         queueMetrics()
-        queueReviewPrompt()
+        queueIncrementNumberOfAppLaunches()
         queueRestoreLocale()
         queueStorageMaintenance()
         queueNimbusFetchInForeground()
@@ -535,12 +533,7 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
      */
     private fun beginSetupMegazord() {
         // Rust components must be initialized at the very beginning, before any other Rust call, ...
-        RustComponentsInitializer.init()
-
-        initializeRustErrors(components.analytics.crashReporter)
-        // ... but RustHttpConfig.setClient() and RustLog.enable() can be called later.
-
-        RustLog.enable()
+        AppServicesInitializer.init(components.analytics.crashReporter)
     }
 
     @OptIn(DelicateCoroutinesApi::class) // GlobalScope usage
@@ -550,9 +543,6 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
                 RustHttpConfig.allowEmulatorLoopback()
             }
             RustHttpConfig.setClient(lazy { components.core.client })
-
-            // Now viaduct (the RustHttp client) is initialized we can ask Nimbus to fetch
-            // experiments recipes from the server.
         }
     }
 
@@ -748,12 +738,6 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
             defaultBrowser.set(browsersCache.all(applicationContext).isDefaultBrowser)
             mozillaProductDetector.getMozillaBrowserDefault(applicationContext)?.also {
                 defaultMozBrowser.set(it)
-            }
-
-            if (settings.contileContextId.isEmpty()) {
-                settings.contileContextId = TopSites.contextId.generateAndSet().toString()
-            } else {
-                TopSites.contextId.set(UUID.fromString(settings.contileContextId))
             }
 
             mozillaProducts.set(

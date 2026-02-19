@@ -20,7 +20,7 @@
 #  include "mozilla/TaskQueue.h"
 #  include "mozilla/layers/KnowsCompositor.h"
 #  include "mozilla/layers/LayersTypes.h"
-#  include "mozilla/ipc/UtilityAudioDecoder.h"
+#  include "mozilla/ipc/UtilityMediaService.h"
 #  include "nsTArray.h"
 #  include "PerformanceRecorder.h"
 
@@ -69,6 +69,10 @@ MOZ_DEFINE_ENUM_CLASS_WITH_TOSTRING(
                                  // initialization of audio backends on RDD
      KeepOriginalPts,  // It can be that the decoder mangles the pts of decoded
                        // frames, this forces using the input PTS.
+     Output8BitPerChannel,  // Convert decoded data to 8-bit per channel format.
+                            // Useful when the consumer (webrender, WebGL, ...)
+                            // doesn't support inputs higher than 8-bit. ONLY
+                            // SUPPORTED BY DAV1DDecoder and FFmpegVideoDecoder.
 
      SENTINEL  // one past the last valid value
      ));

@@ -7,7 +7,6 @@ import { html, ifDefined } from "chrome://global/content/vendor/lit.all.mjs";
 
 /**
  * Element used for displaying a theme on the about:editprofile and about:newprofile pages.
- * profiles-group-item wraps this element to behave as a radio element.
  */
 export class ProfilesThemeCard extends MozLitElement {
   static properties = {
@@ -64,7 +63,7 @@ export class ProfilesThemeCard extends MozLitElement {
       />
       <moz-card class="theme-card">
         <div class="theme-content">
-          <div class="img-holder">
+          <div class="img-holder" aria-hidden="true">
             <img alt="" />
           </div>
           <div

@@ -537,7 +537,6 @@
             android:autoRemoveFromRecents="false"
             android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize|layoutDirection|smallestScreenSize|screenLayout"
             android:exported="false"
-            android:label="@string/app_name"
             android:persistableMode="persistNever"
             android:taskAffinity=""
             android:resizeableActivity="true"
@@ -642,10 +641,6 @@
                 android:resource="@mipmap/ic_launcher" />
 
         </activity>
-
-        <activity
-            android:name=".crashes.CrashListActivity"
-            android:exported="false" />
 
         <activity android:name=".widget.VoiceSearchActivity"
             android:theme="@style/Theme.AppCompat.Translucent"
@@ -773,6 +768,17 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+
+        <!-- For adjust pre-installs -->
+        <!-- https://dev.adjust.com/en/sdk/android/setup/preinstalled#system-installer-receiver-->
+        <receiver
+            android:name="com.adjust.sdk.AdjustPreinstallReferrerReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="com.attribution.SYSTEM_INSTALLER_REFERRER" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

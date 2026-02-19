@@ -297,15 +297,17 @@ class MOZ_RAII WarpCacheIRTranspiler : public WarpBuilderShared {
   WrappedFunction* maybeWrappedFunction(MDefinition* callee, CallKind kind,
                                         uint16_t nargs, FunctionFlags flags);
   WrappedFunction* maybeCallTarget(MDefinition* callee, CallKind kind);
+  WrappedFunction* maybeGetterSetterTarget(MDefinition* callee, CallKind kind,
+                                           uint16_t nargs, FunctionFlags flags);
 
   bool maybeCreateThis(MDefinition* callee, CallFlags flags, CallKind kind);
 
   [[nodiscard]] bool emitCallGetterResult(CallKind kind,
                                           ValOperandId receiverId,
-                                          uint32_t getterOffset, bool sameRealm,
+                                          MDefinition* getter, bool sameRealm,
                                           uint32_t nargsAndFlagsOffset);
   [[nodiscard]] bool emitCallSetter(CallKind kind, ObjOperandId receiverId,
-                                    uint32_t setterOffset, ValOperandId rhsId,
+                                    MDefinition* setter, ValOperandId rhsId,
                                     bool sameRealm,
                                     uint32_t nargsAndFlagsOffset);
 
@@ -410,35 +412,18 @@ bool WarpCacheIRTranspiler::emitGuardClass(ObjOperandId objId,
   return true;
 }
 
-bool WarpCacheIRTranspiler::emitGuardEitherClass(ObjOperandId objId,
-                                                 GuardClassKind kind1,
-                                                 GuardClassKind kind2) {
-  MDefinition* def = getOperand(objId);
-
-  // We don't yet need this case, so it's unsupported for now.
-  MOZ_ASSERT(kind1 != GuardClassKind::JSFunction &&
-             kind2 != GuardClassKind::JSFunction);
-
-  const JSClass* classp1 = classForGuardClassKind(kind1);
-  const JSClass* classp2 = classForGuardClassKind(kind2);
-  auto* ins = MGuardToEitherClass::New(alloc(), def, classp1, classp2);
-
-  add(ins);
-
-  setOperand(objId, ins);
-  return true;
-}
-
 const JSClass* WarpCacheIRTranspiler::classForGuardClassKind(
     GuardClassKind kind) {
   switch (kind) {
     case GuardClassKind::Array:
     case GuardClassKind::PlainObject:
     case GuardClassKind::FixedLengthArrayBuffer:
+    case GuardClassKind::ImmutableArrayBuffer:
     case GuardClassKind::ResizableArrayBuffer:
     case GuardClassKind::FixedLengthSharedArrayBuffer:
     case GuardClassKind::GrowableSharedArrayBuffer:
     case GuardClassKind::FixedLengthDataView:
+    case GuardClassKind::ImmutableDataView:
     case GuardClassKind::ResizableDataView:
     case GuardClassKind::MappedArguments:
     case GuardClassKind::UnmappedArguments:
@@ -486,10 +471,12 @@ template <auto FuseMember, CompilationDependency::Type DepType>
 struct RealmFuseDependency final : public CompilationDependency {
   RealmFuseDependency() : CompilationDependency(DepType) {}
 
-  virtual bool registerDependency(JSContext* cx, HandleScript script) override {
+  virtual bool registerDependency(JSContext* cx,
+                                  const IonScriptKey& ionScript) override {
     MOZ_ASSERT(checkDependency(cx));
 
-    return (cx->realm()->realmFuses.*FuseMember).addFuseDependency(cx, script);
+    return (cx->realm()->realmFuses.*FuseMember)
+        .addFuseDependency(cx, ionScript);
   }
 
   virtual UniquePtr<CompilationDependency> clone() const override {
@@ -604,6 +591,18 @@ bool WarpCacheIRTranspiler::emitGuardIsNotDOMProxy(ObjOperandId objId) {
 
   setOperand(objId, ins);
   return true;
+}
+
+bool WarpCacheIRTranspiler::emitLoadGetterSetterFunction(
+    ValOperandId getterSetterId, bool isGetter, bool needsClassGuard,
+    ObjOperandId resultId) {
+  MDefinition* getterSetter = getOperand(getterSetterId);
+
+  auto* ins = MLoadGetterSetterFunction::New(alloc(), getterSetter, isGetter,
+                                             needsClassGuard);
+  add(ins);
+
+  return defineOperand(resultId, ins);
 }
 
 bool WarpCacheIRTranspiler::emitGuardHasGetterSetter(
@@ -913,6 +912,26 @@ bool WarpCacheIRTranspiler::emitValueToIteratorResult(ValOperandId valId) {
   return resumeAfter(ins);
 }
 
+bool WarpCacheIRTranspiler::emitGuardToArrayBuffer(ObjOperandId objId) {
+  MDefinition* obj = getOperand(objId);
+
+  auto* ins = MGuardToArrayBuffer::New(alloc(), obj);
+  add(ins);
+
+  setOperand(objId, ins);
+  return true;
+}
+
+bool WarpCacheIRTranspiler::emitGuardToSharedArrayBuffer(ObjOperandId objId) {
+  MDefinition* obj = getOperand(objId);
+
+  auto* ins = MGuardToSharedArrayBuffer::New(alloc(), obj);
+  add(ins);
+
+  setOperand(objId, ins);
+  return true;
+}
+
 bool WarpCacheIRTranspiler::emitGuardIsNotArrayBufferMaybeShared(
     ObjOperandId objId) {
   MDefinition* obj = getOperand(objId);
@@ -934,11 +953,11 @@ bool WarpCacheIRTranspiler::emitGuardIsTypedArray(ObjOperandId objId) {
   return true;
 }
 
-bool WarpCacheIRTranspiler::emitGuardIsFixedLengthTypedArray(
+bool WarpCacheIRTranspiler::emitGuardIsNonResizableTypedArray(
     ObjOperandId objId) {
   MDefinition* obj = getOperand(objId);
 
-  auto* ins = MGuardIsFixedLengthTypedArray::New(alloc(), obj);
+  auto* ins = MGuardIsNonResizableTypedArray::New(alloc(), obj);
   add(ins);
 
   setOperand(objId, ins);
@@ -1095,7 +1114,8 @@ bool WarpCacheIRTranspiler::emitGuardSpecificAtom(StringOperandId strId,
   MDefinition* str = getOperand(strId);
   JSString* expected = stringStubField(expectedOffset);
 
-  auto* ins = MGuardSpecificAtom::New(alloc(), str, &expected->asAtom());
+  auto* ins =
+      MGuardSpecificAtom::New(alloc(), str, &expected->asOffThreadAtom());
   add(ins);
 
   setOperand(strId, ins);
@@ -2012,7 +2032,8 @@ bool WarpCacheIRTranspiler::emitLoadBoundFunctionArgument(
   add(elements);
 
   auto argIndex = constant(Int32Value(index));
-  auto* load = MLoadElement::New(alloc(), elements, argIndex);
+  auto* load = MLoadElement::New(alloc(), elements, argIndex,
+                                 /* needsHoleCheck */ false);
   add(load);
 
   return defineOperand(resultId, load);
@@ -2173,8 +2194,8 @@ MInstruction* WarpCacheIRTranspiler::addBoundsCheck(MDefinition* index,
   return check;
 }
 
-bool WarpCacheIRTranspiler::emitLoadDenseElementResult(ObjOperandId objId,
-                                                       Int32OperandId indexId) {
+bool WarpCacheIRTranspiler::emitLoadDenseElementResult(
+    ObjOperandId objId, Int32OperandId indexId, bool expectPackedElements) {
   MDefinition* obj = getOperand(objId);
   MDefinition* index = getOperand(indexId);
 
@@ -2186,7 +2207,13 @@ bool WarpCacheIRTranspiler::emitLoadDenseElementResult(ObjOperandId objId,
 
   index = addBoundsCheck(index, length);
 
-  auto* load = MLoadElement::New(alloc(), elements, index);
+  if (expectPackedElements) {
+    auto* guardPacked = MGuardElementsArePacked::New(alloc(), elements);
+    add(guardPacked);
+  }
+
+  bool needsHoleCheck = !expectPackedElements;
+  auto* load = MLoadElement::New(alloc(), elements, index, needsHoleCheck);
   add(load);
 
   pushResult(load);
@@ -2305,7 +2332,8 @@ bool WarpCacheIRTranspiler::emitCallObjectHasSparseElementResult(
 
 MInstruction* WarpCacheIRTranspiler::emitTypedArrayLength(
     ArrayBufferViewKind viewKind, MDefinition* obj) {
-  if (viewKind == ArrayBufferViewKind::FixedLength) {
+  if (viewKind == ArrayBufferViewKind::FixedLength ||
+      viewKind == ArrayBufferViewKind::Immutable) {
     auto* length = MArrayBufferViewLength::New(alloc(), obj);
     add(length);
 
@@ -2921,7 +2949,8 @@ bool WarpCacheIRTranspiler::emitAddSlotAndCallAddPropHook(
 
 bool WarpCacheIRTranspiler::emitStoreDenseElement(ObjOperandId objId,
                                                   Int32OperandId indexId,
-                                                  ValOperandId rhsId) {
+                                                  ValOperandId rhsId,
+                                                  bool expectPackedElements) {
   MDefinition* obj = getOperand(objId);
   MDefinition* index = getOperand(indexId);
   MDefinition* rhs = getOperand(rhsId);
@@ -2934,10 +2963,15 @@ bool WarpCacheIRTranspiler::emitStoreDenseElement(ObjOperandId objId,
 
   index = addBoundsCheck(index, length);
 
+  if (expectPackedElements) {
+    auto* guardPacked = MGuardElementsArePacked::New(alloc(), elements);
+    add(guardPacked);
+  }
+
   auto* barrier = MPostWriteElementBarrier::New(alloc(), obj, rhs, index);
   add(barrier);
 
-  bool needsHoleCheck = true;
+  bool needsHoleCheck = !expectPackedElements;
   auto* store = MStoreElement::NewBarriered(alloc(), elements, index, rhs,
                                             needsHoleCheck);
   addEffectful(store);
@@ -3008,7 +3042,8 @@ bool WarpCacheIRTranspiler::emitStoreTypedArrayElement(
 
 MInstruction* WarpCacheIRTranspiler::emitDataViewLength(
     ArrayBufferViewKind viewKind, MDefinition* obj) {
-  if (viewKind == ArrayBufferViewKind::FixedLength) {
+  if (viewKind == ArrayBufferViewKind::FixedLength ||
+      viewKind == ArrayBufferViewKind::Immutable) {
     auto* length = MArrayBufferViewLength::New(alloc(), obj);
     add(length);
 
@@ -5898,6 +5933,34 @@ WrappedFunction* WarpCacheIRTranspiler::maybeCallTarget(MDefinition* callee,
   return nullptr;
 }
 
+WrappedFunction* WarpCacheIRTranspiler::maybeGetterSetterTarget(
+    MDefinition* callee, CallKind kind, uint16_t nargs, FunctionFlags flags) {
+  // CacheIR has two representations for the callee of a getter/setter:
+  // 1. If it is always the same function, guard the GetterSetter pair,
+  //    then load a constant callee:
+  //       GuardDynamicSlotValue <holder> ... <GetterSetter>
+  //       LoadObject <callee>
+  //       CallScripted(Setter|GetterResult) <receiver> <callee> ...
+  // 2. If it is different functions sharing a single script, load
+  //    the callee out of the GetterSetter pair, then guard that it
+  //    has the correct script:
+  //     Load(Fixed|Dynamic)Slot <GetterSetter> ...
+  //     LoadGetterSetterFunction <GetterSetter> <callee>
+  //     GuardFunctionScript <callee> <script>
+  //     CallScripted(Setter|GetterResult) <receiver> <callee> ...
+  //
+  // We can use <callee> from the first case, or <script> from the second.
+  if (callee->isGuardFunctionScript()) {
+    MOZ_ASSERT(kind == CallKind::Scripted);
+    auto* guard = callee->toGuardFunctionScript();
+    WrappedFunction* wrappedTarget = new (alloc()) WrappedFunction(
+        /* nativeFun = */ nullptr, guard->nargs(), guard->flags());
+    MOZ_ASSERT(wrappedTarget->hasJitEntry());
+    return wrappedTarget;
+  }
+  return maybeWrappedFunction(callee, kind, nargs, flags);
+}
+
 // If it is possible to use MCall for this call, update callInfo_ to use
 // the correct arguments. Otherwise, update the ArgFormat of callInfo_.
 bool WarpCacheIRTranspiler::updateCallInfo(MDefinition* callee,
@@ -6389,7 +6452,8 @@ bool WarpCacheIRTranspiler::emitCallBoundScriptedFunction(
       size_t slot = BoundFunctionObject::firstInlineBoundArgSlot() + index;
       arg = MLoadFixedSlot::New(alloc(), callee, slot);
     } else {
-      arg = MLoadElement::New(alloc(), elements, constant(Int32Value(index)));
+      arg = MLoadElement::New(alloc(), elements, constant(Int32Value(index)),
+                              /*needsHoleCheck*/ false);
     }
     add(arg);
     return arg;
@@ -6613,11 +6677,10 @@ bool WarpCacheIRTranspiler::emitGuardWasmArg(ValOperandId argId,
 
 bool WarpCacheIRTranspiler::emitCallGetterResult(CallKind kind,
                                                  ValOperandId receiverId,
-                                                 uint32_t getterOffset,
+                                                 MDefinition* getter,
                                                  bool sameRealm,
                                                  uint32_t nargsAndFlagsOffset) {
   MDefinition* receiver = getOperand(receiverId);
-  MDefinition* getter = objectStubField(getterOffset);
   if (kind == CallKind::Scripted && callInfo_ && callInfo_->isInlined()) {
     // We are transpiling to generate the correct guards. We also update the
     // CallInfo to use the correct arguments. Code for the inlined getter
@@ -6637,7 +6700,7 @@ bool WarpCacheIRTranspiler::emitCallGetterResult(CallKind kind,
   uint16_t nargs = nargsAndFlags >> 16;
   FunctionFlags flags = FunctionFlags(uint16_t(nargsAndFlags));
   WrappedFunction* wrappedTarget =
-      maybeWrappedFunction(getter, kind, nargs, flags);
+      maybeGetterSetterTarget(getter, kind, nargs, flags);
 
   bool ignoresRval = loc_.resultIsPopped();
   CallInfo callInfo(alloc(), /* constructing = */ false, ignoresRval);
@@ -6659,33 +6722,35 @@ bool WarpCacheIRTranspiler::emitCallGetterResult(CallKind kind,
 }
 
 bool WarpCacheIRTranspiler::emitCallScriptedGetterResult(
-    ValOperandId receiverId, uint32_t getterOffset, bool sameRealm,
+    ValOperandId receiverId, ObjOperandId calleeId, bool sameRealm,
     uint32_t nargsAndFlagsOffset) {
-  return emitCallGetterResult(CallKind::Scripted, receiverId, getterOffset,
-                              sameRealm, nargsAndFlagsOffset);
+  MDefinition* getter = getOperand(calleeId);
+  return emitCallGetterResult(CallKind::Scripted, receiverId, getter, sameRealm,
+                              nargsAndFlagsOffset);
 }
 
 bool WarpCacheIRTranspiler::emitCallInlinedGetterResult(
-    ValOperandId receiverId, uint32_t getterOffset, uint32_t icScriptOffset,
+    ValOperandId receiverId, ObjOperandId calleeId, uint32_t icScriptOffset,
     bool sameRealm, uint32_t nargsAndFlagsOffset) {
-  return emitCallGetterResult(CallKind::Scripted, receiverId, getterOffset,
-                              sameRealm, nargsAndFlagsOffset);
+  MDefinition* getter = getOperand(calleeId);
+  return emitCallGetterResult(CallKind::Scripted, receiverId, getter, sameRealm,
+                              nargsAndFlagsOffset);
 }
 
 bool WarpCacheIRTranspiler::emitCallNativeGetterResult(
     ValOperandId receiverId, uint32_t getterOffset, bool sameRealm,
     uint32_t nargsAndFlagsOffset) {
-  return emitCallGetterResult(CallKind::Native, receiverId, getterOffset,
-                              sameRealm, nargsAndFlagsOffset);
+  MDefinition* getter = objectStubField(getterOffset);
+  return emitCallGetterResult(CallKind::Native, receiverId, getter, sameRealm,
+                              nargsAndFlagsOffset);
 }
 
 bool WarpCacheIRTranspiler::emitCallSetter(CallKind kind,
                                            ObjOperandId receiverId,
-                                           uint32_t setterOffset,
+                                           MDefinition* setter,
                                            ValOperandId rhsId, bool sameRealm,
                                            uint32_t nargsAndFlagsOffset) {
   MDefinition* receiver = getOperand(receiverId);
-  MDefinition* setter = objectStubField(setterOffset);
   MDefinition* rhs = getOperand(rhsId);
   if (kind == CallKind::Scripted && callInfo_ && callInfo_->isInlined()) {
     // We are transpiling to generate the correct guards. We also update the
@@ -6706,7 +6771,7 @@ bool WarpCacheIRTranspiler::emitCallSetter(CallKind kind,
   uint16_t nargs = nargsAndFlags >> 16;
   FunctionFlags flags = FunctionFlags(uint16_t(nargsAndFlags));
   WrappedFunction* wrappedTarget =
-      maybeWrappedFunction(setter, kind, nargs, flags);
+      maybeGetterSetterTarget(setter, kind, nargs, flags);
 
   CallInfo callInfo(alloc(), /* constructing = */ false,
                     /* ignoresReturnValue = */ true);
@@ -6726,16 +6791,18 @@ bool WarpCacheIRTranspiler::emitCallSetter(CallKind kind,
 }
 
 bool WarpCacheIRTranspiler::emitCallScriptedSetter(
-    ObjOperandId receiverId, uint32_t setterOffset, ValOperandId rhsId,
+    ObjOperandId receiverId, ObjOperandId calleeId, ValOperandId rhsId,
     bool sameRealm, uint32_t nargsAndFlagsOffset) {
-  return emitCallSetter(CallKind::Scripted, receiverId, setterOffset, rhsId,
+  MDefinition* setter = getOperand(calleeId);
+  return emitCallSetter(CallKind::Scripted, receiverId, setter, rhsId,
                         sameRealm, nargsAndFlagsOffset);
 }
 
 bool WarpCacheIRTranspiler::emitCallInlinedSetter(
-    ObjOperandId receiverId, uint32_t setterOffset, ValOperandId rhsId,
+    ObjOperandId receiverId, ObjOperandId calleeId, ValOperandId rhsId,
     uint32_t icScriptOffset, bool sameRealm, uint32_t nargsAndFlagsOffset) {
-  return emitCallSetter(CallKind::Scripted, receiverId, setterOffset, rhsId,
+  MDefinition* setter = getOperand(calleeId);
+  return emitCallSetter(CallKind::Scripted, receiverId, setter, rhsId,
                         sameRealm, nargsAndFlagsOffset);
 }
 
@@ -6744,8 +6811,9 @@ bool WarpCacheIRTranspiler::emitCallNativeSetter(ObjOperandId receiverId,
                                                  ValOperandId rhsId,
                                                  bool sameRealm,
                                                  uint32_t nargsAndFlagsOffset) {
-  return emitCallSetter(CallKind::Native, receiverId, setterOffset, rhsId,
-                        sameRealm, nargsAndFlagsOffset);
+  MDefinition* setter = objectStubField(setterOffset);
+  return emitCallSetter(CallKind::Native, receiverId, setter, rhsId, sameRealm,
+                        nargsAndFlagsOffset);
 }
 
 bool WarpCacheIRTranspiler::emitMetaScriptedThisShape(

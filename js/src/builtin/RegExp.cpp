@@ -199,7 +199,7 @@ bool js::CreateRegExpMatchResult(JSContext* cx, HandleRegExpShared re,
         indices->setDenseInitializedLength(i + 1);
         indices->initDenseElement(i, UndefinedValue());
       } else {
-        Rooted<ArrayObject*> indexPair(cx, NewDenseFullyAllocatedArray(cx, 2));
+        ArrayObject* indexPair = NewDenseFullyAllocatedArray(cx, 2);
         if (!indexPair) {
           return false;
         }
@@ -2432,7 +2432,8 @@ static MOZ_ALWAYS_INLINE int GetFirstDollarIndexImpl(const TextChar* text,
   return -1;
 }
 
-int32_t js::GetFirstDollarIndexRawFlat(const JSLinearString* text) {
+template <typename StringT>
+int32_t js::GetFirstDollarIndexRawFlat(const StringT* text) {
   uint32_t len = text->length();
 
   JS::AutoCheckCannotGC nogc;
@@ -2442,6 +2443,11 @@ int32_t js::GetFirstDollarIndexRawFlat(const JSLinearString* text) {
 
   return GetFirstDollarIndexImpl(text->twoByteChars(nogc), len);
 }
+
+template int32_t js::GetFirstDollarIndexRawFlat<JSLinearString>(
+    const JSLinearString* text);
+template int32_t js::GetFirstDollarIndexRawFlat<JSOffThreadAtom>(
+    const JSOffThreadAtom* text);
 
 bool js::GetFirstDollarIndexRaw(JSContext* cx, JSString* str, int32_t* index) {
   JSLinearString* text = str->ensureLinear(cx);
@@ -2568,7 +2574,7 @@ bool js::intrinsic_GetStringDataProperty(JSContext* cx, unsigned argc,
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 2);
 
-  RootedObject obj(cx, &args[0].toObject());
+  JSObject* obj = &args[0].toObject();
   if (!obj->is<NativeObject>()) {
     // The object is already checked to be native in GetElemBaseForLambda,
     // but it can be swapped to another class that is non-native.
@@ -2576,6 +2582,9 @@ bool js::intrinsic_GetStringDataProperty(JSContext* cx, unsigned argc,
     args.rval().setUndefined();
     return true;
   }
+
+  // No need to root |obj| because |AtomizeString| can't GC.
+  JS::AutoCheckCannotGC nogc;
 
   JSAtom* atom = AtomizeString(cx, args[1].toString());
   if (!atom) {

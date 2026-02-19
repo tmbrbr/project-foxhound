@@ -8,6 +8,8 @@ import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 const BACKUP_STATE_PREF = "sidebar.backupState";
 const VISIBILITY_SETTING_PREF = "sidebar.visibility";
 const SIDEBAR_TOOLS = "sidebar.main.tools";
+const VERTICAL_TABS_PREF = "sidebar.verticalTabs";
+const INSTALLED_EXTENSIONS = "sidebar.installed.extensions";
 
 // New panels that are ready to be introduced to new sidebar users should be added to this list;
 // ensure your feature flag is enabled at the same time you do this and that its the same value as
@@ -22,6 +24,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   SidebarState: "moz-src:///browser/components/sidebar/SidebarState.sys.mjs",
 });
 XPCOMUtils.defineLazyPreferenceGetter(lazy, "sidebarNimbus", "sidebar.nimbus");
+
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "sidebarBackupState",
@@ -31,7 +34,7 @@ XPCOMUtils.defineLazyPreferenceGetter(
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "verticalTabsEnabled",
-  "sidebar.verticalTabs",
+  VERTICAL_TABS_PREF,
   false,
   (pref, oldVal, newVal) => {
     SidebarManager.handleVerticalTabsPrefChange(newVal, true);
@@ -43,10 +46,26 @@ XPCOMUtils.defineLazyPreferenceGetter(
   "sidebarRevampEnabled",
   "sidebar.revamp",
   false,
-  () => SidebarManager.updateDefaultTools()
+  (pref, oldVal, newVal) => {
+    SidebarManager.updateDefaultTools();
+
+    if (!newVal) {
+      // Disable vertical tabs if revamped sidebar is turned off
+      Services.prefs.setBoolPref("sidebar.verticalTabs", false);
+    } else if (newVal && !lazy.verticalTabsEnabled) {
+      // horizontal tabs with sidebar.revamp must have visibility of "hide-sidebar"
+      Services.prefs.setStringPref(VISIBILITY_SETTING_PREF, "hide-sidebar");
+    }
+  }
 );
 
 XPCOMUtils.defineLazyPreferenceGetter(lazy, "sidebarTools", SIDEBAR_TOOLS, "");
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "sidebarExtensions",
+  INSTALLED_EXTENSIONS,
+  ""
+);
 
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
@@ -60,6 +79,7 @@ export const SidebarManager = {
   /**
    * Handle startup tasks like telemetry, adding listeners.
    */
+
   init() {
     // Handle nimbus feature pref setting updates on init and enrollment
     const featureId = "sidebar";
@@ -132,7 +152,8 @@ export const SidebarManager = {
       // know if we were _really_ removed or just moved elsewhere.
       await Promise.resolve();
       if (!lazy.CustomizableUI.getPlacementOfWidget(aWidgetId)) {
-        Services.prefs.setStringPref(VISIBILITY_SETTING_PREF, "hide-sidebar");
+        // Removing sidebar button should force horizontal tabs (Bug 1970015).
+        Services.prefs.setBoolPref(VERTICAL_TABS_PREF, false);
         this.closeAllSidebars();
       }
     }
@@ -244,6 +265,55 @@ export const SidebarManager = {
     if (tools.length > lazy.sidebarTools.length) {
       Services.prefs.setStringPref(SIDEBAR_TOOLS, tools);
     }
+  },
+
+  updateToolsPref(toolName, remove = null) {
+    const updatedTools = lazy.sidebarTools ? lazy.sidebarTools.split(",") : [];
+    const index = updatedTools.indexOf(toolName);
+
+    if ((remove && index == -1) || (!remove && index != -1)) {
+      return;
+    }
+
+    if (remove) {
+      updatedTools.splice(index, 1);
+    } else {
+      updatedTools.push(toolName);
+    }
+
+    Services.prefs.setStringPref(SIDEBAR_TOOLS, updatedTools.join());
+  },
+
+  clearExtensionsPref(toolName) {
+    let installedExtensions = lazy.sidebarExtensions
+      ? lazy.sidebarExtensions.split(",")
+      : [];
+    const index = installedExtensions.indexOf(toolName);
+    if (index != -1) {
+      installedExtensions.splice(index, 1);
+      Services.prefs.setStringPref(
+        INSTALLED_EXTENSIONS,
+        installedExtensions.join()
+      );
+    }
+  },
+
+  cleanupPrefs(id) {
+    this.clearExtensionsPref(id);
+    this.updateToolsPref(id, true);
+  },
+
+  /**
+   * Return a list of tool IDs that have registered a badge for notification.
+   * This reads all prefs under "sidebar.notification.badge."
+   *
+   * @returns {Array}
+   */
+  getBadgeTools() {
+    const BADGE_PREF_BRANCH = "sidebar.notification.badge.";
+    const badgePrefs = Services.prefs.getChildList(BADGE_PREF_BRANCH);
+
+    return badgePrefs.map(pref => pref.slice(BADGE_PREF_BRANCH.length));
   },
 
   /**

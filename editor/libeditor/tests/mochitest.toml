@@ -177,10 +177,7 @@ support-files = [
 ["test_bug625452.html"]
 
 ["test_bug629172.html"]
-skip-if = [
-  "os == 'android'",
-  "verify && os == 'mac'", # Due to resizer rendring issue of macOS
-]
+skip-if = ["os == 'android'"]
 
 ["test_bug629845.html"]
 
@@ -201,7 +198,9 @@ support-files = [
 ["test_bug668599.html"]
 
 ["test_bug674770-1.html"]
-skip-if = ["os == 'android'"]
+skip-if = [
+  "os == 'android'",
+]
 support-files = ["file_bug674770-1.html"]
 
 ["test_bug674770-2.html"]
@@ -476,6 +475,9 @@ skip-if = ["display == 'wayland'"] # Bug 1935188
 
 ["test_label_contenteditable.html"]
 
+["test_mailcite_backspace_at_end_of_inline_reply.html"]
+skip-if = ["xorigin"] # Testing internal API for comm-central
+
 ["test_mailcite_keep_trailing_br_after_delete.html"]
 skip-if = ["xorigin"] # Testing internal API for comm-central
 
@@ -606,7 +608,6 @@ skip-if = ["headless"] # The test calls `synthesizeKey`, see bug 1669923.
 ["test_resizers_appearance.html"]
 
 ["test_resizers_resizing_elements.html"]
-skip-if = ["verify && debug && os == 'win'"] # bug 1485293
 
 ["test_root_element_replacement.html"]
 

@@ -22,9 +22,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Card
-import androidx.compose.material.Snackbar
-import androidx.compose.material.Text
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -176,6 +177,7 @@ class Snackbar private constructor(
                         behavior = SnackbarBehavior<FrameLayout>(
                             context = snackBarParentView.context,
                             toolbarPosition = snackBarParentView.context.settings().toolbarPosition,
+                            shouldUseExpandedToolbar = snackBarParentView.context.settings().shouldUseExpandedToolbar,
                         )
                     }
                 }
@@ -284,15 +286,14 @@ internal fun Snackbar(
                 }
                 .testTag(SNACKBAR_TEST_TAG),
             shape = RoundedCornerShape(size = 8.dp),
-            backgroundColor = colors.backgroundColor,
-            elevation = 4.dp,
+            colors = CardDefaults.cardColors(containerColor = colors.backgroundColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = snackbarState.message,
+                Column(
                     modifier = Modifier
                         .weight(1f)
                         .padding(
@@ -300,11 +301,25 @@ internal fun Snackbar(
                             top = snackbarVerticalPadding,
                             bottom = snackbarVerticalPadding,
                         ),
-                    color = colors.messageTextColor,
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 2,
-                    style = FirefoxTheme.typography.headline7,
-                )
+                ) {
+                    Text(
+                        text = snackbarState.message,
+                        color = colors.messageTextColor,
+                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 2,
+                        style = FirefoxTheme.typography.headline7,
+                    )
+
+                    snackbarState.subMessage?.let {
+                        Text(
+                            text = it,
+                            color = colors.messageTextColor,
+                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 1,
+                            style = FirefoxTheme.typography.caption,
+                        )
+                    }
+                }
 
                 if (snackbarState.action != null) {
                     Spacer(modifier = Modifier.width(snackbarActionHorizontalSpacing))
@@ -381,6 +396,7 @@ private fun SnackbarHostPreview() {
                         snackbarHostState.showSnackbar(
                             snackbarState = SnackbarState(
                                 message = "Default snackbar",
+                                subMessage = "Default subMessage",
                                 duration = SnackbarState.Duration.Preset.Short,
                                 type = Type.Default,
                                 action = Action(
@@ -405,6 +421,7 @@ private fun SnackbarHostPreview() {
                         snackbarHostState.showSnackbar(
                             snackbarState = SnackbarState(
                                 message = "Warning snackbar",
+                                subMessage = "Default subMessage",
                                 duration = SnackbarState.Duration.Preset.Short,
                                 type = Type.Warning,
                                 action = Action(

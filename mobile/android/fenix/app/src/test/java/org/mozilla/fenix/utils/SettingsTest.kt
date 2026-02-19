@@ -24,12 +24,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.components.toolbar.ToolbarPosition
-import org.mozilla.fenix.helpers.FenixRobolectricTestRunner
 import org.mozilla.fenix.settings.PhoneFeature
 import org.mozilla.fenix.settings.deletebrowsingdata.DeleteBrowsingDataOnQuitType
+import org.robolectric.RobolectricTestRunner
 import java.util.Calendar
 
-@RunWith(FenixRobolectricTestRunner::class)
+@RunWith(RobolectricTestRunner::class)
 class SettingsTest {
 
     lateinit var settings: Settings
@@ -1054,6 +1054,53 @@ class SettingsTest {
         val bottomToolbarHeight = settings.getBottomToolbarHeight()
 
         assertEquals(56, bottomToolbarHeight)
+    }
+
+    @Test
+    fun `GIVEN navigation bar and microsurvey is enabled WHEN getBottomToolbarContainerHeight THEN returns the combined height`() {
+        val settings = spyk(settings)
+        every { settings.shouldShowMicrosurveyPrompt } returns true
+        every { settings.shouldUseExpandedToolbar } returns true
+
+        val bottomToolbarContainerHeight = settings.getBottomToolbarContainerHeight()
+
+        assertEquals(191, bottomToolbarContainerHeight)
+    }
+
+    @Test
+    fun `GIVEN the address bar, navigation bar and the microsurvey are shown at bottom WHEN getBottomToolbarHeight THEN returns the combined height`() {
+        val settings = spyk(settings)
+        every { settings.shouldShowMicrosurveyPrompt } returns true
+        every { settings.shouldUseExpandedToolbar } returns true
+        every { settings.toolbarPosition } returns ToolbarPosition.BOTTOM
+
+        val bottomToolbarHeight = settings.getBottomToolbarHeight()
+
+        assertEquals(247, bottomToolbarHeight)
+    }
+
+    @Test
+    fun `GIVEN navigation bar and microsurvey is shown at bottom WHEN getBottomToolbarHeight THEN returns the combined height`() {
+        val settings = spyk(settings)
+        every { settings.shouldShowMicrosurveyPrompt } returns true
+        every { settings.shouldUseExpandedToolbar } returns true
+        every { settings.toolbarPosition } returns ToolbarPosition.TOP
+
+        val bottomToolbarHeight = settings.getBottomToolbarHeight()
+
+        assertEquals(191, bottomToolbarHeight)
+    }
+
+    @Test
+    fun `GIVEN the addressbar and navigation bar is shown at bottom WHEN getBottomToolbarHeight THEN returns the combined height`() {
+        val settings = spyk(settings)
+        every { settings.shouldShowMicrosurveyPrompt } returns false
+        every { settings.shouldUseExpandedToolbar } returns true
+        every { settings.toolbarPosition } returns ToolbarPosition.BOTTOM
+
+        val bottomToolbarHeight = settings.getBottomToolbarHeight()
+
+        assertEquals(116, bottomToolbarHeight)
     }
 
     @Test

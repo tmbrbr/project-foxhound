@@ -20,6 +20,7 @@ import { SectionTitle } from "content-src/components/DiscoveryStreamComponents/S
 import { selectLayoutRender } from "content-src/lib/selectLayoutRender";
 import { TopSites } from "content-src/components/TopSites/TopSites";
 import { CardSections } from "../DiscoveryStreamComponents/CardSections/CardSections";
+import { Widgets } from "content-src/components/Widgets/Widgets";
 
 const ALLOWED_CSS_URL_PREFIXES = [
   "chrome://",
@@ -221,6 +222,7 @@ export class _DiscoveryStreamBase extends React.PureComponent {
             recentSavesEnabled={this.props.DiscoveryStream.recentSavesEnabled}
             hideDescriptions={this.props.DiscoveryStream.hideDescriptions}
             firstVisibleTimestamp={this.props.firstVisibleTimestamp}
+            spocPositions={component.spocs?.positions}
           />
         );
       }
@@ -228,6 +230,8 @@ export class _DiscoveryStreamBase extends React.PureComponent {
         return <HorizontalRule />;
       case "PrivacyLink":
         return <PrivacyLink properties={component.properties} />;
+      case "Widgets":
+        return <Widgets />;
       default:
         return <div>{component.type}</div>;
     }
@@ -289,6 +293,7 @@ export class _DiscoveryStreamBase extends React.PureComponent {
 
     // Extract TopSites to render before the rest and Message to use for header
     const topSites = extractComponent("TopSites");
+    const widgets = extractComponent("Widgets");
     const sponsoredCollection = extractComponent("CollectionCardGrid");
     const message = extractComponent("Message") || {
       header: {
@@ -341,6 +346,14 @@ export class _DiscoveryStreamBase extends React.PureComponent {
               sectionType: "topsites",
             },
           ])}
+        {widgets &&
+          this.renderLayout([
+            {
+              width: 12,
+              components: [widgets],
+              sectionType: "widgets",
+            },
+          ])}
         {sponsoredCollection &&
           this.renderLayout([
             {
@@ -390,10 +403,12 @@ export class _DiscoveryStreamBase extends React.PureComponent {
     const styles = [];
     let [data] = layoutRender;
     // Add helper class for topsites
-    const topsitesClass = data.sectionType ? "ds-layout-topsites" : "";
+    const sectionClass = data.sectionType
+      ? `ds-layout-${data.sectionType}`
+      : "";
 
     return (
-      <div className={`discovery-stream ds-layout ${topsitesClass}`}>
+      <div className={`discovery-stream ds-layout ${sectionClass}`}>
         {layoutRender.map((row, rowIndex) => (
           <div
             key={`row-${rowIndex}`}

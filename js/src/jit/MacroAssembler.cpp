@@ -1084,22 +1084,22 @@ void MacroAssembler::initGCThing(Register obj, Register temp,
 #endif
 }
 
-static size_t StringCharsByteLength(const JSLinearString* linear) {
+static size_t StringCharsByteLength(const JSOffThreadAtom* str) {
   CharEncoding encoding =
-      linear->hasLatin1Chars() ? CharEncoding::Latin1 : CharEncoding::TwoByte;
+      str->hasLatin1Chars() ? CharEncoding::Latin1 : CharEncoding::TwoByte;
   size_t encodingSize = encoding == CharEncoding::Latin1
                             ? sizeof(JS::Latin1Char)
                             : sizeof(char16_t);
-  return linear->length() * encodingSize;
+  return str->length() * encodingSize;
 }
 
-bool MacroAssembler::canCompareStringCharsInline(const JSLinearString* linear) {
+bool MacroAssembler::canCompareStringCharsInline(const JSOffThreadAtom* str) {
   // Limit the number of inline instructions used for character comparisons. Use
   // the same instruction limit for both encodings, i.e. two-byte uses half the
   // limit of Latin-1 strings.
   constexpr size_t ByteLengthCompareCutoff = 32;
 
-  size_t byteLength = StringCharsByteLength(linear);
+  size_t byteLength = StringCharsByteLength(str);
   return 0 < byteLength && byteLength <= ByteLengthCompareCutoff;
 }
 
@@ -1111,28 +1111,28 @@ static inline T CopyCharacters(const CharT* chars) {
 }
 
 template <typename T>
-static inline T CopyCharacters(const JSLinearString* linear, size_t index) {
+static inline T CopyCharacters(const JSOffThreadAtom* str, size_t index) {
   JS::AutoCheckCannotGC nogc;
 
-  if (linear->hasLatin1Chars()) {
-    MOZ_ASSERT(index + sizeof(T) / sizeof(JS::Latin1Char) <= linear->length());
-    return CopyCharacters<T>(linear->latin1Chars(nogc) + index);
+  if (str->hasLatin1Chars()) {
+    MOZ_ASSERT(index + sizeof(T) / sizeof(JS::Latin1Char) <= str->length());
+    return CopyCharacters<T>(str->latin1Chars(nogc) + index);
   }
 
   MOZ_ASSERT(sizeof(T) >= sizeof(char16_t));
-  MOZ_ASSERT(index + sizeof(T) / sizeof(char16_t) <= linear->length());
-  return CopyCharacters<T>(linear->twoByteChars(nogc) + index);
+  MOZ_ASSERT(index + sizeof(T) / sizeof(char16_t) <= str->length());
+  return CopyCharacters<T>(str->twoByteChars(nogc) + index);
 }
 
 void MacroAssembler::branchIfNotStringCharsEquals(Register stringChars,
-                                                  const JSLinearString* linear,
+                                                  const JSOffThreadAtom* str,
                                                   Label* label) {
   CharEncoding encoding =
-      linear->hasLatin1Chars() ? CharEncoding::Latin1 : CharEncoding::TwoByte;
+      str->hasLatin1Chars() ? CharEncoding::Latin1 : CharEncoding::TwoByte;
   size_t encodingSize = encoding == CharEncoding::Latin1
                             ? sizeof(JS::Latin1Char)
                             : sizeof(char16_t);
-  size_t byteLength = StringCharsByteLength(linear);
+  size_t byteLength = StringCharsByteLength(str);
 
   size_t pos = 0;
   for (size_t stride : {8, 4, 2, 1}) {
@@ -1140,22 +1140,22 @@ void MacroAssembler::branchIfNotStringCharsEquals(Register stringChars,
       Address addr(stringChars, pos * encodingSize);
       switch (stride) {
         case 8: {
-          auto x = CopyCharacters<uint64_t>(linear, pos);
+          auto x = CopyCharacters<uint64_t>(str, pos);
           branch64(Assembler::NotEqual, addr, Imm64(x), label);
           break;
         }
         case 4: {
-          auto x = CopyCharacters<uint32_t>(linear, pos);
+          auto x = CopyCharacters<uint32_t>(str, pos);
           branch32(Assembler::NotEqual, addr, Imm32(x), label);
           break;
         }
         case 2: {
-          auto x = CopyCharacters<uint16_t>(linear, pos);
+          auto x = CopyCharacters<uint16_t>(str, pos);
           branch16(Assembler::NotEqual, addr, Imm32(x), label);
           break;
         }
         case 1: {
-          auto x = CopyCharacters<uint8_t>(linear, pos);
+          auto x = CopyCharacters<uint8_t>(str, pos);
           branch8(Assembler::NotEqual, addr, Imm32(x), label);
           break;
         }
@@ -1178,12 +1178,12 @@ void MacroAssembler::branchIfNotStringCharsEquals(Register stringChars,
       Address addr(stringChars, prev * encodingSize);
       switch (stride) {
         case 8: {
-          auto x = CopyCharacters<uint64_t>(linear, prev);
+          auto x = CopyCharacters<uint64_t>(str, prev);
           branch64(Assembler::NotEqual, addr, Imm64(x), label);
           break;
         }
         case 4: {
-          auto x = CopyCharacters<uint32_t>(linear, prev);
+          auto x = CopyCharacters<uint32_t>(str, prev);
           branch32(Assembler::NotEqual, addr, Imm32(x), label);
           break;
         }
@@ -1196,11 +1196,11 @@ void MacroAssembler::branchIfNotStringCharsEquals(Register stringChars,
 }
 
 void MacroAssembler::loadStringCharsForCompare(Register input,
-                                               const JSLinearString* linear,
+                                               const JSOffThreadAtom* str,
                                                Register stringChars,
                                                Label* fail) {
   CharEncoding encoding =
-      linear->hasLatin1Chars() ? CharEncoding::Latin1 : CharEncoding::TwoByte;
+      str->hasLatin1Chars() ? CharEncoding::Latin1 : CharEncoding::TwoByte;
 
   // Take the slow path when the string is a rope or has a different character
   // representation.
@@ -1209,7 +1209,7 @@ void MacroAssembler::loadStringCharsForCompare(Register input,
     branchTwoByteString(input, fail);
   } else {
     JS::AutoCheckCannotGC nogc;
-    if (mozilla::IsUtf16Latin1(linear->twoByteRange(nogc))) {
+    if (mozilla::IsUtf16Latin1(str->twoByteRange(nogc))) {
       branchLatin1String(input, fail);
     } else {
       // This case was already handled in the caller.
@@ -1224,7 +1224,7 @@ void MacroAssembler::loadStringCharsForCompare(Register input,
 
 #ifdef DEBUG
   {
-    size_t length = linear->length();
+    size_t length = str->length();
     MOZ_ASSERT(length > 0);
 
     Label ok;
@@ -1240,11 +1240,11 @@ void MacroAssembler::loadStringCharsForCompare(Register input,
 }
 
 void MacroAssembler::compareStringChars(JSOp op, Register stringChars,
-                                        const JSLinearString* linear,
+                                        const JSOffThreadAtom* str,
                                         Register output) {
   MOZ_ASSERT(IsEqualityOp(op));
 
-  size_t byteLength = StringCharsByteLength(linear);
+  size_t byteLength = StringCharsByteLength(str);
 
   // Prefer a single compare-and-set instruction if possible.
   if (byteLength == 1 || byteLength == 2 || byteLength == 4 ||
@@ -1254,29 +1254,29 @@ void MacroAssembler::compareStringChars(JSOp op, Register stringChars,
     Address addr(stringChars, 0);
     switch (byteLength) {
       case 8: {
-        auto x = CopyCharacters<uint64_t>(linear, 0);
+        auto x = CopyCharacters<uint64_t>(str, 0);
         cmp64Set(cond, addr, Imm64(x), output);
         break;
       }
       case 4: {
-        auto x = CopyCharacters<uint32_t>(linear, 0);
+        auto x = CopyCharacters<uint32_t>(str, 0);
         cmp32Set(cond, addr, Imm32(x), output);
         break;
       }
       case 2: {
-        auto x = CopyCharacters<uint16_t>(linear, 0);
+        auto x = CopyCharacters<uint16_t>(str, 0);
         cmp16Set(cond, addr, Imm32(x), output);
         break;
       }
       case 1: {
-        auto x = CopyCharacters<uint8_t>(linear, 0);
+        auto x = CopyCharacters<uint8_t>(str, 0);
         cmp8Set(cond, addr, Imm32(x), output);
         break;
       }
     }
   } else {
     Label setNotEqualResult;
-    branchIfNotStringCharsEquals(stringChars, linear, &setNotEqualResult);
+    branchIfNotStringCharsEquals(stringChars, str, &setNotEqualResult);
 
     // Falls through if both strings are equal.
 
@@ -3033,7 +3033,7 @@ void MacroAssembler::emitMegamorphicCacheLookup(
   rshiftPtr(Imm32(MegamorphicCache::ShapeHashShift1), outEntryPtr);
   rshiftPtr(Imm32(MegamorphicCache::ShapeHashShift2), scratch2);
   xorPtr(scratch2, outEntryPtr);
-  addPtr(Imm32(HashAtomOrSymbolPropertyKey(id)), outEntryPtr);
+  addPtr(Imm32(HashPropertyKeyThreadSafe(id)), outEntryPtr);
 
   // outEntryPtr %= MegamorphicCache::NumEntries
   constexpr size_t cacheSize = MegamorphicCache::NumEntries;
@@ -3214,7 +3214,7 @@ void MacroAssembler::emitMegamorphicCachedSetSlot(
     addPtr(scratch2, scratch3);
   } else {
     static_assert(std::is_same<IdType, PropertyKey>::value);
-    addPtr(Imm32(HashAtomOrSymbolPropertyKey(id)), scratch3);
+    addPtr(Imm32(HashPropertyKeyThreadSafe(id)), scratch3);
     movePropertyKey(id, scratch1);
   }
 
@@ -3701,7 +3701,7 @@ void MacroAssembler::loadBaselineCompileQueue(Register dest) {
                           dest);
 }
 
-void MacroAssembler::guardSpecificAtom(Register str, JSAtom* atom,
+void MacroAssembler::guardSpecificAtom(Register str, JSOffThreadAtom* atom,
                                        Register scratch,
                                        const LiveRegisterSet& volatileRegs,
                                        Label* fail) {
@@ -4465,6 +4465,9 @@ MacroAssembler::MacroAssembler(TempAllocator& alloc,
     : maybeRuntime_(maybeRuntime),
       maybeRealm_(maybeRealm),
       framePushed_(0),
+      abiArgs_(/* This will be overwritten for every ABI call, the initial value
+                  doesn't matter */
+               ABIKind::System),
 #ifdef DEBUG
       inCall_(false),
 #endif
@@ -4764,8 +4767,7 @@ void MacroAssembler::loadVMFunctionOutParam(const VMFunctionData& f,
 
 // ===============================================================
 // ABI function calls.
-template <class ABIArgGeneratorT>
-void MacroAssembler::setupABICallHelper() {
+void MacroAssembler::setupABICallHelper(ABIKind kind) {
 #ifdef DEBUG
   MOZ_ASSERT(!inCall_);
   inCall_ = true;
@@ -4776,27 +4778,23 @@ void MacroAssembler::setupABICallHelper() {
 #endif
 
   // Reinitialize the ABIArg generator.
-  abiArgs_ = ABIArgGeneratorT();
+  abiArgs_ = ABIArgGenerator(kind);
 
 #if defined(JS_CODEGEN_ARM)
-  // On ARM, we need to know what ABI we are using.
-  abiArgs_.setUseHardFp(ARMFlags::UseHardFpABI());
+  if (kind != ABIKind::Wasm) {
+    // On ARM, we need to know what ABI we are using.
+    abiArgs_.setUseHardFp(ARMFlags::UseHardFpABI());
+  }
 #endif
 }
 
 void MacroAssembler::setupNativeABICall() {
-  setupABICallHelper<ABIArgGenerator>();
+  setupABICallHelper(ABIKind::System);
 }
 
 void MacroAssembler::setupWasmABICall() {
   MOZ_ASSERT(IsCompilingWasm(), "non-wasm should use setupAlignedABICall");
-  setupABICallHelper<WasmABIArgGenerator>();
-
-#if defined(JS_CODEGEN_ARM)
-  // The builtin thunk does the FP -> GPR moving on soft-FP, so
-  // use hard fp unconditionally.
-  abiArgs_.setUseHardFp(true);
-#endif
+  setupABICallHelper(ABIKind::System);
   dynamicAlignment_ = false;
 }
 
@@ -4811,6 +4809,30 @@ void MacroAssembler::setupAlignedABICall() {
   setupNativeABICall();
   dynamicAlignment_ = false;
 }
+
+#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
+void MacroAssembler::wasmCheckUnsafeCallWithABIPre() {
+  // Set the JSContext::inUnsafeCallWithABI flag.
+  loadPtr(Address(InstanceReg, wasm::Instance::offsetOfCx()),
+          ABINonArgReturnReg0);
+  Address flagAddr(ABINonArgReturnReg0,
+                   JSContext::offsetOfInUnsafeCallWithABI());
+  store32(Imm32(1), flagAddr);
+}
+
+void MacroAssembler::wasmCheckUnsafeCallWithABIPost() {
+  // Check JSContext::inUnsafeCallWithABI was cleared as expected.
+  Label ok;
+  // InstanceReg is invariant in the system ABI, so we can use it here.
+  loadPtr(Address(InstanceReg, wasm::Instance::offsetOfCx()),
+          ABINonArgReturnReg0);
+  Address flagAddr(ABINonArgReturnReg0,
+                   JSContext::offsetOfInUnsafeCallWithABI());
+  branch32(Assembler::Equal, flagAddr, Imm32(0), &ok);
+  assumeUnreachable("callWithABI: callee did not use AutoUnsafeCallWithABI");
+  bind(&ok);
+}
+#endif  // JS_CHECK_UNSAFE_CALL_WITH_ABI
 
 void MacroAssembler::passABIArg(const MoveOperand& from, ABIType type) {
   MOZ_ASSERT(inCall_);
@@ -4894,29 +4916,49 @@ CodeOffset MacroAssembler::callWithABI(wasm::BytecodeOffset bytecode,
                                        wasm::SymbolicAddress imm,
                                        mozilla::Maybe<int32_t> instanceOffset,
                                        ABIType result) {
-  MOZ_ASSERT(wasm::NeedsBuiltinThunk(imm));
-
   uint32_t stackAdjust;
   callWithABIPre(&stackAdjust, /* callFromWasm = */ true);
 
   // The instance register is used in builtin thunks and must be set.
-  if (instanceOffset) {
-    loadPtr(Address(getStackPointer(), *instanceOffset + stackAdjust),
-            InstanceReg);
-  } else {
-    MOZ_CRASH("instanceOffset is Nothing only for unsupported abi calls.");
+  bool needsBuiltinThunk = wasm::NeedsBuiltinThunk(imm);
+#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
+  // The builtin thunk exits the JIT activation, if we don't have one we must
+  // use AutoUnsafeCallWithABI inside the builtin and check that here.
+  bool checkUnsafeCallWithABI = !needsBuiltinThunk;
+#else
+  bool checkUnsafeCallWithABI = false;
+#endif
+  if (needsBuiltinThunk || checkUnsafeCallWithABI) {
+    if (instanceOffset) {
+      loadPtr(Address(getStackPointer(), *instanceOffset + stackAdjust),
+              InstanceReg);
+    } else {
+      MOZ_CRASH("callWithABI missing instanceOffset");
+    }
   }
+
+#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
+  if (checkUnsafeCallWithABI) {
+    wasmCheckUnsafeCallWithABIPre();
+  }
+#endif
+
   CodeOffset raOffset = call(
       wasm::CallSiteDesc(bytecode.offset(), wasm::CallSiteKind::Symbolic), imm);
 
   callWithABIPost(stackAdjust, result, /* callFromWasm = */ true);
+
+#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
+  if (checkUnsafeCallWithABI) {
+    wasmCheckUnsafeCallWithABIPost();
+  }
+#endif
 
   return raOffset;
 }
 
 void MacroAssembler::callDebugWithABI(wasm::SymbolicAddress imm,
                                       ABIType result) {
-  MOZ_ASSERT(!wasm::NeedsBuiltinThunk(imm));
   uint32_t stackAdjust;
   callWithABIPre(&stackAdjust, /* callFromWasm = */ false);
   call(imm);
@@ -5608,8 +5650,8 @@ void MacroAssembler::branchIfObjectNotExtensible(Register obj, Register scratch,
 
   // Spectre-style checks are not needed here because we do not interpret data
   // based on this check.
-  static_assert(sizeof(ObjectFlags) == sizeof(uint16_t));
-  load16ZeroExtend(Address(scratch, Shape::offsetOfObjectFlags()), scratch);
+  static_assert(sizeof(ObjectFlags) == sizeof(uint32_t));
+  load32(Address(scratch, Shape::offsetOfObjectFlags()), scratch);
   branchTest32(Assembler::NonZero, scratch,
                Imm32(uint32_t(ObjectFlag::NotExtensible)), label);
 }
@@ -5626,8 +5668,8 @@ void MacroAssembler::branchTestObjectNeedsProxyResultValidation(
   branchTest32(Assembler::Zero,
                Address(scratch, Shape::offsetOfImmutableFlags()),
                Imm32(Shape::isNativeBit()), doValidation);
-  static_assert(sizeof(ObjectFlags) == sizeof(uint16_t));
-  load16ZeroExtend(Address(scratch, Shape::offsetOfObjectFlags()), scratch);
+  static_assert(sizeof(ObjectFlags) == sizeof(uint32_t));
+  load32(Address(scratch, Shape::offsetOfObjectFlags()), scratch);
   branchTest32(Assembler::NonZero, scratch,
                Imm32(uint32_t(ObjectFlag::NeedsProxyGetSetResultValidation)),
                doValidation);
@@ -5771,6 +5813,13 @@ static ReturnCallTrampolineData MakeReturnCallTrampoline(MacroAssembler& masm) {
   masm.pop(FramePointer, lr);
   masm.append(wasm::CodeRangeUnwindInfo::UseFpLr, masm.currentOffset());
   masm.Mov(PseudoStackPointer64, vixl::sp);
+  masm.abiret();
+#elif defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64)
+  masm.loadPtr(Address(FramePointer, wasm::Frame::returnAddressOffset()), ra);
+  masm.loadPtr(Address(FramePointer, wasm::Frame::callerFPOffset()),
+               FramePointer);
+  masm.append(wasm::CodeRangeUnwindInfo::UseFpLr, masm.currentOffset());
+  masm.addToStackPtr(Imm32(sizeof(wasm::Frame)));
   masm.abiret();
 #else
   masm.pop(FramePointer);
@@ -6003,7 +6052,15 @@ static void CollapseWasmFrameSlow(MacroAssembler& masm,
       tempForRA);
   masm.append(desc, CodeOffset(data.trampolineOffset));
 #else
+
+#  if defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64)
+  // intermediate values in ra can break the unwinder.
+  masm.mov(&data.trampoline, ScratchRegister);
+  // thus, modify ra in only one instruction.
+  masm.mov(ScratchRegister, tempForRA);
+#  else
   masm.mov(&data.trampoline, tempForRA);
+#  endif
 
   masm.addCodeLabel(data.trampoline);
   // Add slow trampoline callsite description, to be annotated in
@@ -6167,14 +6224,16 @@ CodeOffset MacroAssembler::wasmReturnCall(
 
 CodeOffset MacroAssembler::wasmCallBuiltinInstanceMethod(
     const wasm::CallSiteDesc& desc, const ABIArg& instanceArg,
-    wasm::SymbolicAddress builtin, wasm::FailureMode failureMode) {
+    wasm::SymbolicAddress builtin, wasm::FailureMode failureMode,
+    wasm::Trap failureTrap) {
   MOZ_ASSERT(instanceArg != ABIArg());
+  MOZ_ASSERT_IF(!wasm::NeedsBuiltinThunk(builtin),
+                failureMode == wasm::FailureMode::Infallible ||
+                    failureTrap != wasm::Trap::ThrowReported);
 
-  storePtr(InstanceReg,
-           Address(getStackPointer(), WasmCallerInstanceOffsetBeforeCall));
-  storePtr(InstanceReg,
-           Address(getStackPointer(), WasmCalleeInstanceOffsetBeforeCall));
-
+  // Instance methods take the instance as the first argument. This is in
+  // addition to the builtin thunk (if any) requiring the InstanceReg to be
+  // set.
   if (instanceArg.kind() == ABIArg::GPR) {
     movePtr(InstanceReg, instanceArg.gpr());
   } else if (instanceArg.kind() == ABIArg::Stack) {
@@ -6184,18 +6243,35 @@ CodeOffset MacroAssembler::wasmCallBuiltinInstanceMethod(
     MOZ_CRASH("Unknown abi passing style for pointer");
   }
 
-  CodeOffset ret = call(desc, builtin);
-  wasmTrapOnFailedInstanceCall(ReturnReg, failureMode, desc.toTrapSiteDesc());
+#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
+  // The builtin thunk exits the JIT activation, if we don't have one we must
+  // use AutoUnsafeCallWithABI inside the builtin and check that here.
+  bool checkUnsafeCallWithABI = !wasm::NeedsBuiltinThunk(builtin);
+  if (checkUnsafeCallWithABI) {
+    wasmCheckUnsafeCallWithABIPre();
+  }
+#endif
 
+  CodeOffset ret = call(desc, builtin);
+
+#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
+  if (checkUnsafeCallWithABI) {
+    wasmCheckUnsafeCallWithABIPost();
+  }
+#endif
+
+  wasmTrapOnFailedInstanceCall(ReturnReg, failureMode, failureTrap,
+                               desc.toTrapSiteDesc());
   return ret;
 }
 
 void MacroAssembler::wasmTrapOnFailedInstanceCall(
     Register resultRegister, wasm::FailureMode failureMode,
-    const wasm::TrapSiteDesc& trapSiteDesc) {
+    wasm::Trap failureTrap, const wasm::TrapSiteDesc& trapSiteDesc) {
   Label noTrap;
   switch (failureMode) {
     case wasm::FailureMode::Infallible:
+      MOZ_ASSERT(failureTrap == wasm::Trap::Limit);
       return;
     case wasm::FailureMode::FailOnNegI32:
       branchTest32(Assembler::NotSigned, resultRegister, resultRegister,
@@ -6215,7 +6291,7 @@ void MacroAssembler::wasmTrapOnFailedInstanceCall(
                 &noTrap);
       break;
   }
-  wasmTrap(wasm::Trap::ThrowReported, trapSiteDesc);
+  wasmTrap(failureTrap, trapSiteDesc);
   bind(&noTrap);
 }
 
@@ -6655,7 +6731,6 @@ void MacroAssembler::wasmBoundsCheckRange32(
   bind(&ok);
 }
 
-#ifdef ENABLE_WASM_MEMORY64
 void MacroAssembler::wasmClampTable64Address(Register64 address, Register out) {
   Label oob;
   Label ret;
@@ -6667,7 +6742,6 @@ void MacroAssembler::wasmClampTable64Address(Register64 address, Register out) {
   move32(Imm32(UINT32_MAX), out);
   bind(&ret);
 };
-#endif
 
 BranchWasmRefIsSubtypeRegisters MacroAssembler::regsForBranchWasmRefIsSubtype(
     wasm::RefType type) {
@@ -7814,12 +7888,12 @@ void MacroAssembler::emitPreBarrierFastPath(JSRuntime* rt, MIRType type,
   andPtr(Imm32(gc::ChunkMask), temp1);
   rshiftPtr(Imm32(3), temp1);
 
-  static_assert(gc::MarkBitmapWordBits == JS_BITS_PER_WORD,
+  static_assert(gc::ChunkMarkBitmap::BitsPerWord == JS_BITS_PER_WORD,
                 "Calculation below relies on this");
 
   // Load the bitmap word in temp2.
   //
-  // word = chunk.bitmap[bit / MarkBitmapWordBits];
+  // word = chunk.bitmap[bit / WordBits];
 
   // Fold the adjustment for the fact that arenas don't start at the beginning
   // of the chunk into the offset to the chunk bitmap.
@@ -7839,8 +7913,8 @@ void MacroAssembler::emitPreBarrierFastPath(JSRuntime* rt, MIRType type,
 
   // Load the mask in temp1.
   //
-  // mask = uintptr_t(1) << (bit % MarkBitmapWordBits);
-  andPtr(Imm32(gc::MarkBitmapWordBits - 1), temp3);
+  // mask = uintptr_t(1) << (bit % WordBits);
+  andPtr(Imm32(gc::ChunkMarkBitmap::BitsPerWord - 1), temp3);
   move32(Imm32(1), temp1);
 #ifdef JS_CODEGEN_X64
   MOZ_ASSERT(temp3 == rcx);
@@ -7974,7 +8048,8 @@ void MacroAssembler::debugAssertCanonicalInt32(Register r) {
     branchPtr(Assembler::BelowOrEqual, r, ImmWord(UINT32_MAX), &ok);
     breakpoint();
     bind(&ok);
-#    elif defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64)
+#    elif defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64) || \
+        defined(JS_CODEGEN_RISCV64)
     Label ok;
     ScratchRegisterScope scratch(asMasm());
     move32SignExtendToPtr(r, scratch);
@@ -8769,33 +8844,50 @@ static constexpr bool ValidateSizeRange(Scalar::Type from, Scalar::Type to) {
 }
 
 void MacroAssembler::typedArrayElementSize(Register obj, Register output) {
+  static_assert(std::end(TypedArrayObject::fixedLengthClasses) ==
+                        std::begin(TypedArrayObject::immutableClasses) &&
+                    std::end(TypedArrayObject::immutableClasses) ==
+                        std::begin(TypedArrayObject::resizableClasses),
+                "TypedArray classes are in contiguous memory");
+
+  // Constexpr subtraction requires using elements of the same array, so we have
+  // to use `std::end` instead of `std::begin`. We still get the right results,
+  // because the classes are in contiguous memory, as asserted above.
+  constexpr ptrdiff_t diffFirstImmutableToFirstFixedLength =
+      std::end(TypedArrayObject::fixedLengthClasses) -
+      std::begin(TypedArrayObject::fixedLengthClasses);
+  constexpr ptrdiff_t diffFirstResizableToFirstImmutable =
+      std::end(TypedArrayObject::immutableClasses) -
+      std::begin(TypedArrayObject::immutableClasses);
+  constexpr ptrdiff_t diffFirstResizableToFirstFixedLength =
+      diffFirstResizableToFirstImmutable + diffFirstImmutableToFirstFixedLength;
+
   loadObjClassUnsafe(obj, output);
 
-  // Map resizable to fixed-length TypedArray classes.
-  Label fixedLength;
+  // Map immutable and resizable to fixed-length TypedArray classes.
+  Label fixedLength, immutable;
   branchPtr(Assembler::Below, output,
             ImmPtr(std::end(TypedArrayObject::fixedLengthClasses)),
             &fixedLength);
+  branchPtr(Assembler::Below, output,
+            ImmPtr(std::end(TypedArrayObject::immutableClasses)), &immutable);
   {
-    MOZ_ASSERT(std::end(TypedArrayObject::fixedLengthClasses) ==
-                   std::begin(TypedArrayObject::resizableClasses),
-               "TypedArray classes are in contiguous memory");
+    // NB: constexpr evaluation doesn't allow overflow, so the difference is
+    // guaranteed to fit into an int32.
+    constexpr int32_t diff = static_cast<int32_t>(
+        diffFirstResizableToFirstFixedLength * sizeof(JSClass));
 
-    const auto* firstFixedLengthTypedArrayClass =
-        std::begin(TypedArrayObject::fixedLengthClasses);
-    const auto* firstResizableTypedArrayClass =
-        std::begin(TypedArrayObject::resizableClasses);
+    subPtr(Imm32(diff), output);
+    jump(&fixedLength);
+  }
+  bind(&immutable);
+  {
+    // NB: constexpr evaluation doesn't allow overflow, so the difference is
+    // guaranteed to fit into an int32.
+    constexpr int32_t diff = static_cast<int32_t>(
+        diffFirstImmutableToFirstFixedLength * sizeof(JSClass));
 
-    MOZ_ASSERT(firstFixedLengthTypedArrayClass < firstResizableTypedArrayClass);
-
-    ptrdiff_t diff =
-        firstResizableTypedArrayClass - firstFixedLengthTypedArrayClass;
-
-    mozilla::CheckedInt<int32_t> checked = diff;
-    checked *= sizeof(JSClass);
-    MOZ_ASSERT(checked.isValid(), "pointer difference fits in int32");
-
-    subPtr(Imm32(int32_t(checked.value())), output);
+    subPtr(Imm32(diff), output);
   }
   bind(&fixedLength);
 
@@ -8954,7 +9046,9 @@ void MacroAssembler::branchIfClassIsNotTypedArray(Register clasp,
   const auto* lastTypedArrayClass =
       std::prev(std::end(TypedArrayObject::resizableClasses));
   MOZ_ASSERT(std::end(TypedArrayObject::fixedLengthClasses) ==
-                 std::begin(TypedArrayObject::resizableClasses),
+                     std::begin(TypedArrayObject::immutableClasses) &&
+                 std::end(TypedArrayObject::immutableClasses) ==
+                     std::begin(TypedArrayObject::resizableClasses),
              "TypedArray classes are in contiguous memory");
 
   branchPtr(Assembler::Below, clasp, ImmPtr(firstTypedArrayClass),
@@ -8963,14 +9057,18 @@ void MacroAssembler::branchIfClassIsNotTypedArray(Register clasp,
             notTypedArray);
 }
 
-void MacroAssembler::branchIfClassIsNotFixedLengthTypedArray(
+void MacroAssembler::branchIfClassIsNotNonResizableTypedArray(
     Register clasp, Label* notTypedArray) {
-  // Inline implementation of IsFixedLengthTypedArrayClass().
+  // Inline implementation of IsFixedLengthTypedArrayClass() and
+  // IsImmutableTypedArrayClass().
 
   const auto* firstTypedArrayClass =
       std::begin(TypedArrayObject::fixedLengthClasses);
   const auto* lastTypedArrayClass =
-      std::prev(std::end(TypedArrayObject::fixedLengthClasses));
+      std::prev(std::end(TypedArrayObject::immutableClasses));
+  MOZ_ASSERT(std::end(TypedArrayObject::fixedLengthClasses) ==
+                 std::begin(TypedArrayObject::immutableClasses),
+             "TypedArray classes are in contiguous memory");
 
   branchPtr(Assembler::Below, clasp, ImmPtr(firstTypedArrayClass),
             notTypedArray);
@@ -8991,6 +9089,61 @@ void MacroAssembler::branchIfClassIsNotResizableTypedArray(
             notTypedArray);
   branchPtr(Assembler::Above, clasp, ImmPtr(lastTypedArrayClass),
             notTypedArray);
+}
+
+void MacroAssembler::branchIfIsNotArrayBuffer(Register obj, Register temp,
+                                              Label* label) {
+  Label ok;
+
+  loadObjClassUnsafe(obj, temp);
+
+  branchPtr(Assembler::Equal, temp,
+            ImmPtr(&FixedLengthArrayBufferObject::class_), &ok);
+  branchPtr(Assembler::Equal, temp, ImmPtr(&ResizableArrayBufferObject::class_),
+            &ok);
+  branchPtr(Assembler::NotEqual, temp,
+            ImmPtr(&ImmutableArrayBufferObject::class_), label);
+
+  bind(&ok);
+
+  if (JitOptions.spectreObjectMitigations) {
+    spectreZeroRegister(Assembler::NotEqual, temp, obj);
+  }
+}
+
+void MacroAssembler::branchIfIsNotSharedArrayBuffer(Register obj, Register temp,
+                                                    Label* label) {
+  Label ok;
+
+  loadObjClassUnsafe(obj, temp);
+
+  branchPtr(Assembler::Equal, temp,
+            ImmPtr(&FixedLengthSharedArrayBufferObject::class_), &ok);
+  branchPtr(Assembler::NotEqual, temp,
+            ImmPtr(&GrowableSharedArrayBufferObject::class_), label);
+
+  bind(&ok);
+
+  if (JitOptions.spectreObjectMitigations) {
+    spectreZeroRegister(Assembler::NotEqual, temp, obj);
+  }
+}
+
+void MacroAssembler::branchIfIsArrayBufferMaybeShared(Register obj,
+                                                      Register temp,
+                                                      Label* label) {
+  loadObjClassUnsafe(obj, temp);
+
+  branchPtr(Assembler::Equal, temp,
+            ImmPtr(&FixedLengthArrayBufferObject::class_), label);
+  branchPtr(Assembler::Equal, temp,
+            ImmPtr(&FixedLengthSharedArrayBufferObject::class_), label);
+  branchPtr(Assembler::Equal, temp, ImmPtr(&ResizableArrayBufferObject::class_),
+            label);
+  branchPtr(Assembler::Equal, temp,
+            ImmPtr(&GrowableSharedArrayBufferObject::class_), label);
+  branchPtr(Assembler::Equal, temp, ImmPtr(&ImmutableArrayBufferObject::class_),
+            label);
 }
 
 void MacroAssembler::branchIfHasDetachedArrayBuffer(BranchIfDetached branchIf,

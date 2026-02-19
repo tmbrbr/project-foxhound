@@ -4,6 +4,7 @@ ChromeUtils.defineESModuleGetters(this, {
   FeatureModel: "resource://newtab/lib/InferredModel/FeatureModel.sys.mjs",
   dictAdd: "resource://newtab/lib/InferredModel/FeatureModel.sys.mjs",
   dictApply: "resource://newtab/lib/InferredModel/FeatureModel.sys.mjs",
+  divideDict: "resource://newtab/lib/InferredModel/FeatureModel.sys.mjs",
   DayTimeWeighting: "resource://newtab/lib/InferredModel/FeatureModel.sys.mjs",
   InterestFeatures: "resource://newtab/lib/InferredModel/FeatureModel.sys.mjs",
   unaryEncodeDiffPrivacy:
@@ -32,6 +33,50 @@ add_task(function test_dictApply() {
   );
 });
 
+add_task(function test_divideDict_basic() {
+  const numerator = { a: 6, b: 4 };
+  const denominator = { a: 2, b: 2 };
+  const result = divideDict(numerator, denominator);
+  Assert.deepEqual(
+    result,
+    { a: 3, b: 2 },
+    "Basic division should correctly divide numerator by denominator"
+  );
+});
+
+add_task(function test_divideDict_missingDenominator() {
+  const numerator = { a: 6, b: 4 };
+  const denominator = {};
+  const result = divideDict(numerator, denominator);
+  Assert.deepEqual(
+    result,
+    { a: 0, b: 0 },
+    "Missing denominator keys should yield 0 for each numerator key"
+  );
+});
+
+add_task(function test_divideDict_zeroDenominator() {
+  const numerator = { a: 5, b: 10 };
+  const denominator = { a: 0, b: 2 };
+  const result = divideDict(numerator, denominator);
+  Assert.deepEqual(
+    result,
+    { a: 0, b: 5 },
+    "Zero denominator should produce 0. non-zero denominator should divide normally"
+  );
+});
+
+add_task(function test_divideDict_missingNumerator() {
+  const numerator = {};
+  const denominator = { a: 3, b: 5 };
+  const result = divideDict(numerator, denominator);
+  Assert.deepEqual(
+    result,
+    { a: 0.0, b: 0.0 },
+    "Denominator keys without numerator should yield 0.0 for each key"
+  );
+});
+
 add_task(function test_DayTimeWeighting_getDateIntervals() {
   let weighting = new DayTimeWeighting([1, 2], [0.5, 0.2]);
   let now = Date.now();
@@ -42,20 +87,24 @@ add_task(function test_DayTimeWeighting_getDateIntervals() {
     2,
     "Should return one interval per pastDay entry"
   );
-  Assert.ok(
-    intervals[0].end <= new Date(now),
+  Assert.lessOrEqual(
+    intervals[0].end,
+    new Date(now),
     "Each interval end should be before or equal to now"
   );
-  Assert.ok(
-    intervals[0].start < intervals[0].end,
+  Assert.less(
+    intervals[0].start,
+    intervals[0].end,
     "Start should be before end"
   );
-  Assert.ok(
-    intervals[1].end <= new Date(now),
+  Assert.lessOrEqual(
+    intervals[1].end,
+    new Date(now),
     "Each interval end should be before or equal to now"
   );
-  Assert.ok(
-    intervals[1].start < intervals[0].end,
+  Assert.less(
+    intervals[1].start,
+    intervals[0].end,
     "Start should be before end"
   );
 });
@@ -176,7 +225,7 @@ const jsonModelData = {
   interest_vector: {
     news_reader: {
       features: { pub_nytimes_com: 0.5, pub_cnn_com: 0.5 },
-      thresholds: [0.3, 0.4, 0.5],
+      thresholds: [0.3, 0.4],
       diff_p: 1,
       diff_q: 0,
     },
@@ -229,12 +278,14 @@ add_task(function test_FeatureModel_fromJSON() {
   const intervals = model.getDateIntervals(curTime);
   Assert.equal(intervals.length, jsonModelData.day_time_weighting.days.length);
   for (const interval of intervals) {
-    Assert.ok(
-      interval.start.getTime() <= interval.end.getTime(),
+    Assert.lessOrEqual(
+      interval.start.getTime(),
+      interval.end.getTime(),
       "Interval start and end are in correct order"
     );
-    Assert.ok(
-      interval.end.getTime() <= curTime.getTime(),
+    Assert.lessOrEqual(
+      interval.end.getTime(),
+      curTime.getTime(),
       "Interval end is not in future"
     );
   }
@@ -380,8 +431,9 @@ add_task(function test_computeMultipleVectors() {
     Number.isInteger(result.coarseInferredInterests.parenting),
     "Threshold is applied for coarse interest"
   );
-  Assert.ok(
-    result.inferredInterests.parenting > 0,
+  Assert.greater(
+    result.inferredInterests.parenting,
+    0,
     "Original inferred interest is returned"
   );
 });
@@ -415,8 +467,9 @@ add_task(function test_computeMultipleVectorsCondensed() {
     "test",
     "Model id returned"
   );
-  Assert.ok(
-    result.inferredInterests.parenting > 0,
+  Assert.greater(
+    result.inferredInterests.parenting,
+    0,
     "Original inferred interest is returned"
   );
 });
@@ -434,64 +487,139 @@ add_task(function test_computeMultipleVectorsNoPrivate() {
     "No coarse private interests available"
   );
   Assert.ok(!result.coarseInferredInterests, "No coarse interests available");
-  Assert.ok(
-    result.inferredInterests.parenting > 0,
+  Assert.greater(
+    result.inferredInterests.parenting,
+    0,
     "Original inferred interest is returned"
   );
 });
 
+const ctrModelDataNoDP = {
+  model_type: "ctr",
+  noise_scale: 0,
+  day_time_weighting: {
+    days: [3, 14, 45],
+    relative_weight: [1, 0.5, 0.3],
+  },
+  interest_vector: {
+    news_reader: {
+      features: { pub_nytimes_com: 0.5, pub_cnn_com: 0.5 },
+    },
+    parenting: {
+      features: { parenting: 1 },
+    },
+  },
+};
+
+const ctrModelDataWithDP = {
+  model_type: "ctr",
+  noise_scale: 1,
+  day_time_weighting: {
+    days: [3, 14, 45],
+    relative_weight: [1, 0.5, 0.3],
+  },
+  interest_vector: {
+    news_reader: {
+      features: { pub_nytimes_com: 0.5, pub_cnn_com: 0.5 },
+      thresholds: [0.3, 0.4],
+      diff_p: 1,
+      diff_q: 0,
+    },
+    parenting: {
+      features: { parenting: 1 },
+      thresholds: [0.3, 0.4],
+      diff_p: 1,
+      diff_q: 0,
+    },
+  },
+};
+
 add_task(function test_computeCTRInterestVectorsNoNoise() {
-  const model = new FeatureModel({
-    modelId: "test-ctr-model",
-    interestVectorModel: {},
-    modelType: "ctr",
-    noiseScale: 0.0,
-    dayTimeWeighting: null,
-    tileImportance: null,
-    rescale: true,
-    logScale: false,
+  const model = FeatureModel.fromJSON(ctrModelDataNoDP);
+
+  // Note these are typically computed with the model.inferredInterests function and are not raw
+  // per feature impressions
+  const clickInferredInterests = { parenting: 1 };
+  const impressionInferredInterests = { parenting: 2, news_reader: 4 };
+
+  const result = model.computeCTRInterestVectors({
+    clicks: clickInferredInterests,
+    impressions: impressionInferredInterests,
+    model_id: "test-ctr-model",
   });
-
-  const clicks = { sports: 1, news: 2 };
-  const impressions = { sports: 4, news: 4 };
-
-  const result = model.computeCTRInterestVectors(
-    clicks,
-    impressions,
-    "test-ctr-model"
+  console.log(JSON.stringify(result));
+  Assert.equal(
+    result.inferredInterests.model_id,
+    "test-ctr-model",
+    "Model id is CTR"
   );
-  Assert.equal(result.model_id, "test-ctr-model", "Model id is CTR");
-  Assert.ok(
-    Math.abs(result.sports - 0.25) <= 1e-4,
-    "CTR model result is as expected"
-  );
-  Assert.ok(
-    Math.abs(result.news - 0.5) <= 1e-4,
-    "CTR model result is as expected"
-  );
+  Assert.equal(result.inferredInterests.parenting, 0.5);
+  Assert.equal(result.inferredInterests.news_reader, 0);
+  Assert.ok(!result.coarseInferredInterests, "No coarse inferred interests");
 });
 
 add_task(function test_computCTRInterestVectorsWithNoise() {
-  const model = new FeatureModel({
-    modelId: "test-ctr-model",
-    interestVectorModel: {},
-    modelType: "ctr",
-    noiseScale: 1.0,
-    laplaceNoiseFn: () => 0.42, // deterministically inject noise
+  const model = FeatureModel.fromJSON(ctrModelDataWithDP);
+  model.clipZero = false;
+  model.laplaceNoiseFn = () => 0.42;
+
+  const clickInferredInterests2 = { parenting: 1 };
+  const impressionInferredInterests2 = { parenting: 2, news_reader: 4 };
+
+  const result = model.computeCTRInterestVectors({
+    clicks: clickInferredInterests2,
+    impressions: impressionInferredInterests2,
+    model_id: "test-ctr-model",
   });
 
-  const clicks = { sports: 1, news: 2, science: 10 };
-  const impressions = { sports: 4, news: 4, science: 11 };
-
-  const result = model.computeCTRInterestVectors(
-    clicks,
-    impressions,
-    "test-ctr-model"
+  Assert.equal(
+    result.inferredInterests.model_id,
+    "test-ctr-model",
+    "Model id is CTR"
   );
-
   // Assert the stubbed noise is added
-  Assert.equal(result.sports, 1 / 4 + 0.42, "sports CTR + noise");
-  Assert.equal(result.news, 2 / 4 + 0.42, "news CTR + noise");
-  Assert.equal(result.science, 10 / 11 + 0.42, "science CTR + noise");
-  Assert.equal(result.model_id, "test-ctr-model", "model ID is correct");
+  Assert.equal(result.inferredInterests.parenting, 0.5 + 0.42);
+  Assert.equal(result.inferredInterests.news_reader, 0 + 0.42);
+  Assert.ok(result.coarseInferredInterests, "Coarse inferred interests exist");
+  Assert.ok(
+    result.coarsePrivateInferredInterests,
+    "Non coarse interests exist"
+  );
+  Assert.equal(result.coarseInferredInterests.parenting, 2);
+  Assert.equal(result.coarseInferredInterests.news_reader, 0);
+});
+
+add_task(function test_applyLaplaceNoise_clampsWhenClipZero() {
+  const model = FeatureModel.fromJSON(ctrModelDataWithDP);
+  model.noiseScale = 1;
+  model.laplaceNoiseFn = () => 0.05;
+  const input = { a: 0.03, b: 0.0, c: 0.04, d: "n/a" };
+  model.applyLaplaceNoise(input); // clipzero is the default
+
+  // min(max(x + 0.05, 0), 0.04)
+  Assert.equal(input.a, 0.04, "a is capped to 0.04");
+  Assert.equal(input.b, 0.04, "b becomes 0.05 then capped to 0.04");
+  Assert.equal(input.c, 0.04, "c stays capped at 0.04");
+  Assert.equal(input.d, "n/a", "non-number unaffected");
+});
+
+add_task(function test_applyLaplaceNoise_noClampWhenClipZeroFalse() {
+  const model = FeatureModel.fromJSON(ctrModelDataWithDP);
+  model.noiseScale = 1;
+  model.laplaceNoiseFn = _scale => -0.02;
+
+  const input = { a: 0.03 };
+  model.applyLaplaceNoise(input, /* clipZero */ false);
+
+  Assert.less(Math.abs(input.a - 0.01), 1e-9, "no clamp when clipZero=false");
+});
+
+add_task(function test_applyLaplaceNoise_EarlyReturn() {
+  const model = FeatureModel.fromJSON(ctrModelDataWithDP);
+  model.noiseScale = null;
+
+  const input = { a: 0.03 };
+  model.applyLaplaceNoise(input, /* clipZero */ false);
+
+  Assert.equal(input.a, 0.03, "a is unchanged with null noiseScale");
 });

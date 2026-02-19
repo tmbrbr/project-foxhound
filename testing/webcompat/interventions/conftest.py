@@ -43,6 +43,20 @@ def pytest_generate_tests(metafunc):
             if mark.name == "skip_channels":
                 otherargs["skip_channels"] = mark.args
 
+    if "need_visible_scrollbars" in marks:
+        for mark in metafunc.function.pytestmark:
+            if mark.name == "need_visible_scrollbars":
+                otherargs["need_visible_scrollbars"] = mark.args
+
+    if "actual_platform_required" in marks:
+        otherargs["actual_platform_required"] = True
+
+    if "no_overlay_scrollbars" in marks:
+        otherargs["no_overlay_scrollbars"] = True
+
+    if "disable_moztransform" in marks:
+        otherargs["disable_moztransform"] = True
+
     if "with_interventions" in marks:
         argvalues.append([dict({"interventions": True}, **otherargs)])
         ids.append("with_interventions")
@@ -50,17 +64,6 @@ def pytest_generate_tests(metafunc):
     if "without_interventions" in marks:
         argvalues.append([dict({"interventions": False}, **otherargs)])
         ids.append("without_interventions")
-
-    if "need_visible_scrollbars" in marks:
-        for mark in metafunc.function.pytestmark:
-            if mark.name == "need_visible_scrollbars":
-                otherargs["need_visible_scrollbars"] = mark.args
-
-    if "no_overlay_scrollbars" in marks:
-        otherargs["no_overlay_scrollbars"] = True
-
-    if "disable_moztransform" in marks:
-        otherargs["disable_moztransform"] = True
 
     metafunc.parametrize(["session"], argvalues, ids=ids, indirect=True)
 
@@ -77,6 +80,7 @@ async def test_config(request, driver):
         )
 
     return {
+        "actual_platform_required": params.get("actual_platform_required", False),
         "enable_moztransform": params.get("enable_moztransform", False),
         "disable_moztransform": params.get("disable_moztransform", False),
         "need_visible_scrollbars": params.get("need_visible_scrollbars", False),

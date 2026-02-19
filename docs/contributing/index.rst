@@ -15,8 +15,10 @@ development process and source code documentation.
    reviews
    levelling-up
    how_to_submit_a_patch
+   data-collection
    data-review
    jujutsu
+   searchfox/searchfox_search
 
 
 .. toctree::

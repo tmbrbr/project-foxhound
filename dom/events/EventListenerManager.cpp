@@ -38,6 +38,7 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/EventTargetBinding.h"
+#include "mozilla/dom/PolicyContainer.h"
 #include "mozilla/dom/PopupBlocker.h"
 #include "mozilla/dom/RequestBinding.h"
 #include "mozilla/dom/ScriptLoader.h"
@@ -271,6 +272,29 @@ EventListenerManager::GetTargetAsInnerWindow() const {
   return window.forget();
 }
 
+static mozilla::LazyLogModule sSlowChromeLog("SlowChromeEvent");
+
+static void LogForChromeEvent(nsPIDOMWindowInner* aWindow, const char* aMsg) {
+  if (!MOZ_LOG_TEST(sSlowChromeLog, LogLevel::Info)) {
+    return;
+  }
+  if (!nsContentUtils::IsChromeDoc(aWindow->GetExtantDoc())) {
+    return;
+  }
+
+  if (JSContext* cx = nsContentUtils::GetCurrentJSContext()) {
+    JS::AutoFilename filename;
+    uint32_t lineNum = 0;
+    JS::ColumnNumberOneOrigin columnNum;
+    JS::DescribeScriptedCaller(&filename, cx, &lineNum, &columnNum);
+    MOZ_LOG(sSlowChromeLog, LogLevel::Info,
+            ("%s %s:%u:%u", aMsg, filename.get(), lineNum,
+             columnNum.oneOriginValue()));
+  } else {
+    MOZ_LOG(sSlowChromeLog, LogLevel::Info, ("%s", aMsg));
+  }
+}
+
 void EventListenerManager::AddEventListenerInternal(
     EventListenerHolder aListenerHolder, EventMessage aEventMessage,
     nsAtom* aTypeAtom, const EventListenerFlags& aFlags, bool aHandler,
@@ -411,8 +435,8 @@ void EventListenerManager::AddEventListenerInternal(
       case ePointerLeave:
         mMayHavePointerEnterLeaveEventListener = true;
         if (nsPIDOMWindowInner* window = GetInnerWindowForTarget()) {
-          NS_WARNING_ASSERTION(
-              !nsContentUtils::IsChromeDoc(window->GetExtantDoc()),
+          LogForChromeEvent(
+              window,
               "Please do not use pointerenter/leave events in chrome. "
               "They are slower than pointerover/out!");
           window->SetHasPointerEnterLeaveEventListeners();
@@ -424,9 +448,8 @@ void EventListenerManager::AddEventListenerInternal(
         }
         mMayHavePointerRawUpdateEventListener = true;
         if (nsPIDOMWindowInner* window = GetInnerWindowForTarget()) {
-          NS_WARNING_ASSERTION(
-              !nsContentUtils::IsChromeDoc(window->GetExtantDoc()),
-              "Please do not use pointerrawupdate event in chrome.");
+          LogForChromeEvent(
+              window, "Please do not use pointerrawupdate event in chrome.");
           window->MaybeSetHasPointerRawUpdateEventListeners();
         }
         break;
@@ -466,8 +489,8 @@ void EventListenerManager::AddEventListenerInternal(
       case eMouseLeave:
         mMayHaveMouseEnterLeaveEventListener = true;
         if (nsPIDOMWindowInner* window = GetInnerWindowForTarget()) {
-          NS_WARNING_ASSERTION(
-              !nsContentUtils::IsChromeDoc(window->GetExtantDoc()),
+          LogForChromeEvent(
+              window,
               "Please do not use mouseenter/leave events in chrome. "
               "They are slower than mouseover/out!");
           window->SetHasMouseEnterLeaveEventListeners();
@@ -1051,7 +1074,8 @@ nsresult EventListenerManager::SetEventHandler(nsAtom* aName,
     }
 
     // Perform CSP check
-    nsCOMPtr<nsIContentSecurityPolicy> csp = doc->GetCsp();
+    nsCOMPtr<nsIContentSecurityPolicy> csp =
+        PolicyContainer::GetCSP(doc->GetPolicyContainer());
     uint32_t lineNum = 0;
     JS::ColumnNumberOneOrigin columnNum;
 

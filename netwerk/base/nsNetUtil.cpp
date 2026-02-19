@@ -41,6 +41,7 @@
 #include "nsIBufferedStreams.h"
 #include "nsBufferedStreams.h"
 #include "nsIChannelEventSink.h"
+#include "nsIClassifiedChannel.h"
 #include "nsIContentSniffer.h"
 #include "mozilla/dom/Document.h"
 #include "nsIDownloader.h"
@@ -494,6 +495,15 @@ nsresult NS_NewChannelInternal(
     }
   }
 
+  if (aLoadingNode) {
+    nsCOMPtr<nsILoadInfo> loadInfo = channel->LoadInfo();
+    ClassificationFlags flags =
+        aLoadingNode->OwnerDoc()->GetScriptTrackingFlags();
+
+    loadInfo->SetTriggeringFirstPartyClassificationFlags(flags.firstPartyFlags);
+    loadInfo->SetTriggeringThirdPartyClassificationFlags(flags.thirdPartyFlags);
+  }
+
   channel.forget(outChannel);
   return NS_OK;
 }
@@ -514,8 +524,10 @@ NS_NewChannelWithTriggeringPrincipal(
 
   nsCOMPtr<nsICookieJarSettings> cookieJarSettings;
 
-  // Special treatment for resources injected by add-ons.
-  if (aTriggeringPrincipal &&
+  // Special treatment for resources injected by add-ons if not document,
+  // iframe, workers.
+  if (!nsContentUtils::IsNonSubresourceInternalPolicyType(aContentPolicyType) &&
+      aTriggeringPrincipal &&
       StaticPrefs::privacy_antitracking_isolateContentScriptResources() &&
       nsContentUtils::IsExpandedPrincipal(aTriggeringPrincipal)) {
     bool shouldResistFingerprinting =
@@ -4247,8 +4259,9 @@ nsresult AddExtraHeaders(nsIHttpChannel* aHttpChannel,
   return NS_OK;
 }
 
-bool IsLocalNetworkAccess(nsILoadInfo::IPAddressSpace aParentIPAddressSpace,
-                          nsILoadInfo::IPAddressSpace aTargetIPAddressSpace) {
+bool IsLocalNetworkAccess(
+    const nsILoadInfo::IPAddressSpace aParentIPAddressSpace,
+    const nsILoadInfo::IPAddressSpace aTargetIPAddressSpace) {
   // Determine if the request is moving to a more private address space
   // i.e. Public -> Private or Local
   // Private -> Local

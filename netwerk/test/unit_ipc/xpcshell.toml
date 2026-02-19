@@ -83,18 +83,22 @@ prefs = [
 ]
 
 ["test_alt-data_closeWithStatus_wrap.js"]
+skip-if = ["isolated_process"] # Bug 1709961
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 
 ["test_alt-data_cross_process_wrap.js"]
+skip-if = ["isolated_process"] # Bug 1709961
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 
 ["test_alt-data_simple_wrap.js"]
+skip-if = ["isolated_process"] # Bug 1709961
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 
 ["test_alt-data_stream_wrap.js"]
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 
 ["test_cache-entry-id_wrap.js"]
+skip-if = ["isolated_process"] # Bug 1709961
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 
 ["test_cache_jar_wrap.js"]
@@ -151,18 +155,10 @@ skip-if = ["os == 'win' && os_version == '11.26100' && processor == 'x86_64' && 
 
 ["test_http3_prio_enabled_wrap.js"]
 run-sequentially = "http3server"
-skip-if = [
-  "os == 'linux' && os_version == '18.04' && processor == 'x86_64'", # Will be reenabled in bug 1865394
-  "os == 'mac' && os_version == '10.15' && processor == 'x86_64'", # Will be reenabled in bug 1865394
-  "os == 'mac' && os_version == '11.20' && arch == 'aarch64'", # Will be reenabled in bug 1865394
-  "os == 'mac' && os_version == '14.70' && processor == 'x86_64'", # Will be reenabled in bug 1865394
-  "os == 'mac' && os_version == '15.30' && arch == 'aarch64' && opt", # Will be reenabled in bug 1865394
-  "os == 'win' && os_version == '10.2009' && processor == 'x86_64'", # Will be reenabled in bug 1865394
-  "os == 'win' && os_version == '11.26100' && processor == 'x86'", # Will be reenabled in bug 1865394
-  "os == 'win' && os_version == '11.26100' && processor == 'x86_64'", # Will be reenabled in bug 1865394
-]
+skip-if = ["true"] # Will be reenabled in bug 1865394
 
 ["test_httpcancel_wrap.js"]
+skip-if = ["isolated_process"] # Bug 1709961
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 
 ["test_httpsuspend_wrap.js"]
@@ -190,6 +186,7 @@ prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 
 ["test_redirect-caching_failure_wrap.js"]
+skip-if = ["isolated_process"] # Bug 1709961
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 
 ["test_redirect-caching_passing_wrap.js"]
@@ -206,16 +203,7 @@ prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 # Do not test the channel.redirectTo() API under e10s until 827269 is resolved
 
 ["test_redirect_from_script_wrap.js"]
-skip-if = [
-  "os == 'linux' && os_version == '18.04' && processor == 'x86_64'",
-  "os == 'mac' && os_version == '10.15' && processor == 'x86_64'",
-  "os == 'mac' && os_version == '11.20' && arch == 'aarch64'",
-  "os == 'mac' && os_version == '14.70' && processor == 'x86_64'",
-  "os == 'mac' && os_version == '15.30' && arch == 'aarch64'",
-  "os == 'win' && os_version == '10.2009' && processor == 'x86_64'",
-  "os == 'win' && os_version == '11.26100' && processor == 'x86'",
-  "os == 'win' && os_version == '11.26100' && processor == 'x86_64'",
-]
+skip-if = ["true"]
 
 ["test_redirect_history_wrap.js"]
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
@@ -224,6 +212,7 @@ prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 
 ["test_redirect_veto_parent.js"]
+skip-if = ["isolated_process"] # Bug 1709961
 prefs = ["network.allow_raw_sockets_in_content_processes=true"]
 run-sequentially = "doesn't play nice with others."
 

@@ -4,7 +4,7 @@
 
 package org.mozilla.fenix.compose.snackbar
 
-import androidx.compose.material.SnackbarDuration
+import androidx.compose.material3.SnackbarDuration
 import com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE
 import com.google.android.material.snackbar.Snackbar.LENGTH_LONG
 import com.google.android.material.snackbar.Snackbar.LENGTH_SHORT
@@ -20,6 +20,7 @@ private val defaultOnDismiss: () -> Unit = {}
  * The data to display within a Snackbar.
  *
  * @property message The text to display within a Snackbar.
+ * @property subMessage The optional sub-message to display within a Snackbar.
  * @property duration The duration of the Snackbar.
  * @property type The [Type] used to apply styling.
  * @property action Optional action within the Snackbar.
@@ -27,6 +28,7 @@ private val defaultOnDismiss: () -> Unit = {}
  */
 data class SnackbarState(
     val message: String,
+    val subMessage: String? = null,
     val duration: Duration = defaultDuration,
     val type: Type = defaultType,
     val action: Action? = defaultAction,

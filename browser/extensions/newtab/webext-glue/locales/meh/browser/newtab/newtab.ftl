@@ -286,5 +286,11 @@ newtab-custom-settings = Tetiñu kue´e da kei´i
 ## Strings for download mobile highlight
 
 
+## Strings for shortcuts highlight
+
+
 ## Strings for reporting ads and content
+
+
+## Strings for trending searches
 

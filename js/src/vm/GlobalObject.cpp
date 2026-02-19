@@ -862,8 +862,8 @@ GlobalObject::getOrCreateFinalizationRegistryData() {
 /* static */
 bool GlobalObject::createIntrinsicsHolder(JSContext* cx,
                                           Handle<GlobalObject*> global) {
-  Rooted<NativeObject*> intrinsicsHolder(
-      cx, NewPlainObjectWithProto(cx, nullptr, TenuredObject));
+  NativeObject* intrinsicsHolder =
+      NewPlainObjectWithProto(cx, nullptr, TenuredObject);
   if (!intrinsicsHolder) {
     return false;
   }
@@ -880,7 +880,7 @@ bool GlobalObject::getSelfHostedFunction(JSContext* cx,
                                          Handle<JSAtom*> name, unsigned nargs,
                                          MutableHandleValue funVal) {
   if (global->maybeGetIntrinsicValue(selfHostedName, funVal.address(), cx)) {
-    RootedFunction fun(cx, &funVal.toObject().as<JSFunction>());
+    JSFunction* fun = &funVal.toObject().as<JSFunction>();
     if (fun->fullExplicitName() == name) {
       return true;
     }
@@ -1060,6 +1060,10 @@ void GlobalObjectData::trace(JSTracer* trc, GlobalObject* global) {
   TraceNullableEdge(trc, &regExpShapeWithDefaultProto, "global-regexp-shape");
 
   regExpRealm.trace(trc);
+
+#ifdef JS_HAS_INTL_API
+  globalIntlData.trace(trc);
+#endif
 
   TraceNullableEdge(trc, &mappedArgumentsTemplate, "mapped-arguments-template");
   TraceNullableEdge(trc, &unmappedArgumentsTemplate,

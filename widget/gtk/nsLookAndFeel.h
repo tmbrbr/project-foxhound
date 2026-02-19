@@ -10,10 +10,8 @@
 
 #include "X11UndefineNone.h"
 #include "nsXPLookAndFeel.h"
-#include "nsCOMPtr.h"
 #include "gfxFont.h"
 
-enum WidgetNodeType : int;
 struct _GtkStyle;
 typedef struct _GDBusProxy GDBusProxy;
 typedef struct _GtkCssProvider GtkCssProvider;
@@ -90,10 +88,21 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
     }
   };
 
+  struct ButtonColors : ColorPair {
+    nscolor mBorder = kBlack;
+
+    bool operator==(const ButtonColors& aOther) const {
+      return mBg == aOther.mBg && mFg == aOther.mFg &&
+             mBorder == aOther.mBorder;
+    }
+    bool operator!=(const ButtonColors& aOther) const {
+      return !(*this == aOther);
+    }
+  };
+
   using ThemeFamily = mozilla::StyleGtkThemeFamily;
 
  protected:
-  static bool WidgetUsesImage(WidgetNodeType aNodeType);
   void RecordLookAndFeelSpecificTelemetry() override;
   static bool ShouldHonorThemeScrollbarColors();
   mozilla::Maybe<ColorScheme> ComputeColorSchemeSetting();
@@ -129,10 +138,10 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
     ColorPair mMenuHover;
     ColorPair mHeaderBar;
     ColorPair mHeaderBarInactive;
-    ColorPair mButton;
-    ColorPair mButtonHover;
-    ColorPair mButtonActive;
-    nscolor mButtonBorder = kBlack;
+    ButtonColors mButton;
+    ButtonColors mButtonHover;
+    ButtonColors mButtonActive;
+    ButtonColors mButtonDisabled;
     nscolor mFrameBorder = kBlack;
     nscolor mNativeHyperLinkText = kBlack;
     nscolor mNativeVisitedHyperLinkText = kBlack;
@@ -158,16 +167,13 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
     ColorPair mTitlebarInactive;
 
     nscolor mThemedScrollbar = kWhite;
-    nscolor mThemedScrollbarInactive = kWhite;
     nscolor mThemedScrollbarThumb = kBlack;
     nscolor mThemedScrollbarThumbHover = kBlack;
     nscolor mThemedScrollbarThumbActive = kBlack;
-    nscolor mThemedScrollbarThumbInactive = kBlack;
 
     float mCaretRatio = 0.0f;
     int32_t mTitlebarRadius = 0;
     int32_t mTooltipRadius = 0;
-    int32_t mTitlebarButtonSpacing = 0;
     char16_t mInvisibleCharacter = 0;
     bool mMenuSupportsDrag = false;
 
@@ -176,6 +182,15 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
     bool GetFont(FontID, nsString& aFontName, gfxFontStyle&,
                  float aTextScaleFactor) const;
     void InitCellHighlightColors();
+    void RestoreColorOverrides();
+    void ApplyColorOverride(nscolor* aMember, nscolor aNewColor);
+    void ApplyColorOverride(ColorPair* aMember, const ColorPair& aNewPair);
+
+    struct ColorOverride {
+      uint32_t mByteOffset;
+      nscolor mOriginalColor;
+    };
+    nsTArray<ColorOverride> mOverrides;
   };
 
   PerThemeData mSystemTheme;
@@ -230,6 +245,7 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
   TitlebarAction mMiddleClickAction = TitlebarAction::None;
   float mTextScaleFactor = 1.0f;
 
+  int32_t mRoundedCornerProviderRadius = 0;
   RefPtr<GtkCssProvider> mRoundedCornerProvider;
   void UpdateRoundedBottomCornerStyles();
 

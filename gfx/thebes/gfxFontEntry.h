@@ -410,7 +410,7 @@ class gfxFontEntry {
   // unregisters the table from the font entry.
   //
   // Pass nullptr for aBuffer to indicate that the table is not present and
-  // nullptr will be returned.  Also returns nullptr on OOM.
+  // nullptr will be returned.
   hb_blob_t* ShareFontTableAndGetBlob(uint32_t aTag, nsTArray<uint8_t>* aTable);
 
   // Get the font's unitsPerEm from the 'head' table, in the case of an
@@ -876,11 +876,10 @@ class gfxFontEntry {
 
     // Transfer (not copy) elements of aTable to a new hb_blob_t and
     // return ownership to the caller.  A weak reference to the blob is
-    // recorded in the hashtable entry so that others may use the same
-    // table.
-    hb_blob_t* ShareTableAndGetBlob(
-        nsTArray<uint8_t>&& aTable,
-        nsTHashtable<FontTableHashEntry>* aHashtable);
+    // recorded in the font entry's table cache so that others may use
+    // the same table.
+    hb_blob_t* ShareTableAndGetBlob(nsTArray<uint8_t>&& aTable,
+                                    gfxFontEntry* aFontEntry);
 
     // Return a strong reference to the blob.
     // Callers must hb_blob_destroy the returned blob.

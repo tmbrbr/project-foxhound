@@ -1255,8 +1255,8 @@ BufferOffset MacroAssemblerARM::ma_dataTransferN(LoadStore ls, int size,
   }
 }
 
-void MacroAssemblerARM::ma_pop(Register r) {
-  as_dtr(IsLoad, 32, PostIndex, r, DTRAddr(sp, DtrOffImm(4)));
+BufferOffset MacroAssemblerARM::ma_pop(Register r) {
+  return as_dtr(IsLoad, 32, PostIndex, r, DTRAddr(sp, DtrOffImm(4)));
 }
 
 void MacroAssemblerARM::ma_popn_pc(Imm32 n, AutoRegisterScope& scratch,
@@ -4536,9 +4536,7 @@ void MacroAssembler::callWithABIPost(uint32_t stackAdjust, ABIType result,
     ma_mov(secondScratchReg_, lr);
   }
 
-  // Calls to native functions in wasm pass through a thunk which already
-  // fixes up the return value for us.
-  if (!callFromWasm && !ARMFlags::UseHardFpABI()) {
+  if (!ARMFlags::UseHardFpABI()) {
     switch (result) {
       case ABIType::Float64:
         // Move double from r0/r1 to ReturnFloatReg.

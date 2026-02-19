@@ -53,19 +53,31 @@ bool SVGFESpotLightElement::AttributeAffectsRendering(
 LightType SVGFESpotLightElement::ComputeLightAttributes(
     SVGFilterInstance* aInstance, nsTArray<float>& aFloatAttributes) {
   aFloatAttributes.SetLength(kSpotLightNumAttributes);
-  GetAnimatedNumberValues(&aFloatAttributes[kSpotLightPositionXIndex],
-                          &aFloatAttributes[kSpotLightPositionYIndex],
-                          &aFloatAttributes[kSpotLightPositionZIndex],
-                          &aFloatAttributes[kSpotLightPointsAtXIndex],
-                          &aFloatAttributes[kSpotLightPointsAtYIndex],
-                          &aFloatAttributes[kSpotLightPointsAtZIndex],
+  Point3D lightPos, lightPointsAt;
+  float limitingConeAngle;
+
+  GetAnimatedNumberValues(&lightPos.x, &lightPos.y, &lightPos.z,
+                          &lightPointsAt.x, &lightPointsAt.y, &lightPointsAt.z,
                           &aFloatAttributes[kSpotLightFocusIndex],
-                          &aFloatAttributes[kSpotLightLimitingConeAngleIndex],
-                          nullptr);
-  if (!mNumberAttributes[SVGFESpotLightElement::LIMITING_CONE_ANGLE]
-           .IsExplicitlySet()) {
-    aFloatAttributes[kSpotLightLimitingConeAngleIndex] = 90;
+                          &limitingConeAngle, nullptr);
+
+  lightPos = aInstance->ConvertLocation(lightPos);
+  lightPointsAt = aInstance->ConvertLocation(lightPointsAt);
+  aFloatAttributes[kSpotLightPositionXIndex] = lightPos.x;
+  aFloatAttributes[kSpotLightPositionYIndex] = lightPos.y;
+  aFloatAttributes[kSpotLightPositionZIndex] = lightPos.z;
+  aFloatAttributes[kSpotLightPointsAtXIndex] = lightPointsAt.x;
+  aFloatAttributes[kSpotLightPointsAtYIndex] = lightPointsAt.y;
+  aFloatAttributes[kSpotLightPointsAtZIndex] = lightPointsAt.z;
+
+  if (mNumberAttributes[SVGFESpotLightElement::LIMITING_CONE_ANGLE]
+          .IsExplicitlySet()) {
+    limitingConeAngle = std::clamp(limitingConeAngle, -90.0f, 90.0f);
+  } else {
+    limitingConeAngle = 90.0f;
   }
+
+  aFloatAttributes[kSpotLightLimitingConeAngleIndex] = limitingConeAngle;
 
   return LightType::Spot;
 }

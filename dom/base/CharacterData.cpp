@@ -255,8 +255,12 @@ nsresult CharacterData::SetTextInternal(
   }
 
   if (aNotify) {
-    CharacterDataChangeInfo info = {aOffset == textLength, aOffset, endOffset,
-                                    aLength, aDetails};
+    CharacterDataChangeInfo info = {aOffset == textLength,
+                                    aOffset,
+                                    endOffset,
+                                    aLength,
+                                    MutationEffectOnScript::DropTrustWorthiness,
+                                    aDetails};
     MutationObservers::NotifyCharacterDataWillChange(this, info);
   }
 
@@ -331,8 +335,12 @@ nsresult CharacterData::SetTextInternal(
 
   // Notify observers
   if (aNotify) {
-    CharacterDataChangeInfo info = {aOffset == textLength, aOffset, endOffset,
-                                    aLength, aDetails};
+    CharacterDataChangeInfo info = {aOffset == textLength,
+                                    aOffset,
+                                    endOffset,
+                                    aLength,
+                                    MutationEffectOnScript::DropTrustWorthiness,
+                                    aDetails};
     MutationObservers::NotifyCharacterDataChanged(this, info);
 
     if (haveMutationListeners) {

@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2025-05-21T09:20:14.661913+00:00'
+updated_at: '2025-07-16T13:08:24.154160+00:00'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -50,6 +50,10 @@ people:
     bmo_id: 693303
     name: Alex Hochheiden
     nick: ahochheiden
+  - &aleiserson
+    bmo_id: 713407
+    name: Andy Leiserson
+    nick: aleiserson
   - &allstarschh
     bmo_id: 434670
     name: Yoshi Cheng-Hao Huang
@@ -615,6 +619,10 @@ people:
     bmo_id: 699161
     name: Jules Simplicio
     nick: jules
+  - &Julian
+    bmo_id: 656418
+    name: Julian Gaibler
+    nick: Julian
   - &jwatt
     bmo_id: 32767
     name: Jonathan Watt
@@ -1448,7 +1456,6 @@ modules:
     meta:
       owners_emeritus:
         - Monica Chew
-        - Andrea Marchesini
       peers_emeritus:
         - Josh Matthews
         - Mike Connor
@@ -1457,6 +1464,8 @@ modules:
         - Shawn Wilsher
         - Ehsan Akhgari
         - Honza Bambas
+        - Emma Zühlcke
+        - Tom Schuster
       group: dev-platform
       components:
         - 'Core::Networking: Cookies'
@@ -1465,10 +1474,10 @@ modules:
       - *dveditz
       - *timhuang
       - *valentin
+      - *baku
     peers:
       - *edgul
-      - *emz
-      - *tschuster
+      - *bvandersloot
     machine_name: core_cookies
 
   - name: 'Core: Crash reporting'
@@ -2847,6 +2856,7 @@ modules:
     description: Policy management for third-party Rust dependencies
     includes:
       - supply-chain/**/*
+      - .cargo/audit.toml
     meta:
       peers_emeritus:
         - Aria Beingessner
@@ -2889,8 +2899,7 @@ modules:
       - netwerk/protocol/http/**/*
     meta:
       group: dev-platform
-      url:
-        https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent/Firefox
+      url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent/Firefox
       components:
         - 'Core::Networking: HTTP'
     owners:
@@ -3020,6 +3029,7 @@ modules:
       - *jgilbert
       - *nical
       - *teoxoy
+      - *aleiserson
     machine_name: core_webgpu_graphics_submodule
 
   - name: 'Core: WebRTC'
@@ -3515,9 +3525,11 @@ modules:
           - *emilio
           - *hjones
           - *itielyn8
+          - *Julian
           - *jules
           - *kcochrane
           - *sfoster
+          - *tgiles
         machine_name: desktop_theme
 
       - name: Desktop UI
@@ -3856,13 +3868,13 @@ modules:
         meta:
           owners_emeritus:
             - Jared Wein
+            - *mossop
           peers_emeritus:
             - Tim Nguyen
           review_group: preferences-reviewers
         owners:
-          - *mossop
-        peers:
           - *mstriemer
+        peers:
           - *Gijs
           - *mconley
         machine_name: settings_ui
@@ -3878,16 +3890,17 @@ modules:
           peers_emeritus:
             - Jared Wein
             - Matthew N
+            - *mconley
         owners:
           - *dao
         peers:
           - *mak
-          - *mconley
           - *dwalker
           - *nikkis
           - *niklas
           - *jswinarton
           - *sthompson
+          - *sclements
         machine_name: tabbed_browser
 
       - name: Windows Installer
@@ -3980,6 +3993,33 @@ modules:
       - *royang
       - *rsainani
     meta:
+    submodules:
+
+      - machine_name: fenix_addons
+        name: Fenix - Add-ons
+        description: Submodule for the add-ons code in Firefox for Android.
+        includes:
+          - mobile/android/android-components/components/browser/engine-gecko/src/*/java/mozilla/components/browser/engine/gecko/webextension/*
+          - mobile/android/android-components/components/browser/state/src/*/java/mozilla/components/browser/state/state/extension/*
+          - mobile/android/android-components/components/concept/engine/src/*/java/mozilla/components/concept/engine/webextension/*
+          - mobile/android/android-components/components/feature/addons/**/*
+          - mobile/android/android-components/components/support/webextensions/**/*
+          - mobile/android/android-components/samples/browser/src/*/java/org/mozilla/samples/browser/addons/*
+          - mobile/android/fenix/app/src/*/java/org/mozilla/fenix/addons/*
+          - mobile/android/fenix/app/src/*/java/org/mozilla/fenix/extension/*
+        meta:
+          components:
+            - 'Firefox for Android :: WebExtensions'
+            - 'WebExtensions :: Android'
+        owners:
+          - *willdurand
+        peers:
+          - *rpl
+          - *robwu
+          - *zombie
+          - *tcampbell
+          - *jonalmeida
+
   - machine_name: focus_android
     name: Focus for Android
     description: Android Project to build Focus for Android
@@ -4567,5 +4607,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: 417f5aa3364f94e036f02a3612a733ab3cc9884a
-  export: f91f79309801aa730bc99a9a1f2bc64db1e64718
+  config: 71667912fce426b901f9a9bbffd9a7036c59fbc1
+  export: 1b08a44222bbac5b5c00f1d7f610b64925882aae

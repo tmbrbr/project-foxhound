@@ -8,8 +8,8 @@ origin:
   name: WebGPU CTS
   description: WebGPU Compliance Test Suite
   url: https://gpuweb.github.io/cts/
-  release: 905c7cbfeaac1cf3feb4c6056dd6f3dbaa06b074 (2025-05-20T06:39:52Z).
-  revision: 905c7cbfeaac1cf3feb4c6056dd6f3dbaa06b074
+  release: eba794d873f4d1edba71cde7325066131db814db (2025-07-10T21:18:36Z).
+  revision: eba794d873f4d1edba71cde7325066131db814db
   license: ['BSD-3-Clause']
 
 updatebot:
@@ -63,3 +63,5 @@ vendoring:
       path: '{yaml_dir}/checkout/out/'
     - action: delete-path
       path: '{yaml_dir}/checkout/deploy_key.enc'
+    - action: vcs-add-remove-files
+      path: '../../../../../testing/web-platform/mozilla/tests/webgpu/'

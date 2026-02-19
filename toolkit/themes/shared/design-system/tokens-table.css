@@ -6,39 +6,63 @@
   --border-color-tokens-table: var(--color-gray-50);
   --table-border-outer: 2px solid var(--border-color-tokens-table);
   --table-border-inner: var(--border-width) solid var(--border-color-tokens-table);
-  --table-background-color: color-mix(in srgb,
-      var(--color-gray-50) 20%,
-      transparent);
+  --table-background-color: color-mix(in srgb, var(--color-gray-50) 20%, transparent);
   --outline-preview: 2px solid var(--color-gray-60);
   --background-color-icon-demo: var(--color-gray-60);
   --background-color-padding-demo: var(--color-blue-60);
   --background-color-space-demo: var(--color-blue-0);
-  --background-image-space-demo: linear-gradient(135deg,
-      var(--color-blue-30) 10%,
-      #0000 0,
-      #0000 50%,
-      var(--color-blue-30) 0,
-      var(--color-blue-30) 60%,
-      #0000 0,
-      #0000);
+  --background-image-space-demo: linear-gradient(
+    135deg,
+    var(--color-blue-30) 10%,
+    #0000 0,
+    #0000 50%,
+    var(--color-blue-30) 0,
+    var(--color-blue-30) 60%,
+    #0000 0,
+    #0000
+  );
   --link-outline-demo: 2px solid var(--color-blue-50);
 }
 
 /* Wrapper and filter styles */
 
 .page-wrapper {
-  margin: 3rem;
+  padding: 3rem;
+}
+
+.filters-wrapper,
+.top-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-large);
 }
 
 .filters-wrapper {
   position: sticky;
   top: 0;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--space-large);
   background: var(--background-color-canvas);
   padding: var(--space-small);
+  flex-direction: column;
+}
+
+.top-filters {
+  width: 100%;
+}
+
+.table-filter {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: var(--border-width) solid var(--border-color);
+
+  moz-button {
+    --button-border-radius: 0;
+    --button-border-color: var(--border-color);
+
+    min-width: fit-content;
+    flex: 1;
+    outline: 0.5px solid var(--border-color);
+  }
 }
 
 fieldset {
@@ -249,7 +273,8 @@ td:first-of-type {
 
 /** Default **/
 
-.default-preview, .shadow-preview {
+.default-preview,
+.shadow-preview {
   height: 50px;
   width: 100px;
   background-color: var(--button-background-color);

@@ -255,6 +255,9 @@ pref("extensions.webextOptionalPermissionPrompts", true);
 // GeckoView can trigger requests without opening geckoview.xhtml.
 pref("extensions.webextensions.early_background_wakeup_on_request", true);
 
+// Enable data collection permissions.
+pref("extensions.dataCollectionPermissions.enabled", true);
+
 // Scroll and zoom into editable form fields (bug 834613)
 pref("formhelper.autozoom", true);
 
@@ -381,11 +384,7 @@ pref("network.ohttp.relayURL", "https://mozilla-ohttp.fastly-edge.com/");
 // 0 no change
 // 1 complete progressbar at DOMContentLoaded
 // 2 complete progressbar at first MozAfterPaint after DOMContentLoaded
-#ifdef NIGHTLY_BUILD
-  pref("page_load.progressbar_completion", 2);
-#else
-  pref("page_load.progressbar_completion", 0);
-#endif
+pref("page_load.progressbar_completion", 2);
 
 // Try to convert PDFs sent as octet-stream (bug 1754499)
 pref("pdfjs.handleOctetStream", true);

@@ -57,11 +57,11 @@ import org.mozilla.fenix.components.menu.store.BrowserMenuState
 import org.mozilla.fenix.components.menu.store.MenuAction
 import org.mozilla.fenix.components.menu.store.MenuState
 import org.mozilla.fenix.components.menu.store.MenuStore
-import org.mozilla.fenix.helpers.FenixRobolectricTestRunner
 import org.mozilla.fenix.utils.LastSavedFolderCache
 import org.mozilla.fenix.utils.Settings
+import org.robolectric.RobolectricTestRunner
 
-@RunWith(FenixRobolectricTestRunner::class)
+@RunWith(RobolectricTestRunner::class)
 class MenuDialogMiddlewareTest {
 
     @get:Rule
@@ -202,6 +202,29 @@ class MenuDialogMiddlewareTest {
         assertEquals(1, store.state.extensionMenuState.recommendedAddons.size)
         assertEquals(addon, store.state.extensionMenuState.recommendedAddons.first())
         assertTrue(store.state.extensionMenuState.showExtensionsOnboarding)
+    }
+
+    @Test
+    fun `GIVEN recommended addons are available WHEN init action is dispatched THEN initial extension state is updated and shows maximum three recommended addons`() = runTestOnMain {
+        val addon = Addon(id = "ext1")
+        val addonTwo = Addon(id = "ext2")
+        val addonThree = Addon(id = "ext3")
+        val addonFour = Addon(id = "ext4")
+        val addonFive = Addon(id = "ext5")
+        whenever(addonManager.getAddons()).thenReturn(listOf(addon, addonTwo, addonThree, addonFour, addonFive))
+
+        val store = createStore()
+
+        assertEquals(0, store.state.extensionMenuState.recommendedAddons.size)
+
+        // Wait for InitAction and middleware
+        store.waitUntilIdle()
+
+        // Wait for UpdateExtensionState and middleware
+        store.waitUntilIdle()
+
+        assertTrue(store.state.extensionMenuState.availableAddons.isEmpty())
+        assertEquals(3, store.state.extensionMenuState.recommendedAddons.size)
     }
 
     @Test

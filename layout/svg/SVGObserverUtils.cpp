@@ -8,13 +8,9 @@
 #include "SVGObserverUtils.h"
 
 // Keep others in (case-insensitive) order:
-#include "mozilla/css/ImageLoader.h"
-#include "mozilla/dom/CanvasRenderingContext2D.h"
-#include "mozilla/dom/ReferrerInfo.h"
-#include "mozilla/dom/SVGGeometryElement.h"
-#include "mozilla/dom/SVGMPathElement.h"
-#include "mozilla/dom/SVGTextPathElement.h"
-#include "mozilla/dom/SVGUseElement.h"
+#include "SVGFilterFrame.h"
+#include "SVGMarkerFrame.h"
+#include "SVGPaintServerFrame.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/RestyleManager.h"
 #include "mozilla/SVGClipPathFrame.h"
@@ -22,21 +18,25 @@
 #include "mozilla/SVGMaskFrame.h"
 #include "mozilla/SVGTextFrame.h"
 #include "mozilla/SVGUtils.h"
+#include "mozilla/css/ImageLoader.h"
+#include "mozilla/dom/CanvasRenderingContext2D.h"
+#include "mozilla/dom/ReferrerInfo.h"
+#include "mozilla/dom/SVGGeometryElement.h"
+#include "mozilla/dom/SVGMPathElement.h"
+#include "mozilla/dom/SVGTextPathElement.h"
+#include "mozilla/dom/SVGUseElement.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsHashKeys.h"
 #include "nsIContent.h"
 #include "nsIContentInlines.h"
-#include "nsInterfaceHashtable.h"
 #include "nsIReflowCallback.h"
 #include "nsISupportsImpl.h"
+#include "nsInterfaceHashtable.h"
 #include "nsLayoutUtils.h"
 #include "nsNetUtil.h"
 #include "nsTHashtable.h"
 #include "nsURIHashKey.h"
-#include "SVGFilterFrame.h"
-#include "SVGMarkerFrame.h"
-#include "SVGPaintServerFrame.h"
 
 using namespace mozilla::dom;
 
@@ -324,17 +324,19 @@ void SVGRenderingObserver::AttributeChanged(dom::Element* aElement,
   OnRenderingChange();
 }
 
-void SVGRenderingObserver::ContentAppended(nsIContent* aFirstNewContent) {
+void SVGRenderingObserver::ContentAppended(nsIContent* aFirstNewContent,
+                                           const ContentAppendInfo&) {
   OnRenderingChange();
 }
 
-void SVGRenderingObserver::ContentInserted(nsIContent* aChild) {
+void SVGRenderingObserver::ContentInserted(nsIContent* aChild,
+                                           const ContentInsertInfo&) {
   OnRenderingChange();
 }
 
 void SVGRenderingObserver::ContentWillBeRemoved(
-    nsIContent* aChild, const BatchRemovalState* aState) {
-  if (aState && !aState->mIsFirst) {
+    nsIContent* aChild, const ContentRemoveInfo& aInfo) {
+  if (aInfo.mBatchRemovalState && !aInfo.mBatchRemovalState->mIsFirst) {
     return;
   }
   OnRenderingChange();
@@ -1693,18 +1695,12 @@ Element* SVGObserverUtils::GetAndObserveBackgroundImage(nsIFrame* aFrame,
   } else {
     MOZ_ASSERT(hashtable, "this property should only store non-null values");
   }
-
-  nsAutoString elementId = u"#"_ns + nsDependentAtomString(aHref);
-  nsCOMPtr<nsIURI> targetURI;
-  nsContentUtils::NewURIWithDocumentCharset(
-      getter_AddRefs(targetURI), elementId,
-      aFrame->GetContent()->GetUncomposedDoc(),
-      aFrame->GetContent()->GetBaseURI());
+  nsAutoString localRef = u"#"_ns + nsDependentAtomString(aHref);
+  auto* doc = aFrame->GetContent()->OwnerDoc();
+  nsIURI* baseURI = aFrame->GetContent()->GetBaseURI();
   nsIReferrerInfo* referrerInfo =
-      aFrame->GetContent()
-          ->OwnerDoc()
-          ->ReferrerInfoForInternalCSSAndSVGResources();
-  auto url = MakeRefPtr<SVGReference>(targetURI, referrerInfo);
+      doc->ReferrerInfoForInternalCSSAndSVGResources();
+  auto url = MakeRefPtr<SVGReference>(localRef, baseURI, referrerInfo);
 
   return static_cast<SVGMozElementObserver*>(
              hashtable

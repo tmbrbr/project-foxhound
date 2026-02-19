@@ -8,17 +8,20 @@ package org.mozilla.fenix.ui.robots
 
 import android.util.Log
 import android.widget.RelativeLayout
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.NoMatchingViewException
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.Visibility
 import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
 import androidx.test.espresso.matcher.ViewMatchers.hasSibling
@@ -35,8 +38,8 @@ import androidx.test.uiautomator.UiScrollable
 import androidx.test.uiautomator.UiSelector
 import androidx.test.uiautomator.Until
 import org.hamcrest.CoreMatchers.allOf
-import org.hamcrest.CoreMatchers.containsString
 import org.mozilla.fenix.R
+import org.mozilla.fenix.components.menu.MenuDialogTestTag.WEB_EXTENSION_ITEM
 import org.mozilla.fenix.helpers.Constants.RETRY_COUNT
 import org.mozilla.fenix.helpers.Constants.TAG
 import org.mozilla.fenix.helpers.Constants.recommendedAddons
@@ -78,28 +81,36 @@ class SettingsSubMenuAddonsManagerRobot {
 
     fun verifyAddonPermissionPrompt(addonName: String) {
         waitForAddonsDownloadOverlayToBeGone()
-        mDevice.waitNotNull(Until.findObject(By.text("Add $addonName?")), waitingTime)
-        Log.i(TAG, "verifyAddonPermissionPrompt: Trying to verify that the add-ons permission prompt items are displayed")
-        onView(
-            allOf(
-                withText("Add $addonName?"),
-                hasSibling(withText(containsString("It requires your permission to:"))),
+        assertUIObjectExists(
+            itemWithResIdContainingText(
+                "$packageName:id/title",
+                "Add $addonName",
+            ),
+            itemWithResIdContainingText(
+                "$packageName:id/optional_or_required_text",
+                getStringResource(R.string.addons_permissions_heading_required_permissions),
+            ),
+            itemWithResIdContainingText(
+                "$packageName:id/optional_settings_title",
+                getStringResource(R.string.mozac_feature_addons_permissions_dialog_heading_optional_settings),
+            ),
+            itemWithResIdContainingText(
+                "$packageName:id/allow_in_private_browsing",
+                getStringResource(R.string.mozac_feature_addons_settings_allow_in_private_browsing_2),
+            ),
+            itemWithResIdContainingText(
+                "$packageName:id/learn_more_link",
+                getStringResource(R.string.mozac_feature_addons_permissions_dialog_learn_more),
+            ),
+            itemWithResIdContainingText(
+                "$packageName:id/deny_button",
+                getStringResource(R.string.mozac_feature_addons_permissions_dialog_cancel),
+            ),
+            itemWithResIdContainingText(
+                "$packageName:id/allow_button",
+                getStringResource(R.string.mozac_feature_addons_permissions_dialog_add),
             ),
         )
-            .inRoot(isDialog())
-            .check(matches(isDisplayed()))
-        mDevice.waitNotNull(Until.findObject(By.text("Add")), waitingTime)
-        onView(
-            allOf(
-                withText("Add"),
-                hasSibling(withText("Cancel")),
-                hasSibling(withText("Learn more")),
-                hasSibling(withText("Allow in private browsing")),
-            ),
-        )
-            .inRoot(isDialog())
-            .check(matches(isDisplayed()))
-        Log.i(TAG, "verifyAddonPermissionPrompt: Verified that the add-ons permission prompt items are displayed")
     }
 
     fun clickInstallAddon(addonName: String) {
@@ -135,12 +146,16 @@ class SettingsSubMenuAddonsManagerRobot {
     }
 
     fun verifyAddonInstallCompletedPrompt(addonName: String, activityTestRule: HomeActivityIntentTestRule) {
+        // Assigns a more descriptive name to the addon if it is "Bitwarden", otherwise keeps the original name
+        // The name of this extenssion is being displayed differently across the app
+        var addonName = if (addonName == "Bitwarden") "Bitwarden Password Manager" else addonName
+
         for (i in 1..RETRY_COUNT) {
             Log.i(TAG, "verifyAddonInstallCompletedPrompt: Started try #$i")
             try {
                 assertUIObjectExists(
-                    itemContainingText("$addonName has been added to $appName"),
-                    itemContainingText("Access $addonName from the $appName menu."),
+                    itemContainingText("$addonName was added"),
+                    itemContainingText("Update permissions and data preferences any time in the extension settings."),
                     itemContainingText("OK"),
                     waitingTime = waitingTimeLong,
                 )
@@ -168,11 +183,18 @@ class SettingsSubMenuAddonsManagerRobot {
 
     fun closeAddonInstallCompletePrompt() {
         Log.i(TAG, "closeAddonInstallCompletePrompt: Trying to click the \"OK\" button from the completed add-on install prompt")
-        onView(withText("OK")).click()
+        itemWithResIdContainingText(
+            "$packageName:id/confirm_button",
+            "OK",
+        ).click()
         Log.i(TAG, "closeAddonInstallCompletePrompt: Clicked the \"OK\" button from the completed add-on install prompt")
     }
 
     fun verifyAddonIsInstalled(addonName: String) {
+        // Assigns a more descriptive name to the addon if it is "Bitwarden", otherwise keeps the original name
+        // The name of this extenssion is being displayed differently across the app
+        var addonName = if (addonName == "Bitwarden") "Bitwarden Password Manager" else addonName
+
         scrollToAddon(addonName)
         Log.i(TAG, "verifyAddonIsInstalled: Trying to verify that the $addonName add-on was installed")
         onView(
@@ -240,7 +262,7 @@ class SettingsSubMenuAddonsManagerRobot {
     }
 
     fun selectAllowInPrivateBrowsing() {
-        assertUIObjectExists(itemWithText("Allow in private browsing"), waitingTime = waitingTimeLong)
+        assertUIObjectExists(itemWithText("Allow extension to run in private browsing"), waitingTime = waitingTimeLong)
         Log.i(TAG, "selectAllowInPrivateBrowsing: Trying to click the \"Allow in private browsing\" check box")
         onView(withId(R.id.allow_in_private_browsing)).click()
         Log.i(TAG, "selectAllowInPrivateBrowsing: Clicked the \"Allow in private browsing\" check box")
@@ -272,15 +294,10 @@ class SettingsSubMenuAddonsManagerRobot {
     }
 
     fun verifyRecommendedAddonsViewFromRedesignedMainMenu(composeTestRule: ComposeTestRule) {
-        Log.i(TAG, "verifyRecommendedAddonsViewFromRedesignedMainMenu: Trying to verify that that the \"Recommended\" heading is displayed")
-        composeTestRule.onNode(
-            hasText(getStringResource(R.string.mozac_feature_addons_recommended_section)),
-        ).assertIsDisplayed()
-        Log.i(TAG, "verifyRecommendedAddonsViewFromRedesignedMainMenu: Verified that that the \"Recommended\" heading is displayed")
         verifyTheRecommendedAddons(composeTestRule)
         Log.i(TAG, "verifyRecommendedAddonsViewFromRedesignedMainMenu: Trying to verify that that the \"Discover more extensions\" button is displayed")
         composeTestRule.onNode(
-            hasText(getStringResource(R.string.browser_menu_discover_more_extensions)),
+            hasText(getStringResource(R.string.browser_menu_discover_more_extensions)), useUnmergedTree = true,
         ).assertIsDisplayed()
         Log.i(TAG, "verifyRecommendedAddonsViewFromRedesignedMainMenu: Verified that that the \"Discover more extensions\" button is displayed")
     }
@@ -303,12 +320,12 @@ class SettingsSubMenuAddonsManagerRobot {
         Log.i(TAG, "verifyNoInstalledExtensionsPromotionBanner: Verified that that the \"Learn more\" link is displayed")
     }
 
-    fun verifyDisabledExtensionsPromotionBanner(composeTestRule: ComposeTestRule) {
-        Log.i(TAG, "verifyDisabledExtensionsPromotionBanner: Trying to verify that the \"You have extensions installed, but not enabled\" heading is displayed")
+    fun verifyExtensionsEnabledButton(composeTestRule: ComposeTestRule) {
+        Log.i(TAG, "verifyExtensionsEnabledButton: Trying to verify that the \"You have extensions installed, but not enabled\" heading is displayed")
         composeTestRule.onNode(
             hasText(getStringResource(R.string.browser_menu_disabled_extensions_banner_onboarding_header)),
         ).assertIsDisplayed()
-        Log.i(TAG, "verifyDisabledExtensionsPromotionBanner: Verified that the \"You have extensions installed, but not enabled\" heading is displayed")
+        Log.i(TAG, "verifyExtensionsEnabledButton: Verified that the \"You have extensions installed, but not enabled\" heading is displayed")
         Log.i(TAG, "verifyDisabledExtensionsPromotionBanner: Trying to verify that that the \"To use extensions, enable them in settings or by selecting “Manage extensions” below.\" message is displayed")
         composeTestRule.onNode(
             hasText("To use extensions, enable them in settings or by selecting “Manage extensions” below."),
@@ -328,7 +345,7 @@ class SettingsSubMenuAddonsManagerRobot {
             Log.i(TAG, "verifyTheRecommendedAddons: Started try #$i")
             try {
                 recommendedAddons.forEach { addon ->
-                    if (verifiedCount == 4) return
+                    if (verifiedCount == 3) return
                     try {
                         waitForAppWindowToBeUpdated()
                         Log.i(TAG, "verifyTheRecommendedAddons: Trying to verify that addon: $addon is recommended and displayed")
@@ -346,8 +363,8 @@ class SettingsSubMenuAddonsManagerRobot {
                         Log.i(TAG, "verifyTheRecommendedAddons: Addon: $addon is not displayed, moving to the next one")
                     }
                 }
-                if (verifiedCount < 4) {
-                    throw AssertionError("$TAG, verifyTheRecommendedAddons: Less than 4 addons were verified. Only $verifiedCount addons were verified.")
+                if (verifiedCount < 3) {
+                    throw AssertionError("$TAG, verifyTheRecommendedAddons: Less than 3 addons were verified. Only $verifiedCount addons were verified.")
                 }
 
                 break
@@ -367,9 +384,45 @@ class SettingsSubMenuAddonsManagerRobot {
         Log.i(TAG, "installARecommendedAddons: Clicked addon: $recommendedExtensionTitle install button")
     }
 
-    fun clickManageExtensionsButtonFromRedesignedMainMenu(composeTestRule: ComposeTestRule) =
-        composeTestRule.onNodeWithContentDescription(getStringResource(R.string.browser_menu_manage_extensions)).performClick()
+    fun verifyManageExtensionsButtonFromRedesignedMainMenu(composeTestRule: ComposeTestRule, isDisplayed: Boolean) {
+        if (isDisplayed) {
+            Log.i(TAG, "verifyManageExtensionsButtonFromRedesignedMainMenu: Trying to verify that the \"Manage extensions\" button is displayed")
+            composeTestRule.onNodeWithText(getStringResource(R.string.browser_menu_manage_extensions), useUnmergedTree = true).assertIsDisplayed()
+            Log.i(TAG, "verifyManageExtensionsButtonFromRedesignedMainMenu: Verified that the \"Manage extensions\" button is displayed")
+        } else {
+            Log.i(TAG, "verifyManageExtensionsButtonFromRedesignedMainMenu: Trying to verify that the \"Manage extensions\" button is not displayed")
+            composeTestRule.onNodeWithText(getStringResource(R.string.browser_menu_manage_extensions), useUnmergedTree = true).assertIsNotDisplayed()
+            Log.i(TAG, "verifyManageExtensionsButtonFromRedesignedMainMenu: Verified that the \"Manage extensions\" button is not displayed")
+        }
+    }
 
+    fun clickManageExtensionsButtonFromRedesignedMainMenu(composeTestRule: ComposeTestRule) {
+        Log.i(TAG, "clickManageExtensionsButtonFromRedesignedMainMenu: Trying to click the manage extensions button")
+        composeTestRule.onNodeWithText(getStringResource(R.string.browser_menu_manage_extensions), useUnmergedTree = true).performClick()
+        Log.i(TAG, "clickManageExtensionsButtonFromRedesignedMainMenu: Clicked the manage extensions button")
+    }
+
+    fun verifyDiscoverMoreExtensionsButton(composeTestRule: ComposeTestRule, isDisplayed: Boolean) {
+        if (isDisplayed) {
+            Log.i(TAG, "verifyDiscoverMoreExtensionsButton: Trying to verify that the \"Discover more\" button is displayed")
+            composeTestRule.onNode(hasText(getStringResource(R.string.browser_menu_discover_more_extensions)), useUnmergedTree = true).assertIsDisplayed()
+            Log.i(TAG, "verifyDiscoverMoreExtensionsButton: Verified that the \"Discover more\" button is displayed")
+        } else {
+            Log.i(TAG, "verifyDiscoverMoreExtensionsButton: Trying to verify that the \"Discover more\" button is not displayed")
+            composeTestRule.onNode(hasText(getStringResource(R.string.browser_menu_discover_more_extensions)), useUnmergedTree = true).assertIsNotDisplayed()
+            Log.i(TAG, "verifyDiscoverMoreExtensionsButton: Verified that the \"Discover more\" button is not displayed")
+        }
+    }
+
+    fun verifyInstalledExtension(composeTestRule: ComposeTestRule, extensionTitle: String) {
+        Log.i(TAG, "verifyInstalledExtension: Trying to verify that extension: $extensionTitle is displayed")
+        composeTestRule.onNode(
+            hasTestTag(WEB_EXTENSION_ITEM),
+        ).assert(
+            hasContentDescription(extensionTitle, substring = true),
+        ).assertIsDisplayed()
+        Log.i(TAG, "verifyInstalledExtension: Verified that extension: $extensionTitle is displayed")
+    }
     class Transition {
         fun goBack(interact: HomeScreenRobot.() -> Unit): HomeScreenRobot.Transition {
             Log.i(TAG, "goBack: Trying to click navigate up toolbar button")
@@ -393,6 +446,10 @@ class SettingsSubMenuAddonsManagerRobot {
             addonName: String,
             interact: SettingsSubMenuAddonsManagerAddonDetailedMenuRobot.() -> Unit,
         ): SettingsSubMenuAddonsManagerAddonDetailedMenuRobot.Transition {
+            // Assigns a more descriptive name to the addon if it is "Bitwarden", otherwise keeps the original name
+            // The name of this extenssion is being displayed differently across the app
+            var addonName = if (addonName == "Bitwarden") "Bitwarden Password Manager" else addonName
+
             scrollToAddon(addonName)
             Log.i(TAG, "openDetailedMenuForAddon: Trying to verify that the $addonName add-on is visible")
             addonItem(addonName).check(matches(withEffectiveVisibility(Visibility.VISIBLE)))
@@ -418,7 +475,7 @@ class SettingsSubMenuAddonsManagerRobot {
 
         fun clickDiscoverMoreExtensionsButton(composeTestRule: ComposeTestRule, interact: BrowserRobot.() -> Unit): BrowserRobot.Transition {
             Log.i(TAG, "clickDiscoverMoreExtensionsButton: Trying to click the \"Discover more extensions\" link")
-            composeTestRule.onNode(hasText(getStringResource(R.string.browser_menu_discover_more_extensions))).performClick()
+            composeTestRule.onNode(hasText(getStringResource(R.string.browser_menu_discover_more_extensions)), useUnmergedTree = true).performClick()
             Log.i(TAG, "clickDiscoverMoreExtensionsButton: Clicked the \"Discover more extensions\" link")
 
             BrowserRobot().interact()
@@ -445,12 +502,11 @@ class SettingsSubMenuAddonsManagerRobot {
     }
 
     private fun allowPermissionToInstall() {
-        mDevice.waitNotNull(Until.findObject(By.text("Add")), waitingTime)
-        Log.i(TAG, "allowPermissionToInstall: Trying to verify that the \"Add\" button is completely displayed")
-        onView(allOf(withId(R.id.allow_button), withText("Add"))).check(matches(isCompletelyDisplayed()))
-        Log.i(TAG, "allowPermissionToInstall: Verified that the \"Add\" button is completely displayed")
         Log.i(TAG, "allowPermissionToInstall: Trying to click the \"Add\" button")
-        onView(allOf(withId(R.id.allow_button), withText("Add"))).perform(click())
+        itemWithResIdContainingText(
+            "$packageName:id/allow_button",
+            getStringResource(R.string.mozac_feature_addons_permissions_dialog_add),
+        ).click()
         Log.i(TAG, "allowPermissionToInstall: Clicked the \"Add\" button")
     }
 }

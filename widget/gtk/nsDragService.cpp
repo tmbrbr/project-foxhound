@@ -143,6 +143,8 @@ static const char gXdndDirectSaveType[] = "XdndDirectSave0";
 static const char gTabDropType[] = "application/x-moz-tabbrowser-tab";
 static const char gPortalFile[] = "application/vnd.portal.files";
 static const char gPortalFileTransfer[] = "application/vnd.portal.filetransfer";
+static const char gUTF8STRINGType[] = "UTF8_STRING";
+static const char gSTRINGType[] = "STRING";
 
 GdkAtom nsDragSession::sJPEGImageMimeAtom;
 GdkAtom nsDragSession::sJPGImageMimeAtom;
@@ -164,6 +166,8 @@ GdkAtom nsDragSession::sPortalFileTransferAtom;
 GdkAtom nsDragSession::sFilePromiseURLMimeAtom;
 GdkAtom nsDragSession::sFilePromiseMimeAtom;
 GdkAtom nsDragSession::sNativeImageMimeAtom;
+GdkAtom nsDragSession::sUTF8STRINGMimeAtom;
+GdkAtom nsDragSession::sSTRINGMimeAtom;
 
 // See https://docs.gtk.org/gtk3/enum.DragResult.html
 static const char kGtkDragResults[][100]{
@@ -245,7 +249,9 @@ bool DragData::IsFileFlavor() const {
 
 bool DragData::IsTextFlavor() const {
   return mDataFlavor == nsDragSession::sTextMimeAtom ||
-         mDataFlavor == nsDragSession::sTextPlainUTF8TypeAtom;
+         mDataFlavor == nsDragSession::sTextPlainUTF8TypeAtom ||
+         mDataFlavor == nsDragSession::sUTF8STRINGMimeAtom ||
+         mDataFlavor == nsDragSession::sSTRINGMimeAtom;
 }
 
 bool DragData::IsURIFlavor() const {
@@ -586,6 +592,8 @@ nsDragSession::nsDragSession() {
     sFilePromiseURLMimeAtom = gdk_atom_intern(kFilePromiseURLMime, FALSE);
     sFilePromiseMimeAtom = gdk_atom_intern(kFilePromiseMime, FALSE);
     sNativeImageMimeAtom = gdk_atom_intern(kNativeImageMime, FALSE);
+    sUTF8STRINGMimeAtom = gdk_atom_intern(gUTF8STRINGType, FALSE);
+    sSTRINGMimeAtom = gdk_atom_intern(gSTRINGType, FALSE);
   });
 }
 
@@ -742,8 +750,9 @@ static GtkWindow* GetGtkWindow(dom::Document* aDocument) {
 NS_IMETHODIMP
 nsDragSession::InvokeDragSession(
     nsIWidget* aWidget, nsINode* aDOMNode, nsIPrincipal* aPrincipal,
-    nsIContentSecurityPolicy* aCsp, nsICookieJarSettings* aCookieJarSettings,
-    nsIArray* aArrayTransferables, uint32_t aActionType,
+    nsIPolicyContainer* aPolicyContainer,
+    nsICookieJarSettings* aCookieJarSettings, nsIArray* aArrayTransferables,
+    uint32_t aActionType,
     nsContentPolicyType aContentPolicyType = nsIContentPolicy::TYPE_OTHER) {
   LOGDRAGSERVICE("nsDragSession::InvokeDragSession");
 
@@ -754,7 +763,7 @@ nsDragSession::InvokeDragSession(
   if (mSourceNode) return NS_ERROR_NOT_AVAILABLE;
 
   return nsBaseDragSession::InvokeDragSession(
-      aWidget, aDOMNode, aPrincipal, aCsp, aCookieJarSettings,
+      aWidget, aDOMNode, aPrincipal, aPolicyContainer, aCookieJarSettings,
       aArrayTransferables, aActionType, aContentPolicyType);
 }
 
@@ -800,7 +809,7 @@ nsresult nsDragSession::InvokeDragSessionImpl(
   if (aActionType & nsIDragService::DRAGDROP_ACTION_LINK)
     action = (GdkDragAction)(action | GDK_ACTION_LINK);
 
-  GdkEvent* existingEvent = widget::GetLastMousePressEvent();
+  GdkEvent* existingEvent = widget::GetLastPointerDownEvent();
   GdkEvent fakeEvent;
   if (!existingEvent) {
     // Create a fake event for the drag so we can pass the time (so to speak).
@@ -1662,6 +1671,8 @@ GtkTargetList* nsDragSession::GetSourceList(void) {
         // Check to see if this is text/plain.
         else if (requestedFlavor == sTextMimeAtom) {
           TargetArrayAddTarget(targetArray, gTextPlainUTF8Type);
+          TargetArrayAddTarget(targetArray, gUTF8STRINGType);
+          TargetArrayAddTarget(targetArray, gSTRINGType);
         }
         // Check to see if this is the x-moz-url type.
         // If it is, add _NETSCAPE_URL
@@ -2326,7 +2337,9 @@ void nsDragSession::SourceDataGet(GtkWidget* aWidget, GdkDragContext* aContext,
   }
 
   if (requestedFlavor == sTextMimeAtom ||
-      requestedFlavor == sTextPlainUTF8TypeAtom) {
+      requestedFlavor == sTextPlainUTF8TypeAtom ||
+      requestedFlavor == sUTF8STRINGMimeAtom ||
+      requestedFlavor == sSTRINGMimeAtom) {
     if (!SourceDataGetText(item, nsDependentCString(kTextMime),
                            /* aNeedToDoConversionToPlainText */ true,
                            aSelectionData)) {

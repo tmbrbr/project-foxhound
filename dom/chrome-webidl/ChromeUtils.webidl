@@ -277,6 +277,12 @@ namespace ChromeUtils {
   undefined clearResourceCache(optional ClearResourceCacheOptions options = {});
 
   /**
+   * Clears the bfcache (backward-forward cache)
+   */
+  [Throws]
+  undefined clearBfcacheByPrincipal(Principal principal);
+
+  /**
    * Clears the Messaging Layer Security state by schemeless site.
    * This includes associated state-partitioned cache.
    */
@@ -672,8 +678,8 @@ partial namespace ChromeUtils {
    * For webdriver consistency purposes, we need to be able to end a wheel
    * transaction from the browser chrome.
    */
-  [ChromeOnly]
-  undefined endWheelTransaction();
+  [ChromeOnly, Throws]
+  Promise<undefined> endWheelTransaction(WindowProxy window);
 
   /**
    * Register a new toplevel window global actor. This method may only be
@@ -1204,4 +1210,21 @@ dictionary CDMInformation {
   required boolean clearlead;
   required boolean isHDCP22Compatible;
   required boolean isHardwareDecryption;
+};
+
+/**
+ * This is effectively a 1:1 mapping of the fields exposed by Necko's
+ * CacheControlParser, which lets us use the results from that parser in JS.
+ */
+[GenerateConversionToJS]
+dictionary HTTPCacheControlParseResult {
+  unsigned long maxAge = 0;
+  unsigned long maxStale = 0;
+  unsigned long minFresh = 0;
+  unsigned long staleWhileRevalidate = 0;
+  boolean noCache = false;
+  boolean noStore = false;
+  boolean public = false;
+  boolean private = false;
+  boolean immutable = false;
 };

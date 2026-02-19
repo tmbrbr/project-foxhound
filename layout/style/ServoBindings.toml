@@ -279,6 +279,8 @@ allowlist-types = [
     "mozilla::dom::MediaList",
     "mozilla::StyleRuleInclusion",
     "NodeSelectorFlags",
+    "AnchorPosResolutionParams",
+    "AnchorPosOffsetResolutionParams",
 ]
 opaque-types = [
     "mozilla::StyleThinArc", # https://github.com/rust-lang/rust-bindgen/issues/1557
@@ -291,6 +293,7 @@ opaque-types = [
     "mozilla::gfx::Matrix4x4TypedFlagged",
     "mozilla::gfx::DrawTarget",
     "mozilla::TouchManager",
+    "mozilla::UniquePtr",
     "mozilla::CanvasUsage",
     "std::pair__PCCP",
     "std::namespace::atomic___base", "std::atomic__My_base",
@@ -299,6 +302,8 @@ opaque-types = [
     "std::atomic___base",
     "std::tuple.*", # Causes "Cannot find type _Pred in this scope" error on mac, like rust-skia#571
     "std::.*::tuple.*",
+    "std::unique_ptr.*",
+    "std::.*::unique_ptr.*",
 
     "mozilla::dom::Touch",
     "mozilla::dom::Sequence",
@@ -640,6 +645,7 @@ cbindgen-types = [
     { gecko = "StylePositionProperty", servo = "crate::values::computed::PositionProperty" },
     { gecko = "StyleQueryFontMetricsFlags", servo = "crate::values::specified::font::QueryFontMetricsFlags" },
     { gecko = "StyleWritingModeProperty", servo = "crate::values::computed::box_::WritingModeProperty" },
+    { gecko = "StyleGenericAnchorSide", servo = "crate::values::generics::position::GenericAnchorSide" },
 ]
 
 mapped-generic-types = [

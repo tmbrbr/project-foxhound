@@ -247,5 +247,11 @@ newtab-error-fallback-refresh-link = پەڕە نوێبکەرەوە بۆ هەوڵ
 ## Strings for download mobile highlight
 
 
+## Strings for shortcuts highlight
+
+
 ## Strings for reporting ads and content
+
+
+## Strings for trending searches
 

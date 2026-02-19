@@ -12,6 +12,9 @@ const { PanelTestProvider } = ChromeUtils.importESModule(
 const { TelemetryEnvironment } = ChromeUtils.importESModule(
   "resource://gre/modules/TelemetryEnvironment.sys.mjs"
 );
+const { TestUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/TestUtils.sys.mjs"
+);
 const { UnenrollmentCause } = ChromeUtils.importESModule(
   "resource://nimbus/lib/ExperimentManager.sys.mjs"
 );
@@ -437,7 +440,7 @@ add_task(async function test_updateRecipes_simpleFeatureInvalidAfterUpdate() {
   await cleanup();
 });
 
-add_task(async function test_updateRecipes_invalidFeatureAfterUpdate() {
+async function test_updateRecipes_invalidFeatureAfterUpdate() {
   const featureConfig = { featureId: "bogus", value: {} };
 
   let storePath;
@@ -445,11 +448,12 @@ add_task(async function test_updateRecipes_invalidFeatureAfterUpdate() {
     const store = NimbusTestUtils.stubs.store();
     await store.init();
 
-    store.addEnrollment(
-      NimbusTestUtils.factories.experiment.withFeatureConfig(
+    await NimbusTestUtils.addEnrollmentForRecipe(
+      NimbusTestUtils.factories.recipe.withFeatureConfig(
         "recipe",
         featureConfig
-      )
+      ),
+      { store }
     );
 
     storePath = await NimbusTestUtils.saveStore(store);
@@ -463,6 +467,7 @@ add_task(async function test_updateRecipes_invalidFeatureAfterUpdate() {
         featureConfig
       ),
     ],
+    migrationState: NimbusTestUtils.migrationState.IMPORTED_ENROLLMENTS_TO_SQL,
   });
 
   const enrollment = manager.store.get("recipe");
@@ -495,6 +500,15 @@ add_task(async function test_updateRecipes_invalidFeatureAfterUpdate() {
   );
 
   await cleanup();
+}
+
+add_task(test_updateRecipes_invalidFeatureAfterUpdate);
+add_task(async function test_updateRecipes_invalidFeatureAfterUpdate_db() {
+  const resetNimbusEnrollmentPrefs = NimbusTestUtils.enableNimbusEnrollments({
+    read: true,
+  });
+  await test_updateRecipes_invalidFeatureAfterUpdate();
+  resetNimbusEnrollmentPrefs();
 });
 
 add_task(async function test_updateRecipes_validationTelemetry() {
@@ -686,6 +700,7 @@ add_task(async function test_updateRecipes_appId() {
     manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
       ok: false,
       reason: "unsupported-feature",
+      featureIds: ["backgroundTaskMessage"],
     }),
     "Should call onRecipe with unsupported-feature"
   );
@@ -959,7 +974,7 @@ add_task(async function test_updateRecipes_rollout_bucketing() {
     }
   );
 
-  await manager.unenroll(experiment.slug);
+  manager.unenroll(experiment.slug);
 
   await cleanup();
 });
@@ -1010,7 +1025,7 @@ add_task(async function test_reenroll_rollout_resized() {
     "New enrollment should not have unenroll reason"
   );
 
-  await manager.unenroll(rollout.slug);
+  manager.unenroll(rollout.slug);
 
   await cleanup();
 });
@@ -1027,7 +1042,7 @@ add_task(async function test_experiment_reenroll() {
     "Should enroll in experiment"
   );
 
-  await manager.unenroll(experiment.slug);
+  manager.unenroll(experiment.slug);
   Assert.ok(
     !manager.store.getExperimentForFeature("testFeature"),
     "Should unenroll from experiment"
@@ -1071,6 +1086,37 @@ add_task(async function test_rollout_reenroll_optout() {
     !manager.store.getRolloutForFeature("testFeature"),
     "Should not re-enroll in rollout"
   );
+
+  await cleanup();
+});
+
+add_task(async function test_rollout_reenroll_prefchanged() {
+  const rollout = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "rollout",
+    { featureId: "nimbus-qa-2", value: { value: "rollout-value" } },
+    { isRollout: true }
+  );
+
+  const { loader, manager, cleanup } = await setupTest({
+    experiments: [rollout],
+  });
+
+  Assert.ok(manager.store.get("rollout")?.active, "rollout is active");
+
+  Services.prefs.setStringPref("nimbus.qa.pref-2", "override");
+
+  {
+    const enrollment = manager.store.get("rollout");
+    Assert.ok(!enrollment.active, "Rollout no longer active");
+    Assert.equal(
+      enrollment.unenrollReason,
+      NimbusTelemetry.UnenrollReason.CHANGED_PREF
+    );
+  }
+
+  await loader.updateRecipes();
+
+  Assert.ok(!manager.store.get("rollout").active, "Did not re-enroll");
 
   await cleanup();
 });
@@ -1164,8 +1210,8 @@ add_task(async function test_active_and_past_experiment_targeting() {
     ["experiment-a", "experiment-b", "rollout-a", "rollout-b"]
   );
 
-  await manager.unenroll("experiment-c");
-  await manager.unenroll("rollout-c");
+  manager.unenroll("experiment-c");
+  manager.unenroll("rollout-c");
 
   cleanupFeatures();
   await cleanup();
@@ -1425,7 +1471,7 @@ add_task(
     const isReadyEvents = Glean.nimbusEvents.isReady.testGetValue("events");
 
     Assert.equal(isReadyEvents.length, 3);
-    await manager.unenroll(recipe.slug);
+    manager.unenroll(recipe.slug);
 
     await cleanup();
   }
@@ -1474,7 +1520,7 @@ add_task(async function test_updateRecipes_secure() {
     {
       experiments: [],
       secureExperiments: [multiFeatureRecipe],
-      shouldEnroll: [],
+      shouldEnroll: [multiFeatureRecipe],
     },
   ];
 
@@ -1496,12 +1542,14 @@ add_task(async function test_updateRecipes_secure() {
 
     const enrolledSlugs = manager.onRecipe
       .getCalls()
-      .map(call => call.args[0].slug);
+      .map(call => call.args[0].slug)
+      .sort();
 
-    Assert.equal(
-      manager.onRecipe.callCount,
-      shouldEnroll.length,
-      `Should enroll in expected number of recipes (enrolled in ${enrolledSlugs})`
+    const shouldEnrollSlugs = shouldEnroll.map(r => r.slug).sort();
+    Assert.deepEqual(
+      shouldEnrollSlugs,
+      enrolledSlugs,
+      `Should enroll in expected number of recipes`
     );
 
     for (const expectedRecipe of shouldEnroll) {
@@ -1594,7 +1642,7 @@ add_task(async function test_updateRecipes_optInsStayEnrolled() {
   await loader.updateRecipes();
   Assert.ok(manager.store.get("opt-in")?.active, "Opt-in stayed enrolled");
 
-  await manager.unenroll("opt-in");
+  manager.unenroll("opt-in");
 
   await cleanup();
 });
@@ -1713,6 +1761,14 @@ add_task(async function test_updateRecipes_reEnrollRolloutOptin() {
 });
 
 add_task(async function test_updateRecipes_enrollmentStatus_telemetry() {
+  Services.fog.applyServerKnobsConfig(
+    JSON.stringify({
+      metrics_enabled: {
+        "nimbus_events.enrollment_status": true,
+      },
+    })
+  );
+
   // Create a feature for each experiment so that they aren't competing.
   const features = [
     new ExperimentFeature("test-feature-0", { variables: {} }),
@@ -1914,14 +1970,22 @@ add_task(async function test_updateRecipes_enrollmentStatus_telemetry() {
     },
   ]);
 
-  await manager.unenroll("stays-enrolled");
-  await manager.unenroll("enrolls");
+  manager.unenroll("stays-enrolled");
+  manager.unenroll("enrolls");
 
   cleanupFeatures();
   await cleanup();
 });
 
 add_task(async function test_updateRecipes_enrollmentStatus_notEnrolled() {
+  Services.fog.applyServerKnobsConfig(
+    JSON.stringify({
+      metrics_enabled: {
+        "nimbus_events.enrollment_status": true,
+      },
+    })
+  );
+
   const features = [
     new ExperimentFeature("test-feature-0", { variables: {} }),
     new ExperimentFeature("test-feature-1", { variables: {} }),
@@ -2027,8 +2091,8 @@ add_task(async function test_updateRecipes_enrollmentStatus_notEnrolled() {
     ]
   );
 
-  await manager.unenroll("enrolled-experiment");
-  await manager.unenroll("enrolled-rollout");
+  manager.unenroll("enrolled-experiment");
+  manager.unenroll("enrolled-rollout");
 
   cleanupFeatures();
   await cleanup();
@@ -2218,8 +2282,373 @@ add_task(async function testUnenrollsFirst() {
   await loader.updateRecipes();
   assertEnrollments(manager.store, ["e3", "r3"], ["e1", "e2", "r1", "r2"]);
 
-  await manager.unenroll("e3");
-  await manager.unenroll("r3");
+  manager.unenroll("e3");
+  manager.unenroll("r3");
 
   await cleanup();
+});
+
+async function testRsClientGetThrows(collectionName) {
+  info(`Testing with collectionName = ${collectionName}\n`);
+
+  const { sandbox, loader, manager, cleanup } = await setupTest();
+
+  sandbox.spy(loader, "getRecipesFromAllCollections");
+  sandbox.spy(manager, "updateEnrollment");
+  sandbox.spy(manager, "_unenroll");
+
+  loader.remoteSettingsClients[collectionName].get.throws();
+
+  // This topic is only notified if we reach the end of updateRecipes().
+  const updatePromise = TestUtils.topicObserved("nimbus:enrollments-updated");
+
+  await manager.enroll(
+    NimbusTestUtils.factories.recipe.withFeatureConfig("recipe", {
+      featureId: "no-feature-firefox-desktop",
+    }),
+    "rs-loader"
+  );
+
+  await loader.updateRecipes();
+  await updatePromise;
+
+  Assert.ok(
+    loader.getRecipesFromAllCollections.calledOnce,
+    "getRecipesFromAllCollections called once"
+  );
+
+  Assert.deepEqual(
+    // We can't use .returned() because it is an async function and therefore
+    // returns a promise. Instead, we just call the function again.
+    await loader.getRecipesFromAllCollections(),
+    {
+      loadingError: true,
+      recipes: [],
+    }
+  );
+
+  Assert.ok(
+    manager.updateEnrollment.notCalled,
+    "updateEnrollment never called"
+  );
+  Assert.ok(manager._unenroll.notCalled, "unenroll not called");
+
+  Assert.ok(manager.store.get("recipe").active, "experiment is still active");
+
+  manager.unenroll("recipe");
+  await cleanup();
+}
+
+add_task(async function testExperimentsRsClientGetThrows() {
+  await testRsClientGetThrows("experiments");
+});
+
+add_task(async function testSecureExperimentsRsClientGetThrows() {
+  await testRsClientGetThrows("secureExperiments");
+});
+
+add_task(async function testUnenrolledInAnotherProfileBeforeUpdate() {
+  const otherProfileId1 = Services.uuid.generateUUID().toString().slice(1, -1);
+  const otherProfileId2 = Services.uuid.generateUUID().toString().slice(1, -1);
+  const e1 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "experiment-1",
+    { featureId: "no-feature-firefox-desktop" }
+  );
+  const e2 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "experiment-2",
+    { featureId: "no-feature-firefox-desktop" }
+  );
+  const e3 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "experiment-3",
+    { featureId: "no-feature-firefox-desktop" }
+  );
+  const r1 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "rollout-1",
+    { featureId: "no-feature-firefox-desktop" },
+    { isRollout: true }
+  );
+  const r2 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "rollout-2",
+    { featureId: "no-feature-firefox-desktop" },
+    { isRollout: true }
+  );
+  await NimbusTestUtils.insertEnrollment(e1, "control", {
+    extra: { active: false },
+    profileId: otherProfileId1,
+  });
+  await NimbusTestUtils.insertEnrollment(e2, "control", {
+    extra: { active: false },
+    profileId: otherProfileId2,
+  });
+  await NimbusTestUtils.insertEnrollment(r1, "control", {
+    extra: { active: false },
+    profileId: otherProfileId1,
+  });
+  await NimbusTestUtils.insertEnrollment(r2, "control", {
+    extra: { active: false },
+    profileId: otherProfileId2,
+  });
+
+  Services.fog.applyServerKnobsConfig(
+    JSON.stringify({
+      metrics_enabled: {
+        "nimbus_events.enrollment_status": true,
+      },
+    })
+  );
+
+  const resetEnrollmentPrefs = await NimbusTestUtils.enableNimbusEnrollments({
+    read: true,
+    sync: true,
+  });
+  const { cleanup, store } = await setupTest({
+    experiments: [e1, e2, e3, r1, r2],
+  });
+
+  Assert.ok(
+    !store.has("experiment-1"),
+    "Enrollment for experiment-1 does not exist"
+  );
+  Assert.ok(
+    !store.has("experiment-2"),
+    "Enrollment for experiment-1 does not exist"
+  );
+  Assert.ok(store.get("experiment-3").active, "Enrolled in experiment-3");
+  Assert.ok(store.get("rollout-1").active, "Enrolled in rollout-1");
+  Assert.ok(store.get("rollout-2").active, "Enrolled in rollout-2");
+
+  await NimbusTestUtils.flushStore();
+
+  Assert.equal(
+    await NimbusTestUtils.queryEnrollment("experiment-1"),
+    null,
+    "Enrollment for experiment-1 does not exist in the database"
+  );
+
+  Assert.equal(
+    await NimbusTestUtils.queryEnrollment("experiment-2"),
+    null,
+    "Enrollment for experiment-1 does not exist in the database"
+  );
+
+  Assert.deepEqual(
+    Glean.nimbusEvents.enrollmentStatus
+      .testGetValue("events")
+      ?.map(ev => ev.extra),
+    [
+      {
+        slug: "experiment-1",
+        status: "NotEnrolled",
+        reason: "UnenrolledInAnotherProfile",
+      },
+      {
+        slug: "experiment-2",
+        status: "NotEnrolled",
+        reason: "UnenrolledInAnotherProfile",
+      },
+      {
+        slug: "experiment-3",
+        branch: "control",
+        status: "Enrolled",
+        reason: "Qualified",
+      },
+      {
+        slug: "rollout-1",
+        branch: "control",
+        status: "Enrolled",
+        reason: "Qualified",
+      },
+      {
+        slug: "rollout-2",
+        branch: "control",
+        status: "Enrolled",
+        reason: "Qualified",
+      },
+    ]
+  );
+
+  await NimbusTestUtils.cleanupManager([
+    "experiment-3",
+    "rollout-1",
+    "rollout-2",
+  ]);
+  await NimbusTestUtils.deleteEnrollmentsFromProfiles([
+    otherProfileId1,
+    otherProfileId2,
+  ]);
+
+  await cleanup();
+  resetEnrollmentPrefs();
+});
+
+add_task(async function testUnenrolledInAnotherProfileBetweenUpdates() {
+  const otherProfileId1 = Services.uuid.generateUUID().toString().slice(1, -1);
+  const otherProfileId2 = Services.uuid.generateUUID().toString().slice(1, -1);
+  const e1 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "experiment-1",
+    { featureId: "no-feature-firefox-desktop" }
+  );
+  const e2 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "experiment-2",
+    { featureId: "no-feature-firefox-desktop" }
+  );
+  const e3 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "experiment-3",
+    { featureId: "no-feature-firefox-desktop" }
+  );
+  const r1 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "rollout-1",
+    { featureId: "no-feature-firefox-desktop" },
+    { isRollout: true }
+  );
+  const r2 = NimbusTestUtils.factories.recipe.withFeatureConfig(
+    "rollout-2",
+    { featureId: "no-feature-firefox-desktop" },
+    { isRollout: true }
+  );
+
+  const resetEnrollmentPrefs = await NimbusTestUtils.enableNimbusEnrollments({
+    read: true,
+    sync: true,
+  });
+  const { cleanup, loader, store } = await setupTest({
+    experiments: [e1, e2, e3, r1, r2],
+  });
+
+  Assert.ok(store.get("experiment-1").active, "Enrolled in experiment-1");
+  Assert.ok(store.get("experiment-2").active, "Enrolled in experiment-2");
+  Assert.ok(store.get("experiment-3").active, "Enrolled in experiment-3");
+  Assert.ok(store.get("rollout-1").active, "Enrolled in rollout-1");
+  Assert.ok(store.get("rollout-2").active, "Enrolled in rollout-2");
+
+  await loader.updateRecipes("timer");
+
+  Assert.ok(store.get("experiment-1").active, "Still enrolled in experiment-1");
+  Assert.ok(store.get("experiment-2").active, "Still enrolled in experiment-2");
+  Assert.ok(store.get("experiment-3").active, "Still enrolled in experiment-3");
+  Assert.ok(store.get("rollout-1").active, "Still enrolled in rollout-1");
+  Assert.ok(store.get("rollout-2").active, "Still enrolled in rollout-2");
+
+  await NimbusTestUtils.insertEnrollment(e1, "control", {
+    extra: { active: false },
+    profileId: otherProfileId1,
+  });
+  await NimbusTestUtils.insertEnrollment(e2, "control", {
+    extra: { active: false },
+    profileId: otherProfileId2,
+  });
+  await NimbusTestUtils.insertEnrollment(r1, "control", {
+    extra: { active: false },
+    profileId: otherProfileId1,
+  });
+  await NimbusTestUtils.insertEnrollment(r2, "control", {
+    extra: { active: false },
+    profileId: otherProfileId2,
+  });
+
+  Services.fog.applyServerKnobsConfig(
+    JSON.stringify({
+      metrics_enabled: {
+        "nimbus_events.enrollment_status": true,
+      },
+    })
+  );
+
+  await loader.updateRecipes("timer");
+
+  {
+    const enrollment = store.get("experiment-1");
+    Assert.ok(!enrollment.active, "Unenrolled from experiment-1");
+    Assert.equal(
+      enrollment.unenrollReason,
+      NimbusTelemetry.UnenrollReason.UNENROLLED_IN_ANOTHER_PROFILE
+    );
+  }
+  {
+    const enrollment = store.get("experiment-2");
+    Assert.ok(!enrollment.active, "Unenrolled from experiment-2");
+    Assert.equal(
+      enrollment.unenrollReason,
+      NimbusTelemetry.UnenrollReason.UNENROLLED_IN_ANOTHER_PROFILE
+    );
+  }
+  Assert.ok(store.get("experiment-3").active, "Enrolled in experiment-3");
+  Assert.ok(store.get("rollout-1").active, "Enrolled in rollout-1");
+  Assert.ok(store.get("rollout-2").active, "Enrolled in rollout-2");
+
+  await NimbusTestUtils.flushStore();
+
+  {
+    const dbEnrollment = await NimbusTestUtils.queryEnrollment("experiment-1");
+    Assert.ok(
+      !dbEnrollment.active,
+      "experiment-1 enrollment is inactive in the database"
+    );
+    Assert.equal(
+      dbEnrollment.unenrollReason,
+      NimbusTelemetry.UnenrollReason.UNENROLLED_IN_ANOTHER_PROFILE
+    );
+  }
+  {
+    const dbEnrollment = await NimbusTestUtils.queryEnrollment("experiment-2");
+    Assert.ok(
+      !dbEnrollment.active,
+      "experiment-2 enrollment is inactive in the database"
+    );
+    Assert.equal(
+      dbEnrollment.unenrollReason,
+      NimbusTelemetry.UnenrollReason.UNENROLLED_IN_ANOTHER_PROFILE
+    );
+  }
+
+  Assert.deepEqual(
+    Glean.nimbusEvents.enrollmentStatus
+      .testGetValue("events")
+      ?.map(ev => ev.extra),
+    [
+      {
+        slug: "rollout-1",
+        branch: "control",
+        status: "Enrolled",
+        reason: "Qualified",
+      },
+      {
+        slug: "rollout-2",
+        branch: "control",
+        status: "Enrolled",
+        reason: "Qualified",
+      },
+      {
+        slug: "experiment-1",
+        branch: "control",
+        status: "Disqualified",
+        reason: "UnenrolledInAnotherProfile",
+      },
+      {
+        slug: "experiment-2",
+        branch: "control",
+        status: "Disqualified",
+        reason: "UnenrolledInAnotherProfile",
+      },
+      {
+        slug: "experiment-3",
+        branch: "control",
+        status: "Enrolled",
+        reason: "Qualified",
+      },
+    ]
+  );
+
+  await NimbusTestUtils.cleanupManager([
+    "experiment-3",
+    "rollout-1",
+    "rollout-2",
+  ]);
+  await NimbusTestUtils.deleteEnrollmentsFromProfiles([
+    otherProfileId1,
+    otherProfileId2,
+  ]);
+
+  await cleanup();
+  resetEnrollmentPrefs();
 });

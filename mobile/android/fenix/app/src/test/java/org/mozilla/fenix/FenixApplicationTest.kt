@@ -38,14 +38,15 @@ import org.mozilla.fenix.components.toolbar.ToolbarPosition
 import org.mozilla.fenix.distributions.DefaultDistributionBrowserStoreProvider
 import org.mozilla.fenix.distributions.DistributionIdManager
 import org.mozilla.fenix.distributions.DistributionProviderChecker
+import org.mozilla.fenix.distributions.DistributionSettings
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.helpers.FenixGleanTestRule
-import org.mozilla.fenix.helpers.FenixRobolectricTestRunner
 import org.mozilla.fenix.utils.Settings
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-@RunWith(FenixRobolectricTestRunner::class)
+@RunWith(RobolectricTestRunner::class)
 class FenixApplicationTest {
 
     @get:Rule val gleanTestRule = FenixGleanTestRule(ApplicationProvider.getApplicationContext())
@@ -59,16 +60,29 @@ class FenixApplicationTest {
         override fun queryProvider(): String? = null
     }
 
+    private val testLegacyDistributionProviderChecker = object : DistributionProviderChecker {
+        override fun queryProvider(): String? = null
+    }
+
+    private val testDistributionSettings = object : DistributionSettings {
+        override fun getDistributionId(): String = ""
+        override fun saveDistributionId(id: String) = Unit
+    }
+
     @Before
     fun setUp() {
         application = ApplicationProvider.getApplicationContext()
         browsersCache = mockk(relaxed = true)
         mozillaProductDetector = mockk(relaxed = true)
         browserStore = BrowserStore()
+
+        every { testContext.components.core } returns mockk(relaxed = true)
         every { testContext.components.distributionIdManager } returns DistributionIdManager(
-            testContext,
-            DefaultDistributionBrowserStoreProvider(browserStore),
-            testDistributionProviderChecker,
+            context = testContext,
+            browserStoreProvider = DefaultDistributionBrowserStoreProvider(browserStore),
+            distributionProviderChecker = testDistributionProviderChecker,
+            legacyDistributionProviderChecker = testLegacyDistributionProviderChecker,
+            distributionSettings = testDistributionSettings,
         )
     }
 
@@ -162,8 +176,9 @@ class FenixApplicationTest {
         every { settings.inactiveTabsAreEnabled } returns true
         every { application.isDeviceRamAboveThreshold } returns true
 
-        assertTrue(settings.contileContextId.isEmpty())
-        assertNull(TopSites.contextId.testGetValue())
+        assertTrue(settings.contileContextId.isNotEmpty())
+        assertNotNull(TopSites.contextId.testGetValue())
+        assertEquals(TopSites.contextId.testGetValue()!!.toString(), settings.contileContextId)
 
         application.setStartupMetrics(
             browserStore = browserStore,

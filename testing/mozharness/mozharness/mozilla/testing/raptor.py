@@ -73,9 +73,9 @@ RaptorErrorList = (
 # the users locally cached ffmpeg binary from from when the user
 # ran `./mach browsertime --setup`
 FFMPEG_LOCAL_CACHE = {
-    "mac": "ffmpeg-macos",
-    "linux": "ffmpeg-4.4.1-i686-static",
-    "win": "ffmpeg-4.4.1-full_build",
+    "mac": "ffmpeg-7.1",
+    "linux": "ffmpeg-master-latest-linux64-gpl-shared",
+    "win": "ffmpeg-n7.1-latest-win64-gpl-shared-7.1",
 }
 
 
@@ -1331,7 +1331,11 @@ class Raptor(
                     installer_path = self.installer_path
 
                 self.info(f"Installing APK from: {installer_path}")
-                self.install_android_app(str(installer_path))
+                if self.app == "fenix":
+                    self.info("Installing Fenix APK with baseline profile")
+                    self.device.install_app_baseline_profile(installer_path)
+                else:
+                    self.install_android_app(str(installer_path))
             else:
                 super(Raptor, self).install()
 

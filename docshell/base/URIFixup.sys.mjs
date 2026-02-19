@@ -14,7 +14,7 @@
 
 // TODO (Bug 1641220) getFixupURIInfo has a complex logic, that likely could be
 // simplified, but the risk of regressing its behavior is high.
-/* eslint complexity: ["error", 43] */
+/* eslint complexity: ["error", 46] */
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
@@ -510,7 +510,7 @@ URIFixup.prototype = {
     if (engine.supportsResponseType("application/x-moz-keywordsearch")) {
       responseType = "application/x-moz-keywordsearch";
     }
-    let submission = engine.getSubmission(keyword, responseType, "keyword");
+    let submission = engine.getSubmission(keyword, responseType);
     if (
       !submission ||
       // For security reasons (avoid redirecting to file, data, or other unsafe

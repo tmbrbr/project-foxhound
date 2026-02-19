@@ -60,6 +60,7 @@
 #include "mozilla/PresShell.h"
 #include "mozilla/Services.h"
 #include "mozilla/SpinEventLoopUntil.h"
+#include "mozilla/StaticPrefs_browser.h"
 #include "mozilla/dom/BarProps.h"
 #include "mozilla/dom/DOMRect.h"
 #include "mozilla/dom/Element.h"
@@ -545,6 +546,19 @@ NS_IMETHODIMP AppWindow::Destroy() {
   // interactions with destroyed windows on X11 either.
 #ifndef MOZ_WIDGET_GTK
   if (mWindow) mWindow->Show(false);
+#endif
+
+  // Raise and focus our parent explicitly on Windows, if visible. Apparently
+  // Windows gets the z-order and focus wrong otherwise for nested modal
+  // windows, see bug 1977581.
+#ifdef XP_WIN
+  if (nsCOMPtr<nsIBaseWindow> parent = do_QueryReferent(mParentWindow)) {
+    nsCOMPtr<nsIWidget> parentWidget;
+    parent->GetMainWidget(getter_AddRefs(parentWidget));
+    if (parentWidget && parentWidget->IsVisible()) {
+      parentWidget->SetFocus(nsIWidget::Raise::Yes, dom::CallerType::System);
+    }
+  }
 #endif
 
   RemoveTooltipSupport();
@@ -2395,6 +2409,12 @@ void AppWindow::LoadPersistentWindowState() {
     return;
   }
 
+  // Disable state restoration, allowing the kiosk desktop environment
+  // to manage state and position.
+  if (StaticPrefs::browser_restoreWindowState_disabled()) {
+    return;
+  }
+
   // Check if the window wants to persist anything.
   nsAutoString persist;
   docShellElement->GetAttr(nsGkAtoms::persist, persist);
@@ -2440,8 +2460,8 @@ void AppWindow::IntrinsicallySizeShell(const CSSIntSize& aWindowDiff,
       // TODO: Make this more generic perhaps?
       if (prefWidthAttr.EqualsLiteral("min-width")) {
         if (auto* f = element->GetPrimaryFrame(FlushType::Frames)) {
-          const auto coord =
-              f->StylePosition()->GetMinWidth(f->StyleDisplay()->mPosition);
+          const auto coord = f->StylePosition()->GetMinWidth(
+              AnchorPosResolutionParams::From(f));
           if (coord->ConvertsToLength()) {
             prefWidth = CSSPixel::FromAppUnitsRounded(coord->ToLength());
           }

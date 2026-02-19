@@ -2102,8 +2102,7 @@ JS_PUBLIC_API bool JSPropertySpec::getValue(JSContext* cx,
 
   switch (u.value.type) {
     case ValueWrapper::Type::String: {
-      Rooted<JSAtom*> atom(cx,
-                           Atomize(cx, u.value.string, strlen(u.value.string)));
+      JSAtom* atom = Atomize(cx, u.value.string, strlen(u.value.string));
       if (!atom) {
         return false;
       }
@@ -4714,8 +4713,7 @@ JS_PUBLIC_API bool JS_IndexToId(JSContext* cx, uint32_t index,
 
 JS_PUBLIC_API bool JS_CharsToId(JSContext* cx, JS::TwoByteChars chars,
                                 MutableHandleId idp) {
-  Rooted<JSAtom*> atom(cx,
-                       AtomizeChars(cx, chars.begin().get(), chars.length()));
+  JSAtom* atom = AtomizeChars(cx, chars.begin().get(), chars.length());
   if (!atom) {
     return false;
   }
@@ -4774,7 +4772,7 @@ void AutoFilename::setUnowned(const char* filename) {
 
 void AutoFilename::setOwned(UniqueChars&& filename) {
   MOZ_ASSERT(!get());
-  filename_ = AsVariant(std::move(filename));
+  filename_ = mozilla::AsVariant(std::move(filename));
 }
 
 const char* AutoFilename::get() const {
@@ -5340,6 +5338,11 @@ JS_PUBLIC_API void js::SetStackFormat(JSContext* cx, js::StackFormat format) {
 
 JS_PUBLIC_API js::StackFormat js::GetStackFormat(JSContext* cx) {
   return cx->runtime()->stackFormat();
+}
+
+JS_PUBLIC_API void JS::SetMeasuringExecutionTimeEnabled(JSContext* cx,
+                                                        bool value) {
+  cx->setMeasuringExecutionTimeEnabled(value);
 }
 
 JS_PUBLIC_API JS::JSTimers JS::GetJSTimers(JSContext* cx) {

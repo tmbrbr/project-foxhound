@@ -479,6 +479,7 @@ if CONFIG["JS_HAS_INTL_API"]:
         "builtin/intl/DateTimeFormat.cpp",
         "builtin/intl/DisplayNames.cpp",
         "builtin/intl/DurationFormat.cpp",
+        "builtin/intl/GlobalIntlData.cpp",
         "builtin/intl/IntlObject.cpp",
         "builtin/intl/LanguageTag.cpp",
         "builtin/intl/ListFormat.cpp",
@@ -518,7 +519,7 @@ else:
 
 if CONFIG["JS_HAS_INTL_API"]:
     LOCAL_INCLUDES += [
-        "/intl/icu_capi/bindings/c",
+        "/intl/icu_capi/bindings/cpp",
     ]
 
 if CONFIG["JS_HAS_CTYPES"]:
@@ -592,8 +593,6 @@ selfhosted_inputs = [
     "builtin/Array.js",
     "builtin/AsyncFunction.js",
     "builtin/AsyncIteration.js",
-    "builtin/BigInt.js",
-    "builtin/Date.js",
     "builtin/Error.js",
     "builtin/Generator.js",
     "builtin/Iterator.js",

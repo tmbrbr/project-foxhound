@@ -636,6 +636,7 @@ function BuildConditionSandbox(aURL) {
   sandbox.aarch64 = mozinfo.processor == "aarch64";
 
   // build type
+  sandbox.mingw = mozinfo.mingw;
   sandbox.isDebugBuild = mozinfo.debug;
   sandbox.isCoverageBuild = mozinfo.ccov;
   sandbox.AddressSanitizer = mozinfo.asan;
@@ -654,7 +655,7 @@ function BuildConditionSandbox(aURL) {
   sandbox.wayland = mozinfo.display == "wayland";
 
   // data not using mozinfo
-  sandbox.xulRuntime = {};
+  sandbox.xulRuntime = Cu.cloneInto({}, sandbox);
 
   // Do we *not* have a dedicated gpu process.
   sandbox.nogpu =
@@ -719,6 +720,7 @@ function BuildConditionSandbox(aURL) {
   // GeckoView is currently uniquely identified by "android + e10s" but
   // we might want to make this condition more precise in the future.
   sandbox.geckoview = sandbox.Android && g.browserIsRemote;
+  sandbox.isolated_process = sandbox.Android && mozinfo.isolated_process;
 
   if (sandbox.Android) {
     sandbox.AndroidVersion = Services.sysinfo.getPropertyAsInt32("version");

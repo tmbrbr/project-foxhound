@@ -11,9 +11,10 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ASRouterTargeting:
     // eslint-disable-next-line mozilla/no-browser-refs-in-toolkit
     "resource:///modules/asrouter/ASRouterTargeting.sys.mjs",
-  CleanupManager: "resource://normandy/lib/CleanupManager.sys.mjs",
+  AsyncShutdown: "resource://gre/modules/AsyncShutdown.sys.mjs",
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   JsonSchema: "resource://gre/modules/JsonSchema.sys.mjs",
+  NimbusEnrollments: "resource://nimbus/lib/Enrollments.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   NimbusTelemetry: "resource://nimbus/lib/Telemetry.sys.mjs",
   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
@@ -57,13 +58,18 @@ const SECURE_EXPERIMENTS_COLLECTION = "secureExperiments";
 const IS_MAIN_PROCESS =
   Services.appinfo.processType === Services.appinfo.PROCESS_TYPE_DEFAULT;
 
+const SECURE_FEATURE_IDS = new Set(["prefFlips", "newtabTrainhopAddon"]);
 const RS_COLLECTION_OPTIONS = {
   [EXPERIMENTS_COLLECTION]: {
-    disallowedFeatureIds: ["prefFlips"],
+    // None of these features can be present to accept an experiment from the
+    // experiments collection.
+    disallowedFeatureIds: SECURE_FEATURE_IDS,
   },
 
   [SECURE_EXPERIMENTS_COLLECTION]: {
-    allowedFeatureIds: ["prefFlips"],
+    // One of these features *must* be present to accept an experiment from the
+    // secure experiments collection.
+    requiredFeatureIds: SECURE_FEATURE_IDS,
   },
 };
 
@@ -105,6 +111,7 @@ export const MatchStatus = Object.freeze({
   NO_MATCH: "NO_MATCH",
   TARGETING_ONLY: "TARGETING_ONLY",
   TARGETING_AND_BUCKETING: "TARGETING_AND_BUCKETING",
+  UNENROLLED_IN_ANOTHER_PROFILE: "UNENROLLED_IN_ANOTHER_PROFILE",
 });
 
 export const CheckRecipeResult = {
@@ -155,15 +162,24 @@ export const CheckRecipeResult = {
     };
   },
 
-  UnsupportedFeatures() {
+  UnsupportedFeatures(featureIds) {
     return {
       ok: false,
       reason: lazy.NimbusTelemetry.ValidationFailureReason.UNSUPPORTED_FEATURES,
+      featureIds,
     };
   },
 };
 
 export class RemoteSettingsExperimentLoader {
+  /**
+   * A shutdown blocker that will try to ensure that any ongoing update will
+   * finish.
+   *
+   * @type {function(): Promise<void>}
+   */
+  #shutdownBlocker;
+
   get LOCK_ID() {
     return "remote-settings-experiment-loader:update";
   }
@@ -243,8 +259,28 @@ export class RemoteSettingsExperimentLoader {
       return;
     }
 
+    if (
+      Services.startup.isInOrBeyondShutdownPhase(
+        Ci.nsIAppStartup.SHUTDOWN_PHASE_APPSHUTDOWNCONFIRMED
+      )
+    ) {
+      lazy.log.debug(
+        "Not enabling RemoteSettingsExperimentLoader: shutting down"
+      );
+      return;
+    }
+
+    this.#shutdownBlocker = async () => {
+      await this.finishedUpdating();
+      this.disable();
+    };
+
+    lazy.AsyncShutdown.appShutdownConfirmed.addBlocker(
+      "RemoteSettingsExperimentLoader: disabling",
+      this.#shutdownBlocker
+    );
+
     this.setTimer();
-    lazy.CleanupManager.addCleanupHandler(() => this.disable());
     this._enabled = true;
 
     await this.updateRecipes("enabled", { forceSync });
@@ -254,6 +290,12 @@ export class RemoteSettingsExperimentLoader {
     if (!this._enabled) {
       return;
     }
+
+    lazy.AsyncShutdown.appShutdownConfirmed.removeBlocker(
+      this.#shutdownBlocker
+    );
+    this.#shutdownBlocker = null;
+
     lazy.timerManager.unregisterTimer(TIMER_NAME);
     this._enabled = false;
     this._updating = false;
@@ -295,6 +337,17 @@ export class RemoteSettingsExperimentLoader {
       return;
     }
 
+    // If we've started shutting down, prevent an update from being triggered,
+    // which we might not complete in time and could result in partial state
+    // written to the database.
+    if (
+      Services.startup.isInOrBeyondShutdownPhase(
+        Ci.nsIAppStartup.SHUTDOWN_PHASE_APPSHUTDOWNCONFIRMED
+      )
+    ) {
+      return;
+    }
+
     this._updating = true;
 
     // If recipes have been updated once, replace the deferred with a new one so
@@ -324,6 +377,8 @@ export class RemoteSettingsExperimentLoader {
    *                  updating. Otherwise locally cached records will be used.
    */
   async #updateImpl(trigger, { forceSync = false } = {}) {
+    lazy.log.debug(`Updating recipes with trigger "${trigger ?? ""}"`);
+
     this.manager.optInRecipes = [];
 
     // The targeting context metrics do not work in artifact builds.
@@ -345,17 +400,23 @@ export class RemoteSettingsExperimentLoader {
         await SCHEMAS.NimbusExperiment
       );
     }
-
-    lazy.log.debug(`Updating recipes with trigger "${trigger ?? ""}"`);
-
     const { recipes: allRecipes, loadingError } =
-      await this.getRecipesFromAllCollections({ forceSync });
+      await this.getRecipesFromAllCollections({ forceSync, trigger });
 
     if (!loadingError) {
+      const unenrolledExperimentSlugs = lazy.NimbusEnrollments
+        .syncEnrollmentsEnabled
+        ? await lazy.NimbusEnrollments.loadUnenrolledExperimentSlugsFromOtherProfiles()
+        : undefined;
+
       const enrollmentsCtx = new EnrollmentsContext(
         this.manager,
         recipeValidator,
-        { validationEnabled, shouldCheckTargeting: true }
+        {
+          validationEnabled,
+          shouldCheckTargeting: true,
+          unenrolledExperimentSlugs,
+        }
       );
 
       const { existingEnrollments, recipes } =
@@ -401,11 +462,13 @@ export class RemoteSettingsExperimentLoader {
    * @param {object} options
    * @param {boolean} options.forceSync Whether or not to force a sync when
    * fetching recipes.
+   * @param {string} options.trigger The name of the event that triggered the
+   * update.
    *
    * @returns {Promise<{ recipes: object[]; loadingError: boolean; }>} The
    * recipes from Remote Settings.
    */
-  async getRecipesFromAllCollections({ forceSync = false } = {}) {
+  async getRecipesFromAllCollections({ forceSync = false, trigger } = {}) {
     const recipes = [];
     let loadingError = false;
 
@@ -433,6 +496,13 @@ export class RemoteSettingsExperimentLoader {
       loadingError = true;
     }
 
+    lazy.NimbusTelemetry.recordRemoteSettingsSync(
+      forceSync,
+      experiments,
+      secureExperiments,
+      trigger
+    );
+
     return { recipes, loadingError };
   }
 
@@ -444,10 +514,10 @@ export class RemoteSettingsExperimentLoader {
    *        The RemoteSettings client that will be used to fetch recipes.
    * @param {boolean} options.forceSync
    *        Force the RemoteSettings client to sync the collection before retrieving recipes.
-   * @param {string[] | null} options.allowedFeatureIds
-   *        If non-null, any recipe that uses a feature ID not in this list will
-   *        be rejected.
-   * @param {string[]} options.disallowedFeatureIds
+   * @param {Set<string> | undefined} options.requiredFeatureIds
+   *        If non-null, a recipe must include at least one feature in this set
+   *        or it will be rejected.
+   * @param {Set<string> | undefined} options.disallowedFeatureIds
    *        If a recipe uses any features in this list, it will be rejected.
    *
    * @returns {object[] | null}
@@ -458,8 +528,8 @@ export class RemoteSettingsExperimentLoader {
   async getRecipesFromCollection({
     client,
     forceSync = false,
-    allowedFeatureIds = null,
-    disallowedFeatureIds = [],
+    requiredFeatureIds = undefined,
+    disallowedFeatureIds = undefined,
   } = {}) {
     let recipes;
     try {
@@ -467,6 +537,17 @@ export class RemoteSettingsExperimentLoader {
         forceSync,
         emptyListFallback: false, // Throw instead of returning an empty list.
       });
+      if (!Array.isArray(recipes)) {
+        throw new Error("Remote Settings did not return an array");
+      }
+      if (
+        recipes.length === 0 &&
+        (await client.db.getLastModified()) === null
+      ) {
+        throw new Error(
+          "Remote Settings returned an empty list but should have thrown (no last modified)"
+        );
+      }
       lazy.log.debug(
         `Got ${recipes.length} recipes from ${client.collectionName}`
       );
@@ -479,21 +560,24 @@ export class RemoteSettingsExperimentLoader {
     }
 
     return recipes.filter(recipe => {
-      for (const featureId of recipe.featureIds) {
-        if (allowedFeatureIds !== null) {
-          if (!allowedFeatureIds.includes(featureId)) {
+      if (
+        requiredFeatureIds &&
+        !recipe.featureIds.some(featureId => requiredFeatureIds.has(featureId))
+      ) {
+        lazy.log.warn(
+          `Recipe ${recipe.slug} not returned from collection ${client.collectionName} because it does not contain at least one required feature ID.`
+        );
+        return false;
+      }
+
+      if (disallowedFeatureIds) {
+        for (const featureId of recipe.featureIds) {
+          if (disallowedFeatureIds.has(featureId)) {
             lazy.log.warn(
               `Recipe ${recipe.slug} not returned from collection ${client.collectionName} because it contains feature ${featureId}, which is disallowed for that collection.`
             );
             return false;
           }
-        }
-
-        if (disallowedFeatureIds.includes(featureId)) {
-          lazy.log.warn(
-            `Recipe ${recipe.slug} not returned from collection ${client.collectionName} because it contains feature ${featureId}, which is disallowed for that collection.`
-          );
-          return false;
         }
       }
 
@@ -657,10 +741,12 @@ export class RemoteSettingsExperimentLoader {
    * Resolves when the RemoteSettingsExperimentLoader has updated at least once
    * and is not in the middle of an update.
    *
-   * If studies are disabled, then this will always resolve immediately.
+   * If studies are disabled or the RemoteSettingsExperimentLoader has been
+   * disabled (i.e., during shutdown), then this will always resolve
+   * immediately.
    */
   finishedUpdating() {
-    if (!lazy.ExperimentAPI.studiesEnabled) {
+    if (!lazy.ExperimentAPI.studiesEnabled || !this._enabled) {
       return Promise.resolve();
     }
 
@@ -745,7 +831,11 @@ export class EnrollmentsContext {
   constructor(
     manager,
     recipeValidator,
-    { validationEnabled = true, shouldCheckTargeting = true } = {}
+    {
+      validationEnabled = true,
+      shouldCheckTargeting = true,
+      unenrolledExperimentSlugs,
+    } = {}
   ) {
     this.manager = manager;
     this.recipeValidator = recipeValidator;
@@ -753,6 +843,7 @@ export class EnrollmentsContext {
     this.validationEnabled = validationEnabled;
     this.validatorCache = {};
     this.shouldCheckTargeting = shouldCheckTargeting;
+    this.unenrolledExperimentSlugs = unenrolledExperimentSlugs;
     this.matches = 0;
 
     this.locale = Services.locale.appLocaleAsBCP47;
@@ -795,7 +886,7 @@ export class EnrollmentsContext {
       // the background updater encounters a recipe with features it does not
       // support, which will happen with most recipes. Reporting these errors
       // results in an inordinate amount of telemetry being submitted.
-      return CheckRecipeResult.UnsupportedFeatures();
+      return CheckRecipeResult.UnsupportedFeatures(unsupportedFeatureIds);
     }
 
     if (recipe.isEnrollmentPaused) {
@@ -846,6 +937,10 @@ export class EnrollmentsContext {
     if (!(await this.manager.isInBucketAllocation(recipe.bucketConfig))) {
       lazy.log.debug(`${recipe.slug} did not match bucket sampling`);
       return CheckRecipeResult.Ok(MatchStatus.TARGETING_ONLY);
+    }
+
+    if (!recipe.isRollout && this.unenrolledExperimentSlugs?.has(recipe.slug)) {
+      return CheckRecipeResult.Ok(MatchStatus.UNENROLLED_IN_ANOTHER_PROFILE);
     }
 
     return CheckRecipeResult.Ok(MatchStatus.TARGETING_AND_BUCKETING);

@@ -8,6 +8,9 @@
 newtab-page-title = Ny fane
 newtab-settings-button =
     .title = Tilpass siden for Ny fane
+newtab-customize-panel-icon-button =
+    .title = Tilpass denne siden
+newtab-customize-panel-icon-button-label = Tilpass
 newtab-personalize-settings-icon-label =
     .title = Tilpass ny fane
     .aria-label = Innstillinger
@@ -117,6 +120,8 @@ newtab-menu-delete-pocket = Slett fra { -pocket-brand-name }
 newtab-menu-archive-pocket = Arkiver i { -pocket-brand-name }
 newtab-menu-show-privacy-info = Våre sponsorer og ditt personvern
 newtab-menu-about-fakespot = Om { -fakespot-brand-name }
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Rapporter
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Blokker
@@ -126,6 +131,9 @@ newtab-menu-section-unfollow = Slutt å følge emnet
 
 ## Context menu options for sponsored stories and new ad formats on New Tab.
 
+newtab-menu-manage-sponsored-content = Behandle sponset innhold
+newtab-menu-our-sponsors-and-your-privacy = Våre sponsorer og ditt personvern
+newtab-menu-report-this-ad = Rapporter denne annonsen
 
 ## Message displayed in a modal window to explain privacy and provide context for sponsored content.
 
@@ -186,6 +194,8 @@ newtab-label-sponsored-by = Sponset av { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponset
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -307,6 +317,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Vær
     .description = Dagens værmelding i korte trekk
+newtab-custom-trending-search-toggle =
+    .label = Populære søk
+    .description = Populære og ofte søkte emner
 newtab-custom-close-button = Lukk
 newtab-custom-settings = Behandle flere innstillinger
 
@@ -337,7 +350,7 @@ newtab-wallpaper-light-fox-anniversary = En rev i en gressmark med et tåkete fj
 
 ## Solid Colors
 
-newtab-wallpaper-category-title-colors = Solide farger
+newtab-wallpaper-category-title-colors = Ensfarget
 newtab-wallpaper-blue = Blå
 newtab-wallpaper-light-blue = Lyseblå
 newtab-wallpaper-light-purple = Lyselilla
@@ -365,6 +378,8 @@ newtab-wallpaper-gradient-orange = Fargeovergang oransje og rosa
 newtab-wallpaper-abstract-blue-purple = Blå og lilla former
 newtab-wallpaper-abstract-white-curves = Hvit med skraverte kurver
 newtab-wallpaper-abstract-purple-green = Fargeovergang med lilla og grønt lys
+newtab-wallpaper-abstract-blue-purple-waves = Blå og lilla bølgete former
+newtab-wallpaper-abstract-black-waves = Svarte bølgeformer
 
 ## Celestial
 
@@ -375,9 +390,12 @@ newtab-wallpaper-storm-sky = Stormhimmel
 newtab-wallpaper-sky-with-pink-clouds = Himmel med rosa skyer
 newtab-wallpaper-red-panda-yawns-in-a-tree = Rød panda som gjesper i et tre
 newtab-wallpaper-white-mountains = Hvite fjell
+newtab-wallpaper-hot-air-balloons = Varmluftsballonger i forskjellige farger på dagtid
 newtab-wallpaper-starry-canyon = Blå stjerneklar natt
+newtab-wallpaper-suspension-bridge = Bilde av en grå hengebro om dagen
 newtab-wallpaper-sand-dunes = Hvite sanddyner
 newtab-wallpaper-palm-trees = Silhuett av kokospalmer under den gyldne timen
+newtab-wallpaper-blue-flowers = Nærbilde av blåblomstrede blomster i full blomst
 # Variables
 #   $author_string (String) - The name of the creator of the photo.
 #   $webpage_string (String) - The name of the webpage where the photo is located.
@@ -402,6 +420,8 @@ newtab-wallpaper-category-title-celestial = Rommet
 newtab-wallpaper-celestial-lunar-eclipse = Måneformørkelse
 newtab-wallpaper-celestial-earth-night = Nattbilde fra lav jordbane
 newtab-wallpaper-celestial-starry-sky = Stjernehimmel
+newtab-wallpaper-celestial-eclipse-time-lapse = Tidsforløpet til en måneformørkelse
+newtab-wallpaper-celestial-black-hole = Illustrasjon av en galakse med et sort hull
 newtab-wallpaper-celestial-river = Satellittbilde av elv
 
 ## New Tab Weather
@@ -483,6 +503,9 @@ newtab-topic-selection-button-pick-interests = Velg dine interesser
 newtab-section-follow-button = Følge
 newtab-section-following-button = Følger
 newtab-section-unfollow-button = Slutt å følge
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Finjuster kilden din
+newtab-section-follow-highlight-subtitle = Følg interessene dine for å se mer av det du liker.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -510,9 +533,58 @@ newtab-section-mangage-topics-followed-topics = Fulgt
 newtab-section-mangage-topics-followed-topics-empty-state = Du har ikke fulgt noen emner ennå.
 newtab-section-mangage-topics-blocked-topics = Blokkert
 newtab-section-mangage-topics-blocked-topics-empty-state = Du har ikke blokkert noen emner ennå.
+newtab-custom-wallpaper-title = Nå kan du velge din egen bakgrunn
+# 'Make firefox yours" means to customize or personalize
+newtab-custom-wallpaper-subtitle = Last opp ditt eget bakgrunnsbilde eller velg en egendefinert farge for å gjøre { -brand-product-name } til ditt eget.
+newtab-custom-wallpaper-cta = Prøv det
 
 ## Strings for download mobile highlight
 
+newtab-download-mobile-highlight-title = Last ned { -brand-product-name } for mobil
+# "Scan the code" refers to scanning the QR code that appears above the body text that leads to Firefox for mobile download.
+newtab-download-mobile-highlight-body-variant-a = Skann koden for å surfe trygt på farten.
+newtab-download-mobile-highlight-body-variant-b = Fortsett der du sluttet når du synkroniserer faner, passord og mer.
+newtab-download-mobile-highlight-body-variant-c = Visste du at du kan ta med deg { -brand-product-name } på farten? Samme nettleser. I lommen.
+newtab-download-mobile-highlight-image =
+    .aria-label = QR-kode for å laste ned { -brand-product-name } for mobil
+
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = Dine favoritter lett tilgjengelig
+newtab-shortcuts-highlight-subtitle = Legg til en snarvei for å ha favorittnettstedene dine ett klikk unna.
 
 ## Strings for reporting ads and content
 
+newtab-report-content-why-reporting-this =
+    .label = Hvorfor rapporterer du dette?
+newtab-report-ads-reason-not-interested =
+    .label = Jeg er ikke interessert
+newtab-report-ads-reason-inappropriate =
+    .label = Det er upassende
+newtab-report-ads-reason-seen-it-too-many-times =
+    .label = Jeg har sett det for mange ganger
+newtab-report-content-wrong-category =
+    .label = Feil kategori
+newtab-report-content-outdated =
+    .label = Utdatert
+newtab-report-content-inappropriate-offensive =
+    .label = Upassende eller støtende
+newtab-report-content-spam-misleading =
+    .label = Spam eller villedende
+newtab-report-cancel = Avbryt
+newtab-report-submit = Send
+newtab-toast-thanks-for-reporting =
+    .message = Takk for at du rapporterte dette.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Populært på Google
+newtab-trending-searches-show-trending =
+    .title = Vis populære søk
+newtab-trending-searches-hide-trending =
+    .title = Skjul populære søk
+newtab-trending-searches-learn-more = Les mer
+newtab-trending-searches-dismiss = Skjul populære søk
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Populære søk

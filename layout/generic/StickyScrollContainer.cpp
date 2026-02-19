@@ -11,12 +11,12 @@
 
 #include "StickyScrollContainer.h"
 
+#include "PresShell.h"
 #include "mozilla/OverflowChangedTracker.h"
 #include "mozilla/ScrollContainerFrame.h"
 #include "nsIFrame.h"
 #include "nsIFrameInlines.h"
 #include "nsLayoutUtils.h"
-#include "PresShell.h"
 
 namespace mozilla {
 
@@ -66,8 +66,9 @@ static nscoord ComputeStickySideOffset(Side aSide,
                                        const nsStylePosition& aPosition,
                                        nscoord aPercentBasis) {
   // Guaranteed to resolve any use of anchor function as invalid.
-  const auto& side =
-      aPosition.GetAnchorResolvedInset(aSide, StylePositionProperty::Sticky);
+  const auto& side = aPosition.GetAnchorResolvedInset(
+      aSide, AnchorPosOffsetResolutionParams::UseCBFrameSize(
+                 {nullptr, StylePositionProperty::Sticky}));
   if (side->IsAuto()) {
     return NS_AUTOOFFSET;
   }

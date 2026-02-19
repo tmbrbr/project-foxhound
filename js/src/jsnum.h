@@ -229,6 +229,8 @@ double CharsToNumber(const CharT* chars, size_t length);
 // Infallible version of StringToNumber for linear strings.
 extern double LinearStringToNumber(const JSLinearString* str);
 
+extern double OffThreadAtomToNumber(const JSOffThreadAtom* str);
+
 // Parse the input string as if Number.parseInt had been called.
 extern bool NumberParseInt(JSContext* cx, JS::HandleString str, int32_t radix,
                            JS::MutableHandleValue result);
@@ -300,10 +302,6 @@ template <typename CharT>
   MOZ_ASSERT(end == static_cast<const void*>(realEnd));
   return d;
 }
-
-[[nodiscard]] extern bool ThisNumberValueForToLocaleString(JSContext* cx,
-                                                           unsigned argc,
-                                                           Value* vp);
 
 [[nodiscard]] extern bool num_valueOf(JSContext* cx, unsigned argc, Value* vp);
 

@@ -13,8 +13,8 @@
 #include "mozilla/StaticPrefs_media.h"
 #include "mozilla/SyncRunnable.h"  // for LaunchUtilityProcess
 #include "mozilla/ipc/UtilityProcessParent.h"
-#include "mozilla/ipc/UtilityAudioDecoderChild.h"
-#include "mozilla/ipc/UtilityAudioDecoderParent.h"
+#include "mozilla/ipc/UtilityMediaServiceChild.h"
+#include "mozilla/ipc/UtilityMediaServiceParent.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/UtilityProcessSandboxing.h"
@@ -341,54 +341,54 @@ UtilityProcessManager::StartProcessForRemoteMediaDecoding(
   TimeStamp remoteDecodingStart = TimeStamp::Now();
 
   RefPtr<UtilityProcessManager> self = this;
-  RefPtr<UtilityAudioDecoderChild> uadc =
-      UtilityAudioDecoderChild::GetSingleton(aSandbox);
-  MOZ_ASSERT(uadc, "Unable to get a singleton for UtilityAudioDecoderChild");
-  return StartUtility(uadc, aSandbox)
+  RefPtr<UtilityMediaServiceChild> umsc =
+      UtilityMediaServiceChild::GetSingleton(aSandbox);
+  MOZ_ASSERT(umsc, "Unable to get a singleton for UtilityMediaServiceChild");
+  return StartUtility(umsc, aSandbox)
       ->Then(
           GetMainThreadSerialEventTarget(), __func__,
-          [self, uadc, aOtherProcess, aChildId, aSandbox,
+          [self, umsc, aOtherProcess, aChildId, aSandbox,
            remoteDecodingStart]() {
             RefPtr<UtilityProcessParent> parent =
                 self->GetProcessParent(aSandbox);
             if (!parent) {
-              NS_WARNING("UtilityAudioDecoderParent lost in the middle");
+              NS_WARNING("UtilityMediaServiceParent lost in the middle");
               return RetPromise::CreateAndReject(
                   LaunchError("Start...MediaDecoding: parent lost"), __func__);
             }
 
-            if (!uadc->CanSend()) {
-              NS_WARNING("UtilityAudioDecoderChild lost in the middle");
+            if (!umsc->CanSend()) {
+              NS_WARNING("UtilityMediaServiceChild lost in the middle");
               return RetPromise::CreateAndReject(
                   LaunchError("Start...MediaDecoding: child lost"), __func__);
             }
 
             EndpointProcInfo process = parent->OtherEndpointProcInfo();
 
-            Endpoint<PRemoteDecoderManagerChild> childPipe;
-            Endpoint<PRemoteDecoderManagerParent> parentPipe;
-            if (nsresult const rv = PRemoteDecoderManager::CreateEndpoints(
+            Endpoint<PRemoteMediaManagerChild> childPipe;
+            Endpoint<PRemoteMediaManagerParent> parentPipe;
+            if (nsresult const rv = PRemoteMediaManager::CreateEndpoints(
                     process, aOtherProcess, &parentPipe, &childPipe);
                 NS_FAILED(rv)) {
               MOZ_ASSERT(false, "Could not create content remote decoder");
               return RetPromise::CreateAndReject(
-                  LaunchError("PRemoteDecoderManager::CreateEndpoints", rv),
+                  LaunchError("PRemoteMediaManager::CreateEndpoints", rv),
                   __func__);
             }
 
-            if (!uadc->SendNewContentRemoteDecoderManager(std::move(parentPipe),
-                                                          aChildId)) {
-              MOZ_ASSERT(false, "SendNewContentRemoteDecoderManager failure");
+            if (!umsc->SendNewContentRemoteMediaManager(std::move(parentPipe),
+                                                        aChildId)) {
+              MOZ_ASSERT(false, "SendNewContentRemoteMediaManager failure");
               return RetPromise::CreateAndReject(
-                  LaunchError("UADC::SendNewCRDM"), __func__);
+                  LaunchError("UMSC::SendNewCRDM"), __func__);
             }
 
 #ifdef MOZ_WMF_MEDIA_ENGINE
             if (aSandbox == SandboxingKind::MF_MEDIA_ENGINE_CDM &&
-                !uadc->CreateVideoBridge()) {
+                !umsc->CreateVideoBridge()) {
               MOZ_ASSERT(false, "Failed to create video bridge");
               return RetPromise::CreateAndReject(
-                  LaunchError("UADC::CreateVideoBridge"), __func__);
+                  LaunchError("UMSC::CreateVideoBridge"), __func__);
             }
 #endif
             PROFILER_MARKER_TEXT(

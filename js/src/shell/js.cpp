@@ -115,6 +115,9 @@
 #include "jit/JitcodeMap.h"
 #include "jit/JitZone.h"
 #include "jit/shared/CodeGenerator-shared.h"
+#ifdef JS_CODEGEN_ARM64
+#  include "jit/arm64/vixl/Cpu-Features-vixl.h"
+#endif
 #include "js/Array.h"        // JS::NewArrayObject
 #include "js/ArrayBuffer.h"  // JS::{CreateMappedArrayBufferContents,NewMappedArrayBufferWithContents,IsArrayBufferObject,GetArrayBufferLengthAndData}
 #include "js/BuildId.h"      // JS::BuildIdCharVector, JS::SetProcessBuildIdOp
@@ -995,7 +998,7 @@ ShellContext::ShellContext(JSContext* cx, IsWorkerEnum isWorker_)
       errFilePtr(nullptr),
       outFilePtr(nullptr),
       offThreadMonitor(mutexid::ShellOffThreadState),
-      finalizationRegistryCleanupCallbacks(cx) {}
+      taskCallbacks(cx) {}
 
 ShellContext* js::shell::GetShellContext(JSContext* cx) {
   ShellContext* sc = static_cast<ShellContext*>(JS_GetContextPrivate(cx));
@@ -1351,33 +1354,33 @@ static void ShellCleanupFinalizationRegistryCallback(JSFunction* doCleanup,
 
   auto sc = static_cast<ShellContext*>(data);
   AutoEnterOOMUnsafeRegion oomUnsafe;
-  if (!sc->finalizationRegistryCleanupCallbacks.append(doCleanup)) {
+  if (!sc->taskCallbacks.append(doCleanup)) {
     oomUnsafe.crash("ShellCleanupFinalizationRegistryCallback");
   }
 }
 
-// Run any FinalizationRegistry cleanup tasks and return whether any ran.
-static bool MaybeRunFinalizationRegistryCleanupTasks(JSContext* cx) {
+// Run any tasks queued on the ShellContext and return whether any ran.
+static bool MaybeRunShellTasks(JSContext* cx) {
   ShellContext* sc = GetShellContext(cx);
   MOZ_ASSERT(!sc->quitting);
 
-  Rooted<ShellContext::FunctionVector> callbacks(cx);
-  std::swap(callbacks.get(), sc->finalizationRegistryCleanupCallbacks.get());
+  Rooted<ShellContext::ObjectVector> callbacks(cx);
+  std::swap(callbacks.get(), sc->taskCallbacks.get());
 
   bool ranTasks = false;
 
-  RootedFunction callback(cx);
-  for (JSFunction* f : callbacks) {
-    callback = f;
+  RootedValue callback(cx);
+  for (JSObject* o : callbacks) {
+    callback = ObjectValue(*o);
 
-    JS::ExposeObjectToActiveJS(callback);
-    AutoRealm ar(cx, callback);
+    JS::ExposeValueToActiveJS(callback);
+    AutoRealm ar(cx, o);
 
     {
       AutoReportException are(cx);
       RootedValue unused(cx);
-      (void)JS_CallFunction(cx, nullptr, callback, HandleValueArray::empty(),
-                            &unused);
+      (void)JS_CallFunctionValue(cx, nullptr, callback,
+                                 HandleValueArray::empty(), &unused);
     }
 
     ranTasks = true;
@@ -1417,8 +1420,8 @@ static void RunShellJobs(JSContext* cx) {
       return;
     }
 
-    // Run tasks (only finalization registry clean tasks are possible).
-    bool ranTasks = MaybeRunFinalizationRegistryCleanupTasks(cx);
+    // Run tasks.
+    bool ranTasks = MaybeRunShellTasks(cx);
     if (!ranTasks) {
       break;
     }
@@ -1564,6 +1567,50 @@ static bool SetPromiseRejectionTrackerCallback(JSContext* cx, unsigned argc,
   }
 
   GetShellContext(cx)->promiseRejectionTrackerCallback = args[0];
+
+  args.rval().setUndefined();
+  return true;
+}
+
+static bool SetTimeout(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  if (args.length() != 1 && args.length() != 2) {
+    JS_ReportErrorASCII(cx, "expected one or two arguments");
+    return false;
+  }
+
+  JS::RootedValue functionRefValue(cx, args.get(0));
+  JS::RootedValue delayValue(cx, args.get(1));
+
+  if (!functionRefValue.isObject() ||
+      !JS::IsCallable(&functionRefValue.toObject())) {
+    JS_ReportErrorASCII(cx, "functionRef must be callable");
+    return false;
+  }
+
+  if (IsCrossCompartmentWrapper(functionRefValue.toObjectOrNull())) {
+    JS_ReportErrorASCII(cx, "functionRef cannot be a CCW");
+    return false;
+  }
+
+  int32_t delay;
+  if (!JS::ToInt32(cx, delayValue, &delay)) {
+    return false;
+  }
+  if (delay != 0) {
+    JS::WarnASCII(cx, "Treating non-zero delay as zero in setTimeout");
+  }
+
+  ShellContext* sc = GetShellContext(cx);
+  if (sc->quitting) {
+    JS_ReportErrorASCII(cx, "Cannot setTimeout while quitting");
+    return false;
+  }
+
+  if (!sc->taskCallbacks.append(functionRefValue.toObjectOrNull())) {
+    ReportOutOfMemory(cx);
+    return false;
+  }
 
   args.rval().setUndefined();
   return true;
@@ -4148,7 +4195,7 @@ static bool Fuzzilli(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  if (StringEqualsAscii(operation, "FUZZILLI_CRASH")) {
+  if (StringEqualsLiteral(operation, "FUZZILLI_CRASH")) {
     int type;
     if (!ToInt32(cx, args.get(1), &type)) {
       return false;
@@ -4176,7 +4223,7 @@ static bool Fuzzilli(JSContext* cx, unsigned argc, Value* vp) {
       default:
         exit(1);
     }
-  } else if (StringEqualsAscii(operation, "FUZZILLI_PRINT")) {
+  } else if (StringEqualsLiteral(operation, "FUZZILLI_PRINT")) {
     static FILE* fzliout = fdopen(REPRL_DWFD, "w");
     if (!fzliout) {
       fprintf(
@@ -4195,7 +4242,7 @@ static bool Fuzzilli(JSContext* cx, unsigned argc, Value* vp) {
     }
     fprintf(fzliout, "%s\n", bytes.get());
     fflush(fzliout);
-  } else if (StringEqualsAscii(operation, "FUZZILLI_RANDOM")) {
+  } else if (StringEqualsLiteral(operation, "FUZZILLI_RANDOM")) {
     // This is an entropy source which can be called during fuzzing.
     // Its currently used to tests whether Fuzzilli detects non-deterministic
     // behavior.
@@ -5308,7 +5355,7 @@ static bool SetPrefValue(JSContext* cx, unsigned argc, Value* vp) {
 
   // Search for a matching pref and try to set it to the provided value.
 #define CHECK_PREF(NAME, CPP_NAME, TYPE, SETTER, IS_STARTUP_PREF)             \
-  if (IsPrefAvailable(NAME) && StringEqualsAscii(name, NAME)) {               \
+  if (IsPrefAvailable(NAME) && StringEqualsLiteral(name, NAME)) {             \
     if (IS_STARTUP_PREF) {                                                    \
       JS_ReportErrorASCII(cx, "%s is a startup pref and can't be set", NAME); \
       return false;                                                           \
@@ -7761,10 +7808,14 @@ static void SingleStepCallback(void* arg, jit::Simulator* sim, void* pc) {
   state.sp = (void*)sim->getRegister(jit::Simulator::sp);
   state.lr = (void*)sim->getRegister(jit::Simulator::ra);
   state.fp = (void*)sim->getRegister(jit::Simulator::fp);
+  // see WasmTailCallFPScratchReg and CollapseWasmFrameFast
+  state.tempFP = (void*)sim->getRegister(jit::Simulator::t3);
 #  elif defined(JS_SIMULATOR_LOONG64)
   state.sp = (void*)sim->getRegister(jit::Simulator::sp);
   state.lr = (void*)sim->getRegister(jit::Simulator::ra);
   state.fp = (void*)sim->getRegister(jit::Simulator::fp);
+  // see WasmTailCallFPScratchReg and CollapseWasmFrameFast
+  state.tempFP = (void*)sim->getRegister(jit::Simulator::t3);
 #  else
 #    error "NYI: Single-step profiling support"
 #  endif
@@ -10337,6 +10388,12 @@ JS_FN_HELP("createUserArrayBuffer", CreateUserArrayBuffer, 1, 0,
 "Take jobs from the shell's job queue in FIFO order and run them until the\n"
 "queue is empty.\n"),
 
+      JS_FN_HELP("setTimeout", SetTimeout, 1, 0,
+"setTimeout(functionRef, delay)",
+"Executes functionRef after the specified delay, like the Web builtin."
+"This is currently restricted to require a delay of 0 and will not accept"
+"any extra arguments. No return value is given and there is no clearTimeout."),
+
     JS_FN_HELP("setPromiseRejectionTrackerCallback", SetPromiseRejectionTrackerCallback, 1, 0,
 "setPromiseRejectionTrackerCallback()",
 "Sets the callback to be invoked whenever a Promise rejection is unhandled\n"
@@ -12422,6 +12479,11 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  if (!JS::SetLoggingInterface(shellLoggingInterface)) {
+    return 1;
+  }
+  ParseLoggerOptions();
+
   // Start the engine.
   if (const char* message = JS_InitWithFailureDiagnostic()) {
     fprintf(gErrFile->fp, "JS_Init failed: %s\n", message);
@@ -12451,11 +12513,6 @@ int main(int argc, char** argv) {
   if (!cx) {
     return 1;
   }
-
-  if (!JS::SetLoggingInterface(shellLoggingInterface)) {
-    return 1;
-  }
-  ParseLoggerOptions();
 
   // Register telemetry callbacks.
   JS_SetAccumulateTelemetryCallback(cx, AccumulateTelemetryDataCallback);
@@ -12877,6 +12934,8 @@ bool InitOptionParser(OptionParser& op) {
       !op.addBoolOption('\0', "no-avx",
                         "No-op. AVX is currently disabled by default.") ||
 #endif
+      !op.addBoolOption('\0', "no-fjcvtzs",
+                        "Pretend CPU does not support FJCVTZS instruction.") ||
       !op.addBoolOption('\0', "more-compartments",
                         "Make newGlobal default to creating a new "
                         "compartment.") ||
@@ -13036,7 +13095,9 @@ bool InitOptionParser(OptionParser& op) {
       !op.addBoolOption('\0', "disable-explicit-resource-management",
                         "Disable Explicit Resource Management") ||
       !op.addBoolOption('\0', "enable-temporal", "Enable Temporal") ||
-      !op.addBoolOption('\0', "enable-upsert", "Enable Upsert proposal")) {
+      !op.addBoolOption('\0', "enable-upsert", "Enable Upsert proposal") ||
+      !op.addBoolOption('\0', "enable-arraybuffer-immutable",
+                        "Enable immutable ArrayBuffers")) {
     return false;
   }
 
@@ -13109,6 +13170,9 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
   }
   if (op.getBoolOption("enable-upsert")) {
     JS::Prefs::setAtStartup_experimental_upsert(true);
+  }
+  if (op.getBoolOption("enable-arraybuffer-immutable")) {
+    JS::Prefs::setAtStartup_experimental_arraybuffer_immutable(true);
   }
 #endif
 #ifdef ENABLE_EXPLICIT_RESOURCE_MANAGEMENT
@@ -13242,6 +13306,12 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
     if (!sCompilerProcessFlags.append("--no-sse42")) {
       return false;
     }
+  }
+#endif
+#if defined(JS_CODEGEN_ARM64)
+  if (op.getBoolOption("no-fjcvtzs")) {
+    vixl::CPUFeatures fjcvtzs(vixl::CPUFeatures::kJSCVT);
+    fjcvtzs.DisableGlobally();
   }
 #endif
 #ifndef __wasi__
@@ -13414,6 +13484,8 @@ bool SetContextWasmOptions(JSContext* cx, const OptionParser& op) {
   if (const char* str = op.getStringOption("wasm-compiler")) {
     if (strcmp(str, "none") == 0) {
       enableWasm = false;
+      // Disable asm.js -- no wasm compilers available.
+      enableAsmJS = false;
     } else if (strcmp(str, "baseline") == 0) {
       MOZ_ASSERT(enableWasmBaseline);
       enableWasmOptimizing = false;

@@ -262,8 +262,9 @@ add_task(async function tabOnTopSites() {
       window,
       value: "",
     });
-    Assert.ok(
-      UrlbarTestUtils.getResultCount(window) > 0,
+    Assert.greater(
+      UrlbarTestUtils.getResultCount(window),
+      0,
       "There should be some results"
     );
     Assert.deepEqual(
@@ -280,7 +281,7 @@ add_task(async function tabOnTopSites() {
 
 async function expectTabThroughResults(options = { reverse: false }) {
   let resultCount = UrlbarTestUtils.getResultCount(window);
-  Assert.ok(resultCount > 0, "There should be results");
+  Assert.greater(resultCount, 0, "There should be results");
 
   let result = await UrlbarTestUtils.getDetailsOfResultAt(window, 0);
 
@@ -296,7 +297,7 @@ async function expectTabThroughResults(options = { reverse: false }) {
     if (
       UrlbarTestUtils.getButtonForResultIndex(
         window,
-        "menu",
+        "result-menu",
         UrlbarTestUtils.getSelectedRowIndex(window)
       )
     ) {
@@ -341,6 +342,9 @@ async function waitForFocusOnNextFocusableElement(reverse = false) {
     "sidebar.revamp",
     false
   );
+  let sidebarLauncherVisible =
+    sidebarRevampEnabled &&
+    BrowserTestUtils.isVisible(document.querySelector("sidebar-main"));
   if (
     !Services.prefs.getBoolPref("browser.toolbars.keyboard_navigation", true)
   ) {
@@ -348,7 +352,7 @@ async function waitForFocusOnNextFocusableElement(reverse = false) {
     return BrowserTestUtils.waitForCondition(
       () =>
         document.activeElement ==
-        (!sidebarRevampEnabled ? gBrowser.selectedBrowser : sidebar)
+        (!sidebarLauncherVisible ? gBrowser.selectedBrowser : sidebar)
     );
   }
   let urlbar = document.getElementById("urlbar-container");

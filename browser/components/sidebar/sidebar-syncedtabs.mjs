@@ -5,6 +5,8 @@
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   SyncedTabsController: "resource:///modules/SyncedTabsController.sys.mjs",
+  SidebarTreeView:
+    "moz-src:///browser/components/sidebar/SidebarTreeView.sys.mjs",
 });
 
 import {
@@ -24,13 +26,15 @@ class SyncedTabsInSidebar extends SidebarPage {
 
   static queries = {
     cards: { all: "moz-card" },
-    searchTextbox: "fxview-search-textbox",
+    lists: { all: "sidebar-tab-list" },
+    searchTextbox: "moz-input-search",
   };
 
   constructor() {
     super();
     this.onSearchQuery = this.onSearchQuery.bind(this);
     this.onSecondaryAction = this.onSecondaryAction.bind(this);
+    this.treeView = new lazy.SidebarTreeView(this, { multiSelect: false });
   }
 
   connectedCallback() {
@@ -170,11 +174,13 @@ class SyncedTabsInSidebar extends SidebarPage {
       .heading=${deviceName}
       icon
       class=${deviceType}
+      @keydown=${e => this.treeView.handleCardKeydown(e)}
     >
       <sidebar-tab-list
         compactRows
         maxTabsLength="-1"
         .tabItems=${tabItems}
+        .multiSelect=${false}
         .updatesPaused=${false}
         .searchQuery=${this.controller.searchQuery}
         @fxview-tab-list-primary-action=${navigateToLink}
@@ -298,12 +304,11 @@ class SyncedTabsInSidebar extends SidebarPage {
           view="viewTabsSidebar"
         >
         </sidebar-panel-header>
-        <fxview-search-textbox
+        <moz-input-search
           data-l10n-id="firefoxview-search-text-box-tabs"
           data-l10n-attrs="placeholder"
-          @fxview-search-textbox-query=${this.onSearchQuery}
-          size="15"
-        ></fxview-search-textbox>
+          @MozInputSearch:search=${this.onSearchQuery}
+        ></moz-input-search>
         ${when(
           messageCard,
           () => this.messageCardTemplate(messageCard),

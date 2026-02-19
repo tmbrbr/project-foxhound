@@ -315,10 +315,6 @@ class GeckoEngineSessionTest {
                 override fun onCookieBannerChange(status: CookieBannerHandlingStatus) {
                     cookieBanner = status
                 }
-                override fun onProductUrlChange(isProductUrl: Boolean) {
-                    displaysProduct = isProductUrl
-                }
-
                 override fun onTranslatePageChange() {
                     translationsProcessing = false
                 }
@@ -368,6 +364,46 @@ class GeckoEngineSessionTest {
         verify(observer).onExternalResource(
             url = eq("https://download.mozilla.org/image%20name.png"),
             fileName = eq("image name.png"),
+            contentLength = eq(42),
+            contentType = eq("image/png"),
+            cookie = eq(null),
+            userAgent = eq(null),
+            isPrivate = eq(true),
+            skipConfirmation = eq(true),
+            openInApp = eq(true),
+            response = captor.capture(),
+        )
+
+        assertNotNull(captor.value)
+    }
+
+    @Test
+    fun contentDelegateNotifiesObserverAboutDownloadsWithContentDisposition() {
+        val engineSession = GeckoEngineSession(
+            mock(),
+            geckoSessionProvider = geckoSessionProvider,
+            privateMode = true,
+        )
+
+        val observer: EngineSession.Observer = mock()
+        engineSession.register(observer)
+
+        val response = WebResponse.Builder("https://download.mozilla.org/anyfile.txt")
+            .addHeader(Headers.Names.CONTENT_TYPE, "image/png")
+            .addHeader(Headers.Names.CONTENT_LENGTH, "42")
+            .addHeader(Headers.Names.CONTENT_DISPOSITION, "attachment; filename=\"image%0Aimage.png\"\n")
+            .skipConfirmation(true)
+            .requestExternalApp(true)
+            .body(mock())
+            .build()
+
+        val captor = argumentCaptor<Response>()
+        captureDelegates()
+        contentDelegate.value.onExternalResponse(mock(), response)
+
+        verify(observer).onExternalResource(
+            url = eq("https://download.mozilla.org/anyfile.txt"),
+            fileName = eq("image image.png"),
             contentLength = eq(42),
             contentType = eq("image/png"),
             cookie = eq(null),
@@ -3718,7 +3754,7 @@ class GeckoEngineSessionTest {
     }
 
     @Test
-    fun `onLoadRequest will notify onLaunchIntent observers if request on non-direct navigation was intercepted with app intent`() {
+    fun `onLoadRequest will notify onLaunchIntent observers if request was intercepted with app intent`() {
         val engineSession = GeckoEngineSession(
             mock(),
             geckoSessionProvider = geckoSessionProvider,
@@ -3803,10 +3839,10 @@ class GeckoEngineSessionTest {
             mockLoadRequest("sample:isDirectNavigation", triggeredByRedirect = false, isDirectNavigation = true),
         )
 
-        assertNull(observer.observedIntent)
-        assertNull(observer.observedUrl)
-        assertNull(observer.observedFallbackUrl)
-        assertNull(observer.observedAppName)
+        assertNotNull(observer.observedIntent)
+        assertEquals("result3", observer.observedUrl)
+        assertEquals("fallback3", observer.observedFallbackUrl)
+        assertEquals("app3", observer.observedAppName)
     }
 
     @Test

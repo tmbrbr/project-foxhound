@@ -201,5 +201,11 @@ newtab-error-fallback-refresh-link = ထပ်ကြိုးစားရန် 
 ## Strings for download mobile highlight
 
 
+## Strings for shortcuts highlight
+
+
 ## Strings for reporting ads and content
+
+
+## Strings for trending searches
 

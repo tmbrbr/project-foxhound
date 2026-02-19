@@ -62,6 +62,8 @@
         <item name="actionPrimary">@color/fx_mobile_action_color_primary</item>
         <!-- Primary button in a disabled state -->
         <item name="actionPrimaryDisabled">@color/fx_mobile_action_color_primary_disabled</item>
+        <!-- Selected chip -->
+        <item name="actionChipSelected">@color/fx_mobile_action_color_chip_selected</item>
 
         <!-- Text -->
         <!-- Primary text -->
@@ -262,7 +264,8 @@
         <item name="actionPrimary">@color/fx_mobile_private_action_color_primary</item>
         <!-- Primary button in a disabled state -->
         <item name="actionPrimaryDisabled">@color/fx_mobile_private_action_color_primary_disabled</item>
-
+        <!-- Selected chip -->
+        <item name="actionChipSelected">@color/fx_mobile_private_action_color_chip_selected</item>
         <!-- Text -->
         <!-- Primary text -->
         <item name="textPrimary">@color/fx_mobile_private_text_color_primary</item>
@@ -351,9 +354,6 @@
     </style>
 
     <style name="PrivateTheme" parent="PrivateThemeBase" />
-    <style name="FeltPrivateTheme" parent="PrivateThemeBase">
-        <item name="homeBackground">@drawable/felt_private_home_background_gradient</item>
-    </style>
 
     <!-- Fade animation for theme switching -->
     <style name="WindowAnimationTransition" parent="android:Animation.Activity">
@@ -551,7 +551,6 @@
 
     <style name="CreateCollectionDialogStyle" parent="DialogStyleBase"/>
     <style name="CreateShortcutDialogStyle" parent="DialogStyleBase"/>
-    <style name="HomeOnboardingDialogStyle" parent="DialogStyleBase"/>
     <style name="ResearchSurfaceDialogStyle" parent="NormalThemeBase">
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowTranslucentNavigation">false</item>
@@ -669,30 +668,6 @@
         <item name="behavior_skipCollapsed">false</item>
         <!-- Effectively disable STATE_HALF_EXPANDED by having the tray have a minuscule height in this state -->
         <item name="behavior_halfExpandedRatio">0.001</item>
-    </style>
-
-    <style name="TopSite.FaviconCard" parent="Mozac.Widgets.Favicon">
-        <item name="android:layout_width">@dimen/top_sites_card_size</item>
-        <item name="android:layout_height">@dimen/top_sites_card_size</item>
-        <item name="android:layout_marginTop">@dimen/top_sites_card_margin_top</item>
-        <item name="android:padding">@dimen/top_sites_card_padding</item>
-        <item name="cardBackgroundColor">?mozac_widget_favicon_background_color</item>
-        <item name="cardCornerRadius">@dimen/top_sites_card_radius</item>
-        <item name="cardElevation">@dimen/top_sites_card_elevation</item>
-    </style>
-
-    <style name="topSiteFavicon">
-        <item name="android:layout_width">@dimen/top_sites_favicon_size</item>
-        <item name="android:layout_height">@dimen/top_sites_favicon_size</item>
-        <item name="android:scaleType">centerCrop</item>
-        <item name="android:layout_gravity">center</item>
-        <item name="shapeAppearanceOverlay">@style/topSiteFaviconShape</item>
-    </style>
-
-    <style name="topSiteFaviconShape">
-        <item name="cornerFamily">rounded</item>
-        <item name="elevation">@dimen/top_sites_favicon_elevation</item>
-        <item name="cornerSize">@dimen/top_sites_favicon_corner_size</item>
     </style>
 
     <style name="SearchDialogStyle">

@@ -26,6 +26,7 @@
 #include "mozilla/dom/NumericInputTypes.h"
 #include "mozilla/dom/WindowContext.h"
 #include "mozilla/dom/InputType.h"
+#include "mozilla/dom/UnionTypes.h"
 #include "mozilla/dom/UserActivation.h"
 #include "mozilla/dom/MouseEvent.h"
 #include "mozilla/dom/MutationEventBinding.h"
@@ -1709,23 +1710,8 @@ int32_t HTMLInputElement::MonthsSinceJan1970(uint32_t aYear,
 
 /* static */
 Decimal HTMLInputElement::StringToDecimal(const nsAString& aValue) {
-  if (!IsAscii(aValue)) {
-    return Decimal::nan();
-  }
-  NS_LossyConvertUTF16toASCII asciiString(aValue);
-  std::string stdString(asciiString.get(), asciiString.Length());
-  auto decimal = Decimal::fromString(stdString);
-  if (!decimal.isFinite()) {
-    return Decimal::nan();
-  }
-  // Numbers are considered finite IEEE 754 Double-precision floating point
-  // values, but decimal supports a bigger range.
-  static const Decimal maxDouble =
-      Decimal::fromDouble(std::numeric_limits<double>::max());
-  if (decimal < -maxDouble || decimal > maxDouble) {
-    return Decimal::nan();
-  }
-  return decimal;
+  auto d = nsContentUtils::ParseHTMLFloatingPointNumber(aValue);
+  return d ? Decimal::fromDouble(*d) : Decimal::nan();
 }
 
 Decimal HTMLInputElement::GetValueAsDecimal() const {
@@ -1819,7 +1805,7 @@ void HTMLInputElement::SetValue(Decimal aValue, CallerType aCallerType) {
   }
 
   nsAutoString value;
-  mInputType->ConvertNumberToString(aValue, value);
+  mInputType->ConvertNumberToString(aValue, InputType::Localized::No, value);
   SetValue(value, aCallerType, IgnoreErrors());
 }
 
@@ -1968,10 +1954,8 @@ void HTMLInputElement::SetValueAsDate(JSContext* aCx,
 
 void HTMLInputElement::SetValueAsNumber(double aValueAsNumber,
                                         ErrorResult& aRv) {
-  // TODO: return TypeError when HTMLInputElement is converted to WebIDL, see
-  // bug 825197.
   if (std::isinf(aValueAsNumber)) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
+    aRv.ThrowTypeError("Value being assigned is infinite.");
     return;
   }
 
@@ -3319,6 +3303,11 @@ void HTMLInputElement::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
         StopNumberControlSpinnerSpin();
       }
     }
+
+    if (StaticPrefs::dom_input_number_and_range_modified_by_mousewheel() &&
+        aVisitor.mEvent->mMessage == eWheel) {
+      aVisitor.mMaybeUncancelable = false;
+    }
   }
 
   nsGenericHTMLFormControlElementWithState::GetEventTargetParent(aVisitor);
@@ -3507,7 +3496,8 @@ void HTMLInputElement::CancelRangeThumbDrag(bool aIsForUserEvent) {
     // DispatchTrustedEvent.
     // TODO: decide what we should do here - bug 851782.
     nsAutoString val;
-    mInputType->ConvertNumberToString(mRangeThumbDragStartValue, val);
+    mInputType->ConvertNumberToString(mRangeThumbDragStartValue,
+                                      InputType::Localized::No, val);
     // TODO: What should we do if SetValueInternal fails?  (The allocation
     // is small, so we should be fine here.)
     SetValueInternal(val, {ValueSetterOption::BySetUserInputAPI,
@@ -3531,7 +3521,7 @@ void HTMLInputElement::SetValueOfRangeForUserEvent(
   Decimal oldValue = GetValueAsDecimal();
 
   nsAutoString val;
-  mInputType->ConvertNumberToString(aValue, val);
+  mInputType->ConvertNumberToString(aValue, InputType::Localized::No, val);
   // TODO: What should we do if SetValueInternal fails?  (The allocation
   // is small, so we should be fine here.)
   SetValueInternal(val, {ValueSetterOption::BySetUserInputAPI,
@@ -3617,7 +3607,7 @@ void HTMLInputElement::StepNumberControlForUserEvent(int32_t aDirection) {
   }
 
   nsAutoString newVal;
-  mInputType->ConvertNumberToString(newValue, newVal);
+  mInputType->ConvertNumberToString(newValue, InputType::Localized::No, newVal);
   // TODO: What should we do if SetValueInternal fails?  (The allocation
   // is small, so we should be fine here.)
   SetValueInternal(newVal, {ValueSetterOption::BySetUserInputAPI,
@@ -3872,6 +3862,18 @@ nsresult HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor) {
                mType == FormControlType::InputRadio)) {
             EventStateManager::SetActiveManager(
                 aVisitor.mPresContext->EventStateManager(), this);
+          }
+
+          if (keyEvent->mKeyCode == NS_VK_ESCAPE && keyEvent->IsTrusted() &&
+              !keyEvent->DefaultPrevented() && !keyEvent->mIsComposing &&
+              mType == FormControlType::InputSearch &&
+              StaticPrefs::dom_forms_search_esc() && !IsDisabledOrReadOnly() &&
+              !IsValueEmpty()) {
+            // WebKit and Blink both also do this on keydown, see:
+            //   https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/forms/search_input_type.cc;l=82;drc=04f1f437aaefbd3bb4e0cdb5911c1ea1e3eb3557;bpv=1;bpt=1
+            //   https://searchfox.org/wubkat/rev/717f9adc97dd16bf639d27addbe0faf420f7dfce/Source/WebCore/html/SearchInputType.cpp#145
+            SetUserInput(EmptyString(), *NodePrincipal());
+            aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
           }
           break;
         }
@@ -4222,11 +4224,7 @@ void HTMLInputElement::ActivationBehavior(EventChainPostVisitor& aVisitor) {
       break;
   }  // switch
   if (IsButtonControl()) {
-    if (!GetInvokeTargetElement()) {
-      HandlePopoverTargetAction();
-    } else {
-      HandleInvokeTargetAction();
-    }
+    HandlePopoverTargetAction();
   }
 
   EndSubmitClick(aVisitor);
@@ -4891,22 +4889,10 @@ void HTMLInputElement::SanitizeValue(nsAString& aValue,
           aValue);
     } break;
     case FormControlType::InputNumber: {
-      if (aKind == SanitizationKind::ForValueSetter && !aValue.IsEmpty() &&
-          (aValue.First() == '+' || aValue.Last() == '.')) {
-        // A value with a leading plus or trailing dot should fail to parse.
-        // However, the localized parser accepts this, and when we convert it
-        // back to a Decimal, it disappears. So, we need to check first.
-        //
-        // FIXME(emilio): Should we just use the unlocalized parser
-        // (StringToDecimal) for the value setter? Other browsers don't seem to
-        // allow setting localized strings there, and that way we don't need
-        // this special-case.
-        aValue.Truncate();
-        return;
-      }
-
-      InputType::StringToNumberResult result =
-          mInputType->ConvertStringToNumber(aValue);
+      auto result =
+          aKind == SanitizationKind::ForValueSetter
+              ? InputType::StringToNumberResult{StringToDecimal(aValue)}
+              : mInputType->ConvertStringToNumber(aValue);
       if (!result.mResult.isFinite()) {
         aValue.Truncate();
         return;
@@ -4934,7 +4920,8 @@ void HTMLInputElement::SanitizeValue(nsAString& aValue,
           // FIXME(emilio, bug 1622808): Localization should ideally be more
           // input-preserving.
           nsString localizedValue;
-          mInputType->ConvertNumberToString(result.mResult, localizedValue);
+          mInputType->ConvertNumberToString(
+              result.mResult, InputType::Localized::Yes, localizedValue);
           if (!StringToDecimal(localizedValue).isFinite()) {
             aValue = std::move(localizedValue);
           }

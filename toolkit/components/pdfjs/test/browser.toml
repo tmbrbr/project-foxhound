@@ -81,6 +81,8 @@ support-files = [
   "file_pdfjs_object_stream.pdf^headers^",
 ]
 
+["browser_pdfjs_print_enabled.js"]
+
 ["browser_pdfjs_properties.js"]
 
 ["browser_pdfjs_saveas.js"]
@@ -90,7 +92,6 @@ support-files = [
 ]
 
 ["browser_pdfjs_savedialog.js"]
-skip-if = ["verify"]
 
 ["browser_pdfjs_secondary_toolbar_telemetry.js"]
 
@@ -110,4 +111,3 @@ support-files = ["moz.png"]
 ["browser_pdfjs_views.js"]
 
 ["browser_pdfjs_zoom.js"]
-skip-if = ["verify && debug && os == 'win'"]

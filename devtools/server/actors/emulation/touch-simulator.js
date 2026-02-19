@@ -32,8 +32,6 @@ const EVENTS_TO_HANDLE = [
   "mousedown",
   "mousemove",
   "mouseup",
-  "touchstart",
-  "touchend",
   "mouseenter",
   "mouseover",
   "mouseout",
@@ -54,6 +52,7 @@ class TouchSimulator {
     this.windowTarget = windowTarget;
     this.simulatorTarget = windowTarget.chromeEventHandler;
     this._currentPickerMap = new Map();
+    this.previousScreenY = 0;
   }
 
   enabled = false;
@@ -123,55 +122,6 @@ class TouchSimulator {
       return;
     }
 
-    // App touchstart & touchend should also be dispatched on the system app
-    // to match on-device behavior.
-    if (evt.type.startsWith("touch")) {
-      const sysFrame = content.realFrameElement;
-      if (!sysFrame) {
-        return;
-      }
-      const sysDocument = sysFrame.ownerDocument;
-      const sysWindow = sysDocument.defaultView;
-
-      const touchEvent = sysDocument.createEvent("touchevent");
-      const touch = evt.touches[0] || evt.changedTouches[0];
-      const point = sysDocument.createTouch(
-        sysWindow,
-        sysFrame,
-        0,
-        touch.pageX,
-        touch.pageY,
-        touch.screenX,
-        touch.screenY,
-        touch.clientX,
-        touch.clientY,
-        1,
-        1,
-        0,
-        0
-      );
-
-      const touches = sysDocument.createTouchList(point);
-      const targetTouches = touches;
-      const changedTouches = touches;
-      touchEvent.initTouchEvent(
-        evt.type,
-        true,
-        true,
-        sysWindow,
-        0,
-        false,
-        false,
-        false,
-        false,
-        touches,
-        targetTouches,
-        changedTouches
-      );
-      sysFrame.dispatchEvent(touchEvent);
-      return;
-    }
-
     // Ignore all but real mouse event coming from physical mouse
     // (especially ignore mouse event being dispatched from a touch event)
     if (
@@ -211,11 +161,12 @@ class TouchSimulator {
 
         this.startX = evt.pageX;
         this.startY = evt.pageY;
+        this.previousScreenY = this.startY;
 
         type = "touchstart";
         break;
 
-      case "mousemove":
+      case "mousemove": {
         if (!eventTarget) {
           // Don't propagate mousemove event when touchstart event isn't fired
           evt.stopPropagation();
@@ -223,7 +174,11 @@ class TouchSimulator {
         }
 
         type = "touchmove";
+        const deltaY = evt.screenY - this.previousScreenY;
+        this.previousScreenY = evt.screenY;
+        this.windowTarget.emit("contentScrolled", deltaY);
         break;
+      }
 
       case "mouseup":
         if (!eventTarget) {

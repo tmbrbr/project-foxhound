@@ -1,7 +1,4 @@
 [DEFAULT]
-prefs = [
-  "dom.svg.pathSegment.enabled=true",
-]
 support-files = [
   "MutationEventChecker.js",
   "a_href_destination.svg",
@@ -21,6 +18,7 @@ support-files = [
   "getSubStringLength-helper.svg",
   "matrixUtils.js",
   "object-delayed-intrinsic-size.sjs",
+  "object-immediate-intrinsic-size.sjs",
   "pointer-events.js",
   "scientific-helper.svg",
   "selectSubString-helper.svg",
@@ -115,6 +113,8 @@ skip-if = ["true"] # disabled-for-intermittent-failures--bug-701060
 ["test_nonAnimStrings.xhtml"]
 
 ["test_object-delayed-intrinsic-size.html"]
+
+["test_object-immediate-intrinsic-size.html"]
 
 ["test_onerror.xhtml"]
 

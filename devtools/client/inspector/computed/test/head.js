@@ -1,6 +1,5 @@
 /* Any copyright is dedicated to the Public Domain.
  http://creativecommons.org/publicdomain/zero/1.0/ */
-/* eslint no-unused-vars: [2, {"vars": "local"}] */
 
 "use strict";
 
@@ -9,10 +8,6 @@ Services.scriptloader.loadSubScript(
   "chrome://mochitests/content/browser/devtools/client/inspector/test/head.js",
   this
 );
-
-registerCleanupFunction(() => {
-  Services.prefs.clearUserPref("devtools.defaultColorUnit");
-});
 
 /**
  * Dispatch the copy event on the given element

@@ -22,7 +22,6 @@ import org.junit.runner.RunWith
 import org.mozilla.fenix.GleanMetrics.AppMenu
 import org.mozilla.fenix.GleanMetrics.Events
 import org.mozilla.fenix.GleanMetrics.HomeMenu
-import org.mozilla.fenix.GleanMetrics.HomeScreen
 import org.mozilla.fenix.GleanMetrics.Menu
 import org.mozilla.fenix.GleanMetrics.ReaderMode
 import org.mozilla.fenix.GleanMetrics.Translations
@@ -99,26 +98,6 @@ class MenuTelemetryMiddlewareTest {
         assertTelemetryRecorded(Events.browserMenuAction, item = "remove_from_top_sites")
     }
 
-    @Test
-    fun `WHEN navigating to the save submenu THEN record the save submenu browser menu telemetry`() {
-        val store = createStore()
-        assertNull(Events.browserMenuAction.testGetValue())
-
-        store.dispatch(MenuAction.SaveMenuClicked).joinBlocking()
-
-        assertTelemetryRecorded(Events.browserMenuAction, item = "save_submenu")
-    }
-
-    @Test
-    fun `WHEN navigating to the tools submenu THEN record the tools submenu browser menu telemetry`() {
-        val store = createStore()
-        assertNull(Events.browserMenuAction.testGetValue())
-
-        store.dispatch(MenuAction.ToolsMenuClicked).joinBlocking()
-
-        assertTelemetryRecorded(Events.browserMenuAction, item = "tools_submenu")
-    }
-
     fun `WHEN navigating to add site to home screen THEN record the add_to_homescreen browser menu telemetry`() {
         val store = createStore()
         assertNull(Events.browserMenuAction.testGetValue())
@@ -126,17 +105,6 @@ class MenuTelemetryMiddlewareTest {
         store.dispatch(MenuAction.Navigate.AddToHomeScreen).joinBlocking()
 
         assertTelemetryRecorded(Events.browserMenuAction, item = "add_to_homescreen")
-    }
-
-    @Test
-    fun `WHEN navigating to customize homepage THEN record the customize homepage telemetry`() {
-        val store = createStore()
-        assertNull(AppMenu.customizeHomepage.testGetValue())
-        assertNull(HomeScreen.customizeHomeClicked.testGetValue())
-
-        store.dispatch(MenuAction.Navigate.CustomizeHomepage).joinBlocking()
-
-        assertTelemetryRecorded(AppMenu.customizeHomepage)
     }
 
     @Test
@@ -186,26 +154,6 @@ class MenuTelemetryMiddlewareTest {
     }
 
     @Test
-    fun `WHEN opening a new tab THEN record the new tab browser menu telemetry`() {
-        val store = createStore()
-        assertNull(Events.browserMenuAction.testGetValue())
-
-        store.dispatch(MenuAction.Navigate.NewTab).joinBlocking()
-
-        assertTelemetryRecorded(Events.browserMenuAction, item = "new_tab")
-    }
-
-    @Test
-    fun `WHEN opening a new private tab THEN record the new private tab browser menu telemetry`() {
-        val store = createStore()
-        assertNull(Events.browserMenuAction.testGetValue())
-
-        store.dispatch(MenuAction.Navigate.NewPrivateTab).joinBlocking()
-
-        assertTelemetryRecorded(Events.browserMenuAction, item = "new_private_tab")
-    }
-
-    @Test
     fun `WHEN opening a site in app THEN record the open in app menu telemetry`() {
         val store = createStore()
         assertNull(Events.browserMenuAction.testGetValue())
@@ -250,6 +198,106 @@ class MenuTelemetryMiddlewareTest {
     }
 
     @Test
+    fun `WHEN navigating back without view history THEN record back telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Back(viewHistory = false)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "back")
+    }
+
+    @Test
+    fun `WHEN navigating back with view history THEN record back long press telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Back(viewHistory = true)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "back_long_press")
+    }
+
+    @Test
+    fun `WHEN navigating back from external menu without view history THEN record custom back telemetry`() {
+        val store = createStore(accessPoint = MenuAccessPoint.External)
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Back(viewHistory = false)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "custom_back")
+    }
+
+    @Test
+    fun `WHEN navigating back from external menu with view history THEN record custom back long press telemetry`() {
+        val store = createStore(accessPoint = MenuAccessPoint.External)
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Back(viewHistory = true)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "custom_back_long_press")
+    }
+
+    @Test
+    fun `WHEN navigating forward without view history THEN record forward telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Forward(viewHistory = false)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "forward")
+    }
+
+    @Test
+    fun `WHEN navigating forward with view history THEN record forward long press telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Forward(viewHistory = true)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "forward_long_press")
+    }
+
+    @Test
+    fun `WHEN navigating forward from external menu without view history THEN record custom forward telemetry`() {
+        val store = createStore(accessPoint = MenuAccessPoint.External)
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Forward(viewHistory = false)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "custom_forward")
+    }
+
+    @Test
+    fun `WHEN navigating forward from external menu with view history THEN record custom forward long press telemetry`() {
+        val store = createStore(accessPoint = MenuAccessPoint.External)
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Forward(viewHistory = true)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "custom_forward_long_press")
+    }
+
+    @Test
+    fun `WHEN reloading page THEN record reload telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Reload(bypassCache = false)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "reload")
+    }
+
+    @Test
+    fun `WHEN stopping page load THEN record stop telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Stop).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "stop")
+    }
+
+    @Test
     fun `WHEN navigating to the share sheet THEN record the share browser menu telemetry`() {
         val store = createStore()
         assertNull(Events.browserMenuAction.testGetValue())
@@ -257,6 +305,16 @@ class MenuTelemetryMiddlewareTest {
         store.dispatch(MenuAction.Navigate.Share).joinBlocking()
 
         assertTelemetryRecorded(Events.browserMenuAction, item = "share")
+    }
+
+    @Test
+    fun `WHEN navigating to the share sheet in custom tab THEN record the share custom tab telemetry`() {
+        val store = createStore(accessPoint = MenuAccessPoint.External)
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.Share).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "custom_share")
     }
 
     @Test
@@ -316,6 +374,36 @@ class MenuTelemetryMiddlewareTest {
         store.dispatch(MenuAction.FindInPage).joinBlocking()
 
         assertTelemetryRecorded(Events.browserMenuAction, item = "find_in_page")
+    }
+
+    @Test
+    fun `WHEN find in page feature is started in custom tab THEN record the find in page custom tab telemetry`() {
+        val store = createStore(accessPoint = MenuAccessPoint.External)
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.FindInPage).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "custom_find_in_page")
+    }
+
+    @Test
+    fun `WHEN menu banner action is dispatched THEN record the menu banner telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.MenuBanner).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "menu_banner")
+    }
+
+    @Test
+    fun `WHEN dismiss menu banner action is dispatched THEN record the menu banner telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.DismissMenuBanner).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "dismiss_menu_banner")
     }
 
     @Test
@@ -395,6 +483,16 @@ class MenuTelemetryMiddlewareTest {
     }
 
     @Test
+    fun `WHEN requesting desktop site in custom tab THEN record the desktop view ON custom tab telemetry`() {
+        val store = createStore(accessPoint = MenuAccessPoint.External)
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.RequestDesktopSite).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "custom_desktop_view_on")
+    }
+
+    @Test
     fun `WHEN requesting mobile site THEN record the desktop view OFF telemetry`() {
         val store = createStore()
         assertNull(Events.browserMenuAction.testGetValue())
@@ -402,6 +500,16 @@ class MenuTelemetryMiddlewareTest {
         store.dispatch(MenuAction.RequestMobileSite).joinBlocking()
 
         assertTelemetryRecorded(Events.browserMenuAction, item = "desktop_view_off")
+    }
+
+    @Test
+    fun `WHEN requesting mobile site in custom tab THEN record the desktop view OFF custom tab telemetry`() {
+        val store = createStore(accessPoint = MenuAccessPoint.External)
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.RequestMobileSite).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "custom_desktop_view_off")
     }
 
     fun `When opening a site in browser THEN record the open in Fenix telemetry`() {
@@ -451,6 +559,16 @@ class MenuTelemetryMiddlewareTest {
         store.dispatch(MenuAction.InstallAddon(Addon(""))).joinBlocking()
 
         assertTelemetryRecorded(Events.browserMenuAction, item = "install_addon")
+    }
+
+    @Test
+    fun `WHEN navigating to an installed add-on's details THEN record the installed addon details browser menu telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.InstalledAddonDetails(Addon(""))).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "installed_addon_details")
     }
 
     @Test

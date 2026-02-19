@@ -111,9 +111,11 @@ class MenuDialogMiddleware(
             is MenuAction.RemoveShortcut -> removeShortcut(context.store)
             is MenuAction.DeleteBrowsingDataAndQuit -> deleteBrowsingDataAndQuit()
             is MenuAction.FindInPage -> launchFindInPage()
+            is MenuAction.DismissMenuBanner -> dismissMenuBanner()
             is MenuAction.OpenInApp -> openInApp(context.store)
             is MenuAction.OpenInFirefox -> openInFirefox()
             is MenuAction.InstallAddon -> installAddon(context.store, action.addon)
+            is MenuAction.InstallAddonSuccess -> installAddonSuccess()
             is MenuAction.CustomMenuItemAction -> customMenuItemAction(action.intent, action.url)
             is MenuAction.ToggleReaderView -> toggleReaderView(state = currentState)
             is MenuAction.CustomizeReaderView -> customizeReaderView()
@@ -357,6 +359,10 @@ class MenuDialogMiddleware(
         )
     }
 
+    private fun installAddonSuccess() = scope.launch(Dispatchers.Main) {
+        onDismiss()
+    }
+
     private fun toggleReaderView(
         state: MenuState,
     ) = scope.launch {
@@ -383,6 +389,10 @@ class MenuDialogMiddleware(
     private fun launchFindInPage() = scope.launch {
         appStore.dispatch(FindInPageAction.FindInPageStarted)
         onDismiss()
+    }
+
+    private fun dismissMenuBanner() = scope.launch {
+        settings.shouldShowMenuBanner = false
     }
 
     private fun requestSiteMode(
@@ -423,6 +433,6 @@ class MenuDialogMiddleware(
     }
 
     companion object {
-        private const val NUMBER_OF_RECOMMENDED_ADDONS_TO_SHOW = 4
+        private const val NUMBER_OF_RECOMMENDED_ADDONS_TO_SHOW = 3
     }
 }

@@ -234,7 +234,9 @@ add_task(async function test_passwords_menu_external_links() {
   Services.fog.testResetFOG();
   await Services.fog.testFlushAllChildren();
 
+  await addMockPasswords();
   const passwordsSidebar = await openPasswordsSidebar();
+  await checkAllLoginsRendered(passwordsSidebar);
   await waitForSnapshots();
   const menu = passwordsSidebar.querySelector("panel-list");
   const menuButton = passwordsSidebar.querySelector("#more-options-menubutton");
@@ -275,6 +277,7 @@ add_task(async function test_passwords_menu_external_links() {
   // We need this since removing gBrowser.selectedTab (this is the tab that has about:preferences)
   // without a fallback causes an error. Leaving it causes a leak when running in chaos mode.
   // It seems that our testing framework is smart enough to cleanup about:blank pages.
+  LoginTestUtils.clearData();
   BrowserTestUtils.addTab(gBrowser, "about:blank");
   BrowserTestUtils.removeTab(gBrowser.selectedTab);
   SidebarController.hide();
@@ -296,10 +299,12 @@ add_task(async function test_passwords_menu_import_from_browser() {
   Services.fog.testResetFOG();
   await Services.fog.testFlushAllChildren();
 
+  await addMockPasswords();
   const passwordsSidebar = await openPasswordsSidebar();
   await waitForSnapshots();
   await testImportFromBrowser(passwordsSidebar);
 
+  LoginTestUtils.clearData();
   BrowserTestUtils.addTab(gBrowser, "about:blank");
   BrowserTestUtils.removeTab(gBrowser.selectedTab);
   SidebarController.hide();

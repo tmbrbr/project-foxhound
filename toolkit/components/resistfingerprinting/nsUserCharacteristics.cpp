@@ -5,6 +5,7 @@
 
 #include "nsUserCharacteristics.h"
 
+#include "nsComponentManagerUtils.h"
 #include "nsICryptoHash.h"
 #include "nsID.h"
 #include "nsIGfxInfo.h"
@@ -852,12 +853,6 @@ nsresult PopulateEssentials() {
   nsAutoCString uuidString;
   nsresult rv = Preferences::GetCString(kUUIDPref, uuidString);
   if (NS_FAILED(rv) || uuidString.Length() == 0) {
-    nsCOMPtr<nsIUUIDGenerator> uuidgen =
-        do_GetService("@mozilla.org/uuid-generator;1", &rv);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
     nsIDToCString id(nsID::GenerateUUID());
     uuidString = id.get();
     Preferences::SetCString(kUUIDPref, uuidString);

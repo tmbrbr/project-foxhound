@@ -32,7 +32,11 @@ OffscreenCanvasDisplayHelper::OffscreenCanvasDisplayHelper(
   mData.mSize.height = aHeight;
 }
 
-OffscreenCanvasDisplayHelper::~OffscreenCanvasDisplayHelper() = default;
+OffscreenCanvasDisplayHelper::~OffscreenCanvasDisplayHelper() {
+  MutexAutoLock lock(mMutex);
+  NS_ReleaseOnMainThread("OffscreenCanvas::mExpandedReader",
+                         mExpandedReader.forget());
+}
 
 void OffscreenCanvasDisplayHelper::DestroyElement() {
   MOZ_ASSERT(NS_IsMainThread());
@@ -59,6 +63,32 @@ void OffscreenCanvasDisplayHelper::DestroyCanvas() {
   mFrontBufferSurface = nullptr;
   mOffscreenCanvas = nullptr;
   mWorkerRef = nullptr;
+}
+
+void OffscreenCanvasDisplayHelper::SetWriteOnly(nsIPrincipal* aExpandedReader) {
+  MutexAutoLock lock(mMutex);
+  NS_ReleaseOnMainThread("OffscreenCanvasDisplayHelper::mExpandedReader",
+                         mExpandedReader.forget());
+  mExpandedReader = aExpandedReader;
+  mIsWriteOnly = true;
+}
+
+bool OffscreenCanvasDisplayHelper::CallerCanRead(
+    nsIPrincipal& aPrincipal) const {
+  MutexAutoLock lock(mMutex);
+  if (!mIsWriteOnly) {
+    return true;
+  }
+
+  // If mExpandedReader is set, this canvas was tainted only by
+  // mExpandedReader's resources. So allow reading if the subject
+  // principal subsumes mExpandedReader.
+  if (mExpandedReader && aPrincipal.Subsumes(mExpandedReader)) {
+    return true;
+  }
+
+  return nsContentUtils::PrincipalHasPermission(aPrincipal,
+                                                nsGkAtoms::all_urlsPermission);
 }
 
 bool OffscreenCanvasDisplayHelper::CanElementCaptureStream() const {
@@ -577,9 +607,21 @@ UniquePtr<uint8_t[]> OffscreenCanvasDisplayHelper::GetImageBuffer(
   }
 
   if (resistFingerprinting) {
+    nsIPrincipal* principal = nullptr;
+    {
+      MutexAutoLock lock(mMutex);
+      if (mCanvasElement) {
+        principal = mCanvasElement->NodePrincipal();
+      }
+      if (mOffscreenCanvas) {
+        principal = mOffscreenCanvas->GetParentObject()
+                        ? mOffscreenCanvas->GetParentObject()->PrincipalOrNull()
+                        : nullptr;
+      }
+    }
     nsRFPService::RandomizePixels(
-        cookieJarSettings, imageBuffer.get(), dataSurface->GetSize().width,
-        dataSurface->GetSize().height,
+        cookieJarSettings, principal, imageBuffer.get(),
+        dataSurface->GetSize().width, dataSurface->GetSize().height,
         dataSurface->GetSize().width * dataSurface->GetSize().height * 4,
         gfx::SurfaceFormat::A8R8G8B8_UINT32);
   }

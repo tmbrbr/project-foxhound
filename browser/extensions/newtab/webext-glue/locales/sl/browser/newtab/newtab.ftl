@@ -8,6 +8,9 @@
 newtab-page-title = Nov zavihek
 newtab-settings-button =
     .title = Prilagodite stran novega zavihka
+newtab-customize-panel-icon-button =
+    .title = Prilagodi to stran
+newtab-customize-panel-icon-button-label = Prilagodi
 newtab-personalize-settings-icon-label =
     .title = Prilagodite stran novega zavihka
     .aria-label = Nastavitve
@@ -15,7 +18,7 @@ newtab-settings-dialog-label =
     .aria-label = Nastavitve
 newtab-personalize-icon-label =
     .title = Prilagodite nov zavihek
-    .aria-label = Prilagodite nov zacihek
+    .aria-label = Prilagodite nov zavihek
 newtab-personalize-dialog-label =
     .aria-label = Prilagodi
 newtab-logo-and-wordmark =
@@ -108,7 +111,7 @@ newtab-menu-topsites-placeholder-tooltip =
 newtab-menu-edit-topsites = Uredi
 newtab-menu-open-new-window = Odpri v novem oknu
 newtab-menu-open-new-private-window = Odpri v novem zasebnem oknu
-newtab-menu-dismiss = Opusti
+newtab-menu-dismiss = Skrij
 newtab-menu-pin = Pripni
 newtab-menu-unpin = Odpni
 newtab-menu-delete-history = Izbriši iz zgodovine
@@ -117,7 +120,8 @@ newtab-menu-delete-pocket = Izbriši iz { -pocket-brand-name }a
 newtab-menu-archive-pocket = Arhiviraj v { -pocket-brand-name }
 newtab-menu-show-privacy-info = Naši pokrovitelji in vaša zasebnost
 newtab-menu-about-fakespot = O { -fakespot-brand-name(sklon: "mestnik") }
-newtab-menu-report-content = Prijavi to vsebino
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Prijavi
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Prepovej
@@ -190,6 +194,8 @@ newtab-label-sponsored-by = Pokrovitelj: { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponzorirano
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -313,6 +319,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Vreme
     .description = Današnja napoved vedno na očeh
+newtab-custom-trending-search-toggle =
+    .label = Trenutno iskano
+    .description = Priljubljene in pogosto iskane teme
 newtab-custom-close-button = Zapri
 newtab-custom-settings = Več nastavitev
 
@@ -409,7 +418,7 @@ feature-highlight-wallpaper =
 # “Celestial” referring to astronomy; positioned in or relating to the sky,
 # or outer space as observed in astronomy.
 # Not to be confused with religious definition of the word.
-newtab-wallpaper-category-title-celestial = Nebeški
+newtab-wallpaper-category-title-celestial = Nebesna
 newtab-wallpaper-celestial-lunar-eclipse = Lunin mrk
 newtab-wallpaper-celestial-earth-night = Nočna fotografija iz nizke orbite Zemlje
 newtab-wallpaper-celestial-starry-sky = Zvezdnato nebo
@@ -496,6 +505,9 @@ newtab-topic-selection-button-pick-interests = Izberite svoja zanimanja
 newtab-section-follow-button = Sledi
 newtab-section-following-button = Sledite
 newtab-section-unfollow-button = Nehaj slediti
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Prilagodite si vir
+newtab-section-follow-highlight-subtitle = Sledite svojim zanimanjem in dobivajte več vsebine, ki vam je všeč.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -530,6 +542,18 @@ newtab-custom-wallpaper-cta = Preizkusite
 
 ## Strings for download mobile highlight
 
+newtab-download-mobile-highlight-title = Prenesite { -brand-product-name } za mobilne naprave
+# "Scan the code" refers to scanning the QR code that appears above the body text that leads to Firefox for mobile download.
+newtab-download-mobile-highlight-body-variant-a = Skenirajte kodo in si zagotovite varno prenosno brskanje.
+newtab-download-mobile-highlight-body-variant-b = Nadaljujte, kjer ste končali, s sinhroniziranimi zavihki, gesli in drugimi podatki.
+newtab-download-mobile-highlight-body-variant-c = Ali ste vedeli, da lahko { -brand-product-name } vzamete s seboj? Isti brskalnik. V vašem žepu.
+newtab-download-mobile-highlight-image =
+    .aria-label = Koda QR za prenos { -brand-product-name(sklon: "rodilnik") } za mobilne naprave
+
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = Vaša priljubljena mesta na dosegu roke
+newtab-shortcuts-highlight-subtitle = Dodajte bližnjico in obdržite priljubljena spletna mesta le klik stran.
 
 ## Strings for reporting ads and content
 
@@ -551,3 +575,18 @@ newtab-report-content-spam-misleading =
     .label = Vsiljivo ali zavajajoče
 newtab-report-cancel = Prekliči
 newtab-report-submit = Pošlji
+newtab-toast-thanks-for-reporting =
+    .message = Hvala za prijavo.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Trenutno iskano v Googlu
+newtab-trending-searches-show-trending =
+    .title = Prikaži trenutno priljubljena iskanja
+newtab-trending-searches-hide-trending =
+    .title = Skrij trenutno priljubljena iskanja
+newtab-trending-searches-learn-more = Več o tem
+newtab-trending-searches-dismiss = Skrij trenutno priljubljena iskanja
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Trenutno iskano

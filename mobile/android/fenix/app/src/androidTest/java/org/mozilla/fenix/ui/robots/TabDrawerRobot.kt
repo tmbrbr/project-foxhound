@@ -129,7 +129,12 @@ class TabDrawerRobot(private val composeTestRule: ComposeTestRule) {
         }
     }
 
+    @OptIn(ExperimentalTestApi::class)
     fun verifyOpenTabsOrder(title: String, position: Int, isListViewEnabled: Boolean = false) {
+        composeTestRule.waitUntilAtLeastOneExists(
+            hasText(title),
+            waitingTime,
+        )
         Log.i(TAG, "verifyOpenTabsOrder: Trying to verify that the open tab at position: $position has title: $title")
         when (isListViewEnabled) {
            false -> {
@@ -241,12 +246,6 @@ class TabDrawerRobot(private val composeTestRule: ComposeTestRule) {
         Log.i(TAG, "verifyFab: Trying to verify that the new tab FAB button exists")
         composeTestRule.tabsTrayFab().assertExists()
         Log.i(TAG, "verifyFab: Verified that the new tab FAB button exists")
-    }
-
-    fun verifyNormalTabCounter() {
-        Log.i(TAG, "verifyNormalTabCounter: Trying to verify that the normal tabs list counter exists")
-        composeTestRule.normalTabsCounter().assertExists()
-        Log.i(TAG, "verifyNormalTabCounter: Verified that the normal tabs list counter exists")
     }
 
     /**

@@ -4,7 +4,42 @@ title: Changelog
 permalink: /changelog/
 ---
 
-# 140.0 (In Development)
+# 142.0 (In Development)
+* **feature-tabs**:
+  * Updated `LastTabFeature` to not close the current tab when there's no history. [Bug 1813413](https://bugzilla.mozilla.org/show_bug.cgi?id=1813413).
+* **feature-downloads**:
+  * `DownloadAction.RemoveDeletedDownloads` will now only remove downloads that are cancelled or completed. [Bug 1971848](https://bugzilla.mozilla.org/show_bug.cgi?id=1971848).
+* **concept-engine** and **browser-engine-gecko**
+  * 🌟️ Added `TrackingProtectionPolicy.bounceTrackingProtectionMode` it allows configuring the Bounce Tracking Protection feature, disabled by default. [Bug 1963445](https://bugzilla.mozilla.org/show_bug.cgi?id=1963445)
+  * ⚠️ Options to get, set, and clear browser preferences now require opt in for additional safety.
+  * 🌟️ Added `TrackingProtectionPolicy.allowListBaselineTrackingProtection` and `TrackingProtectionPolicy.allowListConvenienceTrackingProtection`.  Url-classifier(tracking-protection, tracking-annotation, etc) exception entries are categorized into baseline and convenience. The new member variables specify whether exception entries from the corresponding categories are applied. [Bug 1970632](https://bugzilla.mozilla.org/show_bug.cgi?id=1970632)
+* **browser-state**
+  * Removed `ContentState.isProductUrl` and related internal changes.
+* **support-ktx**
+  * Remove API level check for `setupPersistentInsets` and add a new option to consume insets; the default is the same current behaviour. [Bug 1977270](https://bugzilla.mozilla.org/show_bug.cgi?id=1977270) and [Bug 1976746](https://bugzilla.mozilla.org/show_bug.cgi?id=1976746).
+  * Remove API level check for `ImeInsetsSynchronizer`. [Bug 1977270](https://bugzilla.mozilla.org/show_bug.cgi?id=1977270)
+* **All components**
+  * ⚠️ Introduced `@ExperimentalAndroidComponentsApi` to indicate an API requires special care. Opt in via `@OptIn(ExperimentalAndroidComponentsApi::class)`.
+
+# 141.0
+=======
+* **feature-accounts**:
+  * Respond to FxA with an error response when unknown web channel messages are sent to the client.
+* **concept-engine**, **browser-engine-gecko**: Added methods to get, set, and clear browser preferences. [Bug 1949876](https://bugzilla.mozilla.org/show_bug.cgi?id=1949876)
+* **ui-widgets**
+  * Updated EngineViewClippingBehavior to support top and bottom toolbars at the same time.
+
+* **feature-downloads**
+  * ⚠️ **Breaking change**: Changed constructor of `DownloadEstimator`. [Bug 1970176](https://bugzilla.mozilla.org/show_bug.cgi?id=1970176).
+  * ⚠️ **Breaking change**: Changed parameters of `DownloadEstimator.estimatedRemainingTime`. [Bug 1970176](https://bugzilla.mozilla.org/show_bug.cgi?id=1970176).
+  * ⚠️ **Breaking change**: Added new `downloadEstimator` abstract val to `AbstractFetchDownloadService`. [Bug 1970176](https://bugzilla.mozilla.org/show_bug.cgi?id=1970176).
+  * ⚠️ **Breaking change**: Removed `dateTimeProvider` abstract val from `AbstractFetchDownloadService`. [Bug 1970176](https://bugzilla.mozilla.org/show_bug.cgi?id=1970176).
+  * ⚠️ **Breaking change**: Changed function signature of `DownloadNotification.createOngoingDownloadNotification`. [Bug 1970176](https://bugzilla.mozilla.org/show_bug.cgi?id=1970176).
+  * ⚠️ **Breaking change**: Changed behavior and constructor signatures of `TemporaryDownloadFeature`, `CopyDownloadFeature` and `ShareResourceFeature`. [Bug 1958367](https://bugzilla.mozilla.org/show_bug.cgi?id=1958367).
+    * Renamed `cleanupCacheCoroutineDispatcher` to `ioDispatcher`
+    * The new `ioDispatcher` param is now also used for the download operation.
+
+# 140.0
 * **feature-downloads**
   * `DownloadNotification.createOngoingDownloadNotification` will now show the download time remaining instead of the percentage completed in the notification summary. [Bug 1956577](https://bugzilla.mozilla.org/show_bug.cgi?id=1956577).
   * Added `DateTimeProvider` to provide date and time information. [Bug 1956577](https://bugzilla.mozilla.org/show_bug.cgi?id=1956577).
@@ -16,6 +51,35 @@ permalink: /changelog/
   * Added `alwaysOpenCheckboxAction` parameter to `AppLinksFeature`, this was moved from `AppLinksInterceptor`.
   * ⚠️ **Breaking change**: Moved prompt functionality back to `AppLinksFeature`.
   * ⚠️ **Breaking change**: Removed `interceptLinkClicks` parameter from `AppLinksInterceptor` since no usage sets this to false.
+
+* **support-rusterrors**:
+  * ⚠️ **Breaking change**: Deprecated in place of `support-appservices`. See below.
+
+* **support-rusthttp**:
+  * ⚠️ **Breaking change**: Deprecated in place of `support-appservices`. See below.
+
+* **support-rustlog**:
+  * ⚠️ **Breaking change**: Deprecated in place of `support-appservices`. See below.
+
+* **support-appservices**:
+  * 🆕 New component that components the individual rust ones.
+  * Adds a `AppServicesInitializer.init` that preserves the sequence for individual component initialization.
+  * Namespacing has been preserved from previous components, so only the dependency package needs updating.
+
+# 140.0
+* **feature-downloads**
+  * `DownloadNotification.createOngoingDownloadNotification` will now show the download time remaining instead of the percentage completed in the notification summary. [Bug 1956577](https://bugzilla.mozilla.org/show_bug.cgi?id=1956577).
+  * Added `DateTimeProvider` to provide date and time information. [Bug 1956577](https://bugzilla.mozilla.org/show_bug.cgi?id=1956577).
+  * Added `DownloadEstimator` to estimate download time remaining. [Bug 1956577](https://bugzilla.mozilla.org/show_bug.cgi?id=1956577).
+  * ⚠️ **Breaking change**: Added `downloadEstimator` property to `DownloadJobState`. [Bug 1956577](https://bugzilla.mozilla.org/show_bug.cgi?id=1956577).
+  * ⚠️ **Breaking change**: Added new 'dateTimeProvider' abstract val to `AbstractFetchDownloadService`. [Bug 1956577](https://bugzilla.mozilla.org/show_bug.cgi?id=1956577).
+  * ⚠️ **Breaking change**: Removed Deprecated `Long.toMegabyteOrKilobyteString` in v140. [Bug 1955689](https://bugzilla.mozilla.org/show_bug.cgi?id=1955689).
+* **feature-app-links**
+  * Added `alwaysOpenCheckboxAction` parameter to `AppLinksFeature`, this was moved from `AppLinksInterceptor`.
+  * ⚠️ **Breaking change**: Moved prompt functionality back to `AppLinksFeature`.
+  * ⚠️ **Breaking change**: Removed `interceptLinkClicks` parameter from `AppLinksInterceptor` since no usage sets this to false.
+* **feature-accounts**:
+  * Add support for `WebChannelCommand.SYNC_PREFERENCES` web channel messages.
 
 # 139.0
 * **feature-downloads**

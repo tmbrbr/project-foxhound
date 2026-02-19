@@ -8,6 +8,9 @@
 newtab-page-title = Nowy rejtarik
 newtab-settings-button =
     .title = Bok wašogo nowego rejtarika pśiměriś
+newtab-customize-panel-icon-button =
+    .title = Toś ten bok pśiměriś
+newtab-customize-panel-icon-button-label = Pśiměriś
 newtab-personalize-settings-icon-label =
     .title = Nowy rejtarik personalizěrowaś
     .aria-label = Nastajenja
@@ -117,7 +120,8 @@ newtab-menu-delete-pocket = Z { -pocket-brand-name } wulašowaś
 newtab-menu-archive-pocket = W { -pocket-brand-name } archiwěrowaś
 newtab-menu-show-privacy-info = Naše sponsory a waša priwatnosć
 newtab-menu-about-fakespot = Wó { -fakespot-brand-name }
-newtab-menu-report-content = Toś to wopśimjeśe k wěsći daś
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = K wěsći daś
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Blokěrowaś
@@ -191,6 +195,8 @@ newtab-label-sponsored-by = Sponserowany wót { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min.
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponserowany
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -314,6 +320,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Wjedro
     .description = Źinsajšna wjedrowa pśedpowěsć
+newtab-custom-trending-search-toggle =
+    .label = Woblubowane pytanja
+    .description = Popularne a cesto pytane temy
 newtab-custom-close-button = Zacyniś
 newtab-custom-settings = Dalšne nastajenja zastojaś
 
@@ -497,6 +506,9 @@ newtab-topic-selection-button-pick-interests = Wubjeŕśo swóje zajmy
 newtab-section-follow-button = Slědowaś
 newtab-section-following-button = Slědujucy
 newtab-section-unfollow-button = Wěcej njeslědowaś
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Zgłosujśo swój kanal nadrobno
+newtab-section-follow-highlight-subtitle = Slědujśo swójim zajmam, aby wěcej wó tom wiźeł, což se wam spódoba.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -539,6 +551,11 @@ newtab-download-mobile-highlight-body-variant-c = Sćo wěźeł, až móžośo {
 newtab-download-mobile-highlight-image =
     .aria-label = QR-kod za ześěgnjenje { -brand-product-name } za mobilne rědy
 
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = Waše fawority k ruce
+newtab-shortcuts-highlight-subtitle = Pśidajśo zwězanje, aby swóje nejlubše sedła jadno kliknjenje pšec źaržał.
+
 ## Strings for reporting ads and content
 
 newtab-report-content-why-reporting-this =
@@ -559,3 +576,18 @@ newtab-report-content-spam-misleading =
     .label = Spam abo torjecy
 newtab-report-cancel = Pśetergnuś
 newtab-report-submit = Wótpósłaś
+newtab-toast-thanks-for-reporting =
+    .message = Wjeliki źěk, až sćo dał to k wěsći.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Woblubowane temy na Google
+newtab-trending-searches-show-trending =
+    .title = Woblubowane pytanja pokazaś
+newtab-trending-searches-hide-trending =
+    .title = Woblubowane pytanja schowaś
+newtab-trending-searches-learn-more = Dalšne informacije
+newtab-trending-searches-dismiss = Woblubowane pytanja schowaś
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Woblubowane pytanja

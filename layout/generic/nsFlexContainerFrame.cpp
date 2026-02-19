@@ -12,8 +12,8 @@
 
 #include "gfxContext.h"
 #include "mozilla/Baseline.h"
-#include "mozilla/ComputedStyle.h"
 #include "mozilla/CSSOrderAwareFrameIterator.h"
+#include "mozilla/ComputedStyle.h"
 #include "mozilla/Logging.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/StaticPrefs_layout.h"
@@ -1432,7 +1432,8 @@ void nsFlexContainerFrame::GenerateFlexItemForChild(
   // or block-size, we need to dig through to the inner table.
   const auto* styleFrame = nsLayoutUtils::GetStyleFrame(aChildFrame);
   const auto* stylePos = styleFrame->StylePosition();
-  const auto positionProperty = styleFrame->StyleDisplay()->mPosition;
+  const auto anchorResolutionParams =
+      AnchorPosResolutionParams::From(styleFrame);
 
   // Construct a StyleSizeOverrides for this flex item so that its ReflowInput
   // below will use and resolve its flex base size rather than its corresponding
@@ -1447,7 +1448,7 @@ void nsFlexContainerFrame::GenerateFlexItemForChild(
     // preferred main size after all.
     const auto& flexBasis = stylePos->mFlexBasis;
     const auto styleMainSize =
-        stylePos->Size(aAxisTracker.MainAxis(), flexWM, positionProperty);
+        stylePos->Size(aAxisTracker.MainAxis(), flexWM, anchorResolutionParams);
     if (IsUsedFlexBasisContent(flexBasis, *styleMainSize)) {
       // If we get here, we're resolving the flex base size for a flex item, and
       // we fall into the flexbox spec section 9.2 step 3, substep C (if we have
@@ -1581,11 +1582,12 @@ nscoord nsFlexContainerFrame::PartiallyResolveAutoMinSize(
 
   const auto itemWM = aFlexItem.GetWritingMode();
   const auto cbWM = aAxisTracker.GetWritingMode();
-  const auto positionProperty = aItemReflowInput.mStyleDisplay->mPosition;
+  const auto anchorResolutionParams =
+      AnchorPosResolutionParams::From(&aItemReflowInput);
   const auto mainStyleSize = aItemReflowInput.mStylePosition->Size(
-      aAxisTracker.MainAxis(), cbWM, positionProperty);
+      aAxisTracker.MainAxis(), cbWM, anchorResolutionParams);
   const auto maxMainStyleSize = aItemReflowInput.mStylePosition->MaxSize(
-      aAxisTracker.MainAxis(), cbWM, positionProperty);
+      aAxisTracker.MainAxis(), cbWM, anchorResolutionParams);
   const auto boxSizingAdjust =
       aItemReflowInput.mStylePosition->mBoxSizing == StyleBoxSizing::Border
           ? aFlexItem.BorderPadding().Size(cbWM)
@@ -2241,16 +2243,19 @@ FlexItem::FlexItem(ReflowInput& aFlexItemReflowInput, float aFlexGrow,
   SetFlexBaseSizeAndMainSize(aFlexBaseSize);
 
   const nsStyleMargin* styleMargin = aFlexItemReflowInput.mStyleMargin;
-  const auto positionProperty = aFlexItemReflowInput.mStyleDisplay->mPosition;
-  mHasAnyAutoMargin = styleMargin->HasInlineAxisAuto(mCBWM, positionProperty) ||
-                      styleMargin->HasBlockAxisAuto(mCBWM, positionProperty);
+  const auto anchorResolutionParams =
+      AnchorPosResolutionParams::From(&aFlexItemReflowInput);
+  mHasAnyAutoMargin =
+      styleMargin->HasInlineAxisAuto(mCBWM, anchorResolutionParams) ||
+      styleMargin->HasBlockAxisAuto(mCBWM, anchorResolutionParams);
 
   // Assert that any "auto" margin components are set to 0.
   // (We'll resolve them later; until then, we want to treat them as 0-sized.)
 #ifdef DEBUG
   {
     for (const auto side : LogicalSides::All) {
-      if (styleMargin->GetMargin(side, mCBWM, positionProperty)->IsAuto()) {
+      if (styleMargin->GetMargin(side, mCBWM, anchorResolutionParams)
+              ->IsAuto()) {
         MOZ_ASSERT(GetMarginComponentForSide(side) == 0,
                    "Someone else tried to resolve our auto margin");
       }
@@ -2350,7 +2355,8 @@ bool FlexItem::IsMinSizeAutoResolutionNeeded() const {
   // Note that the scroll container case is redefined to be looking at the
   // computed value instead, see https://github.com/w3c/csswg-drafts/issues/7714
   const auto mainMinSize = Frame()->StylePosition()->MinSize(
-      MainAxis(), ContainingBlockWM(), Frame()->StyleDisplay()->mPosition);
+      MainAxis(), ContainingBlockWM(),
+      AnchorPosResolutionParams::From(Frame()));
 
   // "min-{height,width}:stretch" never produces an automatic minimum size. You
   // might think it would result in an automatic min-size if the containing
@@ -2425,13 +2431,14 @@ nscoord FlexItem::BaselineOffsetFromOuterCrossEdge(
 bool FlexItem::IsCrossSizeAuto() const {
   const auto* styleFrame = nsLayoutUtils::GetStyleFrame(mFrame);
   const nsStylePosition* stylePos = styleFrame->StylePosition();
-  const auto positionProperty = styleFrame->StyleDisplay()->mPosition;
+  const auto anchorResolutionParams =
+      AnchorPosResolutionParams::From(styleFrame);
   // Check whichever component is in the flex container's cross axis.
   // (IsInlineAxisCrossAxis() tells us whether that's our ISize or BSize, in
   // terms of our own WritingMode, mWM.)
   return IsInlineAxisCrossAxis()
-             ? stylePos->ISize(mWM, positionProperty)->IsAuto()
-             : stylePos->BSize(mWM, positionProperty)->IsAuto();
+             ? stylePos->ISize(mWM, anchorResolutionParams)->IsAuto()
+             : stylePos->BSize(mWM, anchorResolutionParams)->IsAuto();
 }
 
 bool FlexItem::IsCrossSizeDefinite(const ReflowInput& aItemReflowInput) const {
@@ -2441,18 +2448,19 @@ bool FlexItem::IsCrossSizeDefinite(const ReflowInput& aItemReflowInput) const {
   }
 
   const nsStylePosition* pos = aItemReflowInput.mStylePosition;
-  const auto positionProperty = aItemReflowInput.mStyleDisplay->mPosition;
+  const auto anchorResolutionParams =
+      AnchorPosResolutionParams::From(&aItemReflowInput);
   const auto itemWM = GetWritingMode();
 
   // The logic here should be similar to the logic for isAutoISize/isAutoBSize
   // in nsContainerFrame::ComputeSizeWithIntrinsicDimensions().
   if (IsInlineAxisCrossAxis()) {
-    return !pos->ISize(itemWM, positionProperty)->IsAuto();
+    return !pos->ISize(itemWM, anchorResolutionParams)->IsAuto();
   }
 
   nscoord cbBSize = aItemReflowInput.mContainingBlockSize.BSize(itemWM);
-  return !nsLayoutUtils::IsAutoBSize(*pos->BSize(itemWM, positionProperty),
-                                     cbBSize);
+  return !nsLayoutUtils::IsAutoBSize(
+      *pos->BSize(itemWM, anchorResolutionParams), cbBSize);
 }
 
 void FlexItem::ResolveFlexBaseSizeFromAspectRatio(
@@ -2469,7 +2477,8 @@ void FlexItem::ResolveFlexBaseSizeFromAspectRatio(
       nsFlexContainerFrame::IsUsedFlexBasisContent(
           aItemReflowInput.mStylePosition->mFlexBasis,
           *aItemReflowInput.mStylePosition->Size(
-              MainAxis(), mCBWM, aItemReflowInput.mStyleDisplay->mPosition)) &&
+              MainAxis(), mCBWM,
+              AnchorPosResolutionParams::From(&aItemReflowInput))) &&
       IsCrossSizeDefinite(aItemReflowInput)) {
     const LogicalSize contentBoxSizeToBoxSizingAdjust =
         aItemReflowInput.mStylePosition->mBoxSizing == StyleBoxSizing::Border
@@ -2484,10 +2493,10 @@ void FlexItem::ResolveFlexBaseSizeFromAspectRatio(
 uint32_t FlexItem::NumAutoMarginsInAxis(LogicalAxis aAxis) const {
   uint32_t numAutoMargins = 0;
   const auto* styleMargin = mFrame->StyleMargin();
-  const auto positionProperty = mFrame->StyleDisplay()->mPosition;
+  const auto anchorResolutionParams = AnchorPosResolutionParams::From(mFrame);
   for (const auto edge : {LogicalEdge::Start, LogicalEdge::End}) {
     const auto side = MakeLogicalSide(aAxis, edge);
-    if (styleMargin->GetMargin(side, mCBWM, positionProperty)->IsAuto()) {
+    if (styleMargin->GetMargin(side, mCBWM, anchorResolutionParams)->IsAuto()) {
       numAutoMargins++;
     }
   }
@@ -2952,11 +2961,9 @@ void nsFlexContainerFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
   // (or a blockified version thereof, to not hit bug 456484).
   if (displayInside == StyleDisplayInside::Flow) {
     MOZ_ASSERT(StyleDisplay()->mDisplay == StyleDisplay::Block);
-    MOZ_ASSERT(Style()->GetPseudoType() == PseudoStyleType::buttonContent ||
-                   Style()->GetPseudoType() == PseudoStyleType::scrolledContent,
+    MOZ_ASSERT(Style()->GetPseudoType() == PseudoStyleType::scrolledContent,
                "The only way a nsFlexContainerFrame can have 'display:block' "
-               "should be if it's the inner part of a scrollable or button "
-               "element");
+               "should be if it's the inner part of a scrollable element");
     displayInside = GetParent()->StyleDisplay()->DisplayInside();
   }
 
@@ -3580,9 +3587,10 @@ MainAxisPositionTracker::MainAxisPositionTracker(
 void MainAxisPositionTracker::ResolveAutoMarginsInMainAxis(FlexItem& aItem) {
   if (mNumAutoMarginsInMainAxis) {
     const auto* styleMargin = aItem.Frame()->StyleMargin();
-    const auto positionProperty = aItem.Frame()->StyleDisplay()->mPosition;
+    const auto anchorResolutionParams =
+        AnchorPosResolutionParams::From(aItem.Frame());
     for (const auto side : {StartSide(), EndSide()}) {
-      if (styleMargin->GetMargin(side, mWM, positionProperty)->IsAuto()) {
+      if (styleMargin->GetMargin(side, mWM, anchorResolutionParams)->IsAuto()) {
         // NOTE: This integer math will skew the distribution of remainder
         // app-units towards the end, which is fine.
         nscoord curAutoMarginSize =
@@ -3978,9 +3986,10 @@ void SingleLineCrossAxisPositionTracker::ResolveAutoMarginsInCrossAxis(
   // OK, we have at least one auto margin and we have some available space.
   // Give each auto margin a share of the space.
   const auto* styleMargin = aItem.Frame()->StyleMargin();
-  const auto positionProperty = aItem.Frame()->StyleDisplay()->mPosition;
+  const auto anchorResolutionParams =
+      AnchorPosResolutionParams::From(aItem.Frame());
   for (const auto side : {StartSide(), EndSide()}) {
-    if (styleMargin->GetMargin(side, mWM, positionProperty)->IsAuto()) {
+    if (styleMargin->GetMargin(side, mWM, anchorResolutionParams)->IsAuto()) {
       MOZ_ASSERT(aItem.GetMarginComponentForSide(side) == 0,
                  "Expecting auto margins to have value '0' before we "
                  "update them");
@@ -4630,7 +4639,7 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
       "Unconstrained inline size; this should only result from huge sizes "
       "(not intrinsic sizing w/ orthogonal flows)");
 
-  FLEX_LOG("Reflowing flex container frame %p ...", this);
+  FLEX_LOG("Reflow flex container frame %p", this);
 
   if (IsFrameTreeTooDeep(aReflowInput, aReflowOutput, aStatus)) {
     return;
@@ -4653,16 +4662,20 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
   // too conservative. min/max-content don't really depend on the container.
   WritingMode wm = aReflowInput.GetWritingMode();
   const nsStylePosition* stylePos = StylePosition();
-  const auto positionProperty = StyleDisplay()->mPosition;
-  const auto bsize = stylePos->BSize(wm, positionProperty);
+  const auto anchorResolutionParams =
+      AnchorPosOffsetResolutionParams::UseCBFrameSize(
+          AnchorPosResolutionParams::From(this));
+  const auto bsize = stylePos->BSize(wm, anchorResolutionParams.mBaseParams);
   if (bsize->HasPercent() ||
       (StyleDisplay()->IsAbsolutelyPositionedStyle() &&
        (bsize->IsAuto() || !bsize->IsLengthPercentage()) &&
        !stylePos
-            ->GetAnchorResolvedInset(LogicalSide::BStart, wm, positionProperty)
+            ->GetAnchorResolvedInset(LogicalSide::BStart, wm,
+                                     anchorResolutionParams)
             ->IsAuto() &&
        !stylePos
-            ->GetAnchorResolvedInset(LogicalSide::BEnd, wm, positionProperty)
+            ->GetAnchorResolvedInset(LogicalSide::BEnd, wm,
+                                     anchorResolutionParams)
             ->IsAuto())) {
     AddStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE);
   }
@@ -6476,6 +6489,9 @@ void nsFlexContainerFrame::ReflowPlaceholders(
 
 nscoord nsFlexContainerFrame::ComputeIntrinsicISize(
     const IntrinsicSizeInput& aInput, IntrinsicISizeType aType) {
+  FLEX_LOG("Compute %s isize for flex container frame %p",
+           aType == IntrinsicISizeType::MinISize ? "min" : "pref", this);
+
   if (Maybe<nscoord> containISize = ContainIntrinsicISize()) {
     return *containISize;
   }
@@ -6518,8 +6534,9 @@ nscoord nsFlexContainerFrame::ComputeIntrinsicISize(
     const auto childWM = childFrame->GetWritingMode();
     const IntrinsicSizeInput childInput(aInput, childWM, flexWM);
     const auto* styleFrame = nsLayoutUtils::GetStyleFrame(childFrame);
+    const auto childAnchorResolutionParams =
+        AnchorPosResolutionParams::From(styleFrame);
     const auto* childStylePos = styleFrame->StylePosition();
-    const auto childPositionProperty = styleFrame->StyleDisplay()->mPosition;
 
     // A flex item with a definite block size can transfer its block size to the
     // inline-axis via its own aspect-ratio or serve as a percentage basis for
@@ -6553,9 +6570,10 @@ nscoord nsFlexContainerFrame::ComputeIntrinsicISize(
       [[maybe_unused]] auto [alignSelf, flags] =
           UsedAlignSelfAndFlagsForItem(childFrame);
       if (alignSelf != StyleAlignFlags::STRETCH ||
-          !childStylePos->BSize(flexWM, childPositionProperty)->IsAuto() ||
-          childFrame->StyleMargin()->HasBlockAxisAuto(flexWM,
-                                                      childPositionProperty)) {
+          !childStylePos->BSize(flexWM, childAnchorResolutionParams)
+               ->IsAuto() ||
+          childFrame->StyleMargin()->HasBlockAxisAuto(
+              flexWM, childAnchorResolutionParams)) {
         // Similar to FlexItem::ResolveStretchedCrossSize(), we only stretch
         // the item if it satisfies all the following conditions:
         // - used align-self value is 'stretch' (CSSAlignmentForFlexItem() has

@@ -33,6 +33,10 @@
 
 #include "jstypes.h"
 
+#if JS_HAS_INTL_API
+#  include "builtin/intl/GlobalIntlData.h"
+#  include "builtin/intl/NumberFormat.h"
+#endif
 #include "builtin/String.h"
 #include "double-conversion/double-conversion.h"
 #include "frontend/ParserAtom.h"  // frontend::{ParserAtomsTable, TaggedParserAtomIndex}
@@ -722,21 +726,6 @@ static bool ThisNumberValue(JSContext* cx, const CallArgs& args,
   return true;
 }
 
-// On-off helper function for the self-hosted Number_toLocaleString method.
-// This only exists to produce an error message with the right method name.
-bool js::ThisNumberValueForToLocaleString(JSContext* cx, unsigned argc,
-                                          Value* vp) {
-  CallArgs args = CallArgsFromVp(argc, vp);
-
-  double d;
-  if (!ThisNumberValue(cx, args, "toLocaleString", &d)) {
-    return false;
-  }
-
-  args.rval().setNumber(d);
-  return true;
-}
-
 static bool num_toSource(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -930,17 +919,45 @@ static bool num_toString(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
-#if !JS_HAS_INTL_API
+/**
+ * Number.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
+ *
+ * ES2025 draft rev e42d11da7753bd933b1e7a5f3cb657ab0a8f6251
+ *
+ * Number.prototype.toLocaleString ( [ locales [ , options ] ] )
+ *
+ * ES2025 Intl draft rev 6827e6e40b45fb313472595be31352451a2d85fa
+ */
 static bool num_toLocaleString(JSContext* cx, unsigned argc, Value* vp) {
   AutoJSMethodProfilerEntry pseudoFrame(cx, "Number.prototype",
                                         "toLocaleString");
   CallArgs args = CallArgsFromVp(argc, vp);
 
+  // Step 1.
   double d;
   if (!ThisNumberValue(cx, args, "toLocaleString", &d)) {
     return false;
   }
 
+#if JS_HAS_INTL_API
+  HandleValue locales = args.get(0);
+  HandleValue options = args.get(1);
+
+  // Step 2.
+  Rooted<NumberFormatObject*> numberFormat(
+      cx, intl::GetOrCreateNumberFormat(cx, locales, options));
+  if (!numberFormat) {
+    return false;
+  }
+
+  // Step 3.
+  JSString* str = intl::FormatNumber(cx, numberFormat, d);
+  if (!str) {
+    return false;
+  }
+  args.rval().setString(str);
+  return true;
+#else
   RootedString str(cx, NumberToStringWithBase<CanGC>(cx, d, 10));
   if (!str) {
     return false;
@@ -1069,8 +1086,8 @@ static bool num_toLocaleString(JSContext* cx, unsigned argc, Value* vp) {
 
   args.rval().setString(str);
   return true;
+#endif
 }
-#endif /* !JS_HAS_INTL_API */
 
 bool js::num_valueOf(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
@@ -1329,11 +1346,7 @@ static bool num_toPrecision(JSContext* cx, unsigned argc, Value* vp) {
 static constexpr JSFunctionSpec number_methods[] = {
     JS_FN("toSource", num_toSource, 0, 0),
     JS_INLINABLE_FN("toString", num_toString, 1, 0, NumberToString),
-#if JS_HAS_INTL_API
-    JS_SELF_HOSTED_FN("toLocaleString", "Number_toLocaleString", 0, 0),
-#else
     JS_FN("toLocaleString", num_toLocaleString, 0, 0),
-#endif
     JS_FN("valueOf", num_valueOf, 0, 0),
     JS_FN("toFixed", num_toFixed, 1, 0),
     JS_FN("toExponential", num_toExponential, 1, 0),
@@ -1926,7 +1939,8 @@ template double js::CharsToNumber(const Latin1Char* chars, size_t length);
 
 template double js::CharsToNumber(const char16_t* chars, size_t length);
 
-double js::LinearStringToNumber(const JSLinearString* str) {
+template <class StringT>
+static double StringToNumberImpl(const StringT* str) {
   if (str->hasIndexValue()) {
     return str->getIndexValue();
   }
@@ -1935,6 +1949,13 @@ double js::LinearStringToNumber(const JSLinearString* str) {
   return str->hasLatin1Chars()
              ? CharsToNumber(str->latin1Chars(nogc), str->length())
              : CharsToNumber(str->twoByteChars(nogc), str->length());
+}
+
+double js::LinearStringToNumber(const JSLinearString* str) {
+  return StringToNumberImpl<JSLinearString>(str);
+}
+double js::OffThreadAtomToNumber(const JSOffThreadAtom* str) {
+  return StringToNumberImpl<JSOffThreadAtom>(str);
 }
 
 bool js::StringToNumber(JSContext* cx, JSString* str, double* result) {

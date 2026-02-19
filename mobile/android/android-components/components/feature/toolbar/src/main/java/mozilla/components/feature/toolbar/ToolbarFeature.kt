@@ -82,17 +82,19 @@ class ToolbarFeature(
      */
     data class UrlRenderConfiguration(
         internal val publicSuffixList: PublicSuffixList,
-        @ColorInt internal val registrableDomainColor: Int,
-        @ColorInt internal val urlColor: Int? = null,
+        @param:ColorInt internal val registrableDomainColor: Int,
+        @param:ColorInt internal val urlColor: Int? = null,
         internal val renderStyle: RenderStyle = RenderStyle.ColoredUrl,
     )
 
     /**
-     * Controls how the url should be styled
+     * Controls how the URL should be styled
      *
      * RegistrableDomain: displays only the eTLD+1 (direct subdomain of the public suffix), uncolored
-     * ColoredUrl: displays the registrableDomain with color and url with another color
-     * UncoloredUrl: displays the full url, uncolored
+     * ColoredUrl: displays the full URL with distinct colors for the registrable domain and the rest of the URL.
+     *   Colors the entire hostname if the registrable domain cannot be determined or is an IP address.
+     *   Leaves non http(s) URLs uncolored.
+     * UncoloredUrl: displays the full URL, uncolored
      */
     sealed class RenderStyle {
         object RegistrableDomain : RenderStyle()

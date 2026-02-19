@@ -207,6 +207,8 @@ impl Global {
         offset: BufferAddress,
         data: &[u8],
     ) -> BufferAccessResult {
+        use crate::resource::RawResourceAccess;
+
         let hub = &self.hub;
 
         let buffer = hub.buffers.get(buffer_id).get()?;
@@ -252,13 +254,16 @@ impl Global {
         Ok(())
     }
 
-    pub fn buffer_destroy(&self, buffer_id: id::BufferId) -> Result<(), resource::DestroyError> {
+    pub fn buffer_destroy(&self, buffer_id: id::BufferId) {
         profiling::scope!("Buffer::destroy");
         api_log!("Buffer::destroy {buffer_id:?}");
 
         let hub = &self.hub;
 
-        let buffer = hub.buffers.get(buffer_id).get()?;
+        let Ok(buffer) = hub.buffers.get(buffer_id).get() else {
+            // If the buffer is already invalid, there's nothing to do.
+            return;
+        };
 
         #[cfg(feature = "trace")]
         if let Some(trace) = buffer.device.trace.lock().as_mut() {
@@ -270,7 +275,7 @@ impl Global {
             buffer_id,
         );
 
-        buffer.destroy()
+        buffer.destroy();
     }
 
     pub fn buffer_drop(&self, buffer_id: id::BufferId) {
@@ -380,6 +385,7 @@ impl Global {
     /// - `hal_buffer` must be created from `device_id` corresponding raw handle.
     /// - `hal_buffer` must be created respecting `desc`
     /// - `hal_buffer` must be initialized
+    /// - `hal_buffer` must not have zero size.
     pub unsafe fn create_buffer_from_hal<A: HalApi>(
         &self,
         hal_buffer: A::Buffer,
@@ -401,7 +407,7 @@ impl Global {
             trace.add(trace::Action::CreateBuffer(fid.id(), desc.clone()));
         }
 
-        let (buffer, err) = device.create_buffer_from_hal(Box::new(hal_buffer), desc);
+        let (buffer, err) = unsafe { device.create_buffer_from_hal(Box::new(hal_buffer), desc) };
 
         let id = fid.assign(buffer);
         api_log!("Device::create_buffer -> {id:?}");
@@ -409,20 +415,23 @@ impl Global {
         (id, err)
     }
 
-    pub fn texture_destroy(&self, texture_id: id::TextureId) -> Result<(), resource::DestroyError> {
+    pub fn texture_destroy(&self, texture_id: id::TextureId) {
         profiling::scope!("Texture::destroy");
         api_log!("Texture::destroy {texture_id:?}");
 
         let hub = &self.hub;
 
-        let texture = hub.textures.get(texture_id).get()?;
+        let Ok(texture) = hub.textures.get(texture_id).get() else {
+            // If the texture is already invalid, there's nothing to do.
+            return;
+        };
 
         #[cfg(feature = "trace")]
         if let Some(trace) = texture.device.trace.lock().as_mut() {
             trace.add(trace::Action::FreeTexture(texture_id));
         }
 
-        texture.destroy()
+        texture.destroy();
     }
 
     pub fn texture_drop(&self, texture_id: id::TextureId) {
@@ -648,6 +657,10 @@ impl Global {
                 trace.add(trace::Action::CreatePipelineLayout(fid.id(), desc.clone()));
             }
 
+            if let Err(e) = device.check_is_valid() {
+                break 'error e.into();
+            }
+
             let bind_group_layouts = {
                 let bind_group_layouts_guard = hub.bind_group_layouts.read();
                 desc.bind_group_layouts
@@ -714,6 +727,10 @@ impl Global {
             #[cfg(feature = "trace")]
             if let Some(ref mut trace) = *device.trace.lock() {
                 trace.add(trace::Action::CreateBindGroup(fid.id(), desc.clone()));
+            }
+
+            if let Err(e) = device.check_is_valid() {
+                break 'error e.into();
             }
 
             let layout = match hub.bind_group_layouts.get(desc.layout).get() {
@@ -978,6 +995,18 @@ impl Global {
                                 runtime_checks: wgt::ShaderRuntimeChecks::unchecked(),
                             }
                         }
+                        pipeline::ShaderModuleDescriptorPassthrough::Dxil(inner) => {
+                            pipeline::ShaderModuleDescriptor {
+                                label: inner.label.clone(),
+                                runtime_checks: wgt::ShaderRuntimeChecks::unchecked(),
+                            }
+                        }
+                        pipeline::ShaderModuleDescriptorPassthrough::Hlsl(inner) => {
+                            pipeline::ShaderModuleDescriptor {
+                                label: inner.label.clone(),
+                                runtime_checks: wgt::ShaderRuntimeChecks::unchecked(),
+                            }
+                        }
                     },
                     data,
                 });
@@ -1040,7 +1069,11 @@ impl Global {
             return (id.into_command_encoder_id(), None);
         };
 
-        let id = fid.assign(Arc::new(CommandBuffer::new_invalid(&device, &desc.label)));
+        let id = fid.assign(Arc::new(CommandBuffer::new_invalid(
+            &device,
+            &desc.label,
+            error.clone().into(),
+        )));
         (id.into_command_encoder_id(), Some(error))
     }
 
@@ -1226,6 +1259,10 @@ impl Global {
                     desc: desc.clone(),
                     implicit_context: implicit_context.clone(),
                 });
+            }
+
+            if let Err(e) = device.check_is_valid() {
+                break 'error e.into();
             }
 
             let layout = desc
@@ -1461,6 +1498,10 @@ impl Global {
                     desc: desc.clone(),
                     implicit_context: implicit_context.clone(),
                 });
+            }
+
+            if let Err(e) = device.check_is_valid() {
+                break 'error e.into();
             }
 
             let layout = desc

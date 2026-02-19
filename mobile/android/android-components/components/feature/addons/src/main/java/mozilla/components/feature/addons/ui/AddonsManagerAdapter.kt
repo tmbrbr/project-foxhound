@@ -21,6 +21,7 @@ import androidx.annotation.DimenRes
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.isInvisible
@@ -410,10 +411,10 @@ class AddonsManagerAdapter(
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal data class Section(@StringRes val title: Int, val visibleDivider: Boolean = true)
+    internal data class Section(@param:StringRes val title: Int, val visibleDivider: Boolean = true)
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal data class NotYetSupportedSection(@StringRes val title: Int)
+    internal data class NotYetSupportedSection(@param:StringRes val title: Int)
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal object FooterSection
@@ -425,20 +426,14 @@ class AddonsManagerAdapter(
      * Allows to customize how items should look like.
      */
     data class Style(
-        @ColorRes
-        val sectionsTextColor: Int? = null,
-        @ColorRes
-        val addonNameTextColor: Int? = null,
-        @ColorRes
-        val addonSummaryTextColor: Int? = null,
+        @param:ColorRes val sectionsTextColor: Int? = null,
+        @param:ColorRes val addonNameTextColor: Int? = null,
+        @param:ColorRes val addonSummaryTextColor: Int? = null,
         val sectionsTypeFace: Typeface? = null,
-        @DrawableRes
-        val addonAllowPrivateBrowsingLabelDrawableRes: Int? = null,
+        @param:DrawableRes val addonAllowPrivateBrowsingLabelDrawableRes: Int? = null,
         val visibleDividers: Boolean = true,
-        @ColorRes
-        val dividerColor: Int? = null,
-        @DimenRes
-        val dividerHeight: Int? = null,
+        @param:ColorRes val dividerColor: Int? = null,
+        @param:DimenRes val dividerHeight: Int? = null,
     ) {
         internal fun maybeSetSectionsTextColor(textView: TextView) {
             sectionsTextColor?.let {
@@ -469,7 +464,7 @@ class AddonsManagerAdapter(
 
         internal fun maybeSetPrivateBrowsingLabelDrawable(imageView: ImageView) {
             addonAllowPrivateBrowsingLabelDrawableRes?.let {
-                imageView.setImageDrawable(ContextCompat.getDrawable(imageView.context, it))
+                imageView.setImageDrawable(AppCompatResources.getDrawable(imageView.context, it))
             }
         }
 

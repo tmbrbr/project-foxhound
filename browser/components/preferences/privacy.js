@@ -23,6 +23,8 @@ const CONTENT_BLOCKING_PREFS = [
   "privacy.trackingprotection.emailtracking.pbmode.enabled",
   "privacy.fingerprintingProtection",
   "privacy.fingerprintingProtection.pbmode",
+  "privacy.trackingprotection.allow_list.baseline.enabled",
+  "privacy.trackingprotection.allow_list.convenience.enabled",
 ];
 
 const PREF_OPT_OUT_STUDIES_ENABLED = "app.shield.optoutstudies.enabled";
@@ -77,7 +79,7 @@ XPCOMUtils.defineLazyPreferenceGetter(
 );
 
 ChromeUtils.defineESModuleGetters(this, {
-  DoHConfigController: "resource://gre/modules/DoHConfig.sys.mjs",
+  DoHConfigController: "moz-src:///toolkit/components/doh/DoHConfig.sys.mjs",
   Sanitizer: "resource:///modules/Sanitizer.sys.mjs",
   SelectableProfileService:
     "resource:///modules/profiles/SelectableProfileService.sys.mjs",
@@ -120,6 +122,14 @@ Preferences.addAll([
   { id: "privacy.trackingprotection.emailtracking.enabled", type: "bool" },
   {
     id: "privacy.trackingprotection.emailtracking.pbmode.enabled",
+    type: "bool",
+  },
+  {
+    id: "privacy.trackingprotection.allow_list.baseline.enabled",
+    type: "bool",
+  },
+  {
+    id: "privacy.trackingprotection.allow_list.convenience.enabled",
     type: "bool",
   },
 
@@ -437,21 +447,6 @@ var gPrivacyPane = {
   },
 
   /**
-   * Hide the "Change Block List" link for trackers/tracking content in the
-   * custom Content Blocking/ETP panel. By default, it will not be visible.
-   */
-  _showCustomBlockList() {
-    let prefValue = Services.prefs.getBoolPref(
-      "browser.contentblocking.customBlockList.preferences.ui.enabled"
-    );
-    if (!prefValue) {
-      document.getElementById("changeBlockListLink").style.display = "none";
-    } else {
-      setEventListener("changeBlockListLink", "click", this.showBlockLists);
-    }
-  },
-
-  /**
    * Set up handlers for showing and hiding controlling extension info
    * for tracking protection.
    */
@@ -479,6 +474,30 @@ var gPrivacyPane = {
         Services.prefs.removeObserver(pref, trackingProtectionObserver);
       }
     });
+  },
+
+  /**
+   * Ensure the tracking protection exception list is migrated before the privacy
+   * preferences UI is shown.
+   * If the migration has already been run, this is a no-op.
+   */
+  _ensureTrackingProtectionExceptionListMigration() {
+    // Let's check the migration pref here as well to avoid the extra xpcom call
+    // for the common case where we've already migrated.
+    if (
+      Services.prefs.getBoolPref(
+        "privacy.trackingprotection.allow_list.hasMigratedCategoryPrefs",
+        false
+      )
+    ) {
+      return;
+    }
+
+    let exceptionListService = Cc[
+      "@mozilla.org/url-classifier/exception-list-service;1"
+    ].getService(Ci.nsIUrlClassifierExceptionListService);
+
+    exceptionListService.maybeMigrateCategoryPrefs();
   },
 
   _initThirdPartyCertsToggle() {
@@ -937,11 +956,11 @@ var gPrivacyPane = {
     /* Initialize Content Blocking */
     this.initContentBlocking();
 
-    this._showCustomBlockList();
     this.trackingProtectionReadPrefs();
     this.fingerprintingProtectionReadPrefs();
     this.networkCookieBehaviorReadPrefs();
     this._initTrackingProtectionExtensionControl();
+    this._ensureTrackingProtectionExceptionListMigration();
     this._initThirdPartyCertsToggle();
     this._initProfilesInfo();
 
@@ -1236,6 +1255,10 @@ var gPrivacyPane = {
         privateBrowsingPref.value;
     }
 
+    setSyncFromPrefListener("contentBlockingBaselineExceptionsCustom", () =>
+      this.readBaselineExceptionState()
+    );
+
     /* init HTTPS-Only mode */
     this.initHttpsOnly();
 
@@ -1474,8 +1497,8 @@ var gPrivacyPane = {
           defaults.getBoolPref(
             "privacy.trackingprotection.cryptomining.enabled"
           )
-            ? "cm"
-            : "-cm"
+            ? "cryptoTP"
+            : "-cryptoTP"
         );
         rulesArray.push(
           defaults.getBoolPref(
@@ -1549,11 +1572,11 @@ var gPrivacyPane = {
               selector + " .fingerprinters-option"
             ).hidden = true;
             break;
-          case "cm":
+          case "cryptoTP":
             document.querySelector(selector + " .cryptominers-option").hidden =
               false;
             break;
-          case "-cm":
+          case "-cryptoTP":
             document.querySelector(selector + " .cryptominers-option").hidden =
               true;
             break;
@@ -1717,7 +1740,8 @@ var gPrivacyPane = {
       fppMenu.value = "never";
       fppCheckbox.checked = false;
     }
-    fppMenu.disabled = !fppCheckbox.checked;
+    fppMenu.disabled = !fppCheckbox.checked || enabledPref.locked;
+    fppCheckbox.disabled = enabledPref.locked;
   },
 
   /**
@@ -2343,15 +2367,6 @@ var gPrivacyPane = {
     );
   },
 
-  /**
-   * Displays the available block lists for tracking protection.
-   */
-  showBlockLists() {
-    gSubDialog.open(
-      "chrome://browser/content/preferences/dialogs/blocklists.xhtml"
-    );
-  },
-
   // COOKIES AND SITE DATA
 
   /*
@@ -2917,10 +2932,7 @@ var gPrivacyPane = {
   async changeMasterPassword() {
     // Require OS authentication before the user can set a Primary Password.
     // OS reauthenticate functionality is not available on Linux yet (bug 1527745)
-    if (
-      !LoginHelper.isPrimaryPasswordSet() &&
-      LoginHelper.getOSAuthEnabled(LoginHelper.OS_AUTH_FOR_PASSWORDS_PREF)
-    ) {
+    if (!LoginHelper.isPrimaryPasswordSet() && LoginHelper.getOSAuthEnabled()) {
       // Uses primary-password-os-auth-dialog-message-win and
       // primary-password-os-auth-dialog-message-macosx via concatenation:
       let messageId =
@@ -3072,10 +3084,7 @@ var gPrivacyPane = {
     }
 
     // If osReauthCheckbox is checked enable osauth.
-    LoginHelper.setOSAuthEnabled(
-      LoginHelper.OS_AUTH_FOR_PASSWORDS_PREF,
-      osReauthCheckbox.checked
-    );
+    LoginHelper.setOSAuthEnabled(osReauthCheckbox.checked);
 
     Glean.pwmgr.requireOsReauthToggle.record({
       toggle_state: osReauthCheckbox.checked,
@@ -3092,10 +3101,7 @@ var gPrivacyPane = {
       return;
     }
 
-    osReauthCheckbox.setAttribute(
-      "checked",
-      LoginHelper.getOSAuthEnabled(LoginHelper.OS_AUTH_FOR_PASSWORDS_PREF)
-    );
+    osReauthCheckbox.setAttribute("checked", LoginHelper.getOSAuthEnabled());
 
     setEventListener(
       "osReauthCheckbox",
@@ -3557,5 +3563,24 @@ var gPrivacyPane = {
   updateProfilesPrivacyInfo() {
     let profilesInfo = document.getElementById("preferences-privacy-profiles");
     profilesInfo.hidden = !SelectableProfileService.isEnabled;
+  },
+
+  /**
+   * Checks the "privacy.trackingprotection.allow_list.baseline.enabled" pref.
+   * If the baseline is disabled, update the convenience exceptions pref to false, as convenience
+   * exceptions are only allowed when the baseline is enabled.
+   */
+  readBaselineExceptionState() {
+    const isBaselineEnabled = Preferences.get(
+      "privacy.trackingprotection.allow_list.baseline.enabled"
+    ).value;
+
+    // If the baseline is disabled, disable the convenience exceptions preference.
+    if (!isBaselineEnabled) {
+      Services.prefs.setBoolPref(
+        "privacy.trackingprotection.allow_list.convenience.enabled",
+        false
+      );
+    }
   },
 };

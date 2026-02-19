@@ -89,7 +89,7 @@ class WebPlatformTestsRunnerSetup(MozbuildObject):
             kwargs["certutil_binary"] = self.get_binary_path("certutil")
 
         if kwargs["install_fonts"] is None:
-            kwargs["install_fonts"] = True
+            kwargs["install_fonts"] = False
 
         if kwargs["preload_browser"] is None:
             kwargs["preload_browser"] = False
@@ -99,6 +99,9 @@ class WebPlatformTestsRunnerSetup(MozbuildObject):
 
         if kwargs["stackfix_dir"] is None:
             kwargs["stackfix_dir"] = self.bindir
+
+        if kwargs["symbols_path"] is None:
+            kwargs["symbols_path"] = os.path.join(self.distdir, "crashreporter-symbols")
 
         kwargs["gmp_path"] = os.pathsep.join(
             os.path.join(self.distdir, "bin", p, "1.0")
@@ -141,7 +144,7 @@ class WebPlatformTestsRunnerSetup(MozbuildObject):
             )
 
         if kwargs["install_fonts"] is None:
-            kwargs["install_fonts"] = True
+            kwargs["install_fonts"] = False
 
         if not kwargs["device_serial"]:
             kwargs["device_serial"] = ["emulator-5554"]

@@ -17,13 +17,25 @@
         <label class="tab-group-label" role="button"/>
       </vbox>
       <html:slot/>
+      <vbox class="tab-group-overflow-count-container" pack="center">
+        <label class="tab-group-overflow-count" role="button" />
+      </vbox>
       `;
+
+    /** @type {string} */
+    #defaultGroupName = "";
 
     /** @type {string} */
     #label;
 
     /** @type {MozTextLabel} */
     #labelElement;
+
+    /** @type {MozTextLabel} */
+    #overflowCountLabel;
+
+    /** @type {MozXULElement} */
+    #overflowContainer;
 
     /** @type {string} */
     #colorCode;
@@ -52,6 +64,10 @@
       // causes the component to be repositioned in the DOM.
       this.#observeTabChanges();
 
+      // Similar to above, always set up TabSelect listener, as this gets
+      // removed in disconnectedCallback
+      this.ownerGlobal.addEventListener("TabSelect", this);
+
       if (this._initialized) {
         return;
       }
@@ -63,12 +79,24 @@
       this.appendChild(this.constructor.fragment);
       this.initializeAttributeInheritance();
 
+      Services.obs.addObserver(
+        this.resetDefaultGroupName,
+        "intl:app-locales-changed"
+      );
+      window.addEventListener("unload", () => {
+        Services.obs.removeObserver(
+          this.resetDefaultGroupName,
+          "intl:app-locales-changed"
+        );
+      });
+
+      this.addEventListener("click", this);
+
       this.#labelElement = this.querySelector(".tab-group-label");
       // Mirroring MozTabbrowserTab
       this.#labelElement.container = gBrowser.tabContainer;
       this.#labelElement.group = this;
 
-      this.#labelElement.addEventListener("click", this);
       this.#labelElement.addEventListener("contextmenu", e => {
         e.preventDefault();
         gBrowser.tabGroupMenu.openEditModal(this);
@@ -78,7 +106,12 @@
       this.#updateLabelAriaAttributes();
       this.#updateCollapsedAriaAttributes();
 
-      this.addEventListener("TabSelect", this);
+      this.#overflowContainer = this.querySelector(
+        ".tab-group-overflow-count-container"
+      );
+      this.#overflowCountLabel = this.#overflowContainer.querySelector(
+        ".tab-group-overflow-count"
+      );
 
       let tabGroupCreateDetail = this.#wasCreatedByAdoption
         ? { isAdoptingGroup: true }
@@ -95,49 +128,24 @@
       this.#wasCreatedByAdoption = false;
     }
 
+    resetDefaultGroupName = () => {
+      this.#defaultGroupName = "";
+      this.#updateLabelAriaAttributes();
+      this.#updateTooltip();
+    };
+
     disconnectedCallback() {
+      this.ownerGlobal.removeEventListener("TabSelect", this);
       this.#tabChangeObserver?.disconnect();
+    }
+
+    appendChild(node) {
+      return this.insertBefore(node, this.#overflowContainer);
     }
 
     #observeTabChanges() {
       if (!this.#tabChangeObserver) {
-        this.#tabChangeObserver = new window.MutationObserver(mutationList => {
-          for (let mutation of mutationList) {
-            // TabGrouped and TabUngrouped events are triggered on the tab
-            // group, not the tab itself. This is a bit unorthodox, but fixes
-            // bug1964152 where tab group events are not fired correctly when
-            // tabs change windows (because the tab is detached from the DOM at
-            // time of the event).
-            mutation.addedNodes.forEach(node => {
-              if (node.tagName === "tab") {
-                this.dispatchEvent(
-                  new CustomEvent("TabGrouped", {
-                    bubbles: true,
-                    detail: node,
-                  })
-                );
-                node.setAttribute("aria-level", 2);
-              }
-            });
-            mutation.removedNodes.forEach(node => {
-              if (node.tagName === "tab") {
-                this.dispatchEvent(
-                  new CustomEvent("TabUngrouped", {
-                    bubbles: true,
-                    detail: node,
-                  })
-                );
-                // Tab could have moved to be ungrouped (level 1)
-                // or to a different group (level 2).
-                node.setAttribute("aria-level", node.group ? 2 : 1);
-                // `posinset` and `setsize` only need to be set explicitly
-                // on grouped tabs so that a11y tools can tell users that a
-                // given tab is "2 of 7" in the group, for example.
-                node.removeAttribute("aria-posinset");
-                node.removeAttribute("aria-setsize");
-              }
-            });
-          }
+        this.#tabChangeObserver = new window.MutationObserver(() => {
           if (!this.tabs.length) {
             this.dispatchEvent(
               new CustomEvent("TabGroupRemoved", { bubbles: true })
@@ -148,14 +156,44 @@
               "browser-tabgroup-removed-from-dom"
             );
           } else {
-            // Renumber tabs so that a11y tools can tell users that a given
-            // tab is "2 of 7" in the group, for example.
             let tabs = this.tabs;
             let tabCount = tabs.length;
             tabs.forEach((tab, index) => {
+              if (tab.selected) {
+                this.hasActiveTab = true;
+              }
+
+              // Renumber tabs so that a11y tools can tell users that a given
+              // tab is "2 of 7" in the group, for example.
               tab.setAttribute("aria-posinset", index + 1);
               tab.setAttribute("aria-setsize", tabCount);
             });
+
+            // When a group containing the active tab is collapsed,
+            // the overflow count displays the number of additional tabs
+            // in the group adjacent to the active tab.
+            let overflowCountLabel = this.#overflowContainer.querySelector(
+              ".tab-group-overflow-count"
+            );
+            if (tabCount > 1) {
+              gBrowser.tabLocalization
+                .formatValue("tab-group-overflow-count", {
+                  tabCount: tabCount - 1,
+                })
+                .then(result => (overflowCountLabel.textContent = result));
+              gBrowser.tabLocalization
+                .formatValue("tab-group-overflow-count-tooltip", {
+                  tabCount: tabCount - 1,
+                })
+                .then(result => {
+                  overflowCountLabel.setAttribute("tooltiptext", result);
+                  overflowCountLabel.setAttribute("aria-description", result);
+                });
+              this.toggleAttribute("hasmultipletabs", true);
+            } else {
+              overflowCountLabel.textContent = "";
+              this.toggleAttribute("hasmultipletabs", false);
+            }
           }
         });
       }
@@ -188,12 +226,29 @@
       }
     }
 
+    get defaultGroupName() {
+      if (!this.#defaultGroupName) {
+        this.#defaultGroupName = gBrowser.tabLocalization.formatValueSync(
+          "tab-group-name-default"
+        );
+      }
+      return this.#defaultGroupName;
+    }
+
     get id() {
       return this.getAttribute("id");
     }
 
     set id(val) {
       this.setAttribute("id", val);
+    }
+
+    get hasActiveTab() {
+      return this.hasAttribute("hasactivetab");
+    }
+
+    set hasActiveTab(val) {
+      this.toggleAttribute("hasactivetab", val);
     }
 
     get label() {
@@ -207,10 +262,8 @@
       // If the group name is empty, use a zero width space so we
       // always create a text node and get consistent layout.
       this.setAttribute("label", val || "\u200b");
-
-      this.dataset.tooltip = val;
-
       this.#updateLabelAriaAttributes();
+      this.#updateTooltip();
       if (diff) {
         this.dispatchEvent(
           new CustomEvent("TabGroupUpdate", { bubbles: true })
@@ -243,6 +296,7 @@
       }
       this.toggleAttribute("collapsed", val);
       this.#updateCollapsedAriaAttributes();
+      this.#updateTooltip();
       const eventName = val ? "TabGroupCollapse" : "TabGroupExpand";
       this.dispatchEvent(new CustomEvent(eventName, { bubbles: true }));
     }
@@ -256,12 +310,7 @@
     }
 
     async #updateLabelAriaAttributes() {
-      let tabGroupName = this.#label;
-      if (!tabGroupName) {
-        tabGroupName = await gBrowser.tabLocalization.formatValue(
-          "tab-group-name-default"
-        );
-      }
+      let tabGroupName = this.#label || this.defaultGroupName;
 
       let tabGroupDescription = await gBrowser.tabLocalization.formatValue(
         "tab-group-description",
@@ -279,6 +328,20 @@
       this.#labelElement?.setAttribute("aria-expanded", ariaExpanded);
     }
 
+    async #updateTooltip() {
+      let tabGroupName = this.#label || this.defaultGroupName;
+      let tooltipKey = this.collapsed
+        ? "tab-group-label-tooltip-collapsed"
+        : "tab-group-label-tooltip-expanded";
+      await gBrowser.tabLocalization
+        .formatValue(tooltipKey, {
+          tabGroupName,
+        })
+        .then(result => {
+          this.dataset.tooltip = result;
+        });
+    }
+
     get tabs() {
       return Array.from(this.children).filter(node => node.matches("tab"));
     }
@@ -288,6 +351,10 @@
      */
     get labelElement() {
       return this.#labelElement;
+    }
+
+    get overflowCountLabel() {
+      return this.#overflowCountLabel;
     }
 
     /**
@@ -369,7 +436,10 @@
      * @param {PointerEvent} event
      */
     on_click(event) {
-      if (event.target === this.#labelElement && event.button === 0) {
+      let isToggleElement =
+        event.target === this.#labelElement ||
+        event.target === this.#overflowCountLabel;
+      if (isToggleElement && event.button === 0) {
         event.preventDefault();
         this.collapsed = !this.collapsed;
         gBrowser.tabGroupMenu.close();
@@ -382,8 +452,8 @@
       }
     }
 
-    on_TabSelect() {
-      this.collapsed = false;
+    on_TabSelect(event) {
+      this.hasActiveTab = event.target.group === this;
     }
 
     /**

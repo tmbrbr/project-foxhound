@@ -12,3 +12,5 @@ DIRS += [
     "newtab",
     "taint-export",
 ]
+
+JAR_MANIFESTS += ["jar.mn"]

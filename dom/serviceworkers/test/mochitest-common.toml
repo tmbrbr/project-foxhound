@@ -102,7 +102,6 @@ support-files = [
   "fetch/upgrade-insecure/unregister.html",
   "match_all_properties_worker.js",
   "match_all_clients/match_all_controlled.html",
-  "test_serviceworker_interfaces.js",
   "serviceworker_wrapper.js",
   "message_receiver.html",
   "serviceworker_not_sharedworker.js",
@@ -215,7 +214,7 @@ support-files = [
 ]
 
 ["test_abrupt_completion.html"]
-skip-if = ["os == 'linux' && os_version == '18.04' && processor == '18.04'"] # Bug 1615164
+skip-if = ["os == 'linux' && os_version == '24.04' && processor == 'x86_64' && display == 'x11'"] # Bug 1615164
 
 ["test_async_waituntil.html"]
 
@@ -273,7 +272,7 @@ support-files = [
 ["test_file_blob_upload.html"]
 
 ["test_file_upload.html"]
-skip-if = ["os == 'android'"] #Bug 1430182
+skip-if = ["os == 'android'"] # Bug 1430182
 support-files = [
   "script_file_upload.js",
   "sw_file_upload.js",
@@ -301,7 +300,7 @@ skip-if = [
 ["test_imagecache_max_age.html"]
 skip-if = [
   "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && asan", # Bug 1585668
-  "os == 'linux' && os_version == '22.04' && debug && display == 'wayland'",  # Bug 1856980
+  "os == 'linux' && os_version == '22.04' && debug && display == 'wayland'", # Bug 1856980
   "http3",
   "http2",
 ]
@@ -331,7 +330,6 @@ skip-if = ["os == 'android'"]
 
 ["test_navigationPreload_disable_crash.html"]
 scheme = "https"
-skip-if = ["os == 'linux' && os_version == '18.04' && processor == 'x86_64' && debug"] # Bug 1749068
 
 ["test_navigator.html"]
 
@@ -401,7 +399,6 @@ skip-if = [
 # distinct scopes from other SW tests, it's not expected that loss of "verify"
 # coverage will cause problems since the test only potentially interferes with
 # itself, not other tests.
-skip-if = ["verify"]
 
 ["test_script_loader_intercepted_js_cache.html"]
 disabled = "https://bugzilla.mozilla.org/show_bug.cgi?id=1853173"
@@ -421,6 +418,11 @@ skip-if = [
 ]
 
 ["test_serviceworker_interfaces.html"]
+scheme = "https"
+support-files = [
+  "test_serviceworker_interfaces.js",
+  "!/dom/tests/mochitest/general/interface_exposure_checker.js",
+]
 
 ["test_serviceworker_not_sharedworker.html"]
 skip-if = [
@@ -442,10 +444,7 @@ support-files = [
 ["test_unregister.html"]
 
 ["test_unresolved_fetch_interception.html"]
-skip-if = [
-  "verify",
-  "true",
-]
+skip-if = ["true"]
 
 ["test_workerUnregister.html"]
 

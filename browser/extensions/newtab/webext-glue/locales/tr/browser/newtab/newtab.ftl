@@ -8,6 +8,9 @@
 newtab-page-title = Yeni Sekme
 newtab-settings-button =
     .title = Yeni Sekme sayfanızı özelleştirin
+newtab-customize-panel-icon-button =
+    .title = Bu sayfayı özelleştir
+newtab-customize-panel-icon-button-label = Özelleştir
 newtab-personalize-settings-icon-label =
     .title = Yeni sekmeyi kişiselleştir
     .aria-label = Ayarlar
@@ -117,7 +120,8 @@ newtab-menu-delete-pocket = { -pocket-brand-name }’tan sil
 newtab-menu-archive-pocket = { -pocket-brand-name }’ta arşivle
 newtab-menu-show-privacy-info = Sponsorlarımız ve gizliliğiniz
 newtab-menu-about-fakespot = { -fakespot-brand-name } hakkında
-newtab-menu-report-content = Bu içeriği rapor et
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Raporla
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Engelle
@@ -187,6 +191,8 @@ newtab-label-sponsored-by = { $sponsor } sponsorluğunda
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } dk
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponsorlu
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -308,6 +314,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Hava durumu
     .description = Bugünkü hava durumu tahmini
+newtab-custom-trending-search-toggle =
+    .label = Gündemdeki aramalar
+    .description = Popüler ve sıkça aranan konular
 newtab-custom-close-button = Kapat
 newtab-custom-settings = Diğer ayarları yönet
 
@@ -491,6 +500,9 @@ newtab-topic-selection-button-pick-interests = İlgi alanlarınızı seçin
 newtab-section-follow-button = Takip et
 newtab-section-following-button = Takip ediliyor
 newtab-section-unfollow-button = Takibi bırak
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Akışınıza ince ayar yapın
+newtab-section-follow-highlight-subtitle = Beğendiğiniz diğer içerikleri görmek için ilgi alanlarınızı takip edin.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -533,6 +545,11 @@ newtab-download-mobile-highlight-body-variant-c = { -brand-product-name } taray�
 newtab-download-mobile-highlight-image =
     .aria-label = Mobil cihazlar için { -brand-product-name }’u indirebileceğiniz QR kodu
 
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = Favorileri siteleriniz parmaklarınızın ucunda
+newtab-shortcuts-highlight-subtitle = Sevdiğiniz siteleri bir tık kadar yakınınızda tutmak için kısayol ekleyebilirsiniz.
+
 ## Strings for reporting ads and content
 
 newtab-report-content-why-reporting-this =
@@ -555,3 +572,16 @@ newtab-report-cancel = Vazgeç
 newtab-report-submit = Gönder
 newtab-toast-thanks-for-reporting =
     .message = Raporunuz için teşekkür ederiz.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Google Gündeminde
+newtab-trending-searches-show-trending =
+    .title = Arama trendlerini göster
+newtab-trending-searches-hide-trending =
+    .title = Arama trendlerini gizle
+newtab-trending-searches-learn-more = Daha fazla bilgi al
+newtab-trending-searches-dismiss = Arama trendlerini gizle
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Gündemdeki aramalar

@@ -12,15 +12,11 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
-import mozilla.components.browser.state.state.BrowserState
-import mozilla.components.browser.state.state.createTab
-import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.service.pocket.PocketStoriesService
 import mozilla.components.support.test.robolectric.testContext
 import mozilla.components.support.utils.toSafeIntent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -29,21 +25,19 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.fenix.GleanMetrics.Metrics
-import org.mozilla.fenix.HomeActivity.Companion.PRIVATE_BROWSING_MODE
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.browser.browsingmode.BrowsingModeManager
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.appstate.AppAction
-import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.getIntentSource
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.helpers.FenixGleanTestRule
-import org.mozilla.fenix.helpers.FenixRobolectricTestRunner
 import org.mozilla.fenix.helpers.perf.TestStrictModeManager
 import org.mozilla.fenix.utils.Settings
+import org.robolectric.RobolectricTestRunner
 
-@RunWith(FenixRobolectricTestRunner::class)
+@RunWith(RobolectricTestRunner::class)
 class HomeActivityTest {
     @get:Rule
     val gleanTestRule = FenixGleanTestRule(testContext)
@@ -51,18 +45,15 @@ class HomeActivityTest {
     private lateinit var activity: HomeActivity
     private lateinit var appStore: AppStore
     private lateinit var settings: Settings
-    private lateinit var fenixBrowserUseCases: FenixBrowserUseCases
 
     @Before
     fun setup() {
         activity = spyk(HomeActivity())
         settings = mockk(relaxed = true)
         appStore = mockk(relaxed = true)
-        fenixBrowserUseCases = mockk(relaxed = true)
 
         every { testContext.settings() } returns settings
         every { testContext.components.appStore } returns appStore
-        every { activity.components.useCases.fenixBrowserUseCases } returns fenixBrowserUseCases
     }
 
     private fun assertNoPromptWasShown() {
@@ -83,27 +74,6 @@ class HomeActivityTest {
 
         val otherIntent = Intent().toSafeIntent()
         assertNull(activity.getIntentSource(otherIntent))
-    }
-
-    @Test
-    fun `getModeFromIntentOrLastKnown returns mode from settings when intent does not set`() {
-        every { testContext.settings() } returns Settings(testContext)
-        every { activity.applicationContext } returns testContext
-        testContext.settings().lastKnownMode = BrowsingMode.Private
-
-        assertEquals(testContext.settings().lastKnownMode, activity.getModeFromIntentOrLastKnown(null))
-    }
-
-    @Test
-    fun `getModeFromIntentOrLastKnown returns mode from intent when set`() {
-        every { testContext.settings() } returns Settings(testContext)
-        testContext.settings().lastKnownMode = BrowsingMode.Normal
-
-        val intent = Intent()
-        intent.putExtra(PRIVATE_BROWSING_MODE, true)
-
-        assertNotEquals(testContext.settings().lastKnownMode, activity.getModeFromIntentOrLastKnown(intent))
-        assertEquals(BrowsingMode.Private, activity.getModeFromIntentOrLastKnown(intent))
     }
 
     @Test
@@ -257,56 +227,5 @@ class HomeActivityTest {
             isTheCorrectBuildVersion = true,
         )
         assertNoPromptWasShown()
-    }
-
-    @Test
-    fun `GIVEN homepage as a new tab is disabled WHEN addPrivateHomepageTabIfNecessary is called THEN do nothing`() {
-        every { activity.components.settings.enableHomepageAsNewTab } returns false
-
-        activity.addPrivateHomepageTabIfNecessary(mode = BrowsingMode.Private)
-
-        verify(exactly = 0) {
-            fenixBrowserUseCases.addNewHomepageTab(private = false)
-        }
-
-        activity.addPrivateHomepageTabIfNecessary(mode = BrowsingMode.Normal)
-
-        verify(exactly = 0) {
-            fenixBrowserUseCases.addNewHomepageTab(private = false)
-        }
-    }
-
-    @Test
-    fun `GIVEN homepage as a new tab is enabled and no private tabs WHEN addPrivateHomepageTabIfNecessary is called THEN add a private homepage tab`() {
-        every { activity.components.settings.enableHomepageAsNewTab } returns true
-
-        val store = BrowserStore(BrowserState())
-        every { activity.components.core.store } returns store
-
-        activity.addPrivateHomepageTabIfNecessary(mode = BrowsingMode.Private)
-
-        verify {
-            fenixBrowserUseCases.addNewHomepageTab(private = true)
-        }
-
-        activity.addPrivateHomepageTabIfNecessary(mode = BrowsingMode.Normal)
-
-        verify(exactly = 0) {
-            fenixBrowserUseCases.addNewHomepageTab(private = false)
-        }
-    }
-
-    @Test
-    fun `GIVEN homepage as a new tab is enabled and private tabs exist WHEN addPrivateHomepageTabIfNecessary is called THEN do nothing`() {
-        every { activity.components.settings.enableHomepageAsNewTab } returns true
-
-        val store = BrowserStore(BrowserState(tabs = listOf(createTab(url = "https://mozilla.org", private = true))))
-        every { activity.components.core.store } returns store
-
-        activity.addPrivateHomepageTabIfNecessary(mode = BrowsingMode.Private)
-
-        verify(exactly = 0) {
-            fenixBrowserUseCases.addNewHomepageTab(private = true)
-        }
     }
 }

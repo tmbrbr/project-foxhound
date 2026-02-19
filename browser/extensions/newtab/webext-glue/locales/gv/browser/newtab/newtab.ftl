@@ -126,5 +126,11 @@ newtab-page-title = Tab Noa
 ## Strings for download mobile highlight
 
 
+## Strings for shortcuts highlight
+
+
 ## Strings for reporting ads and content
+
+
+## Strings for trending searches
 

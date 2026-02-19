@@ -63,12 +63,11 @@ import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.directionsEq
 import org.mozilla.fenix.ext.settings
-import org.mozilla.fenix.helpers.FenixRobolectricTestRunner
 import org.mozilla.fenix.home.HomeScreenViewModel
-import org.mozilla.fenix.home.HomeScreenViewModel.Companion.ALL_PRIVATE_TABS
 import org.mozilla.fenix.utils.Settings
+import org.robolectric.RobolectricTestRunner
 
-@RunWith(FenixRobolectricTestRunner::class)
+@RunWith(RobolectricTestRunner::class)
 class DefaultBrowserToolbarControllerTest {
 
     @RelaxedMockK
@@ -388,16 +387,16 @@ class DefaultBrowserToolbarControllerTest {
     }
 
     @Test
-    fun handleEraseButtonClicked() {
-        assertNull(Events.browserToolbarEraseTapped.testGetValue())
-        val controller = createController()
-        controller.handleEraseButtonClick()
+    fun `GIVEN homepage as a new tab is enabled WHEN home button is clicked THEN navigate to ABOUT_HOME`() {
+        every { settings.enableHomepageAsNewTab } returns true
 
-        verify {
-            homeViewModel.sessionToDelete = ALL_PRIVATE_TABS
-            navController.navigate(BrowserFragmentDirections.actionGlobalHome())
-        }
-        assertNotNull(Events.browserToolbarEraseTapped.testGetValue())
+        assertNull(Events.browserToolbarHomeTapped.testGetValue())
+
+        val controller = createController()
+        controller.handleHomeButtonClick()
+
+        verify { fenixBrowserUseCases.navigateToHomepage() }
+        assertNotNull(Events.browserToolbarHomeTapped.testGetValue())
     }
 
     @Test

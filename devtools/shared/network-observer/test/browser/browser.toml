@@ -12,6 +12,7 @@ support-files = [
   "override.js",
   "override_script_src_self.html",
   "serviceworker.js",
+  "slow_json.sjs",
   "sjs_network-auth-listener-test-server.sjs",
   "sjs_network-observer-test-server.sjs",
 ]
@@ -19,11 +20,12 @@ support-files = [
 ["browser_networkobserver.js"]
 
 ["browser_networkobserver_auth_listener.js"]
-skip-if = [
-  "os == 'mac' && os_version == '14.70' && processor == 'x86_64' && debug", # Disabled for frequent leaks in Bug 1873571.
-]
+skip-if = ["os == 'mac' && os_version == '14.70' && processor == 'x86_64' && debug"] # Disabled for frequent leaks in Bug 1873571.
 
 ["browser_networkobserver_data_url.js"]
+
+["browser_networkobserver_decode_text.js"]
+skip-if = ["http3"] # Bug 1969598
 
 ["browser_networkobserver_invalid_constructor.js"]
 

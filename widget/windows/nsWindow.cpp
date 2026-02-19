@@ -6154,8 +6154,9 @@ LRESULT nsWindow::ProcessKeyDownMessage(const MSG& aMsg,
 nsresult nsWindow::SynthesizeNativeKeyEvent(
     int32_t aNativeKeyboardLayout, int32_t aNativeKeyCode,
     uint32_t aModifierFlags, const nsAString& aCharacters,
-    const nsAString& aUnmodifiedCharacters, nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "keyevent");
+    const nsAString& aUnmodifiedCharacters,
+    nsISynthesizedEventCallback* aCallback) {
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
 
   KeyboardLayout* keyboardLayout = KeyboardLayout::GetInstance();
   return keyboardLayout->SynthesizeNativeKeyEvent(
@@ -6166,8 +6167,8 @@ nsresult nsWindow::SynthesizeNativeKeyEvent(
 nsresult nsWindow::SynthesizeNativeMouseEvent(
     LayoutDeviceIntPoint aPoint, NativeMouseMessage aNativeMessage,
     MouseButton aButton, nsIWidget::Modifiers aModifierFlags,
-    nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "mouseevent");
+    nsISynthesizedEventCallback* aCallback) {
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
 
   INPUT input;
   memset(&input, 0, sizeof(input));
@@ -6231,8 +6232,8 @@ nsresult nsWindow::SynthesizeNativeMouseEvent(
 nsresult nsWindow::SynthesizeNativeMouseScrollEvent(
     LayoutDeviceIntPoint aPoint, uint32_t aNativeMessage, double aDeltaX,
     double aDeltaY, double aDeltaZ, uint32_t aModifierFlags,
-    uint32_t aAdditionalFlags, nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "mousescrollevent");
+    uint32_t aAdditionalFlags, nsISynthesizedEventCallback* aCallback) {
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
   return MouseScrollHandler::SynthesizeNativeMouseScrollEvent(
       this, aPoint, aNativeMessage,
       (aNativeMessage == WM_MOUSEWHEEL || aNativeMessage == WM_VSCROLL)
@@ -6241,12 +6242,11 @@ nsresult nsWindow::SynthesizeNativeMouseScrollEvent(
       aModifierFlags, aAdditionalFlags);
 }
 
-nsresult nsWindow::SynthesizeNativeTouchpadPan(TouchpadGesturePhase aEventPhase,
-                                               LayoutDeviceIntPoint aPoint,
-                                               double aDeltaX, double aDeltaY,
-                                               int32_t aModifierFlags,
-                                               nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "touchpadpanevent");
+nsresult nsWindow::SynthesizeNativeTouchpadPan(
+    TouchpadGesturePhase aEventPhase, LayoutDeviceIntPoint aPoint,
+    double aDeltaX, double aDeltaY, int32_t aModifierFlags,
+    nsISynthesizedEventCallback* aCallback) {
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
   DirectManipulationOwner::SynthesizeNativeTouchpadPan(
       this, aEventPhase, aPoint, aDeltaX, aDeltaY, aModifierFlags);
   return NS_OK;
@@ -8030,6 +8030,54 @@ bool nsWindow::OnPenPointerEvents(uint32_t aPointerId, UINT aMsg,
   if (!mPointerEvents.GetPointerPenInfo(aPointerId, &penInfo)) {
     return false;
   }
+  // The tiltX, tiltY and twist may require the high-end modes of pen tables.
+  // Allowing testers check whether the given these valures are exposed to the
+  // web, here allows the prefs override the values.
+  if (StaticPrefs::widget_windows_pen_tilt_override_enabled() ||
+      StaticPrefs::widget_windows_pen_twist_override_enabled()) {
+    static uint32_t sPendingToUpdate =
+        StaticPrefs::widget_widnows_pen_override_number_of_preserver_value();
+    if (StaticPrefs::widget_windows_pen_tilt_override_enabled()) {
+      static int32_t sOverrideTiltX = 30;
+      static int32_t sOverrideTiltY = 0;
+      if (sPendingToUpdate) {
+        penInfo.tiltX = sOverrideTiltX;
+        penInfo.tiltY = sOverrideTiltY;
+      } else {
+        const auto GetCurrentOverrideValueWithUpdatingNextValue =
+            [](int32_t& aOverrideTilt) {
+              const int32_t oldValue = aOverrideTilt;
+              aOverrideTilt = aOverrideTilt >= 45 ? -45 : aOverrideTilt + 5;
+              return oldValue;
+            };
+        penInfo.tiltX =
+            GetCurrentOverrideValueWithUpdatingNextValue(sOverrideTiltX);
+        penInfo.tiltY =
+            GetCurrentOverrideValueWithUpdatingNextValue(sOverrideTiltY);
+      }
+    }
+    if (StaticPrefs::widget_windows_pen_twist_override_enabled()) {
+      static uint32_t sOverrideTwist = 0;
+      if (sPendingToUpdate) {
+        penInfo.rotation = sOverrideTwist;
+      } else {
+        const auto GetCurrentOverrideValueWithUpdatingNextValue =
+            [](uint32_t& aOverrideTwist) {
+              const uint32_t oldValue = aOverrideTwist;
+              aOverrideTwist = aOverrideTwist >= 350 ? 0 : aOverrideTwist + 10;
+              return oldValue;
+            };
+        penInfo.rotation =
+            GetCurrentOverrideValueWithUpdatingNextValue(sOverrideTwist);
+      }
+    }
+    if (sPendingToUpdate) {
+      sPendingToUpdate--;
+    } else {
+      sPendingToUpdate =
+          StaticPrefs::widget_widnows_pen_override_number_of_preserver_value();
+    }
+  }
 
   // When dispatching mouse events with pen, there may be some
   // WM_POINTERUPDATE messages between WM_POINTERDOWN and WM_POINTERUP with
@@ -8353,8 +8401,8 @@ static Result<POINTER_FLAGS, nsresult> PointerStateToFlag(
 nsresult nsWindow::SynthesizeNativeTouchPoint(
     uint32_t aPointerId, nsIWidget::TouchPointerState aPointerState,
     LayoutDeviceIntPoint aPoint, double aPointerPressure,
-    uint32_t aPointerOrientation, nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "touchpoint");
+    uint32_t aPointerOrientation, nsISynthesizedEventCallback* aCallback) {
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
 
   if (StaticPrefs::apz_test_fails_with_native_injection() ||
       !InitTouchInjection()) {
@@ -8415,27 +8463,6 @@ nsresult nsWindow::SynthesizeNativeTouchPoint(
   });
 }
 
-nsresult nsWindow::ClearNativeTouchSequence(nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "cleartouch");
-  if (!sTouchInjectInitialized) {
-    return NS_OK;
-  }
-
-  // cancel all input points
-  for (auto iter = mActivePointers.Iter(); !iter.Done(); iter.Next()) {
-    auto* info = iter.UserData();
-    if (info->mType != PointerInfo::PointerType::TOUCH) {
-      continue;
-    }
-    InjectTouchPoint(info->mPointerId, info->mPosition, POINTER_FLAG_CANCELED);
-    iter.Remove();
-  }
-
-  nsBaseWidget::ClearNativeTouchSequence(nullptr);
-
-  return NS_OK;
-}
-
 #if !defined(NTDDI_WIN10_RS5) || (NTDDI_VERSION < NTDDI_WIN10_RS5)
 static CreateSyntheticPointerDevicePtr CreateSyntheticPointerDevice;
 static DestroySyntheticPointerDevicePtr DestroySyntheticPointerDevice;
@@ -8481,8 +8508,9 @@ static bool InitPenInjection() {
 nsresult nsWindow::SynthesizeNativePenInput(
     uint32_t aPointerId, nsIWidget::TouchPointerState aPointerState,
     LayoutDeviceIntPoint aPoint, double aPressure, uint32_t aRotation,
-    int32_t aTiltX, int32_t aTiltY, int32_t aButton, nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "peninput");
+    int32_t aTiltX, int32_t aTiltY, int32_t aButton,
+    nsISynthesizedEventCallback* aCallback) {
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
   if (!InitPenInjection()) {
     return NS_ERROR_UNEXPECTED;
   }

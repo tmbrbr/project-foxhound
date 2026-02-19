@@ -28,6 +28,8 @@ const SUPPORTED_HEADERS = [
   "Access-Control-Request-Method",
   "Age",
   "Allow",
+  "Alt-Svc",
+  "Alt-Used",
   "Authorization",
   "Cache-Control",
   "Clear-Site-Data",
@@ -182,7 +184,7 @@ function getFilterBoxURL() {
  * @return {string} The MDN URL for the documentation of Tracking Protection.
  */
 function getTrackingProtectionURL() {
-  return `${MDN_URL}Mozilla/Firefox/Privacy/Guides/Tracking_Protection${getGAParams()}`;
+  return `${MDN_URL}Web/Privacy/Guides/Firefox_tracking_protection${getGAParams()}`;
 }
 
 /**

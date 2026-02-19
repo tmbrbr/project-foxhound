@@ -123,7 +123,11 @@ void VideoFrameSurface<LIBAV_VER>::ReleaseVAAPIData(bool aForFrameRecycle) {
   }
 
   mHoldByFFmpeg = false;
-  mSurface->ReleaseSurface();
+
+  // Release dmabuf surface now as we're going to replace it.
+  if (aForFrameRecycle) {
+    mSurface->ReleaseSurface();
+  }
 
   if (aForFrameRecycle && IsUsedByRenderer()) {
     NS_WARNING("Reusing live dmabuf surface, visual glitches ahead");
@@ -146,11 +150,10 @@ VideoFramePool<LIBAV_VER>::~VideoFramePool() {
 void VideoFramePool<LIBAV_VER>::ReleaseUnusedVAAPIFrames() {
   MutexAutoLock lock(mSurfaceLock);
   for (const auto& surface : mDMABufSurfaces) {
-#ifdef DEBUG
     if (!surface->mHoldByFFmpeg && surface->IsUsedByRenderer()) {
-      NS_WARNING("Not tracked but still used dmabug surface!");
+      DMABUF_LOG("Copied and used surface UID %d",
+                 surface->GetDMABufSurface()->GetUID());
     }
-#endif
     if (surface->mHoldByFFmpeg && !surface->IsUsedByRenderer()) {
       surface->ReleaseVAAPIData();
     }

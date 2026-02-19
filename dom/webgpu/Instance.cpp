@@ -22,9 +22,7 @@
 #include "nsString.h"
 #include "nsStringFwd.h"
 
-#ifndef EARLY_BETA_OR_EARLIER
-#  include "mozilla/dom/WorkerPrivate.h"
-#endif
+#include "mozilla/dom/WorkerPrivate.h"
 
 #include <optional>
 #include <string_view>
@@ -48,7 +46,12 @@ static inline nsDependentCString ToCString(const std::string_view s) {
     return true;
   }
 
-  return StaticPrefs::dom_webgpu_workers_enabled();
+  dom::WorkerPrivate* wp = dom::GetCurrentThreadWorkerPrivate();
+  if (wp && wp->IsServiceWorker()) {
+    return StaticPrefs::dom_webgpu_service_workers_enabled();
+  }
+
+  return true;
 }
 
 /*static*/
@@ -114,7 +117,11 @@ already_AddRefed<dom::Promise> Instance::RequestAdapter(
   };
 
 #ifndef EARLY_BETA_OR_EARLIER
-  rejectIf(true, "WebGPU is not yet available in Release or late Beta builds.");
+#  ifndef XP_WIN
+  rejectIf(true,
+           "WebGPU is only available on Windows, and in Nightly and Early Beta "
+           "builds on other platforms.");
+#  endif
 
   // NOTE: Deliberately left after the above check so that we only enter
   // here if it's removed. Above is a more informative diagnostic, while the
@@ -133,6 +140,21 @@ already_AddRefed<dom::Promise> Instance::RequestAdapter(
   rejectIf(!StaticPrefs::dom_webgpu_enabled(),
            "WebGPU is disabled because the `dom.webgpu.enabled` pref. is set "
            "to `false`.");
+#ifdef WIN32
+#  ifndef MOZ_DXCOMPILER
+  rejectIf(true,
+           "WebGPU is disabled because dxcompiler is unavailable with this "
+           "build configuration");
+#  endif
+#endif
+
+  // Check if WebGPU is blocked for this global's domain.
+  {
+    const auto prefLock = mozilla::StaticPrefs::dom_webgpu_blocked_domains();
+    rejectIf(nsContentUtils::IsURIInList(mOwner->GetBaseURI(), *prefLock),
+             "WebGPU is blocked for this domain by the `dom.webgpu.blocked-domains` pref.");
+  }
+
   if (rejectionMessage) {
     promise->MaybeRejectWithNotSupportedError(ToCString(*rejectionMessage));
     return promise.forget();
@@ -153,8 +175,6 @@ already_AddRefed<dom::Promise> Instance::RequestAdapter(
     promise->MaybeRejectWithInvalidStateError("Failed to create WebGPUChild");
     return promise.forget();
   }
-
-  RefPtr<Instance> instance = this;
 
   if (aOptions.mFeatureLevel.EqualsASCII("core")) {
     // Good! That's all we support.
@@ -194,22 +214,23 @@ already_AddRefed<dom::Promise> Instance::RequestAdapter(
     }
   }
 
-  bridge->InstanceRequestAdapter(aOptions)->Then(
-      GetCurrentSerialEventTarget(), __func__,
-      [promise, instance, bridge](ipc::ByteBuf aInfoBuf) {
-        auto info = std::make_shared<ffi::WGPUAdapterInformation>();
-        ffi::wgpu_client_adapter_extract_info(ToFFI(&aInfoBuf), info.get());
-        MOZ_ASSERT(info->id != 0);
-        RefPtr<Adapter> adapter = new Adapter(instance, bridge, info);
-        promise->MaybeResolve(adapter);
-      },
-      [promise](const Maybe<ipc::ResponseRejectReason>& aResponseReason) {
-        if (aResponseReason.isSome()) {
-          promise->MaybeRejectWithAbortError("Internal communication error!");
-        } else {
-          promise->MaybeResolve(JS::NullHandleValue);
-        }
-      });
+  ffi::WGPUPowerPreference power_preference;
+  if (aOptions.mPowerPreference.WasPassed()) {
+    power_preference = static_cast<ffi::WGPUPowerPreference>(
+        aOptions.mPowerPreference.Value());
+  } else {
+    power_preference = ffi::WGPUPowerPreference_LowPower;
+  }
+
+  RawId adapter_id = ffi::wgpu_client_make_adapter_id(bridge->GetClient());
+
+  ffi::wgpu_client_request_adapter(bridge->GetClient(), adapter_id,
+                                   power_preference,
+                                   aOptions.mForceFallbackAdapter);
+
+  auto pending_promise =
+      WebGPUChild::PendingRequestAdapterPromise{RefPtr(promise), RefPtr(this)};
+  bridge->mPendingRequestAdapterPromises.push_back(std::move(pending_promise));
 
   return promise.forget();
 }

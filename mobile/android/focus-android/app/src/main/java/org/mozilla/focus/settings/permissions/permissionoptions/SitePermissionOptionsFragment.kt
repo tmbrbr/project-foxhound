@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 package org.mozilla.focus.settings.permissions.permissionoptions
 
 import android.content.Intent
@@ -64,8 +65,8 @@ class SitePermissionOptionsFragment : BaseComposeFragment() {
         lifecycle.addObserver(hardwarePermissionCheckFeature)
     }
 
-    override val titleText: String
-        get() = sitePermissionOptionsScreenStore.state.sitePermissionLabel
+    override val titleRes: Int?
+        get() = sitePermission.labelRes
 
     @Composable
     override fun Content() {
@@ -78,11 +79,7 @@ class SitePermissionOptionsFragment : BaseComposeFragment() {
         val isAndroidPermissionGranted = sitePermissionOptionsScreenStore.observeAsComposableState { state ->
             state.isAndroidPermissionGranted
         }.value
-        if (
-            sitePermissionOptionSelected != null &&
-            sitePermissionOptionsList != null &&
-            isAndroidPermissionGranted != null
-        ) {
+        if (sitePermissionOptionSelected != null) {
             CreateOptionsPermissionList(
                 sitePermissionOptionSelected,
                 sitePermissionOptionsList,

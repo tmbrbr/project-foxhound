@@ -13,6 +13,9 @@
 #ifndef NSDISPLAYLIST_H_
 #define NSDISPLAYLIST_H_
 
+#include <algorithm>
+#include <unordered_set>
+
 #include "DisplayItemClipChain.h"
 #include "DisplayListClipState.h"
 #include "FrameMetrics.h"
@@ -44,6 +47,8 @@
 #include "nsAutoLayoutPhase.h"
 #include "nsCOMPtr.h"
 #include "nsCSSRenderingBorders.h"
+#include "nsCaret.h"
+#include "nsClassHashtable.h"
 #include "nsContainerFrame.h"
 #include "nsDisplayItemTypes.h"
 #include "nsDisplayListInvalidation.h"
@@ -51,13 +56,8 @@
 #include "nsPresArena.h"
 #include "nsRect.h"
 #include "nsRegion.h"
-#include "nsClassHashtable.h"
-#include "nsTHashSet.h"
 #include "nsTHashMap.h"
-#include "nsCaret.h"
-
-#include <algorithm>
-#include <unordered_set>
+#include "nsTHashSet.h"
 
 // XXX Includes that could be avoided by moving function implementations to the
 // cpp file.
@@ -276,6 +276,17 @@ class nsDisplayTableItem;
 
 class RetainedDisplayList;
 
+// Bits to track the state of items inside a single stacking context.
+enum class StackingContextBits : uint8_t {
+  // True if we processed a display item that has a blend mode attached.
+  // We do this so we can insert a nsDisplayBlendContainer in the parent
+  // stacking context.
+  ContainsMixBlendMode = 1 << 0,
+  // Similar, but for backdrop-filter.
+  ContainsBackdropFilter = 1 << 1,
+};
+MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(StackingContextBits);
+
 /**
  * This manages a display list and is passed as a parameter to
  * nsIFrame::BuildDisplayList.
@@ -292,7 +303,7 @@ class nsDisplayListBuilder {
    *
    * Since some transforms maybe singular, passing visible rects or
    * the dirty rect level by level from parent to children may get a
-   * wrong result, being different from the result of appling with
+   * wrong result, being different from the result of applying with
    * effective transform directly.
    *
    * nsIFrame::BuildDisplayListForStackingContext() uses
@@ -1243,8 +1254,11 @@ class nsDisplayListBuilder {
     }
 
     ~AutoContainerASRTracker() {
-      mBuilder->mCurrentContainerASR = ActiveScrolledRoot::PickAncestor(
-          mBuilder->mCurrentContainerASR, mSavedContainerASR);
+      mBuilder->mCurrentContainerASR =
+          mBuilder->IsInViewTransitionCapture()
+              ? mSavedContainerASR
+              : ActiveScrolledRoot::PickAncestor(mBuilder->mCurrentContainerASR,
+                                                 mSavedContainerASR);
     }
 
    private:
@@ -1389,14 +1403,16 @@ class nsDisplayListBuilder {
         const DisplayItemClipChain* aCombinedClipChain,
         const ActiveScrolledRoot* aContainingBlockActiveScrolledRoot,
         const ViewID& aScrollParentId, const nsRect& aVisibleRect,
-        const nsRect& aDirtyRect)
+        const nsRect& aDirtyRect, bool aContainingBlockInViewTransitionCapture)
         : mContainingBlockClipChain(aContainingBlockClipChain),
           mCombinedClipChain(aCombinedClipChain),
           mContainingBlockActiveScrolledRoot(
               aContainingBlockActiveScrolledRoot),
           mVisibleRect(aVisibleRect),
           mDirtyRect(aDirtyRect),
-          mScrollParentId(aScrollParentId) {}
+          mScrollParentId(aScrollParentId),
+          mContainingBlockInViewTransitionCapture(
+              aContainingBlockInViewTransitionCapture) {}
     const DisplayItemClipChain* mContainingBlockClipChain;
     const DisplayItemClipChain*
         mCombinedClipChain;  // only necessary for the special case of top layer
@@ -1410,6 +1426,29 @@ class nsDisplayListBuilder {
     nsRect mVisibleRect;
     nsRect mDirtyRect;
     ViewID mScrollParentId;
+
+    // mContainingBlockInViewTransitionCapture is needed to handle absolutely
+    // positioned elements that escape the view transition boundary
+    // (containing-block-wise). These should still not be clipped.
+    // Consider:
+    //
+    //   <div style="position: relative; width: 10px; height: 10px; overflow:
+    //   clip">
+    //     <div id=captured>
+    //       <div style="position: absolute; width: 20px; height: 20px">
+    //
+    // The abspos is not supposed to be affected by the relpos clipping and ASR.
+    // While if it was inverted, it would need to be clipped:
+    //
+    //   <div id=captured>
+    //     <div style="position: relative; width: 10px; height: 10px; overflow:
+    //     clip">
+    //       <div style="position: absolute; width: 20px; height: 20px">
+    //
+    // In order to  do this, we track whether the containing block was inside
+    // the capture.
+    // TODO(emilio, bug 1968754): Deal with nested captures properly.
+    bool mContainingBlockInViewTransitionCapture;
 
     static nsRect ComputeVisibleRectForFrame(nsDisplayListBuilder* aBuilder,
                                              nsIFrame* aFrame,
@@ -1470,15 +1509,29 @@ class nsDisplayListBuilder {
                                     : mWindowOpaqueRegion;
   }
 
-  /**
-   * mContainsBlendMode is true if we processed a display item that
-   * has a blend mode attached. We do this so we can insert a
-   * nsDisplayBlendContainer in the parent stacking context.
-   */
-  void SetContainsBlendMode(bool aContainsBlendMode) {
-    mContainsBlendMode = aContainsBlendMode;
+  StackingContextBits GetStackingContextBits() const {
+    return mStackingContextBits;
   }
-  bool ContainsBlendMode() const { return mContainsBlendMode; }
+  void SetStackingContextBits(StackingContextBits aBits) {
+    mStackingContextBits = aBits;
+  }
+  void AddStackingContextBits(StackingContextBits aBits) {
+    mStackingContextBits |= aBits;
+  }
+  void ClearStackingContextBits(StackingContextBits aBits) {
+    mStackingContextBits &= ~aBits;
+  }
+  void ClearStackingContextBits() {
+    mStackingContextBits = StackingContextBits(0);
+  }
+  bool ContainsBlendMode() const {
+    return bool(mStackingContextBits &
+                StackingContextBits::ContainsMixBlendMode);
+  }
+  bool ContainsBackdropFilter() const {
+    return bool(mStackingContextBits &
+                StackingContextBits::ContainsBackdropFilter);
+  }
 
   DisplayListClipState& ClipState() { return mClipState; }
   const ActiveScrolledRoot* CurrentActiveScrolledRoot() {
@@ -1591,8 +1644,6 @@ class nsDisplayListBuilder {
     return mBuildAsyncZoomContainer;
   }
   void UpdateShouldBuildAsyncZoomContainer();
-
-  void UpdateShouldBuildBackdropRootContainer();
 
   bool ShouldRebuildDisplayListDueToPrefChange();
 
@@ -1871,7 +1922,7 @@ class nsDisplayListBuilder {
 
   uint32_t mNumActiveScrollframesEncountered = 0;
 
-  bool mContainsBlendMode;
+  StackingContextBits mStackingContextBits{0};
   bool mIsBuildingScrollbar;
   bool mCurrentScrollbarWillHaveLayer;
   bool mBuildCaret;
@@ -1888,7 +1939,6 @@ class nsDisplayListBuilder {
   bool mInEventsOnly;
   bool mInFilter;
   bool mInViewTransitionCapture;
-  bool mInPageSequence;
   bool mIsInChromePresContext;
   bool mSyncDecodeImages;
   bool mIsPaintingToWindow;
@@ -2350,8 +2400,14 @@ class nsDisplayItem {
                    "mItemBuffer should have been cleared");
     }
 
-    // Handling transform items for preserve 3D frames.
-    bool mInPreserves3D = false;
+    // Gathering all leaf items of a preserve3d context.
+    bool mGatheringPreserves3DLeaves = false;
+
+    // True if we are handling items inside a preserve 3d context and the
+    // current transform has the backface visible. This is used if the current
+    // item has backface-visibility: hidden.
+    bool mTransformHasBackfaceVisible = false;
+
     // When hit-testing for visibility, we may hit an fully opaque item in a
     // nested display list. We want to stop at that point, without looking
     // further on other items.
@@ -2382,6 +2438,16 @@ class nsDisplayItem {
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*>* aOutFrames) {}
 
+  /**
+   * Returns true if this item should not be hit because the HitTestState state
+   * indicates the current transform is showing the backface and this item has
+   * backface-visibility: hidden.
+   */
+  bool ShouldIgnoreForBackfaceHidden(HitTestState* aState) {
+    return aState->mTransformHasBackfaceVisible &&
+           In3DContextAndBackfaceIsHidden();
+  }
+
   virtual nsIFrame* StyleFrame() const { return mFrame; }
 
   /**
@@ -2409,9 +2475,9 @@ class nsDisplayItem {
   /**
    * Returns the untransformed bounds of this display item.
    */
-  virtual nsRect GetUntransformedBounds(nsDisplayListBuilder* aBuilder,
-                                        bool* aSnap) const {
-    return GetBounds(aBuilder, aSnap);
+  virtual nsRect GetUntransformedBounds(nsDisplayListBuilder* aBuilder) const {
+    bool unused;
+    return GetBounds(aBuilder, &unused);
   }
 
   virtual nsRegion GetTightBounds(nsDisplayListBuilder* aBuilder,
@@ -5055,7 +5121,7 @@ class nsDisplayOpacity final : public nsDisplayWrapList {
                    nsDisplayList* aList,
                    const ActiveScrolledRoot* aActiveScrolledRoot,
                    bool aForEventsOnly, bool aNeedsActiveLayer,
-                   bool aWrapsBackdropFilter);
+                   bool aWrapsBackdropFilter, bool aForceBackdropRoot);
 
   nsDisplayOpacity(nsDisplayListBuilder* aBuilder,
                    const nsDisplayOpacity& aOther)
@@ -5064,7 +5130,8 @@ class nsDisplayOpacity final : public nsDisplayWrapList {
         mForEventsOnly(aOther.mForEventsOnly),
         mNeedsActiveLayer(aOther.mNeedsActiveLayer),
         mChildOpacityState(ChildOpacityState::Unknown),
-        mWrapsBackdropFilter(aOther.mWrapsBackdropFilter) {
+        mWrapsBackdropFilter(aOther.mWrapsBackdropFilter),
+        mForceBackdropRoot(aOther.mForceBackdropRoot) {
     MOZ_COUNT_CTOR(nsDisplayOpacity);
     // We should not try to merge flattened opacities.
     MOZ_ASSERT(aOther.mChildOpacityState != ChildOpacityState::Applied);
@@ -5174,6 +5241,7 @@ class nsDisplayOpacity final : public nsDisplayWrapList {
   ChildOpacityState mChildOpacityState;
 #endif
   bool mWrapsBackdropFilter;
+  bool mForceBackdropRoot;
 };
 
 class nsDisplayBlendMode : public nsDisplayWrapList {
@@ -5283,6 +5351,10 @@ class nsDisplayBlendContainer : public nsDisplayWrapList {
       nsIFrame* aSecondaryFrame, nsDisplayList* aList,
       const ActiveScrolledRoot* aActiveScrolledRoot);
 
+  static nsDisplayBlendContainer* CreateForBackdropRoot(
+      nsDisplayListBuilder* aBuilder, nsIFrame* aFrame, nsDisplayList* aList,
+      const ActiveScrolledRoot* aActiveScrolledRoot, bool aNeedsBackdropRoot);
+
   MOZ_COUNTED_DTOR_OVERRIDE(nsDisplayBlendContainer)
 
   NS_DISPLAY_DECL_NAME("BlendContainer", TYPE_BLEND_CONTAINER)
@@ -5299,32 +5371,45 @@ class nsDisplayBlendContainer : public nsDisplayWrapList {
     // compositing group.
     return HasDifferentFrame(aItem) && HasSameTypeAndClip(aItem) &&
            HasSameContent(aItem) &&
-           mIsForBackground ==
+           mBlendContainerType ==
                static_cast<const nsDisplayBlendContainer*>(aItem)
-                   ->mIsForBackground;
+                   ->mBlendContainerType;
   }
 
   bool ShouldFlattenAway(nsDisplayListBuilder* aBuilder) override {
-    return false;
+    return !CreatesStackingContextHelper();
   }
 
-  bool CreatesStackingContextHelper() override { return true; }
+  bool CreatesStackingContextHelper() override {
+    return mBlendContainerType != BlendContainerType::BackdropRootNothing;
+  }
 
  protected:
+  enum class BlendContainerType : uint8_t {
+    // creates stacking context helper for mix blend mode
+    MixBlendMode,
+    // creates stacking context helper for background blend mode
+    BackgroundBlendMode,
+    // doesn't create a stacking context helper, just flattens away (necessary
+    // because we need to create a display item of same display item type and
+    // toggle between these last two types without invalidating the frame)
+    BackdropRootNothing,
+    // creates stacking context helper for backdrop root
+    BackdropRootNeedsContainer,
+  };
+
   nsDisplayBlendContainer(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                           nsDisplayList* aList,
                           const ActiveScrolledRoot* aActiveScrolledRoot,
-                          bool aIsForBackground);
+                          BlendContainerType aBlendContainerType);
   nsDisplayBlendContainer(nsDisplayListBuilder* aBuilder,
                           const nsDisplayBlendContainer& aOther)
       : nsDisplayWrapList(aBuilder, aOther),
-        mIsForBackground(aOther.mIsForBackground) {
+        mBlendContainerType(aOther.mBlendContainerType) {
     MOZ_COUNT_CTOR(nsDisplayBlendContainer);
   }
 
-  // Used to distinguish containers created at building stacking
-  // context or appending background.
-  bool mIsForBackground;
+  BlendContainerType mBlendContainerType;
 
  private:
   NS_DISPLAY_ALLOW_CLONING()
@@ -5350,9 +5435,10 @@ class nsDisplayTableBlendContainer final : public nsDisplayBlendContainer {
   nsDisplayTableBlendContainer(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                                nsDisplayList* aList,
                                const ActiveScrolledRoot* aActiveScrolledRoot,
-                               bool aIsForBackground, nsIFrame* aAncestorFrame)
+                               BlendContainerType aBlendContainerType,
+                               nsIFrame* aAncestorFrame)
       : nsDisplayBlendContainer(aBuilder, aFrame, aList, aActiveScrolledRoot,
-                                aIsForBackground),
+                                aBlendContainerType),
         mAncestorFrame(aAncestorFrame) {
     if (aBuilder->IsRetainingDisplayList()) {
       mAncestorFrame->AddDisplayItem(this);
@@ -6181,9 +6267,7 @@ class nsDisplayTransform final : public nsPaintedDisplayItem {
 
   RetainedDisplayList* GetChildren() const override { return &mChildren; }
 
-  nsRect GetUntransformedBounds(nsDisplayListBuilder* aBuilder,
-                                bool* aSnap) const override {
-    *aSnap = false;
+  nsRect GetUntransformedBounds(nsDisplayListBuilder* aBuilder) const override {
     return mChildBounds;
   }
 
@@ -6610,6 +6694,10 @@ class nsDisplayText final : public nsPaintedDisplayItem {
 
   void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                HitTestState* aState, nsTArray<nsIFrame*>* aOutFrames) final {
+    if (ShouldIgnoreForBackfaceHidden(aState)) {
+      return;
+    }
+
     if (nsRect(ToReferenceFrame(), mFrame->GetSize()).Intersects(aRect)) {
       aOutFrames->AppendElement(mFrame);
     }

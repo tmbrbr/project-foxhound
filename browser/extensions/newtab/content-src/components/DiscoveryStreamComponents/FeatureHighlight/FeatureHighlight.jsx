@@ -9,7 +9,9 @@ export function FeatureHighlight({
   message,
   icon,
   toggle,
+  arrowPosition = "",
   position = "top-left",
+  verticalPosition = "",
   title,
   ariaLabel,
   feature = "FEATURE_HIGHLIGHT_DEFAULT",
@@ -68,7 +70,7 @@ export function FeatureHighlight({
   const hideButtonClass = showButtonIcon ? `` : `isHidden`;
   const openedClassname = opened ? `opened` : `closed`;
   return (
-    <div ref={ref} className="feature-highlight">
+    <div ref={ref} className={`feature-highlight ${verticalPosition}`}>
       <button
         title={title}
         aria-haspopup="true"
@@ -78,14 +80,19 @@ export function FeatureHighlight({
       >
         {toggle}
       </button>
-      <div className={`feature-highlight-modal ${position} ${openedClassname}`}>
+      <div
+        className={`feature-highlight-modal ${position} ${arrowPosition} ${openedClassname}`}
+      >
         <div className="message-icon">{icon}</div>
         <p className="content-wrapper">{message}</p>
-        <button
+        <moz-button
+          type="icon ghost"
+          size="small"
           data-l10n-id="feature-highlight-dismiss-button"
-          className="icon icon-dismiss"
+          iconsrc="chrome://global/skin/icons/close.svg"
           onClick={onDismissClick}
-        ></button>
+          onKeyDown={onDismissClick}
+        />
       </div>
     </div>
   );

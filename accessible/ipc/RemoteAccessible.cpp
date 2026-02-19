@@ -1532,6 +1532,16 @@ RefPtr<const AccAttributes> RemoteAccessible::GetCachedTextAttributes() {
   return nullptr;
 }
 
+std::pair<LayoutDeviceIntRect, nsIWidget*> RemoteAccessible::GetCaretRect() {
+  nsIWidget* widget = nullptr;
+  LocalAccessible* outerDoc = OuterDocOfRemoteBrowser();
+  if (outerDoc) {
+    widget = nsContentUtils::WidgetForContent(outerDoc->GetContent());
+  }
+
+  return {mDoc->GetCachedCaretRect(), widget};
+}
+
 already_AddRefed<AccAttributes> RemoteAccessible::DefaultTextAttributes() {
   if (RequestDomainsIfInactive(CacheDomain::Text)) {
     return nullptr;
@@ -1580,13 +1590,6 @@ uint64_t RemoteAccessible::State() {
             mCachedFields->GetAttribute<uint64_t>(CacheKey::State)) {
       VERIFY_CACHE(CacheDomain::State);
       state = *rawState;
-      // Handle states that are derived from other states.
-      if (!(state & states::UNAVAILABLE)) {
-        state |= states::ENABLED | states::SENSITIVE;
-      }
-      if (state & states::EXPANDABLE && !(state & states::EXPANDED)) {
-        state |= states::COLLAPSED;
-      }
     }
 
     ApplyImplicitState(state);

@@ -27,7 +27,8 @@
 #include "mozilla/dom/KeySystemNames.h"
 #include "mozilla/dom/MediaKeysBinding.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/ipc/UtilityAudioDecoderChild.h"
+#include "mozilla/gfx/gfxVars.h"
+#include "mozilla/ipc/UtilityMediaServiceChild.h"
 #include "mozilla/ipc/UtilityProcessManager.h"
 #include "mozilla/ipc/UtilityProcessParent.h"
 #include "nsTHashMap.h"
@@ -99,6 +100,13 @@ MOZ_RUNINIT static StaticDataMutex<CopyableTArray<MFCDMCapabilitiesIPDL>>
     sCapabilities("sCapabilities");
 MOZ_RUNINIT static StaticDataMutex<ComPtr<IUnknown>> sMediaEngineClassFactory(
     "sMediaEngineClassFactory");
+
+#define ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD() \
+  mCDMAccessLock.Target().AssertOnCurrentThread();      \
+  mCDMAccessLock.NoteOnTarget();
+
+#define ASSERT_CDM_ACCESS_ON_MANAGER_THREAD() \
+  mCDMAccessLock.Target().AssertOnCurrentThread();
 
 // RAIIized PROPVARIANT. See
 // third_party/libwebrtc/modules/audio_device/win/core_audio_utility_win.h
@@ -390,7 +398,7 @@ void MFCDMParent::Unregister() {
 }
 
 MFCDMParent::MFCDMParent(const nsAString& aKeySystem,
-                         RemoteDecoderManagerParent* aManager,
+                         RemoteMediaManagerParent* aManager,
                          nsISerialEventTarget* aManagerThread)
     : mKeySystem(aKeySystem),
       mManager(aManager),
@@ -398,7 +406,8 @@ MFCDMParent::MFCDMParent(const nsAString& aKeySystem,
       mId(sNextId++),
       mKeyMessageEvents(aManagerThread),
       mKeyChangeEvents(aManagerThread),
-      mExpirationEvents(aManagerThread) {
+      mExpirationEvents(aManagerThread),
+      mCDMAccessLock("MFCDMParent", mManagerThread) {
   MOZ_ASSERT(IsPlayReadyKeySystemAndSupported(aKeySystem) ||
              IsWidevineExperimentKeySystemAndSupported(aKeySystem) ||
              IsWidevineKeySystem(mKeySystem) ||
@@ -429,7 +438,9 @@ MFCDMParent::MFCDMParent(const nsAString& aKeySystem,
 }
 
 void MFCDMParent::ShutdownCDM() {
-  AssertOnManagerThread();
+  ASSERT_CDM_ACCESS_ON_MANAGER_THREAD();
+  MutexAutoLock lock(Mutex());
+  mCDMAccessLock.NoteExclusiveAccess();
   if (!mCDM) {
     return;
   }
@@ -447,7 +458,7 @@ void MFCDMParent::ShutdownCDM() {
 }
 
 void MFCDMParent::Destroy() {
-  AssertOnManagerThread();
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   PROFILER_MARKER_UNTYPED("MFCDMParent::Destroy", MEDIA_PLAYBACK);
   mKeyMessageEvents.DisconnectAll();
   mKeyChangeEvents.DisconnectAll();
@@ -862,6 +873,13 @@ void MFCDMParent::GetCapabilities(const nsString& aKeySystem,
     return;
   }
 
+  // HWDRM is blocked by gfx downloadable blocklist.
+  if (isHardwareDecryption && !gfx::gfxVars::UseWMFHWDWM()) {
+    MFCDM_PARENT_SLOG("Block HWDRM for %s",
+                      NS_ConvertUTF16toUTF8(aKeySystem).get());
+    return;
+  }
+
   // MFCDM requires persistent storage, and can't use in-memory storage, it
   // can't be used in private browsing.
   if (aFlags.contains(CapabilitesFlag::IsPrivateBrowsing)) {
@@ -1098,6 +1116,7 @@ void MFCDMParent::GetCapabilities(const nsString& aKeySystem,
 mozilla::ipc::IPCResult MFCDMParent::RecvGetCapabilities(
     const MFCDMCapabilitiesRequest& aRequest,
     GetCapabilitiesResolver&& aResolver) {
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   MFCDM_REJECT_IF(!mFactory, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
   MFCDMCapabilitiesIPDL capabilities;
   CapabilitesFlagSet flags;
@@ -1117,6 +1136,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvGetCapabilities(
 
 mozilla::ipc::IPCResult MFCDMParent::RecvInit(
     const MFCDMInitParamsIPDL& aParams, InitResolver&& aResolver) {
+  ASSERT_CDM_ACCESS_ON_MANAGER_THREAD();
   static auto RequirementToStr = [](KeySystemConfig::Requirement aRequirement) {
     switch (aRequirement) {
       case KeySystemConfig::Requirement::Required:
@@ -1128,6 +1148,8 @@ mozilla::ipc::IPCResult MFCDMParent::RecvInit(
     }
   };
 
+  const bool isHWSecure =
+      IsKeySystemHWSecure(mKeySystem, aParams.videoCapabilities());
   if (IsBeingProfiledOrLogEnabled()) {
     nsPrintfCString msg(
         "(key-system=%s, origin=%s, distinctiveID=%s, "
@@ -1136,37 +1158,45 @@ mozilla::ipc::IPCResult MFCDMParent::RecvInit(
         NS_ConvertUTF16toUTF8(mKeySystem).get(),
         NS_ConvertUTF16toUTF8(aParams.origin()).get(),
         RequirementToStr(aParams.distinctiveID()),
-        RequirementToStr(aParams.persistentState()),
-        IsKeySystemHWSecure(mKeySystem, aParams.videoCapabilities()));
+        RequirementToStr(aParams.persistentState()), isHWSecure);
     MFCDM_PARENT_LOG("Creating a CDM %s", msg.get());
     PROFILER_MARKER_TEXT("MFCDMParent::RecvInit(creating CDM)", MEDIA_PLAYBACK,
                          {}, msg);
   }
   MFCDM_REJECT_IF(!mFactory, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+  MOZ_ASSERT_IF(isHWSecure, gfx::gfxVars::UseWMFHWDWM());
 
   MOZ_ASSERT(IsTypeSupported(mFactory, mKeySystem));
-  MFCDM_REJECT_IF_FAILED(CreateContentDecryptionModule(
-                             mFactory, MapKeySystem(mKeySystem), aParams, mCDM),
-                         NS_ERROR_FAILURE);
-  MFCDM_REJECT_IF(!mCDM, NS_ERROR_FAILURE);
-  MFCDM_PARENT_LOG("Created a CDM!");
-  PROFILER_MARKER_UNTYPED("MFCDMParent::RecvInit(created CDM)", MEDIA_PLAYBACK);
-
-  // This is only required by PlayReady.
-  if (IsPlayReadyKeySystemAndSupported(mKeySystem)) {
-    ComPtr<IMFPMPHost> pmpHost;
-    ComPtr<IMFGetService> cdmService;
-    MFCDM_REJECT_IF_FAILED(mCDM.As(&cdmService), NS_ERROR_FAILURE);
+  {
+    MutexAutoLock lock(Mutex());
+    mCDMAccessLock.NoteExclusiveAccess();
     MFCDM_REJECT_IF_FAILED(
-        cdmService->GetService(MF_CONTENTDECRYPTIONMODULE_SERVICE,
-                               IID_PPV_ARGS(&pmpHost)),
+        CreateContentDecryptionModule(mFactory, MapKeySystem(mKeySystem),
+                                      aParams, mCDM),
         NS_ERROR_FAILURE);
-    MFCDM_REJECT_IF_FAILED(SUCCEEDED(MakeAndInitialize<MFPMPHostWrapper>(
-                               &mPMPHostWrapper, pmpHost)),
-                           NS_ERROR_FAILURE);
-    MFCDM_REJECT_IF_FAILED(mCDM->SetPMPHostApp(mPMPHostWrapper.Get()),
-                           NS_ERROR_FAILURE);
-    MFCDM_PARENT_LOG("Set PMPHostWrapper on CDM!");
+    MFCDM_REJECT_IF(!mCDM, NS_ERROR_FAILURE);
+    MOZ_ASSERT(!mCDMProxy);
+    mCDMProxy = new MFCDMProxy(mCDM.Get(), mId);
+
+    MFCDM_PARENT_LOG("Created a CDM!");
+    PROFILER_MARKER_UNTYPED("MFCDMParent::RecvInit(created CDM)",
+                            MEDIA_PLAYBACK);
+    // This is only required by PlayReady.
+    if (IsPlayReadyKeySystemAndSupported(mKeySystem)) {
+      ComPtr<IMFPMPHost> pmpHost;
+      ComPtr<IMFGetService> cdmService;
+      MFCDM_REJECT_IF_FAILED(mCDM.As(&cdmService), NS_ERROR_FAILURE);
+      MFCDM_REJECT_IF_FAILED(
+          cdmService->GetService(MF_CONTENTDECRYPTIONMODULE_SERVICE,
+                                 IID_PPV_ARGS(&pmpHost)),
+          NS_ERROR_FAILURE);
+      MFCDM_REJECT_IF_FAILED(SUCCEEDED(MakeAndInitialize<MFPMPHostWrapper>(
+                                 &mPMPHostWrapper, pmpHost)),
+                             NS_ERROR_FAILURE);
+      MFCDM_REJECT_IF_FAILED(mCDM->SetPMPHostApp(mPMPHostWrapper.Get()),
+                             NS_ERROR_FAILURE);
+      MFCDM_PARENT_LOG("Set PMPHostWrapper on CDM!");
+    }
   }
 
   mIsInited = true;
@@ -1177,6 +1207,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvInit(
 mozilla::ipc::IPCResult MFCDMParent::RecvCreateSessionAndGenerateRequest(
     const MFCDMCreateSessionParamsIPDL& aParams,
     CreateSessionAndGenerateRequestResolver&& aResolver) {
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   MOZ_ASSERT(mIsInited, "Must finish initialization first");
 
   static auto SessionTypeToStr = [](KeySystemConfig::SessionType aSessionType) {
@@ -1240,6 +1271,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvCreateSessionAndGenerateRequest(
 mozilla::ipc::IPCResult MFCDMParent::RecvLoadSession(
     const KeySystemConfig::SessionType& aSessionType,
     const nsString& aSessionId, LoadSessionResolver&& aResolver) {
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   MOZ_ASSERT(mIsInited, "Must finish initialization first");
 
   nsresult rv = NS_OK;
@@ -1265,6 +1297,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvLoadSession(
 mozilla::ipc::IPCResult MFCDMParent::RecvUpdateSession(
     const nsString& aSessionId, const CopyableTArray<uint8_t>& aResponse,
     UpdateSessionResolver&& aResolver) {
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   MOZ_ASSERT(mIsInited, "Must finish initialization first");
   nsresult rv = NS_OK;
   auto* session = GetSession(aSessionId);
@@ -1287,6 +1320,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvUpdateSession(
 
 mozilla::ipc::IPCResult MFCDMParent::RecvCloseSession(
     const nsString& aSessionId, UpdateSessionResolver&& aResolver) {
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   MOZ_ASSERT(mIsInited, "Must finish initialization first");
   nsresult rv = NS_OK;
   auto* session = GetSession(aSessionId);
@@ -1309,6 +1343,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvCloseSession(
 
 mozilla::ipc::IPCResult MFCDMParent::RecvRemoveSession(
     const nsString& aSessionId, UpdateSessionResolver&& aResolver) {
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   MOZ_ASSERT(mIsInited, "Must finish initialization first");
   nsresult rv = NS_OK;
   auto* session = GetSession(aSessionId);
@@ -1332,6 +1367,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvRemoveSession(
 mozilla::ipc::IPCResult MFCDMParent::RecvSetServerCertificate(
     const CopyableTArray<uint8_t>& aCertificate,
     UpdateSessionResolver&& aResolver) {
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   MOZ_ASSERT(mIsInited, "Must finish initialization first");
   nsresult rv = NS_OK;
   MFCDM_PARENT_LOG("Set server certificate");
@@ -1349,6 +1385,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvSetServerCertificate(
 mozilla::ipc::IPCResult MFCDMParent::RecvGetStatusForPolicy(
     const dom::HDCPVersion& aMinHdcpVersion,
     GetStatusForPolicyResolver&& aResolver) {
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   auto rv = IsHDCPVersionSupported(mFactory, mKeySystem, aMinHdcpVersion);
   if (IsBeingProfiledOrLogEnabled()) {
     nsPrintfCString msg("HDCP version=%u, support=%s",
@@ -1370,7 +1407,7 @@ void MFCDMParent::ConnectSessionEvents(MFCDMSession* aSession) {
 }
 
 MFCDMSession* MFCDMParent::GetSession(const nsString& aSessionId) {
-  AssertOnManagerThread();
+  ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD();
   auto iter = mSessions.find(aSessionId);
   if (iter == mSessions.end()) {
     return nullptr;
@@ -1379,12 +1416,8 @@ MFCDMSession* MFCDMParent::GetSession(const nsString& aSessionId) {
 }
 
 MFCDMProxy* MFCDMParent::GetMFCDMProxy() {
-  if (!mCDM) {
-    return nullptr;
-  }
-  if (!mCDMProxy) {
-    mCDMProxy = new MFCDMProxy(mCDM.Get(), mId);
-  }
+  MutexAutoLock lock(Mutex());
+  mCDMAccessLock.NoteLockHeld();
   return mCDMProxy;
 }
 
@@ -1396,13 +1429,13 @@ void MFCDMService::GetAllKeySystemsCapabilities(dom::Promise* aPromise) {
       ->Then(
           GetMainThreadSerialEventTarget(), __func__,
           [promise = RefPtr(aPromise)]() {
-            RefPtr<ipc::UtilityAudioDecoderChild> uadc =
-                ipc::UtilityAudioDecoderChild::GetSingleton(kSandboxKind);
-            if (NS_WARN_IF(!uadc)) {
+            RefPtr<ipc::UtilityMediaServiceChild> umsc =
+                ipc::UtilityMediaServiceChild::GetSingleton(kSandboxKind);
+            if (NS_WARN_IF(!umsc)) {
               promise->MaybeReject(NS_ERROR_FAILURE);
               return;
             }
-            uadc->GetKeySystemCapabilities(promise);
+            umsc->GetKeySystemCapabilities(promise);
           },
           [promise = RefPtr(aPromise)](nsresult aError) {
             promise->MaybeReject(NS_ERROR_FAILURE);
@@ -1427,27 +1460,27 @@ RefPtr<GenericNonExclusivePromise> MFCDMService::LaunchMFCDMProcessIfNeeded(
     return GenericNonExclusivePromise::CreateAndResolve(true, __func__);
   }
 
-  RefPtr<ipc::UtilityAudioDecoderChild> uadc =
-      ipc::UtilityAudioDecoderChild::GetSingleton(aSandbox);
-  if (NS_WARN_IF(!uadc)) {
-    NS_WARNING("Failed to get UtilityAudioDecoderChild");
+  RefPtr<ipc::UtilityMediaServiceChild> umsc =
+      ipc::UtilityMediaServiceChild::GetSingleton(aSandbox);
+  if (NS_WARN_IF(!umsc)) {
+    NS_WARNING("Failed to get UtilityMediaServiceChild");
     return GenericNonExclusivePromise::CreateAndReject(NS_ERROR_FAILURE,
                                                        __func__);
   }
-  return utilityProc->StartUtility(uadc, aSandbox)
+  return utilityProc->StartUtility(umsc, aSandbox)
       ->Then(
           GetMainThreadSerialEventTarget(), __func__,
-          [uadc, utilityProc, aSandbox]() {
+          [umsc, utilityProc, aSandbox]() {
             RefPtr<ipc::UtilityProcessParent> parent =
                 utilityProc->GetProcessParent(aSandbox);
             if (!parent) {
-              NS_WARNING("UtilityAudioDecoderParent lost in the middle");
+              NS_WARNING("UtilityMediaServiceParent lost in the middle");
               return GenericNonExclusivePromise::CreateAndReject(
                   NS_ERROR_FAILURE, __func__);
             }
 
-            if (!uadc->CanSend()) {
-              NS_WARNING("UtilityAudioDecoderChild lost in the middle");
+            if (!umsc->CanSend()) {
+              NS_WARNING("UtilityMediaServiceChild lost in the middle");
               return GenericNonExclusivePromise::CreateAndReject(
                   NS_ERROR_FAILURE, __func__);
             }
@@ -1485,13 +1518,13 @@ void MFCDMService::UpdateWidevineL1Path(nsIFile* aFile) {
     return;
   }
 
-  RefPtr<ipc::UtilityAudioDecoderChild> uadc =
-      ipc::UtilityAudioDecoderChild::GetSingleton(sandboxKind);
-  if (NS_WARN_IF(!uadc)) {
-    NS_WARNING("Failed to get UtilityAudioDecoderChild");
+  RefPtr<ipc::UtilityMediaServiceChild> umsc =
+      ipc::UtilityMediaServiceChild::GetSingleton(sandboxKind);
+  if (NS_WARN_IF(!umsc)) {
+    NS_WARNING("Failed to get UtilityMediaServiceChild");
     return;
   }
-  Unused << uadc->SendUpdateWidevineL1Path(widevineL1Path);
+  Unused << umsc->SendUpdateWidevineL1Path(widevineL1Path);
 #ifdef MOZ_WMF_CDM_LPAC_SANDBOX
   SandboxBroker::EnsureLpacPermsissionsOnDir(widevineL1Path);
 #endif
@@ -1503,5 +1536,7 @@ void MFCDMService::UpdateWidevineL1Path(nsIFile* aFile) {
 #undef MFCDM_RETURN_BOOL_IF_FAILED
 #undef MFCDM_PARENT_SLOG
 #undef MFCDM_PARENT_LOG
+#undef ASSERT_CDM_ACCESS_READ_ONLY_ON_MANAGER_THREAD
+#undef ASSERT_CDM_ACCESS_ON_MANAGER_THREAD
 
 }  // namespace mozilla

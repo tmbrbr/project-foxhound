@@ -8,6 +8,9 @@
 newtab-page-title = Nuova scheda
 newtab-settings-button =
     .title = Personalizza la pagina Nuova scheda
+newtab-customize-panel-icon-button =
+    .title = Personalizza questa pagina
+newtab-customize-panel-icon-button-label = Personalizza
 newtab-personalize-settings-icon-label =
     .title = Personalizza Nuova scheda
     .aria-label = Impostazioni
@@ -53,6 +56,9 @@ newtab-topsites-add-shortcut-header = Nuova scorciatoia
 newtab-topsites-edit-topsites-header = Modifica sito principale
 newtab-topsites-edit-shortcut-header = Modifica scorciatoia
 newtab-topsites-add-shortcut-label = Aggiungi scorciatoia
+newtab-topsites-add-shortcut-title =
+    .title = Aggiungi scorciatoia
+    .aria-label = Aggiungi scorciatoia
 newtab-topsites-title-label = Titolo
 newtab-topsites-title-input =
     .placeholder = Inserire un titolo
@@ -117,7 +123,8 @@ newtab-menu-delete-pocket = Elimina da { -pocket-brand-name }
 newtab-menu-archive-pocket = Archivia in { -pocket-brand-name }
 newtab-menu-show-privacy-info = I nostri sponsor e la tua privacy
 newtab-menu-about-fakespot = Informazioni su { -fakespot-brand-name }
-newtab-menu-report-content = Segnala questo contenuto
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Segnala
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Blocca
@@ -193,6 +200,8 @@ newtab-label-sponsored-by = Sponsorizzata da { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponsorizzato
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -276,7 +285,7 @@ newtab-toast-dismiss-button =
 ## Pocket content onboarding experience dialog and modal for new users seeing the Pocket section for the first time, shown as the first item in the Pocket section.
 
 newtab-pocket-onboarding-discover = Scopri il meglio del Web
-newtab-pocket-onboarding-cta = { -pocket-brand-name } esplora un’ampia gamma di pubblicazioni per portare i contenuti più istruttivi, stimolanti e affidabili direttamente nel tuo { -brand-product-name }.
+newtab-pocket-onboarding-cta = { -pocket-brand-name } esplora un’ampia gamma di pubblicazioni per portare i contenuti più istruttivi, stimolanti e attendibili direttamente nel tuo { -brand-product-name }.
 
 ## Error Fallback Content.
 ## This message and suggested action link are shown in each section of UI that fails to render.
@@ -314,6 +323,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Meteo
     .description = Panoramica delle previsioni meteo per oggi
+newtab-custom-trending-search-toggle =
+    .label = Ricerche di tendenza
+    .description = Argomenti popolari e cercati di frequente
 newtab-custom-close-button = Chiudi
 newtab-custom-settings = Gestisci altre impostazioni
 
@@ -497,6 +509,9 @@ newtab-topic-selection-button-pick-interests = Scegli i tuoi interessi
 newtab-section-follow-button = Segui
 newtab-section-following-button = Stai seguendo
 newtab-section-unfollow-button = Smetti di seguire
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Perfeziona il tuo feed
+newtab-section-follow-highlight-subtitle = Segui gli argomenti che ti interessano per scoprire di più su ciò che ti appassiona.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -529,6 +544,12 @@ newtab-custom-wallpaper-title = Ora puoi utilizzare sfondi personalizzati
 newtab-custom-wallpaper-subtitle = Carica il tuo sfondo o scegli un colore personalizzato per personalizzare { -brand-product-name }.
 newtab-custom-wallpaper-cta = Prova
 
+## Strings for new user activation custom wallpaper highlight
+
+newtab-new-user-custom-wallpaper-title = Scegli uno sfondo per rendere { -brand-product-name } davvero tuo
+newtab-new-user-custom-wallpaper-subtitle = Fai sentire ogni nuova scheda come se fosse casa tua con sfondi e colori personalizzati.
+newtab-new-user-custom-wallpaper-cta = Provalo ora
+
 ## Strings for download mobile highlight
 
 newtab-download-mobile-highlight-title = Scarica { -brand-product-name } per dispositivi mobili
@@ -538,6 +559,11 @@ newtab-download-mobile-highlight-body-variant-b = Riprendi da dove eri rimasto s
 newtab-download-mobile-highlight-body-variant-c = Lo sapevi che puoi portare { -brand-product-name } sempre con te? Lo stesso browser, nella tua tasca.
 newtab-download-mobile-highlight-image =
     .aria-label = Codice QR per scaricare { -brand-product-name } per dispositivi mobili
+
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = I tuoi preferiti a portata di mano
+newtab-shortcuts-highlight-subtitle = Aggiungi una scorciatoia per mantenere i tuoi siti preferiti a portata di clic.
 
 ## Strings for reporting ads and content
 
@@ -562,3 +588,15 @@ newtab-report-submit = Invia
 newtab-toast-thanks-for-reporting =
     .message = Grazie per la segnalazione.
 
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Di tendenza su Google
+newtab-trending-searches-show-trending =
+    .title = Mostra ricerche di tendenza
+newtab-trending-searches-hide-trending =
+    .title = Nascondi ricerche di tendenza
+newtab-trending-searches-learn-more = Ulteriori informazioni
+newtab-trending-searches-dismiss = Nascondi ricerche di tendenza
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Ricerche di tendenza

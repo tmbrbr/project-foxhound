@@ -19,7 +19,7 @@ namespace js {
 //
 // If you add a new flag here, please add appropriate code to JSObject::dump to
 // dump it as part of the object representation.
-enum class ObjectFlag : uint16_t {
+enum class ObjectFlag : uint32_t {
   IsUsedAsPrototype = 1 << 0,
   NotExtensible = 1 << 1,
   Indexed = 1 << 2,
@@ -86,6 +86,13 @@ enum class ObjectFlag : uint16_t {
   // with it, and thus we must trap on changes to said property.
   HasFuseProperty = 1 << 14,
 
+  // This is just holding the place of the flag for bug 1844878 which was
+  // temporarily backed out in bug 1980081.
+  HasPreservedWrapperDummy = 1 << 15,
+
+  // If set, the object may have an accessor property where the getter or setter
+  // is a non-JSFunction callable object.
+  HasNonFunctionAccessor = 1 << 16,
 };
 
 using ObjectFlags = EnumFlags<ObjectFlag>;

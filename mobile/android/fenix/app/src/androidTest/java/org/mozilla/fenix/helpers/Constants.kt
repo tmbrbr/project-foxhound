@@ -26,7 +26,7 @@ object Constants {
     }
 
     const val SPEECH_RECOGNITION = "android.speech.action.RECOGNIZE_SPEECH"
-    const val POCKET_RECOMMENDED_STORIES_UTM_PARAM = "utm_source=pocket-newtab-android"
+    const val STORIES_UTM_PARAM = "utm_source=firefox-newtab-en-us"
     const val LONG_CLICK_DURATION: Long = 5000
     const val LISTS_MAXSWIPES: Int = 3
     const val RETRY_COUNT = 3
@@ -46,7 +46,6 @@ object Constants {
             "Google" to "Google",
             "First sponsored shortcut" to firstSponsoredShortcutTitle,
             "Second sponsored shortcut" to secondSponsoredShortcutTitle,
-            "Top Articles" to "Top Articles",
             "Wikipedia" to "Wikipedia",
         )
     }
@@ -58,9 +57,10 @@ object Constants {
         "Privacy Badger",
         "AdGuard AdBlocker",
         "Dark Reader",
-        "Bitwarden Password Manager",
+        "Bitwarden",
         "Tampermonkey",
-        "FoxyProxy",
+        // FoxyProxy from the suggested extensions because it instead of the add-on name the main menu extensions button displays "Disabled" and no name is being displayed in the installed "Extensions" list, only the add-on icon
+        // "FoxyProxy",
         "NoScript",
         "Search by Image",
         "ClearURLs",

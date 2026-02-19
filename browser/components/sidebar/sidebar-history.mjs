@@ -9,6 +9,7 @@ import {
   html,
   ifDefined,
   when,
+  nothing,
 } from "chrome://global/content/vendor/lit.all.mjs";
 import { navigateToLink } from "chrome://browser/content/firefoxview/helpers.mjs";
 
@@ -17,6 +18,9 @@ import { SidebarPage } from "./sidebar-page.mjs";
 ChromeUtils.defineESModuleGetters(lazy, {
   HistoryController: "resource:///modules/HistoryController.sys.mjs",
   Sanitizer: "resource:///modules/Sanitizer.sys.mjs",
+  SidebarTreeView:
+    "moz-src:///browser/components/sidebar/SidebarTreeView.sys.mjs",
+  PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
 });
 
 const NEVER_REMEMBER_HISTORY_PREF = "browser.privatebrowsing.autostart";
@@ -28,17 +32,17 @@ export class SidebarHistory extends SidebarPage {
     emptyState: "fxview-empty-state",
     lists: { all: "sidebar-tab-list" },
     menuButton: ".menu-button",
-    searchTextbox: "fxview-search-textbox",
+    searchTextbox: "moz-input-search",
   };
 
   constructor() {
     super();
     this.handlePopupEvent = this.handlePopupEvent.bind(this);
+    this.controller = new lazy.HistoryController(this, {
+      component: "sidebar",
+    });
+    this.treeView = new lazy.SidebarTreeView(this);
   }
-
-  controller = new lazy.HistoryController(this, {
-    component: "sidebar",
-  });
 
   connectedCallback() {
     super.connectedCallback();
@@ -54,6 +58,7 @@ export class SidebarHistory extends SidebarPage {
     );
     this._menu.addEventListener("command", this);
     this._menu.addEventListener("popuphidden", this.handlePopupEvent);
+    this._contextMenu.addEventListener("popupshowing", this);
     this.addContextMenuListeners();
     this.addSidebarFocusedListeners();
     this.controller.updateCache();
@@ -63,8 +68,39 @@ export class SidebarHistory extends SidebarPage {
     super.disconnectedCallback();
     this._menu.removeEventListener("command", this);
     this._menu.removeEventListener("popuphidden", this.handlePopupEvent);
+    this._contextMenu.removeEventListener("popupshowing", this);
     this.removeContextMenuListeners();
     this.removeSidebarFocusedListeners();
+  }
+
+  handleEvent(e) {
+    switch (e.type) {
+      case "popupshowing":
+        this.updateContextMenu();
+        break;
+      default:
+        super.handleEvent(e);
+    }
+  }
+
+  get isMultipleRowsSelected() {
+    return !!this.treeView.selectedLists.size;
+  }
+
+  /**
+   * Only show multiselect commands when multiple items are selected.
+   */
+  updateContextMenu() {
+    for (const child of this._contextMenu.children) {
+      const isMultiSelectCommand = child.classList.contains(
+        "sidebar-history-multiselect-command"
+      );
+      if (this.isMultipleRowsSelected) {
+        child.hidden = !isMultiSelectCommand;
+      } else {
+        child.hidden = isMultiSelectCommand;
+      }
+    }
   }
 
   handleContextMenuEvent(e) {
@@ -92,12 +128,22 @@ export class SidebarHistory extends SidebarPage {
         lazy.Sanitizer.showUI(this.topWindow);
         break;
       case "sidebar-history-context-delete-page":
-        this.controller.deleteFromHistory();
+        this.controller.deleteFromHistory().catch(console.error);
+        break;
+      case "sidebar-history-context-delete-pages":
+        this.#deleteMultipleFromHistory().catch(console.error);
         break;
       default:
         super.handleCommandEvent(e);
         break;
     }
+  }
+
+  #deleteMultipleFromHistory() {
+    const pageGuids = [...this.treeView.selectedLists].flatMap(
+      ({ selectedGuids }) => [...selectedGuids]
+    );
+    return lazy.PlacesUtils.history.remove(pageGuids);
   }
 
   // We should let moz-button handle this, see bug 1875374.
@@ -112,83 +158,17 @@ export class SidebarHistory extends SidebarPage {
   }
 
   onPrimaryAction(e) {
+    if (this.isMultipleRowsSelected) {
+      // Avoid opening multiple links at once.
+      return;
+    }
     navigateToLink(e);
+    this.treeView.clearSelection();
   }
 
   onSecondaryAction(e) {
     this.triggerNode = e.detail.item;
-    this.controller.deleteFromHistory();
-  }
-
-  handleCardKeydown(e) {
-    if (e.originalTarget != e.target.summaryEl) {
-      return;
-    }
-    let nextSibling = e.target.nextElementSibling;
-    let prevSibling = e.target.previousElementSibling;
-    switch (e.code) {
-      case "Tab":
-        if (prevSibling.localName == "moz-card") {
-          e.preventDefault();
-        }
-        break;
-      case "ArrowUp":
-        if (!prevSibling || prevSibling.localName !== "moz-card") {
-          const { classList, parentElement: dateCard } = e.target;
-          if (classList.contains("nested-card")) {
-            // Going up from the first site card. Focus the date header.
-            dateCard.summaryEl.focus();
-          }
-          return;
-        }
-        if (prevSibling.expanded) {
-          let innerElement = prevSibling.contentSlotEl.assignedElements()[0];
-          if (innerElement.classList.contains("nested-card")) {
-            // Going up from a date header. Focus the last site card from the
-            // date card above this one.
-            const prevSite = prevSibling.lastElementChild;
-            if (prevSite.expanded) {
-              const prevTabList = prevSite.contentSlotEl.assignedElements()[0];
-              const lastRow = prevTabList.rowEls[prevTabList.rowEls.length - 1];
-              lastRow.focus();
-            } else {
-              prevSite.summaryEl.focus();
-            }
-          } else {
-            // Not sorted by Date & Site, innerElement is a SidebarTabList.
-            let lastRow = innerElement.rowEls[innerElement.rowEls.length - 1];
-            lastRow.focus();
-          }
-        } else {
-          prevSibling.summaryEl.focus();
-        }
-        break;
-      case "ArrowDown":
-        if (e.target.expanded) {
-          let innerElement = e.target.contentSlotEl.assignedElements()[0];
-          if (innerElement.classList.contains("nested-card")) {
-            // Going down from a date header. Focus the first site card.
-            innerElement.summaryEl.focus();
-          } else {
-            // Not sorted by Date & Site, innerElement is a SidebarTabList.
-            innerElement.rowEls[0].focus();
-          }
-        } else if (nextSibling && nextSibling.localName == "moz-card") {
-          nextSibling.summaryEl.focus();
-        } else if (e.target.classList.contains("last-card")) {
-          // Going down from the last site card. Focus the next date header.
-          const dateCard = e.target.parentElement;
-          const nextDate = dateCard.nextElementSibling;
-          nextDate?.summaryEl.focus();
-        }
-        break;
-      case "ArrowLeft":
-        e.target.expanded = false;
-        break;
-      case "ArrowRight":
-        e.target.expanded = true;
-        break;
-    }
+    this.controller.deleteFromHistory().catch(console.error);
   }
 
   /**
@@ -243,7 +223,7 @@ export class SidebarHistory extends SidebarPage {
       data-l10n-args=${JSON.stringify({
         date: isDateSite ? items[0][1][0].time : items[0].time,
       })}
-      @keydown=${this.handleCardKeydown}
+      @keydown=${e => this.treeView.handleCardKeydown(e)}
       tabindex=${ifDefined(tabIndex)}
     >
       ${isDateSite
@@ -277,8 +257,10 @@ export class SidebarHistory extends SidebarPage {
       type="accordion"
       ?expanded=${!isDateSite}
       heading=${domain}
-      @keydown=${this.handleCardKeydown}
+      @keydown=${e => this.treeView.handleCardKeydown(e)}
       tabindex=${ifDefined(tabIndex)}
+      data-l10n-id=${domain ? nothing : "sidebar-history-site-localhost"}
+      data-l10n-attrs=${domain ? nothing : "heading"}
     >
       ${this.#tabListTemplate(this.getTabItems(items))}
     </moz-card>`;
@@ -418,12 +400,11 @@ export class SidebarHistory extends SidebarPage {
         >
         </sidebar-panel-header>
         <div class="options-container">
-          <fxview-search-textbox
+          <moz-input-search
             data-l10n-id="firefoxview-search-text-box-history"
             data-l10n-attrs="placeholder"
-            @fxview-search-textbox-query=${this.onSearchQuery}
-            .size=${15}
-          ></fxview-search-textbox>
+            @MozInputSearch:search=${this.onSearchQuery}
+          ></moz-input-search>
           <moz-button
             class="menu-button"
             @click=${this.openMenu}

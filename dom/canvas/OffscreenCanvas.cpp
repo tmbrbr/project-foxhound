@@ -26,6 +26,7 @@
 #include "ImageBitmap.h"
 #include "ImageBitmapRenderingContext.h"
 #include "nsContentUtils.h"
+#include "nsIPermissionManager.h"
 #include "nsProxyRelease.h"
 #include "WebGLChild.h"
 
@@ -503,8 +504,11 @@ already_AddRefed<Promise> OffscreenCanvas::ConvertToBlob(
 
   RefPtr<EncodeCompleteCallback> callback =
       CreateEncodeCompleteCallback(promise);
-  bool usePlaceholder =
-      ShouldResistFingerprinting(RFPTarget::CanvasImageExtractionPrompt);
+
+  bool usePlaceholder = mCurrentContext && mCurrentContext->PrincipalOrNull() &&
+                        !CanvasUtils::IsImageExtractionAllowed(
+                            this, nsContentUtils::GetCurrentJSContext(),
+                            *mCurrentContext->PrincipalOrNull());
   CanvasRenderingContextHelper::ToBlob(callback, type, encodeOptions,
                                        /* aUsingCustomOptions */ false,
                                        usePlaceholder, aRv);
@@ -545,8 +549,10 @@ already_AddRefed<Promise> OffscreenCanvas::ToBlob(JSContext* aCx,
 
   RefPtr<EncodeCompleteCallback> callback =
       CreateEncodeCompleteCallback(promise);
-  bool usePlaceholder =
-      ShouldResistFingerprinting(RFPTarget::CanvasImageExtractionPrompt);
+  bool usePlaceholder = mCurrentContext && mCurrentContext->PrincipalOrNull() &&
+                        !CanvasUtils::IsImageExtractionAllowed(
+                            this, nsContentUtils::GetCurrentJSContext(),
+                            *mCurrentContext->PrincipalOrNull());
   CanvasRenderingContextHelper::ToBlob(aCx, callback, aType, aParams,
                                        usePlaceholder, aRv);
 
@@ -567,6 +573,10 @@ void OffscreenCanvas::SetWriteOnly(RefPtr<nsIPrincipal>&& aExpandedReader) {
                          mExpandedReader.forget());
   mExpandedReader = std::move(aExpandedReader);
   mIsWriteOnly = true;
+
+  if (mDisplay) {
+    mDisplay->SetWriteOnly(mExpandedReader);
+  }
 }
 
 bool OffscreenCanvas::CallerCanRead(nsIPrincipal& aPrincipal) const {

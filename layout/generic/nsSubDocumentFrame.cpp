@@ -11,48 +11,46 @@
 
 #include "nsSubDocumentFrame.h"
 
+#include "RetainedDisplayListBuilder.h"
 #include "mozilla/ComputedStyleInlines.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/PresShell.h"
+#include "mozilla/ProfilerLabels.h"
 #include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/Unused.h"
+#include "mozilla/dom/BrowserParent.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/HTMLFrameElement.h"
 #include "mozilla/dom/ImageDocument.h"
-#include "mozilla/dom/BrowserParent.h"
 #include "mozilla/dom/RemoteBrowser.h"
-
+#include "mozilla/layers/RenderRootStateManager.h"
+#include "mozilla/layers/StackingContextHelper.h"  // for StackingContextHelper
+#include "mozilla/layers/WebRenderScrollData.h"
+#include "mozilla/layers/WebRenderUserData.h"
+#include "nsAttrValueInlines.h"
 #include "nsCOMPtr.h"
+#include "nsContentUtils.h"
+#include "nsDisplayList.h"
+#include "nsFrameSetFrame.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGenericHTMLFrameElement.h"
-#include "nsAttrValueInlines.h"
+#include "nsGkAtoms.h"
+#include "nsIContentInlines.h"
 #include "nsIDocShell.h"
 #include "nsIDocumentViewer.h"
-#include "nsIContentInlines.h"
+#include "nsIObjectLoadingContent.h"
+#include "nsLayoutUtils.h"
+#include "nsNameSpaceManager.h"
+#include "nsObjectLoadingContent.h"
 #include "nsPresContext.h"
-#include "nsView.h"
-#include "nsViewManager.h"
-#include "nsGkAtoms.h"
+#include "nsQueryObject.h"
+#include "nsServiceManagerUtils.h"
 #include "nsStyleConsts.h"
 #include "nsStyleStruct.h"
 #include "nsStyleStructInlines.h"
-#include "nsFrameSetFrame.h"
-#include "nsNameSpaceManager.h"
-#include "nsDisplayList.h"
-#include "nsIObjectLoadingContent.h"
-#include "nsLayoutUtils.h"
-#include "nsContentUtils.h"
-#include "nsServiceManagerUtils.h"
-#include "nsQueryObject.h"
-#include "RetainedDisplayListBuilder.h"
-#include "nsObjectLoadingContent.h"
-
-#include "mozilla/layers/WebRenderUserData.h"
-#include "mozilla/layers/WebRenderScrollData.h"
-#include "mozilla/layers/RenderRootStateManager.h"
-#include "mozilla/layers/StackingContextHelper.h"  // for StackingContextHelper
-#include "mozilla/ProfilerLabels.h"
+#include "nsView.h"
+#include "nsViewManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -489,7 +487,7 @@ void nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 
   nsDisplayList childItems(aBuilder);
 
-  {
+  if (subdocRootFrame) {
     DisplayListClipState::AutoSaveRestore nestedClipState(aBuilder);
     if (needsOwnLayer) {
       // Clear current clip. There's no point in propagating it down, since
@@ -499,42 +497,32 @@ void nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
       nestedClipState.Clear();
     }
 
-    // Invoke AutoBuildingDisplayList to ensure that the correct dirty rect
-    // is used to compute the visible rect if AddCanvasBackgroundColorItem
-    // creates a display item.
-    nsIFrame* frame = subdocRootFrame ? subdocRootFrame : this;
-    nsDisplayListBuilder::AutoBuildingDisplayList building(aBuilder, frame,
-                                                           visible, dirty);
+    nsDisplayListBuilder::AutoBuildingDisplayList building(
+        aBuilder, subdocRootFrame, visible, dirty);
+    if (aBuilder->BuildCompositorHitTestInfo()) {
+      bool hasDocumentLevelListenersForApzAwareEvents =
+          gfxPlatform::AsyncPanZoomEnabled() &&
+          nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(presShell);
 
-    if (subdocRootFrame) {
-      if (aBuilder->BuildCompositorHitTestInfo()) {
-        bool hasDocumentLevelListenersForApzAwareEvents =
-            gfxPlatform::AsyncPanZoomEnabled() &&
-            nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(
-                presShell);
+      aBuilder->SetAncestorHasApzAwareEventHandler(
+          hasDocumentLevelListenersForApzAwareEvents);
+    }
+    subdocRootFrame->BuildDisplayListForStackingContext(aBuilder, &childItems);
+    if (!aBuilder->IsForEventDelivery()) {
+      // If we are going to use a displayzoom below then any items we put
+      // under it need to have underlying frames from the subdocument. So we
+      // need to calculate the bounds based on which frame will be the
+      // underlying frame for the canvas background color item.
+      nsRect bounds =
+          GetContentRectRelativeToSelf() + aBuilder->ToReferenceFrame(this);
+      bounds = bounds.ScaleToOtherAppUnitsRoundOut(parentAPD, subdocAPD);
 
-        aBuilder->SetAncestorHasApzAwareEventHandler(
-            hasDocumentLevelListenersForApzAwareEvents);
-      }
-
-      subdocRootFrame->BuildDisplayListForStackingContext(aBuilder,
-                                                          &childItems);
-      if (!aBuilder->IsForEventDelivery()) {
-        // If we are going to use a displayzoom below then any items we put
-        // under it need to have underlying frames from the subdocument. So we
-        // need to calculate the bounds based on which frame will be the
-        // underlying frame for the canvas background color item.
-        nsRect bounds =
-            GetContentRectRelativeToSelf() + aBuilder->ToReferenceFrame(this);
-        bounds = bounds.ScaleToOtherAppUnitsRoundOut(parentAPD, subdocAPD);
-
-        // Add the canvas background color to the bottom of the list. This
-        // happens after we've built the list so that
-        // AddCanvasBackgroundColorItem can monkey with the contents if
-        // necessary.
-        presShell->AddCanvasBackgroundColorItem(aBuilder, &childItems, frame,
-                                                bounds, NS_RGBA(0, 0, 0, 0));
-      }
+      // Add the canvas background color to the bottom of the list. This
+      // happens after we've built the list so that
+      // AddCanvasBackgroundColorItem can monkey with the contents if
+      // necessary.
+      presShell->AddCanvasBackgroundColorItem(
+          aBuilder, &childItems, subdocRootFrame, bounds, NS_RGBA(0, 0, 0, 0));
     }
   }
 
@@ -1293,10 +1281,10 @@ nsPoint nsSubDocumentFrame::GetExtraOffset() const {
 
 void nsSubDocumentFrame::SubdocumentIntrinsicSizeOrRatioChanged() {
   const nsStylePosition* pos = StylePosition();
-  const auto positionProperty = StyleDisplay()->mPosition;
+  const auto anchorResolutionParams = AnchorPosResolutionParams::From(this);
   bool dependsOnIntrinsics =
-      !pos->GetWidth(positionProperty)->ConvertsToLength() ||
-      !pos->GetHeight(positionProperty)->ConvertsToLength();
+      !pos->GetWidth(anchorResolutionParams)->ConvertsToLength() ||
+      !pos->GetHeight(anchorResolutionParams)->ConvertsToLength();
 
   if (dependsOnIntrinsics || pos->mObjectFit != StyleObjectFit::Fill) {
     auto dirtyHint = dependsOnIntrinsics

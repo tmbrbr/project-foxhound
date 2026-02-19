@@ -532,7 +532,6 @@ class XMLHttpRequestMainThread final : public XMLHttpRequest,
 
   nsTArray<PendingEvent> mPendingEvents;
 
-  nsCOMPtr<nsISupports> mContext;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<nsIChannel> mChannel;
   nsCString mRequestMethod;

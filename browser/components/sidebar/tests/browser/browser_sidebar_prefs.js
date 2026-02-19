@@ -30,7 +30,7 @@ add_task(async function test_tools_prefs() {
     `${toolEntrypointsCount} inputs to toggle Firefox Tools are shown in the Customize Menu.`
   );
   let bookmarksInput = Array.from(customizeComponent.toolInputs).find(
-    input => input.name === "viewBookmarksSidebar"
+    input => input.id === "viewBookmarksSidebar"
   );
   ok(
     bookmarksInput.checked,
@@ -38,14 +38,14 @@ add_task(async function test_tools_prefs() {
   );
   for (const toolInput of customizeComponent.toolInputs) {
     let toolDisabledInitialState = !toolInput.checked;
-    if (toolInput.name == "viewBookmarksSidebar") {
+    if (toolInput.id == "viewBookmarksSidebar") {
       continue;
     }
     toolInput.click();
     await BrowserTestUtils.waitForCondition(
       () => {
         let toggledTool = win.SidebarController.toolsAndExtensions.get(
-          toolInput.name
+          toolInput.id
         );
         return toggledTool.disabled === !toolDisabledInitialState;
       },
@@ -76,17 +76,16 @@ add_task(async function test_tools_prefs() {
   //   Open a new window to check that it uses the pref
   const newWin = await BrowserTestUtils.openNewBrowserWindow();
   const newSidebar = newWin.document.querySelector("sidebar-main");
-  ok(newSidebar, "New Window sidebar is shown.");
-  await newSidebar.updateComplete;
+
+  // toggle open the sidebar launcher to check which tools are visible
+  newWin.document.getElementById("sidebar-button").doCommand();
+  await TestUtils.waitForTick();
+
   info("Waiting for customize button to be present");
   await BrowserTestUtils.waitForMutationCondition(
     newSidebar,
     { childList: true, subTree: true },
     () => !!newSidebar.customizeButton
-  );
-  ok(
-    BrowserTestUtils.isVisible(newSidebar.customizeButton),
-    "The sidebar-main component has fully rendered, and the customize button is present."
   );
 
   // TO DO: opening the customize category can be removed once bug 1898613 is resolved.
@@ -111,7 +110,7 @@ add_task(async function test_tools_prefs() {
     "The number of tool inputs checked matches that of the other window's sidebar"
   );
   let newBookmarksInput = Array.from(newCustomizeComponent.toolInputs).find(
-    input => input.name === "viewBookmarksSidebar"
+    input => input.id === "viewBookmarksSidebar"
   );
   is(
     newBookmarksInput.checked,

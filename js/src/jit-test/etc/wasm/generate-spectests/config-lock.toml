@@ -1,15 +1,7 @@
 [[repos]]
 name = 'spec'
-commit = '1e1010249'
+commit = 'c022fb15'
 
 [[repos]]
-name = 'memory64'
-commit = '9003cd5e2'
-
-[[repos]]
-name = 'exception-handling'
-commit = 'af287a73d'
-
-[[repos]]
-name = 'gc'
-commit = '756060f58'
+name = 'threads'
+commit = '3635ca51'

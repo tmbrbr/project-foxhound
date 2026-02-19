@@ -723,6 +723,8 @@ class MDefinition : public MNode {
   MIR_FLAG_LIST(FLAG_ACCESSOR)
 #undef FLAG_ACCESSOR
 
+  bool hasAnyFlags() const { return flags_ != 0; }
+
   // Return the type of this value. This may be speculative, and enforced
   // dynamically with the use of bailout checks. If all the bailout checks
   // pass, the value will have this type.
@@ -1424,7 +1426,7 @@ class MConstant : public MNullaryInstruction {
       intptr_t iptr;
       float f;
       double d;
-      JSString* str;
+      JSOffThreadAtom* str;
       JS::Symbol* sym;
       BigInt* bi;
       JSObject* obj;
@@ -1521,7 +1523,7 @@ class MConstant : public MNullaryInstruction {
     MOZ_ASSERT(type() == MIRType::Float32);
     return payload_.f;
   }
-  JSString* toString() const {
+  JSOffThreadAtom* toString() const {
     MOZ_ASSERT(type() == MIRType::String);
     return payload_.str;
   }
@@ -4576,6 +4578,7 @@ class MMinMax : public MBinaryInstruction, public ArithPolicy::Data {
     MOZ_ASSERT(IsNumberType(type));
     setResultType(type);
     setMovable();
+    setCommutative();
   }
 
  public:
@@ -6921,12 +6924,17 @@ class MSpectreMaskIndex
 // Load a value from a dense array's element vector. Bails out if the element is
 // a hole.
 class MLoadElement : public MBinaryInstruction, public NoTypePolicy::Data {
-  MLoadElement(MDefinition* elements, MDefinition* index)
-      : MBinaryInstruction(classOpcode, elements, index) {
-    // Uses may be optimized away based on this instruction's result
-    // type. This means it's invalid to DCE this instruction, as we
-    // have to invalidate when we read a hole.
-    setGuard();
+  bool needsHoleCheck_;
+
+  MLoadElement(MDefinition* elements, MDefinition* index, bool needsHoleCheck)
+      : MBinaryInstruction(classOpcode, elements, index),
+        needsHoleCheck_(needsHoleCheck) {
+    if (needsHoleCheck) {
+      // Uses may be optimized away based on this instruction's result
+      // type. This means it's invalid to DCE this instruction, as we
+      // have to invalidate when we read a hole.
+      setGuard();
+    }
     setResultType(MIRType::Value);
     setMovable();
     MOZ_ASSERT(elements->type() == MIRType::Elements);
@@ -6937,6 +6945,8 @@ class MLoadElement : public MBinaryInstruction, public NoTypePolicy::Data {
   INSTRUCTION_HEADER(LoadElement)
   TRIVIAL_NEW_WRAPPERS
   NAMED_OPERANDS((0, elements), (1, index))
+
+  bool needsHoleCheck() const { return needsHoleCheck_; }
 
   bool congruentTo(const MDefinition* ins) const override {
     return congruentIfOperandsEqual(ins);
@@ -9118,55 +9128,6 @@ class MGuardToClass : public MUnaryInstruction,
       return false;
     }
     if (getClass() != ins->toGuardToClass()->getClass()) {
-      return false;
-    }
-    return congruentIfOperandsEqual(ins);
-  }
-};
-
-class MGuardToEitherClass : public MUnaryInstruction,
-                            public SingleObjectPolicy::Data {
-  const JSClass* class1_;
-  const JSClass* class2_;
-
-  MGuardToEitherClass(MDefinition* object, const JSClass* clasp1,
-                      const JSClass* clasp2)
-      : MUnaryInstruction(classOpcode, object),
-        class1_(clasp1),
-        class2_(clasp2) {
-    MOZ_ASSERT(object->type() == MIRType::Object);
-    MOZ_ASSERT(clasp1 != clasp2, "Use MGuardToClass instead");
-    MOZ_ASSERT(!clasp1->isJSFunction(), "Use MGuardToFunction instead");
-    MOZ_ASSERT(!clasp2->isJSFunction(), "Use MGuardToFunction instead");
-    setResultType(MIRType::Object);
-    setMovable();
-
-    // We will bail out if the class type is incorrect, so we need to ensure we
-    // don't eliminate this instruction
-    setGuard();
-  }
-
- public:
-  INSTRUCTION_HEADER(GuardToEitherClass)
-  TRIVIAL_NEW_WRAPPERS
-  NAMED_OPERANDS((0, object))
-
-  const JSClass* getClass1() const { return class1_; }
-  const JSClass* getClass2() const { return class2_; }
-
-  MDefinition* foldsTo(TempAllocator& alloc) override;
-  AliasSet getAliasSet() const override { return AliasSet::None(); }
-  bool congruentTo(const MDefinition* ins) const override {
-    if (!ins->isGuardToEitherClass()) {
-      return false;
-    }
-    const auto* other = ins->toGuardToEitherClass();
-    if (getClass1() != other->getClass1() &&
-        getClass1() != other->getClass2()) {
-      return false;
-    }
-    if (getClass2() != other->getClass1() &&
-        getClass2() != other->getClass2()) {
       return false;
     }
     return congruentIfOperandsEqual(ins);

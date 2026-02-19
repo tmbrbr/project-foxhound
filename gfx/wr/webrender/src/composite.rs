@@ -160,6 +160,7 @@ pub struct CompositeTile {
     pub kind: TileKind,
     pub transform_index: CompositorTransformIndex,
     pub clip_index: Option<CompositorClipIndex>,
+    pub tile_id: Option<TileId>,
 }
 
 pub fn tile_kind(surface: &CompositeTileSurface, is_opaque: bool) -> TileKind {
@@ -697,10 +698,10 @@ impl CompositeState {
                 (
                     clip.rect.cast_unit(),
                     ClipRadius {
-                        top_left: clip.radius.top_left.width,
-                        top_right: clip.radius.top_right.width,
-                        bottom_left: clip.radius.bottom_left.width,
-                        bottom_right: clip.radius.bottom_right.width,
+                        top_left: clip.radius.top_left.width.round() as i32,
+                        top_right: clip.radius.top_right.width.round() as i32,
+                        bottom_left: clip.radius.bottom_left.width.round() as i32,
+                        bottom_right: clip.radius.bottom_right.width.round() as i32,
                     }
                 )
             }
@@ -919,6 +920,7 @@ impl CompositeState {
             z_id: external_surface.z_id,
             transform_index: external_surface.transform_index,
             clip_index,
+            tile_id: None,
         };
 
         let (rounded_clip_rect, rounded_clip_radii) = self.compositor_clip_params(
@@ -1353,14 +1355,14 @@ pub type CompositorSurfaceTransform = ScaleOffset;
 #[cfg_attr(feature = "replay", derive(Deserialize))]
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub struct ClipRadius {
-    top_left: f32,
-    top_right: f32,
-    bottom_left: f32,
-    bottom_right: f32,
+    pub top_left: i32,
+    pub top_right: i32,
+    pub bottom_left: i32,
+    pub bottom_right: i32,
 }
 
 impl ClipRadius {
-    pub const EMPTY: ClipRadius = ClipRadius { top_left: 0.0, top_right: 0.0, bottom_left: 0.0, bottom_right: 0.0 };
+    pub const EMPTY: ClipRadius = ClipRadius { top_left: 0, top_right: 0, bottom_left: 0, bottom_right: 0 };
 }
 
 /// Defines an interface to a native (OS level) compositor. If supplied
@@ -1556,14 +1558,22 @@ pub trait LayerCompositor {
     fn begin_frame(
         &mut self,
         input: &CompositorInputConfig,
-    );
+    ) -> bool;
 
     // Bind a layer (by index in the input config) to begin rendering
     // content to it.
-    fn bind_layer(&mut self, index: usize);
+    fn bind_layer(
+        &mut self,
+        index: usize,
+        dirty_rects: &[DeviceIntRect],
+    );
 
     // Complete rendering of a layer and present / swap buffers
-    fn present_layer(&mut self, index: usize);
+    fn present_layer(
+        &mut self,
+        index: usize,
+        dirty_rects: &[DeviceIntRect],
+    );
 
     fn add_surface(
         &mut self,

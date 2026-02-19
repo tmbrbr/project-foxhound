@@ -8,6 +8,9 @@
 newtab-page-title = Nový panel
 newtab-settings-button =
     .title = Přizpůsobení stránky nového panelu
+newtab-customize-panel-icon-button =
+    .title = Přizpůsobte si tuto stránku
+newtab-customize-panel-icon-button-label = Přizpůsobit
 newtab-personalize-settings-icon-label =
     .title = Přizpůsobení nového panelu
     .aria-label = Nastavení
@@ -117,7 +120,8 @@ newtab-menu-delete-pocket = Smazat z { -pocket-brand-name(case: "gen") }
 newtab-menu-archive-pocket = Archivovat do { -pocket-brand-name(case: "gen") }
 newtab-menu-show-privacy-info = Naši sponzoři a vaše soukromí
 newtab-menu-about-fakespot = Co je { -fakespot-brand-name }
-newtab-menu-report-content = Nahlásit tento obsah
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Nahlásit
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
 newtab-menu-section-block = Blokovat
@@ -193,6 +197,8 @@ newtab-label-sponsored-by = Sponzorováno společností { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min.
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponzorováno
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -319,6 +325,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Počasí
     .description = Dnešní předpověď ve zkratce
+newtab-custom-trending-search-toggle =
+    .label = Trendy ve vyhledávání
+    .description = Oblíbená a často vyhledávaná témata
 newtab-custom-close-button = Zavřít
 newtab-custom-settings = Další nastavení
 
@@ -502,6 +511,9 @@ newtab-topic-selection-button-pick-interests = Vyberte, co vás zajímá
 newtab-section-follow-button = Sledovat
 newtab-section-following-button = Sledované
 newtab-section-unfollow-button = Přestat sledovat
+# A modal may appear next to the Follow button, directing users to try out the feature
+newtab-section-follow-highlight-title = Dolaďte si svůj kanál
+newtab-section-follow-highlight-subtitle = Sledujte své zájmy a uvidíte víc toho, co se vám líbí.
 
 ## Button to block/unblock listed topics
 ## "Block", "unblocked", and "blocked" are social media terms that refer to hiding a section of stories.
@@ -560,6 +572,11 @@ newtab-download-mobile-highlight-image =
            *[no-cases] QR kód pro stažení aplikace { -brand-product-name } pro mobilní zařízení
         }
 
+## Strings for shortcuts highlight
+
+newtab-shortcuts-highlight-title = Vaše oblíbené položky na dosah ruky
+newtab-shortcuts-highlight-subtitle = Přidejte si zkratky, abyste měli oblíbené weby dostupné na jedno klepnutí.
+
 ## Strings for reporting ads and content
 
 newtab-report-content-why-reporting-this =
@@ -580,3 +597,18 @@ newtab-report-content-spam-misleading =
     .label = Nevyžádaný příspěvek nebo klamavá zpráva
 newtab-report-cancel = Zrušit
 newtab-report-submit = Odeslat
+newtab-toast-thanks-for-reporting =
+    .message = Děkujeme za nahlášení.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Trendy na Googlu
+newtab-trending-searches-show-trending =
+    .title = Zobrazit populární vyhledávání
+newtab-trending-searches-hide-trending =
+    .title = Skrýt populární vyhledávání
+newtab-trending-searches-learn-more = Zjistit více
+newtab-trending-searches-dismiss = Skrýt populární vyhledávání
+# "Trending searches refers to popular searches from search engines
+newtab-trending-searches-title = Trendy ve vyhledávání

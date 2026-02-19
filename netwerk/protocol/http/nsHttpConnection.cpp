@@ -561,6 +561,23 @@ nsresult nsHttpConnection::Activate(nsAHttpTransaction* trans, uint32_t caps,
   // take ownership of the transaction
   mTransaction = trans;
 
+  // check if this is LNA failure
+  // XXX - This check should be made earlier, possibly in the
+  // DnsAndConnectSocket code to avoid unnecessary operations
+  // See Bug 1968908
+  nsHttpTransaction* httpTrans = mTransaction->QueryHttpTransaction();
+
+  if (httpTrans && httpTrans->Connection() && !mConnInfo->UsingProxy()) {
+    NetAddr peerAddr;
+    httpTrans->Connection()->GetPeerAddr(&peerAddr);
+    if (!httpTrans->AllowedToConnectToIpAddressSpace(
+            peerAddr.GetIpAddressSpace())) {
+      mSocketOutCondition = NS_ERROR_LOCAL_NETWORK_ACCESS_DENIED;
+      CloseTransaction(mTransaction, mSocketOutCondition);
+      return mSocketOutCondition;
+    }
+  }
+
   // Update security callbacks
   nsCOMPtr<nsIInterfaceRequestor> callbacks;
   trans->GetSecurityCallbacks(getter_AddRefs(callbacks));
@@ -637,8 +654,21 @@ nsresult nsHttpConnection::AddTransaction(nsAHttpTransaction* httpTransaction,
   // If this is a wild card nshttpconnection (i.e. a spdy proxy) then
   // it is important to start the stream using the specific connection
   // info of the transaction to ensure it is routed on the right tunnel
-
+  nsHttpTransaction* httpTrans = httpTransaction->QueryHttpTransaction();
   nsHttpConnectionInfo* transCI = httpTransaction->ConnectionInfo();
+  if (httpTrans && !transCI->UsingProxy()) {
+    // this is a httptransaction object, being dispatched into a H2 session
+    // ensure it does not violate local network access.
+    NetAddr peerAddr;
+    if (NS_SUCCEEDED(GetPeerAddr(&peerAddr)) &&
+        !httpTrans->AllowedToConnectToIpAddressSpace(
+            peerAddr.GetIpAddressSpace())) {
+      mSocketOutCondition = NS_ERROR_LOCAL_NETWORK_ACCESS_DENIED;
+      CloseTransaction(httpTransaction, mSocketOutCondition);
+      httpTransaction->Close(mSocketOutCondition);
+      return mSocketOutCondition;
+    }
+  }
 
   bool needTunnel = transCI->UsingHttpsProxy();
   needTunnel = needTunnel && !mHasTLSTransportLayer;
@@ -1679,9 +1709,10 @@ nsresult nsHttpConnection::OnSocketWritable() {
           }
 
           LOG(("  writing transaction request stream\n"));
-          rv = mTransaction->ReadSegmentsAgain(this,
-                                               nsIOService::gDefaultSegmentSize,
-                                               &transactionBytes, &again);
+          RefPtr<nsAHttpTransaction> transaction = mTransaction;
+          rv = transaction->ReadSegmentsAgain(this,
+                                              nsIOService::gDefaultSegmentSize,
+                                              &transactionBytes, &again);
           if (mTlsHandshaker->EarlyDataUsed()) {
             mContentBytesWritten0RTT += transactionBytes;
             if (NS_FAILED(rv) && rv != NS_BASE_STREAM_WOULD_BLOCK) {
@@ -1704,7 +1735,8 @@ nsresult nsHttpConnection::OnSocketWritable() {
          static_cast<uint32_t>(mSocketOutCondition), again));
 
     // XXX some streams return NS_BASE_STREAM_CLOSED to indicate EOF.
-    if (rv == NS_BASE_STREAM_CLOSED && !mTransaction->IsDone()) {
+    if (rv == NS_BASE_STREAM_CLOSED &&
+        (mTransaction && !mTransaction->IsDone())) {
       rv = NS_OK;
       transactionBytes = 0;
     }
@@ -1747,7 +1779,8 @@ nsresult nsHttpConnection::OnSocketWritable() {
       // When Spdy tunnel is used we need to explicitly set when a request is
       // done.
       if ((mState != HttpConnectionState::SETTING_UP_TUNNEL) && !mSpdySession) {
-        nsHttpTransaction* trans = mTransaction->QueryHttpTransaction();
+        nsHttpTransaction* trans =
+            mTransaction ? mTransaction->QueryHttpTransaction() : nullptr;
         // needed for websocket over h2 (direct)
         if (!trans ||
             (!trans->IsWebsocketUpgrade() && !trans->IsForWebTransport())) {
@@ -1852,7 +1885,8 @@ nsresult nsHttpConnection::OnSocketReadable() {
       rv = NS_ERROR_FAILURE;
       LOG(("  No Transaction In OnSocketWritable\n"));
     } else {
-      rv = mTransaction->WriteSegmentsAgain(
+      RefPtr<nsAHttpTransaction> transaction = mTransaction;
+      rv = transaction->WriteSegmentsAgain(
           this, nsIOService::gDefaultSegmentSize, &n, &again);
     }
     LOG(("nsHttpConnection::OnSocketReadable %p trans->ws rv=%" PRIx32

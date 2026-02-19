@@ -786,7 +786,15 @@ static bool ParseZealModeNumericParam(const CharRange& text,
 }
 
 static bool PrintZealHelpAndFail() {
-  fprintf(stderr, "Format: JS_GC_ZEAL=level(;level)*[,N]\n");
+  fprintf(stderr, "Format: JS_GC_ZEAL=mode[;mode2;mode3...][,frequency]\n");
+  fprintf(stderr, "  Examples: JS_GC_ZEAL=2 (mode 2 with default frequency)\n");
+  fprintf(
+      stderr,
+      "            JS_GC_ZEAL=2;7 (modes 2 and 7 with default frequency)\n");
+  fprintf(stderr, "            JS_GC_ZEAL=2,100 (mode 2 with frequency 100)\n");
+  fprintf(stderr,
+          "            JS_GC_ZEAL=2;7,100 (modes 2 and 7, both with frequency "
+          "100)\n");
   fputs(ZealModeHelpText, stderr);
   return false;
 }
@@ -3066,6 +3074,15 @@ Zone::GCState Zone::initialMarkingState() const {
   return MarkBlackOnly;
 }
 
+static bool HasUncollectedNonAtomZones(GCRuntime* gc) {
+  for (ZonesIter zone(gc, SkipAtoms); !zone.done(); zone.next()) {
+    if (!zone->wasGCStarted()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void GCRuntime::beginMarkPhase(AutoGCSession& session) {
   /*
    * Mark phase.
@@ -3141,6 +3158,11 @@ void GCRuntime::beginMarkPhase(AutoGCSession& session) {
     marker().setRootMarkingMode(true);
     traceRuntimeForMajorGC(marker().tracer(), session);
     marker().setRootMarkingMode(false);
+
+    if (atomsZone()->wasGCStarted() && HasUncollectedNonAtomZones(this)) {
+      atomsUsedByUncollectedZones =
+          atomMarking.getOrMarkAtomsUsedByUncollectedZones(this);
+    }
   }
 }
 
@@ -3509,6 +3531,8 @@ void GCRuntime::finishCollection(JS::GCReason reason) {
     zone->gcNextGraphComponent = nullptr;
   }
 
+  atomsUsedByUncollectedZones.ref().reset();
+
 #ifdef JS_GC_ZEAL
   clearSelectedForMarking();
 #endif
@@ -3544,6 +3568,8 @@ void GCRuntime::checkGCStateNotInUse() {
 
   MOZ_ASSERT(zonesToMaybeCompact.ref().isEmpty());
   MOZ_ASSERT(cellsToAssertNotGray.ref().empty());
+
+  MOZ_ASSERT(!atomsUsedByUncollectedZones.ref());
 
   AutoLockHelperThreadState lock;
   MOZ_ASSERT(!requestSliceAfterBackgroundTask);
@@ -3777,6 +3803,8 @@ GCRuntime::IncrementalResult GCRuntime::resetIncrementalGC(
           zone->bufferAllocator.finishMajorCollection(lock);
         }
       }
+
+      atomsUsedByUncollectedZones.ref().reset();
 
       {
         AutoLockHelperThreadState lock;
@@ -4734,13 +4762,6 @@ struct MOZ_RAII AutoSetZoneSliceThresholds {
 
 void GCRuntime::collect(bool nonincrementalByAPI, const SliceBudget& budget,
                         JS::GCReason reason) {
-  TimeStamp startTime = TimeStamp::Now();
-  auto timer = MakeScopeExit([&] {
-    if (Realm* realm = rt->mainContextFromOwnThread()->realm()) {
-      realm->timers.gcTime += TimeStamp::Now() - startTime;
-    }
-  });
-
   auto clearGCOptions = MakeScopeExit([&] {
     if (!isIncrementalGCInProgress()) {
       maybeGcOptions = Nothing();

@@ -264,11 +264,11 @@ mozilla::ipc::IPCResult DocAccessibleChild::RecvDoActionAsync(
 mozilla::ipc::IPCResult DocAccessibleChild::RecvSetTextSelection(
     const uint64_t& aStartID, const int32_t& aStartOffset,
     const uint64_t& aEndID, const int32_t& aEndOffset,
-    const int32_t& aSelectionNum) {
+    const int32_t& aSelectionNum, const bool& aSetFocus) {
   TextLeafRange range(TextLeafPoint(IdToAccessible(aStartID), aStartOffset),
                       TextLeafPoint(IdToAccessible(aEndID), aEndOffset));
   if (range) {
-    range.SetSelection(aSelectionNum);
+    range.SetSelection(aSelectionNum, aSetFocus);
   }
 
   return IPC_OK();
@@ -386,7 +386,6 @@ mozilla::ipc::IPCResult DocAccessibleChild::RecvScrollToPoint(
 }
 
 LayoutDeviceIntRect DocAccessibleChild::GetCaretRectFor(const uint64_t& aID) {
-#if defined(XP_WIN)
   LocalAccessible* target;
 
   if (aID) {
@@ -402,13 +401,13 @@ LayoutDeviceIntRect DocAccessibleChild::GetCaretRectFor(const uint64_t& aID) {
     return LayoutDeviceIntRect();
   }
 
-  nsIWidget* widget = nullptr;
-  return text->GetCaretRect(&widget);
-#else
-  // The caret rect is only used on Windows, so just return an empty rect
-  // on other platforms.
-  return LayoutDeviceIntRect();
-#endif  // defined(XP_WIN)
+  LayoutDeviceIntRect rect = text->GetCaretRect().first;
+
+  // Remove doc offset and reapply in parent.
+  LayoutDeviceIntRect docBounds = mDoc->Bounds();
+  rect.MoveBy(-docBounds.X(), -docBounds.Y());
+
+  return rect;
 }
 
 bool DocAccessibleChild::SendFocusEvent(const uint64_t& aID) {
