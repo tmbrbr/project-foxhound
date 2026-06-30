@@ -1,0 +1,58 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Test document.write Taint Sinks</title>
+    <script src="/tests/SimpleTest/SimpleTest.js"></script>
+    <link rel="stylesheet" href="/tests/SimpleTest/test.css"/>
+    <script>
+
+      let string_content = "hello";
+      let sink_names = [
+        "document.write",
+        "document.writeln",
+      ];
+
+      // document.write/writeln trigger a destructive document.open() that removes
+      // the taint report listeners from the window they run on, so they cannot be
+      // observed on the page that calls them. They are instead exercised inside a
+      // throwaway about:blank iframe: because that document's location is about:,
+      // Foxhound dispatches the __taintreport event to the parent window (this
+      // page), whose listeners survive the iframe teardown. String.tainted() only
+      // marks taint once a document has loaded, so the tainted string and the
+      // writes are produced by the iframe's own (post-load) script.
+      SimpleTest.waitForExplicitFinish();
+
+      let i = 0;
+      addEventListener("__taintreport", (report) => {
+        SimpleTest.is(report.detail.sink, sink_names[i],
+                      `Sink ${report.detail.sink} matches expected ${sink_names[i]}`);
+        SimpleTest.is(report.detail.str, string_content, "Check sink string content");
+        SimpleTest.ok(report.detail.str.taint.length > 0, "Reported string is tainted");
+
+        i += 1;
+        if (i >= sink_names.length) {
+          SimpleTest.finish();
+        }
+      }, false);
+
+      window.addEventListener("load", () => {
+        let frame = document.createElement("iframe");
+        document.body.appendChild(frame);
+        let frameDoc = frame.contentDocument;
+        let script = frameDoc.createElement("script");
+        script.textContent =
+          "let taint_string = String.tainted('" + string_content + "');" +
+          "document.write(taint_string);" +
+          "document.writeln(taint_string);";
+        frameDoc.body.appendChild(script);
+      });
+
+    </script>
+  </head>
+  <body>
+    <p id="display"></p>
+    <div id="content" style="display: none"></div>
+    <p id="test"></p>
+  </body>
+</html>
