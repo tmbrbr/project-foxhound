@@ -8,9 +8,11 @@
     <script>
 
       let string_content = "hello";
+      // document.write and document.writeln are deliberately not tested here:
+      // String.tainted() only marks taint once the document has loaded, but
+      // calling document.write/writeln at that point performs a destructive
+      // document.open() that tears down the page and its taint report listeners.
       let sink_names = [
-        "document.write",
-        "document.writeln",
         "innerHTML",
         "outerHTML",
         "insertAdjacentHTML",
@@ -29,43 +31,44 @@
 
       setupSinkChecks(sink_names, strings, 2);
 
-      let taint_string = String.tainted(string_content);
+      // The sinks operate on elements in the document and rely on String.tainted()
+      // producing a tainted string, both of which require the document to have
+      // finished loading, so the sinks run on load.
+      function startTest() {
+        let taint_string = String.tainted(string_content);
 
-      document.write(taint_string);
-      document.writeln(taint_string);
+        const d1 = document.createElement("div");
+        d1.innerHTML = taint_string;
 
-      const d1 = document.createElement("div");
-      d1.innerHTML = taint_string;
+        let p = document.createElement("p");
+        document.body.appendChild(p);
+        p.outerHTML = taint_string;
 
-      let p = document.createElement("p");
-      document.body.appendChild(p);
-      p.outerHTML = taint_string;
+        p.insertAdjacentHTML("beforeend", taint_string);
+        p.insertAdjacentText("afterbegin", taint_string);
 
-      p.insertAdjacentHTML("beforeend", taint_string);
-      p.insertAdjacentText("afterbegin", taint_string);
+        let embed = document.createElement("embed");
+        embed.src = taint_string;
 
-      let embed = document.createElement("embed");
-      embed.src = taint_string;
+        let media = document.createElement("audio");
+        media.src = taint_string;
 
-      let media = document.createElement("audio");
-      media.src = taint_string;
+        let track = document.createElement("track");
+        track.src = taint_string;
 
-      let track = document.createElement("track");
-      track.src = taint_string;
+        let range = document.createRange();
+        let fragment = range.createContextualFragment(taint_string);
 
-      let range = document.createRange();
-      let fragment = range.createContextualFragment(taint_string);
+        new EventSource(taint_string);
 
-      new EventSource(taint_string);
+        // TODO: Find out why this doesn't work / if this calls Element::SetEventHandler in dom/base/Element.cpp
+        let button = document.createElement("button");
+        button.onclick = taint_string;
+      }
 
-      // TODO: Find out why this doesn't work / if this calls Element::SetEventHandler in dom/base/Element.cpp
-      let button = document.createElement("button");
-      button.onclick = taint_string;
-
-      
     </script>
   </head>
-  <body>
+  <body onload="startTest();">
     <p id="display"></p>
     <div id="content" style="display: none"></div>
     <p id="test"></p>
